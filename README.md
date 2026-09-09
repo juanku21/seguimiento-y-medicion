@@ -1,6 +1,6 @@
 # Software Metrics & Estimation
 
-Software Metrics & Estimation es un sistema diseñado para la estimación, seguimiento, medición y control de proyectos de software[cite: 1]. La plataforma centraliza la administración del flujo de trabajo, la estimación del volumen de tareas, el registro del tiempo invertido, la trazabilidad de defectos y el cálculo automático de indicadores de rendimiento y calidad[cite: 1].
+Software Metrics & Estimation es un sistema diseñado para la estimación, seguimiento, medición y control de proyectos de software. La plataforma centraliza la administración del flujo de trabajo, la estimación del volumen de tareas, el registro del tiempo invertido, la trazabilidad de defectos y el cálculo automático de indicadores de rendimiento y calidad.
 
 ---
 
@@ -22,60 +22,60 @@ Software Metrics & Estimation es un sistema diseñado para la estimación, segui
 
 ## Descripción General
 
-El sistema ofrece una solución integral para gestionar el ciclo de vida de proyectos de software[cite: 1]. Permite coordinar actividades entre colaboradores, evaluar la precisión de las estimaciones frente al esfuerzo real ejecutado y monitorear la salud global del proyecto mediante herramientas visuales y reportes consolidados[cite: 1].
+El sistema ofrece una solución integral para gestionar el ciclo de vida de proyectos de software. Permite coordinar actividades entre colaboradores, evaluar la precisión de las estimaciones frente al esfuerzo real ejecutado y monitorear la salud global del proyecto mediante herramientas visuales y reportes consolidados.
 
 ---
 
 ## Funcionalidades del Sistema
 
 ### Gestión de Proyectos e Integrantes
-- Alta, edición y seguimiento del estado general de proyectos[cite: 1].
-- Registro de integrantes asociados a cada proyecto[cite: 1].
-- Control de fechas de inicio y estimación de finalización[cite: 1].
+- Alta, edición y seguimiento del estado general de proyectos.
+- Registro de integrantes asociados a cada proyecto.
+- Control de fechas de inicio y estimación de finalización.
 
 ### Administración del Backlog
-- Registro estructurado de tareas e historias con identificador, título, descripción y criterios de aceptación[cite: 1].
-- Clasificación por prioridades y estados[cite: 1].
-- Dimensionamiento de trabajo mediante puntos de estimación[cite: 1].
+- Registro estructurado de tareas e historias con identificador, título, descripción y criterios de aceptación.
+- Clasificación por prioridades y estados.
+- Dimensionamiento de trabajo mediante puntos de estimación.
 
 ### Planificación y Control de Iteraciones
-- Creación, seguimiento y cierre de períodos de trabajo[cite: 1].
-- Definición de metas para cada ciclo[cite: 1].
-- Asignación de tareas a iteraciones específicas y registro de elementos completados[cite: 1].
-- Consulta e historial de ciclos anteriores[cite: 1].
+- Creación, seguimiento y cierre de períodos de trabajo.
+- Definición de metas para cada ciclo.
+- Asignación de tareas a iteraciones específicas y registro de elementos completados.
+- Consulta e historial de ciclos anteriores.
 
 ### Estimación Colaborativa
-- Mecanismo de votación individual que mantiene las estimaciones ocultas hasta finalizar la ronda[cite: 1].
-- Visualización simultánea de puntajes y detección automática de diferencias en las valoraciones del equipo[cite: 1].
-- Soporte para múltiples rondas de votación hasta alcanzar un acuerdo e ingresar la estimación definitiva[cite: 1].
+- Mecanismo de votación individual que mantiene las estimaciones ocultas hasta finalizar la ronda.
+- Visualización simultánea de puntajes y detección automática de diferencias en las valoraciones del equipo.
+- Soporte para múltiples rondas de votación hasta alcanzar un acuerdo e ingresar la estimación definitiva.
 
 ### Registro de Esfuerzo
-- Carga de actividades asociadas a integrantes, fechas y horas trabajadas[cite: 1].
-- Comparación cuantitativa entre el tiempo estimado inicialmente y el tiempo real dedicado[cite: 1].
+- Carga de actividades asociadas a integrantes, fechas y horas trabajadas.
+- Comparación cuantitativa entre el tiempo estimado inicialmente y el tiempo real dedicado.
 
 ### Gestión de Defectos
-- Registro de incidencias con descripción, nivel de severidad y estado de resolución[cite: 1].
-- Vinculación directa con la tarea o historia afectada[cite: 1].
-- Seguimiento y trazabilidad entre el ciclo de detección del problema y el ciclo de su resolución[cite: 1].
+- Registro de incidencias con descripción, nivel de severidad y estado de resolución.
+- Vinculación directa con la tarea o historia afectada.
+- Seguimiento y trazabilidad entre el ciclo de detección del problema y el ciclo de su resolución.
 
 ---
 
 ## Análisis de Métricas
 
-La aplicación calcula continuamente indicadores para medir la eficiencia y calidad del desarrollo[cite: 1]:
+La aplicación calcula continuamente indicadores para medir la eficiencia y calidad del desarrollo:
 
-- **Volumen de Trabajo:** Comparativa entre la cantidad de puntos planificados y los completados[cite: 1].
-- **Velocidad:** Medición del ritmo de entrega alcanzado por el equipo[cite: 1].
-- **Desviación de Tiempo:** Diferencia porcentual y directa entre horas estimadas y horas reales registradas[cite: 1].
-- **Porcentaje de Avance:** Proporción de historias de usuario completadas sobre el total previsto[cite: 1].
-- **Control de Incidencias:** Cantidad de defectos detectados frente a los resueltos[cite: 1].
+- **Volumen de Trabajo:** Comparativa entre la cantidad de puntos planificados y los completados.
+- **Velocidad:** Medición del ritmo de entrega alcanzado por el equipo.
+- **Desviación de Tiempo:** Diferencia porcentual y directa entre horas estimadas y horas reales registradas.
+- **Porcentaje de Avance:** Proporción de historias de usuario completadas sobre el total previsto.
+- **Control de Incidencias:** Cantidad de defectos detectados frente a los resueltos.
 
 ---
 
 ## Panel de Control y Reportes
 
-- **Panel de Control (Dashboard):** Muestra de forma visual el estado del proyecto e indicadores clave del progreso[cite: 1].
-- **Reportes Exportables:** Generación de informes detallados por proyecto o por ciclo, con el desglose de tareas, métricas, registro de tiempo y balance de defectos en formato PDF[cite: 1].
+- **Panel de Control (Dashboard):** Muestra de forma visual el estado del proyecto e indicadores clave del progreso.
+- **Reportes Exportables:** Generación de informes detallados por proyecto o por ciclo, con el desglose de tareas, métricas, registro de tiempo y balance de defectos en formato PDF.
 
 ---
 

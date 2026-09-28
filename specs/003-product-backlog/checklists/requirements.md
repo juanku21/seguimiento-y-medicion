@@ -58,6 +58,12 @@ a la planificación
   abierto no puede quedar sin Story Points ni sin criterios de aceptación (FR-018, FR-022, RN-18 y
   RC-09), junto con dos escenarios de error en US4 y US5 y una fila en Condiciones de Error. La
   decisión se tomó al especificar la feature de sprints y quedó registrada en Clarifications.
+- Iteración 4 de validación (2026-09-26, enmienda por `specs/005-planning-poker`): 17/17 ítems en
+  verde, sin regresiones. El historial de estimación por Planning Poker pasa a ser una cuarta condición
+  que bloquea la eliminación de una historia (FR-041, FR-043, RN-16 y RC-10), con un escenario de error
+  nuevo en US6, una fila nueva en Condiciones de Error y SC-011 ampliado a los cuatro tipos de
+  historial. La decisión se tomó al especificar la feature de Planning Poker y quedó registrada en
+  Clarifications.
 - Consistencia verificada con `specs/002-project-members`: los estados de historia que informa la
   vista de estado del proyecto y el cálculo de horas estimadas (Story Points × factor) se apoyan en
   las definiciones de esta spec (RC-07).

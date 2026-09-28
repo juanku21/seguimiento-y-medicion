@@ -6,7 +6,7 @@
 
 **Creada**: 2026-09-25
 
-**Estado**: Clarificada — sin preguntas abiertas (sesión de clarificación del 2026-09-25; enmendada el 2026-09-25 por `specs/004-sprint-management`)
+**Estado**: Clarificada — sin preguntas abiertas (sesión de clarificación del 2026-09-25; enmendada el 2026-09-25 por `specs/004-sprint-management` y el 2026-09-26 por `specs/005-planning-poker`)
 
 **Entrada**: Descripción del usuario: "Product Backlog para Software Metrics & Estimation, un sistema
 web multiusuario para estimar, planificar, seguir y medir proyectos de software con Scrum. Depende
@@ -38,6 +38,10 @@ todos a partir de las historias que viven acá.
 - Q: ¿Quién puede eliminar una historia del backlog? (FR-042) → A: cualquier integrante del proyecto, igual que crear, modificar y estimar.
 - Q: ¿Qué pasa cuando dos integrantes modifican la misma historia al mismo tiempo? (FR-025) → A: gana la última escritura campo por campo; dos personas que tocan campos distintos no chocan y solo se pisan si editan el mismo campo.
 - Q: ¿Puede una historia ya comprometida en un sprint quedar sin Story Points o sin criterios de aceptación? (FR-018, FR-022) → A: no; mientras esté comprometida en un sprint abierto el cambio se rechaza y hay que quitarla del sprint primero. Decisión tomada al especificar `specs/004-sprint-management` y reflejada acá.
+
+### Session 2026-09-26
+
+- Q: ¿Se puede eliminar una historia que tiene sesiones de estimación por Planning Poker? (FR-041, FR-043) → A: no; el historial de estimación se suma como cuarta condición que bloquea la eliminación, junto con haber estado en un sprint, tener esfuerzo registrado y tener defectos asociados. Vale tanto para las sesiones Finalizadas como para las Canceladas. Decisión tomada al especificar `specs/005-planning-poker` y reflejada acá (RN-16, RC-10).
 
 ---
 
@@ -93,7 +97,7 @@ todos a partir de las historias que viven acá.
 | Entradas | Salidas esperadas |
 | --- | --- |
 | Sesión de un integrante e identificador de la historia | **Éxito**: la historia deja de existir y desaparece del backlog |
-| | **Historia con historial**: rechazo indicando que estuvo asignada a un sprint o que tiene esfuerzo o defectos asociados; la historia no se toca |
+| | **Historia con historial**: rechazo indicando que estuvo asignada a un sprint, que tiene esfuerzo o defectos asociados o que tiene sesiones de estimación; la historia no se toca |
 | | **Proyecto Finalizado**: rechazo por backlog de solo lectura |
 | | **Quien pide no es integrante**: respuesta de historia inexistente |
 
@@ -364,13 +368,16 @@ rechaza.
 6. *(Caso de error)* **Dado** una historia que tiene esfuerzo registrado o defectos asociados,
    **cuando** un integrante intenta eliminarla, **entonces** la eliminación se rechaza indicando qué
    historial se lo impide y la historia no se modifica.
-7. *(Caso de error)* **Dado** un proyecto en estado Finalizado, **cuando** un integrante intenta
+7. *(Caso de error)* **Dado** una historia que nunca estuvo en un sprint pero tiene una sesión de
+   estimación por Planning Poker, Finalizada o Cancelada, **cuando** un integrante intenta eliminarla,
+   **entonces** la eliminación se rechaza indicando que tiene historial de estimación asociado.
+8. *(Caso de error)* **Dado** un proyecto en estado Finalizado, **cuando** un integrante intenta
    eliminar una historia de su backlog, **entonces** la acción se rechaza porque el backlog es de solo
    lectura.
-8. *(Caso de error)* **Dado** una historia de un proyecto del que no soy integrante, **cuando** intento
+9. *(Caso de error)* **Dado** una historia de un proyecto del que no soy integrante, **cuando** intento
    eliminarla, **entonces** la respuesta es de historia inexistente y la historia no se toca.
-9. *(Caso de error)* **Dado** una historia ya eliminada, **cuando** un integrante intenta eliminarla de
-   nuevo, **entonces** obtiene una respuesta de historia inexistente.
+10. *(Caso de error)* **Dado** una historia ya eliminada, **cuando** un integrante intenta eliminarla de
+    nuevo, **entonces** obtiene una respuesta de historia inexistente.
 
 ---
 
@@ -533,11 +540,12 @@ rechaza.
 **Eliminación**
 
 - **FR-041**: El sistema DEBE permitir eliminar una historia únicamente cuando nunca fue asignada a un
-  sprint y no tiene esfuerzo registrado ni defectos asociados.
+  sprint, no tiene esfuerzo registrado, no tiene defectos asociados y no tiene ninguna sesión de
+  estimación por Planning Poker, sea Finalizada o Cancelada (ver RC-10).
 - **FR-042**: El sistema DEBE permitir eliminar una historia a cualquier integrante del proyecto, sin
   importar quién la creó ni si es el propietario del proyecto.
 - **FR-043**: El sistema DEBE rechazar la eliminación de una historia con historial asociado,
-  indicando cuál de las tres condiciones se lo impide, sin modificar la historia.
+  indicando cuál de las cuatro condiciones se lo impide, sin modificar la historia.
 - **FR-044**: Una historia eliminada DEBE desaparecer del backlog y de toda consulta posterior; un
   intento de operar sobre ella se responde como historia inexistente.
 
@@ -578,7 +586,7 @@ rechaza.
 | RN-13 | Solo las historias listas para planificar pueden asignarse a un sprint. |
 | RN-14 | Una historia Completada no se modifica ni se reestima. |
 | RN-15 | En un proyecto Finalizado el backlog es de solo lectura. |
-| RN-16 | Una historia solo se elimina si nunca estuvo en un sprint y no tiene esfuerzo ni defectos asociados. |
+| RN-16 | Una historia solo se elimina si nunca estuvo en un sprint, no tiene esfuerzo ni defectos asociados y no tiene ninguna sesión de estimación por Planning Poker. |
 | RN-17 | El backlog se ordena por prioridad de Alta a Baja y, a igual prioridad, por fecha de creación ascendente. |
 | RN-18 | Una historia comprometida en un sprint abierto no puede quedar sin Story Points ni sin criterios de aceptación; para eso hay que quitarla antes del sprint. |
 
@@ -597,9 +605,10 @@ rechaza.
   feature de sprints. Esta feature registra y muestra el estado, y bloquea la modificación de las
   historias Completadas, pero no provoca ninguna transición. En consecuencia, una historia que no
   pertenece a ningún sprint permanece siempre en Pendiente.
-- **RC-05**: Las tres condiciones que bloquean la eliminación (haber estado en un sprint, tener
-  esfuerzo registrado, tener defectos asociados) son datos que producen las features de sprints,
-  esfuerzo y defectos. Esta feature consulta su existencia; no las genera.
+- **RC-05**: Las cuatro condiciones que bloquean la eliminación (haber estado en un sprint, tener
+  esfuerzo registrado, tener defectos asociados, tener sesiones de estimación por Planning Poker) son
+  datos que producen las features de sprints, esfuerzo, defectos y Planning Poker. Esta feature consulta
+  su existencia; no las genera. La cuarta se detalla en RC-10.
 - **RC-06**: La estimación colaborativa por Planning Poker es una feature propia que actualiza el
   mismo valor de Story Points definido acá, respetando la misma escala y las mismas restricciones de
   estado.
@@ -615,6 +624,11 @@ rechaza.
   `specs/004-sprint-management` (su FR-018 y RN-22) para que ningún sprint llegue al cierre con
   historias a medio definir, y esta spec la refleja en FR-018 y FR-022. Saber si una historia está
   comprometida es un dato que produce la feature de sprints.
+- **RC-10**: La cuarta condición que bloquea la eliminación —tener al menos una sesión de estimación por
+  Planning Poker, Finalizada o Cancelada— la impone `specs/005-planning-poker` (su FR-089 y RN-33) para
+  que el historial de rondas y votos, que forma parte de los reportes de estimación, no se pierda al
+  borrar una historia. Saber si una historia tiene sesiones de estimación es un dato que produce esa
+  feature. Decisión tomada al especificar `specs/005-planning-poker` y reflejada acá.
 ---
 
 ### Condiciones de Error
@@ -633,6 +647,7 @@ rechaza.
 | Quitar los Story Points o el último criterio de aceptación a una historia comprometida en un sprint abierto | Rechazo indicando que primero hay que quitarla del sprint; la historia no cambia. |
 | Eliminación de una historia que estuvo en un sprint | Rechazo indicando que tiene historial de planificación. |
 | Eliminación de una historia con esfuerzo registrado o defectos asociados | Rechazo indicando qué historial se lo impide. |
+| Eliminación de una historia con al menos una sesión de estimación por Planning Poker | Rechazo indicando que tiene historial de estimación asociado. |
 | Cualquier acción de escritura sobre el backlog de un proyecto Finalizado | Rechazo por backlog de solo lectura. |
 | Filtro de estado o prioridad con un valor inexistente | Rechazo indicando los valores admitidos para ese filtro. |
 | Filtros válidos que no coinciden con ninguna historia | Listado vacío con los filtros aplicados; no es un error. |
@@ -696,9 +711,9 @@ rechaza.
   menos un criterio de aceptación, y ninguna historia que cumpla ambas condiciones queda sin marcar.
 - **SC-010**: Cero historias Completadas modificadas o reestimadas, verificado intentando cada
   operación de escritura sobre una historia Completada.
-- **SC-011**: Cero registros de esfuerzo, defectos o historial de sprints perdidos por la eliminación
-  de una historia, verificado intentando eliminar historias con cada uno de los tres tipos de
-  historial.
+- **SC-011**: Cero registros de esfuerzo, defectos, historial de sprints o historial de estimación
+  perdidos por la eliminación de una historia, verificado intentando eliminar historias con cada uno de
+  los cuatro tipos de historial.
 - **SC-012**: El 100 % de las acciones de escritura sobre el backlog de un proyecto Finalizado se
   rechaza, sin producir ningún cambio.
 - **SC-013**: En el 100 % de las parejas de modificaciones simultáneas sobre campos distintos de la

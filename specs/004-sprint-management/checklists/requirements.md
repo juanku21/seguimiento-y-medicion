@@ -17,7 +17,7 @@ a la planificación
 - [x] No quedan marcadores [NEEDS CLARIFICATION] — los 3 que quedaban (FR-025, FR-029 y FR-048) se
       resolvieron con el usuario el 2026-09-25
 - [x] Los requisitos son verificables y no ambiguos (FR-001 a FR-060, numeración continua y sin
-      saltos)
+      saltos; FR-048 enmendado el 2026-10-02)
 - [x] Los criterios de éxito son medibles (SC-001 a SC-017)
 - [x] Los criterios de éxito son independientes de la tecnología
 - [x] Todos los escenarios de aceptación están definidos (US1 a US7, 75 escenarios, cada historia con
@@ -43,6 +43,12 @@ a la planificación
   1. Ninguna acción sobre los sprints cambia el estado del proyecto (FR-029, FR-049, RN-07).
   2. Un sprint Planificado que nunca fue iniciado puede eliminarse (FR-048, RN-20).
   3. Una historia Completada no puede quitarse de su sprint (FR-025, RN-21).
+- Iteración 4 (2026-10-02, enmienda derivada de `specs/006-effort-tracking`): 16/16 ítems en verde,
+  sin regresiones. Un sprint Planificado que nunca fue iniciado ya no es eliminable sin más: la
+  eliminación se rechaza mientras tenga registros de esfuerzo asociados, porque esos registros están
+  anclados a él de forma inmutable y borrarlos destruiría horas reales. Alcanza a FR-048, RN-20,
+  RC-10 (nuevo), SC-016, el escenario 14 de US7, la tabla de entradas y salidas de la eliminación,
+  la de condiciones de error, los casos límite y el supuesto "Eliminar un sprint es definitivo".
 - Iteración 3 (2026-09-25, `/speckit-clarify`): 16/16 ítems en verde, sin regresiones. Se cerraron
   tres ambigüedades nuevas que el barrido detectó:
   4. La instantánea guarda los Story Points comprometidos al inicio y los planificados al cierre; su

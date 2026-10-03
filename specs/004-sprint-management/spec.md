@@ -6,7 +6,8 @@
 
 **Creada**: 2026-09-25
 
-**Estado**: Clarificada — sin preguntas abiertas (sesión de clarificación del 2026-09-25)
+**Estado**: Clarificada — sin preguntas abiertas (sesión de clarificación del 2026-09-25; enmendada
+el 2026-10-02 a partir de `specs/006-effort-tracking`)
 
 **Entrada**: Descripción del usuario: "Gestión de Sprints para Software Metrics & Estimation, un
 sistema web multiusuario para estimar, planificar, seguir y medir proyectos de software con Scrum.
@@ -43,6 +44,10 @@ entre sprints sería confiable.
 - Q: ¿Los "Story Points planificados" de un sprint se miden con las historias que tenía al iniciarse o con las que tiene al cerrarse? (FR-043) → A: ambos; la instantánea guarda los Story Points comprometidos al iniciar y los planificados al cerrar, y su diferencia expresa el cambio de alcance.
 - Q: ¿Qué pasa si alguien le saca los Story Points o los criterios de aceptación a una historia ya comprometida en un sprint? (FR-018) → A: se rechaza el cambio; mientras la historia esté comprometida en un sprint abierto no puede dejar de estar lista para planificar.
 - Q: En el historial de sprints cerrados, ¿las fechas que se muestran son las previstas o las reales? (FR-051) → A: ambas; el historial muestra las fechas previstas y las reales de arranque y cierre, y la instantánea congela las cuatro.
+
+### Session 2026-10-02 — enmienda derivada de `specs/006-effort-tracking`
+
+- Q: ¿Se puede eliminar un sprint Planificado que nunca fue iniciado pero que ya tiene esfuerzo registrado sobre sus historias? (FR-048) → A: no; mientras el sprint tenga registros de esfuerzo asociados la eliminación se rechaza, porque esos registros quedarían sin el sprint al que están anclados y el esfuerzo del proyecto dejaría de poder leerse por sprint. Si el equipo igual quiere descartarlo, primero los autores deben eliminar sus registros. Decisión tomada al especificar `specs/006-effort-tracking` (su RC-07) y reflejada acá en FR-048, RN-20 y RC-10.
 
 ---
 
@@ -107,6 +112,7 @@ entre sprints sería confiable.
 | --- | --- |
 | Sesión de un integrante e identificador de un sprint Planificado que nunca fue iniciado | **Éxito**: el sprint deja de existir, su período queda libre y sus historias comprometidas vuelven al backlog en estado Pendiente y sin sprint |
 | | **Sprint Activo o Cerrado**: rechazo indicando que solo se elimina un sprint que nunca arrancó |
+| | **Sprint con esfuerzo registrado asociado**: rechazo indicando que primero hay que eliminar esos registros; el sprint no se toca |
 | | **Proyecto Finalizado**: rechazo por proyecto de solo lectura |
 | | **Quien pide no es integrante**: respuesta de sprint inexistente |
 
@@ -431,21 +437,28 @@ que los mismos intentos sobre un sprint Activo se rechazan.
 7. *(Caso límite)* **Dado** una historia que estuvo comprometida en un sprint que después se eliminó,
    **cuando** un integrante intenta eliminar esa historia del backlog, **entonces** la eliminación se
    rechaza, porque la historia ya estuvo asignada a un sprint alguna vez.
-8. *(Caso de error)* **Dado** un sprint Planificado, **cuando** un integrante intenta dejar el nombre
+8. *(Caso límite)* **Dado** un sprint Planificado que tenía un único registro de esfuerzo asociado,
+   **cuando** su autor elimina ese registro y después un integrante elimina el sprint, **entonces**
+   la eliminación del sprint se acepta, porque ya no quedan registros anclados a él.
+9. *(Caso de error)* **Dado** un sprint Planificado, **cuando** un integrante intenta dejar el nombre
    o el Sprint Goal vacíos, poner una fecha de fin anterior o igual a la de inicio, o un Sprint Goal
    de más de 500 caracteres, **entonces** la modificación se rechaza indicando el motivo y no se
    aplica ningún cambio parcial.
-9. *(Caso de error)* **Dado** un sprint Planificado, **cuando** un integrante intenta moverlo a un
-   período que se superpone con otro sprint del proyecto, **entonces** la modificación se rechaza
-   indicando con cuál se superpone.
-10. *(Caso de error)* **Dado** un sprint Activo, **cuando** un integrante intenta modificar sus datos,
+10. *(Caso de error)* **Dado** un sprint Planificado, **cuando** un integrante intenta moverlo a un
+    período que se superpone con otro sprint del proyecto, **entonces** la modificación se rechaza
+    indicando con cuál se superpone.
+11. *(Caso de error)* **Dado** un sprint Activo, **cuando** un integrante intenta modificar sus datos,
     **entonces** la acción se rechaza indicando que solo se modifica un sprint Planificado.
-11. *(Caso de error)* **Dado** un sprint Cerrado, **cuando** un integrante intenta modificar sus datos,
+12. *(Caso de error)* **Dado** un sprint Cerrado, **cuando** un integrante intenta modificar sus datos,
     **entonces** la acción se rechaza porque un sprint cerrado no admite cambios.
-12. *(Caso de error)* **Dado** un sprint Activo o uno Cerrado, **cuando** un integrante intenta
+13. *(Caso de error)* **Dado** un sprint Activo o uno Cerrado, **cuando** un integrante intenta
     eliminarlo, **entonces** la acción se rechaza indicando que solo se elimina un sprint que nunca
     fue iniciado.
-13. *(Caso de error)* **Dado** un sprint ya eliminado, **cuando** un integrante intenta operarlo,
+14. *(Caso de error)* **Dado** un sprint Planificado que nunca fue iniciado pero sobre cuyas historias
+    ya se registró esfuerzo, **cuando** un integrante intenta eliminarlo, **entonces** la acción se
+    rechaza indicando que el sprint tiene esfuerzo registrado y que primero hay que eliminar esos
+    registros; el sprint y sus historias comprometidas no cambian.
+15. *(Caso de error)* **Dado** un sprint ya eliminado, **cuando** un integrante intenta operarlo,
     **entonces** obtiene una respuesta de sprint inexistente.
 
 ---
@@ -488,6 +501,10 @@ que los mismos intentos sobre un sprint Activo se rechazan.
   fechas del sprint con las del proyecto.
 - **Sprint Planificado que el equipo decide no usar**: se elimina, lo que libera su período y devuelve
   sus historias al backlog. Un sprint que ya arrancó no se elimina nunca.
+- **Sprint Planificado con esfuerzo ya registrado sobre sus historias**: no se elimina mientras
+  queden esos registros, aunque nunca haya arrancado, porque están anclados a él. Si el equipo igual
+  quiere descartarlo, cada autor elimina primero sus registros y después el sprint se vuelve
+  eliminable.
 - **Quitar de un sprint una historia ya Completada**: se rechaza; hay que devolverla antes a En
   progreso, de modo que dar por no terminada una historia sea siempre un acto explícito.
 - **Sprint Activo en un proyecto todavía Planificado**: situación posible y aceptada, porque iniciar
@@ -625,9 +642,12 @@ que los mismos intentos sobre un sprint Activo se rechazan.
 - **FR-047**: El sistema DEBE admitir únicamente las transiciones de sprint Planificado → Activo y
   Activo → Cerrado, y rechazar cualquier otra indicando la transición permitida.
 - **FR-048**: El sistema DEBE permitir a cualquier integrante eliminar un sprint en estado Planificado
-  que nunca fue iniciado. La eliminación DEBE devolver sus historias comprometidas al backlog en
-  estado Pendiente y sin sprint, y DEBE liberar su período para otros sprints. El sistema DEBE
-  rechazar la eliminación de un sprint Activo o Cerrado, para no destruir registro de trabajo real.
+  que nunca fue iniciado y que no tenga ningún registro de esfuerzo asociado. La eliminación DEBE
+  devolver sus historias comprometidas al backlog en estado Pendiente y sin sprint, y DEBE liberar su
+  período para otros sprints. El sistema DEBE rechazar la eliminación de un sprint Activo o Cerrado,
+  y la de un sprint Planificado con esfuerzo registrado asociado, para no destruir registro de
+  trabajo real. En este último caso el rechazo DEBE indicar que primero hay que eliminar esos
+  registros, lo que hace cada autor sobre los suyos según `specs/006-effort-tracking`.
 - **FR-049**: Ninguna acción de esta feature DEBE modificar el estado del proyecto, ni al crear, ni al
   iniciar, ni al cerrar, ni al eliminar un sprint.
 
@@ -688,7 +708,7 @@ que los mismos intentos sobre un sprint Activo se rechazan.
 | RN-17 | Una historia no completada puede planificarse de nuevo en un sprint posterior, y su historial muestra todos los sprints en que estuvo. |
 | RN-18 | El estado Cerrado es definitivo: un sprint cerrado no se reabre, no se modifica y no admite cambios en sus historias. |
 | RN-19 | En un proyecto Finalizado los sprints son de solo lectura. |
-| RN-20 | Un sprint Planificado que nunca fue iniciado puede eliminarse; un sprint Activo o Cerrado, no. |
+| RN-20 | Un sprint Planificado que nunca fue iniciado y no tiene esfuerzo registrado asociado puede eliminarse; un sprint Activo o Cerrado, no, y uno con esfuerzo asociado tampoco hasta que esos registros se eliminen. |
 | RN-21 | Una historia Completada no puede quitarse de su sprint: primero hay que devolverla a En progreso. |
 | RN-22 | Una historia comprometida en un sprint abierto no puede dejar de estar lista para planificar; para quitarle los Story Points o el último criterio de aceptación hay que sacarla antes del sprint. |
 
@@ -727,6 +747,14 @@ que los mismos intentos sobre un sprint Activo se rechazan.
 - **RC-09**: Esta feature no compara las fechas del sprint con las del proyecto: un sprint puede
   empezar antes de la fecha de inicio del proyecto o terminar después de su fecha de finalización
   prevista.
+- **RC-10**: La feature de registro de esfuerzo (`specs/006-effort-tracking`) ancla cada registro de
+  horas al sprint en el que estaba la historia al cargarlo, y ese ancla es inmutable (su FR-015).
+  Por eso esta feature condiciona la eliminación de un sprint Planificado a que no tenga registros
+  asociados (FR-048, RN-20): borrarlo dejaría esas horas sin el sprint que las ubica y el esfuerzo
+  del proyecto dejaría de poder leerse por sprint. Quien elimina los registros es su autor, desde
+  aquella feature; esta no los toca. Un sprint Planificado puede, además, tener esfuerzo registrado
+  sin haber arrancado nunca, porque allí se admite registrar sobre historias comprometidas en un
+  sprint Planificado (su FR-014).
 
 ---
 
@@ -755,6 +783,7 @@ que los mismos intentos sobre un sprint Activo se rechazan.
 | Baja de una historia en estado Completada | Rechazo indicando que primero hay que devolverla a En progreso; la historia no cambia. |
 | Quitar los Story Points o el último criterio de aceptación a una historia comprometida en un sprint abierto | Rechazo indicando que primero hay que quitarla del sprint; la historia no cambia. |
 | Eliminación de un sprint Activo o Cerrado | Rechazo indicando que solo se elimina un sprint que nunca fue iniciado. |
+| Eliminación de un sprint Planificado con esfuerzo registrado asociado | Rechazo indicando que el sprint tiene esfuerzo registrado y que primero hay que eliminar esos registros; el sprint no se toca. |
 | Cualquier acción de escritura sobre los sprints de un proyecto Finalizado | Rechazo por proyecto de solo lectura. |
 | Solicitud sobre un proyecto, un sprint o una historia de los que quien pide no es integrante | Respuesta idéntica a la de un identificador inexistente, sin revelar ningún dato. |
 | Solicitud sobre un identificador de sprint que no existe | Respuesta de sprint inexistente. |
@@ -830,7 +859,9 @@ que los mismos intentos sobre un sprint Activo se rechazan.
 - **SC-015**: El historial de una historia que pasó por tres sprints muestra los tres, verificado
   recorriendo el ciclo completo de planificación, cierre y replanificación.
 - **SC-016**: Cero registros de trabajo real perdidos por eliminación de sprints, verificado
-  intentando eliminar un sprint Activo y uno Cerrado y comprobando que ambos intentos se rechazan.
+  intentando eliminar un sprint Activo, uno Cerrado y uno Planificado con esfuerzo registrado
+  asociado, y comprobando que los tres intentos se rechazan y que ningún registro de esfuerzo
+  desaparece.
 - **SC-017**: El 100 % de las reglas de negocio (RN-01 a RN-22) tiene al menos una prueba automatizada
   asociada que falla si la regla se rompe.
 
@@ -843,8 +874,9 @@ que los mismos intentos sobre un sprint Activo se rechazan.
 - Gráficos de cualquier tipo, incluido el burndown.
 - Capacidad por integrante y asignación de historias a personas dentro del sprint.
 - Reuniones y actas de ceremonias (planning, daily, review, retrospectiva).
-- Registro de esfuerzo en horas sobre las historias del sprint, que se especifica en una feature
-  propia.
+- Registro de esfuerzo en horas sobre las historias del sprint, que se especifica en
+  `specs/006-effort-tracking`. Esta feature solo condiciona la eliminación de un sprint a que no
+  tenga esfuerzo asociado (FR-048, RC-10); no registra, no consulta y no elimina horas.
 - Gestión de defectos asociados a las historias del sprint, que se especifica en una feature propia.
 - Sprints que abarquen más de un proyecto.
 - Inicio y cierre automáticos de sprints por calendario; ambos son siempre decisiones explícitas de
@@ -880,8 +912,10 @@ que los mismos intentos sobre un sprint Activo se rechazan.
   propietario. Se resolvió desacoplando ambas cosas: los sprints nunca cambian el estado del
   proyecto y el propietario lo avanza por su cuenta.
 - **Eliminar un sprint es definitivo**: decisión confirmada el 2026-09-25 (FR-048). Como solo se
-  elimina un sprint que nunca arrancó, no hay trabajo registrado que perder; el borrado no conserva
-  copia ni deja rastro consultable.
+  elimina un sprint que nunca arrancó y que no tiene esfuerzo registrado asociado, no hay trabajo
+  registrado que perder; el borrado no conserva copia ni deja rastro consultable. La condición del
+  esfuerzo se incorporó el 2026-10-02 (RC-10): sin ella, el borrado sí podía destruir horas reales
+  ya cargadas, que es justamente lo que esta regla busca evitar.
 - **La instantánea combina dos momentos**: decisión confirmada el 2026-09-25 (FR-028, FR-043). Los
   Story Points comprometidos se congelan al iniciar el sprint; los planificados y los completados se
   computan al cerrar. Así una reestimación hecha durante el sprint activo se refleja en los valores

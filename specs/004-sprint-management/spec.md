@@ -48,6 +48,7 @@ entre sprints sería confiable.
 ### Session 2026-10-02 — enmienda derivada de `specs/006-effort-tracking`
 
 - Q: ¿Se puede eliminar un sprint Planificado que nunca fue iniciado pero que ya tiene esfuerzo registrado sobre sus historias? (FR-048) → A: no; mientras el sprint tenga registros de esfuerzo asociados la eliminación se rechaza, porque esos registros quedarían sin el sprint al que están anclados y el esfuerzo del proyecto dejaría de poder leerse por sprint. Si el equipo igual quiere descartarlo, primero los autores deben eliminar sus registros. Decisión tomada al especificar `specs/006-effort-tracking` (su RC-07) y reflejada acá en FR-048, RN-20 y RC-10.
+- Q: ¿Quién calcula los días restantes de un sprint activo, que el dashboard necesita mostrar? (FR-053) → A: esta feature. El detalle de un sprint Activo incluye sus días restantes, con el día de fin incluido y con la condición de vencido informada en palabras en lugar de un número negativo. `specs/009-project-dashboard` tiene prohibido derivar valores por su cuenta, así que el dato tiene que venir de donde vive el sprint. Decisión tomada al especificar esa feature (su FR-004) y reflejada acá en FR-053, RN-23 y RC-11.
 
 ---
 
@@ -662,7 +663,13 @@ que los mismos intentos sobre un sprint Activo se rechazan.
 - **FR-052**: El listado de sprints DEBE presentarse en un orden estable y predecible: fecha de inicio
   descendente y, a igual fecha, por identificador del sprint.
 - **FR-053**: El sistema DEBE permitir consultar el detalle de un sprint con sus datos, su estado, sus
-  historias y, si está Cerrado, su instantánea.
+  historias y, si está Cerrado, su instantánea. Para un sprint **Activo**, el detalle DEBE incluir
+  además sus **días restantes**: la cantidad de días que faltan desde hoy hasta su fecha de fin
+  prevista, contada en la zona horaria única del sistema y con el día de fin incluido, de modo que
+  el último día del sprint valga 0 y nunca se devuelva un número negativo. Cuando la fecha de fin
+  prevista ya pasó, el sistema DEBE informar que el sprint está **vencido** e indicar por cuántos
+  días, en lugar de un valor negativo. Los días restantes no aplican a un sprint Planificado ni a
+  uno Cerrado.
 - **FR-054**: Cuando el proyecto no tiene sprints, el sistema DEBE devolver un listado vacío con una
   indicación clara, no un error.
 - **FR-055**: El sistema DEBE permitir consultar, para una historia dada, todos los sprints en los que
@@ -711,6 +718,7 @@ que los mismos intentos sobre un sprint Activo se rechazan.
 | RN-20 | Un sprint Planificado que nunca fue iniciado y no tiene esfuerzo registrado asociado puede eliminarse; un sprint Activo o Cerrado, no, y uno con esfuerzo asociado tampoco hasta que esos registros se eliminen. |
 | RN-21 | Una historia Completada no puede quitarse de su sprint: primero hay que devolverla a En progreso. |
 | RN-22 | Una historia comprometida en un sprint abierto no puede dejar de estar lista para planificar; para quitarle los Story Points o el último criterio de aceptación hay que sacarla antes del sprint. |
+| RN-23 | El detalle de un sprint Activo informa sus días restantes, con el día de fin incluido; si la fecha de fin ya pasó, informa que está vencido y por cuánto, nunca un número negativo. |
 
 ---
 
@@ -755,6 +763,11 @@ que los mismos intentos sobre un sprint Activo se rechazan.
   aquella feature; esta no los toca. Un sprint Planificado puede, además, tener esfuerzo registrado
   sin haber arrancado nunca, porque allí se admite registrar sobre historias comprometidas en un
   sprint Planificado (su FR-014).
+- **RC-11**: `specs/009-project-dashboard` tiene prohibido derivar cualquier valor por su cuenta,
+  incluida la aritmética de calendario (su FR-004). Por eso los días restantes del sprint activo se
+  calculan acá y se entregan en el detalle del sprint (FR-053, RN-23), en lugar de que el dashboard
+  reste fechas. Se usa la misma zona horaria única del sistema que esta feature ya emplea para los
+  momentos reales de inicio y cierre (RC-07).
 
 ---
 

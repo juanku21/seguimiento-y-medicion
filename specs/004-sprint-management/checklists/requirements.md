@@ -49,6 +49,13 @@ a la planificación
   anclados a él de forma inmutable y borrarlos destruiría horas reales. Alcanza a FR-048, RN-20,
   RC-10 (nuevo), SC-016, el escenario 14 de US7, la tabla de entradas y salidas de la eliminación,
   la de condiciones de error, los casos límite y el supuesto "Eliminar un sprint es definitivo".
+- Iteración 5 (2026-10-03, enmienda derivada de `specs/009-project-dashboard`): 16/16 ítems en
+  verde, sin regresiones. El detalle de un sprint Activo ahora incluye sus **días restantes** y la
+  condición de **vencido**, con el día de fin incluido, de modo que el último día del sprint vale 0
+  y nunca se devuelve un número negativo. Alcanza a FR-053, RN-23 (nueva), RC-11 (nueva) y la
+  sección Clarifications. El motivo es que el dashboard tiene prohibido derivar valores por su
+  cuenta, incluida la aritmética de fechas, así que el dato tiene que venir de donde vive el
+  sprint. No cambia ninguna regla existente ni ningún escenario de las siete historias.
 - Iteración 3 (2026-09-25, `/speckit-clarify`): 16/16 ítems en verde, sin regresiones. Se cerraron
   tres ambigüedades nuevas que el barrido detectó:
   4. La instantánea guarda los Story Points comprometidos al inicio y los planificados al cierre; su

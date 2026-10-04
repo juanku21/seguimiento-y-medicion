@@ -199,18 +199,34 @@ completados distintos y verificando el valor de la velocidad en cada paso.
 5. *(Caso alternativo)* **Dado** el proyecto con 4 sprints cerrados, **cuando** un integrante
    consulta la serie de velocidad por sprint, **entonces** obtiene los 4 valores **13, 21, 8 y 20**
    en orden cronológico, sin promediar y sin recortar a los últimos 3.
-6. *(Caso límite)* **Dado** un proyecto con 3 sprints cerrados que no completaron ninguna historia,
-   **cuando** un integrante consulta la velocidad, **entonces** obtiene **0,00**, que es un promedio
-   válido y distinto de "no calculable".
-7. *(Caso límite)* **Dado** un proyecto sin ningún sprint cerrado pero con un sprint Activo,
-   **cuando** un integrante consulta la velocidad, **entonces** obtiene **"no calculable"** y la
-   serie vacía, porque la velocidad solo mira sprints cerrados.
-8. *(Caso límite)* **Dado** un proyecto sin ningún sprint, **cuando** un integrante consulta la
-   velocidad, **entonces** obtiene **"no calculable"**, sin que eso sea un error.
-9. *(Caso límite)* **Dado** un proyecto con 3 sprints cerrados y que después se cierra un cuarto,
-   **cuando** un integrante consulta la velocidad, **entonces** el valor cambia porque la ventana de
-   3 se desplaza; los sprints que salen de la ventana conservan sus propias métricas intactas.
-10. *(Caso de error)* **Dado** un usuario que no es integrante del proyecto, **cuando** intenta
+6. *(Caso normal)* **Dado** el mismo proyecto, **cuando** un integrante consulta las series del
+   proyecto, **entonces** obtiene en una sola respuesta las **seis** series —Story Points
+   planificados y completados, horas estimadas y reales, y defectos detectados y resueltos—, cada
+   una con un punto por sprint, en orden cronológico ascendente y con cada punto identificando a
+   qué sprint corresponde.
+7. *(Caso alternativo)* **Dado** un proyecto con 3 sprints cerrados y uno Activo, **cuando** un
+   integrante consulta las series, **entonces** las seis incluyen los 4 sprints, y los puntos del
+   sprint Activo vienen marcados como **parciales**.
+8. *(Caso alternativo)* **Dado** un proyecto con un sprint Planificado además de los anteriores,
+   **cuando** un integrante consulta las series, **entonces** el sprint Planificado no aparece en
+   ninguna de las seis.
+9. *(Caso límite)* **Dado** un sprint que no completó ningún Story Point y no tuvo horas
+   registradas, **cuando** un integrante consulta las series, **entonces** ese sprint aparece con
+   valor **0** en las series correspondientes, distinguible de la ausencia de dato.
+10. *(Caso límite)* **Dado** un proyecto sin sprints cerrados ni activo, **cuando** un integrante
+    consulta las series, **entonces** las seis vienen vacías, sin que eso sea un error.
+11. *(Caso límite)* **Dado** un proyecto con 3 sprints cerrados que no completaron ninguna historia,
+    **cuando** un integrante consulta la velocidad, **entonces** obtiene **0,00**, que es un promedio
+    válido y distinto de "no calculable".
+12. *(Caso límite)* **Dado** un proyecto sin ningún sprint cerrado pero con un sprint Activo,
+    **cuando** un integrante consulta la velocidad, **entonces** obtiene **"no calculable"** y la
+    serie vacía, porque la velocidad solo mira sprints cerrados.
+13. *(Caso límite)* **Dado** un proyecto sin ningún sprint, **cuando** un integrante consulta la
+    velocidad, **entonces** obtiene **"no calculable"**, sin que eso sea un error.
+14. *(Caso límite)* **Dado** un proyecto con 3 sprints cerrados y que después se cierra un cuarto,
+    **cuando** un integrante consulta la velocidad, **entonces** el valor cambia porque la ventana de
+    3 se desplaza; los sprints que salen de la ventana conservan sus propias métricas intactas.
+15. *(Caso de error)* **Dado** un usuario que no es integrante del proyecto, **cuando** intenta
     consultar su velocidad, **entonces** la respuesta es de proyecto inexistente.
 
 ---

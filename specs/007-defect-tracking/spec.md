@@ -240,10 +240,10 @@ el subconjunto esperado.
 
 **Escenarios de aceptación**:
 
-1. *(Caso normal)* **Dado** un proyecto con defectos en los tres estados y de las cuatro severidades,
-   **cuando** un integrante consulta los defectos del proyecto sin filtros, **entonces** ve todos con
-   su descripción, severidad, estado, historia, sprint de detección y sprint de resolución cuando lo
-   tengan.
+1. *(Caso normal)* **Dado** un proyecto con defectos en los cuatro estados y de las cuatro
+   severidades, **cuando** un integrante consulta los defectos del proyecto sin filtros,
+   **entonces** ve todos con su descripción, severidad, estado, historia, sprint de detección y
+   sprint de resolución cuando lo tengan.
 2. *(Caso normal)* **Dado** una historia con cuatro defectos, **cuando** un integrante consulta esa
    historia, **entonces** ve sus cuatro defectos con los mismos datos.
 3. *(Caso alternativo)* **Dado** el mismo proyecto, **cuando** un integrante filtra por estado

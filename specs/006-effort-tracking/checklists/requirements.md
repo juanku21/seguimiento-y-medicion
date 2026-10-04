@@ -58,6 +58,14 @@ a la planificación
   - Las 6 CONDICIONES DE ERROR pedidas están en la tabla "Condiciones de Error".
   - Los 5 puntos de FUERA DE ALCANCE están en la sección homónima.
 
+- Iteración 4 (2026-10-04, barrido de clarificación sobre las specs 001 a 010): 16/16 ítems en
+  verde. Se cerró la pregunta que había quedado sin responder en la sesión del 2026-10-02: la
+  **desviación porcentual se redondea a 2 decimales solo en el resultado final**, con la misma
+  convención que `specs/008-metrics-calculation` ya aplicaba a la misma desviación por sprint y por
+  proyecto (FR-049, RN-26, RC-13, SC-022). Era una inconsistencia real entre dos specs publicadas:
+  el mismo cociente a distinta escala definido con reglas distintas. **No cambia ningún escenario
+  de aceptación**, así que los issues #36 a #40 siguen vigentes.
+
 ### ✅ Alineado con `specs/004-sprint-management` (2026-10-02)
 
 RC-07 imponía una condición sobre una operación que la spec 004 definía sin restricciones:

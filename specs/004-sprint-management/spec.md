@@ -48,6 +48,7 @@ entre sprints sería confiable.
 ### Session 2026-10-02 — enmienda derivada de `specs/006-effort-tracking`
 
 - Q: ¿Se puede eliminar un sprint Planificado que nunca fue iniciado pero que ya tiene esfuerzo registrado sobre sus historias? (FR-048) → A: no; mientras el sprint tenga registros de esfuerzo asociados la eliminación se rechaza, porque esos registros quedarían sin el sprint al que están anclados y el esfuerzo del proyecto dejaría de poder leerse por sprint. Si el equipo igual quiere descartarlo, primero los autores deben eliminar sus registros. Decisión tomada al especificar `specs/006-effort-tracking` (su RC-07) y reflejada acá en FR-048, RN-20 y RC-10.
+- Q: La instantánea no conserva el título ni la prioridad de las historias, así que un reporte de un sprint cerrado podría listarlas con datos de hoy y métricas de entonces. ¿Se amplía la instantánea? (FR-043) → A: sí; de cada historia involucrada la instantánea congela también su título, su prioridad y sus Story Points al cierre. Decisión tomada al especificar `specs/010-project-reports` (su FR-021) y reflejada acá en FR-043, RN-15 y RC-12.
 - Q: ¿Quién calcula los días restantes de un sprint activo, que el dashboard necesita mostrar? (FR-053) → A: esta feature. El detalle de un sprint Activo incluye sus días restantes, con el día de fin incluido y con la condición de vencido informada en palabras en lugar de un número negativo. `specs/009-project-dashboard` tiene prohibido derivar valores por su cuenta, así que el dato tiene que venir de donde vive el sprint. Decisión tomada al especificar esa feature (su FR-004) y reflejada acá en FR-053, RN-23 y RC-11.
 
 ---
@@ -385,21 +386,36 @@ verificando que el historial muestra los números congelados de cada uno.
 3. *(Caso alternativo)* **Dado** una historia que estuvo planificada en tres sprints hasta
    completarse, **cuando** un integrante consulta su historial, **entonces** ve los tres sprints en
    los que estuvo, con el resultado que tuvo en cada uno.
-4. *(Caso límite)* **Dado** un sprint previsto del 2026-10-01 al 2026-10-14 que arrancó el
+4. *(Caso normal)* **Dado** un sprint Activo que termina el 2026-10-14, **cuando** un integrante
+   consulta su detalle el 2026-10-04, **entonces** ve **10 días restantes**, contados hasta la
+   fecha de fin prevista inclusive.
+5. *(Caso límite)* **Dado** un sprint Activo que termina hoy, **cuando** un integrante consulta su
+   detalle, **entonces** ve **0 días restantes**, porque el día de fin se cuenta y el sprint sigue
+   en curso.
+6. *(Caso límite)* **Dado** un sprint Activo cuya fecha de fin pasó hace 3 días, **cuando** un
+   integrante consulta su detalle, **entonces** ve que el sprint está **vencido hace 3 días**, y no
+   un valor negativo.
+7. *(Caso alternativo)* **Dado** un sprint Planificado y otro Cerrado, **cuando** un integrante
+   consulta sus detalles, **entonces** ninguno informa días restantes, porque el dato solo aplica
+   al sprint en curso.
+8. *(Caso límite)* **Dado** un sprint Cerrado cuyas historias fueron renombradas y reestimadas
+   después del cierre, **cuando** un integrante consulta su detalle, **entonces** ve el título, la
+   prioridad y los Story Points que cada historia tenía al cerrarse, tomados de la instantánea.
+9. *(Caso límite)* **Dado** un sprint previsto del 2026-10-01 al 2026-10-14 que arrancó el
    2026-10-03 y se cerró el 2026-10-10, **cuando** un integrante consulta el historial, **entonces**
    ve las cuatro fechas por separado, de modo que la duración real del sprint es distinguible de la
    prevista.
-5. *(Caso límite)* **Dado** un proyecto sin ningún sprint, **cuando** un integrante consulta el
-   listado, **entonces** obtiene una lista vacía con la indicación de que todavía no hay sprints, sin
-   que eso sea un error.
-6. *(Caso límite)* **Dado** un proyecto cuyos sprints cerrados no completaron ninguna historia,
-   **cuando** un integrante consulta el historial, **entonces** los ve listados con cero Story Points
-   completados, sin que eso sea un error.
-7. *(Caso de error)* **Dado** un usuario que no es integrante del proyecto, **cuando** intenta
-   consultar sus sprints, **entonces** la respuesta es de proyecto inexistente y no revela ningún
-   dato.
-8. *(Caso de error)* **Dado** un identificador de sprint que no existe, **cuando** un integrante
-   intenta consultarlo, **entonces** obtiene una respuesta de sprint inexistente.
+10. *(Caso límite)* **Dado** un proyecto sin ningún sprint, **cuando** un integrante consulta el
+    listado, **entonces** obtiene una lista vacía con la indicación de que todavía no hay sprints, sin
+    que eso sea un error.
+11. *(Caso límite)* **Dado** un proyecto cuyos sprints cerrados no completaron ninguna historia,
+    **cuando** un integrante consulta el historial, **entonces** los ve listados con cero Story Points
+    completados, sin que eso sea un error.
+12. *(Caso de error)* **Dado** un usuario que no es integrante del proyecto, **cuando** intenta
+    consultar sus sprints, **entonces** la respuesta es de proyecto inexistente y no revela ningún
+    dato.
+13. *(Caso de error)* **Dado** un identificador de sprint que no existe, **cuando** un integrante
+    intenta consultarlo, **entonces** obtiene una respuesta de sprint inexistente.
 
 ---
 
@@ -630,7 +646,10 @@ que los mismos intentos sobre un sprint Activo se rechazan.
 - **FR-043**: Al cerrar el sprint, el sistema DEBE congelar una instantánea con los Story Points
   planificados al cierre, los Story Points completados, las historias involucradas con el resultado
   que tuvo cada una y el factor de horas por Story Point vigente del proyecto, todos tomados en el
-  momento del cierre. La instantánea DEBE conservar además los Story Points comprometidos al inicio
+  momento del cierre. De cada historia involucrada, la instantánea DEBE conservar además su
+  **título**, su **prioridad** y sus **Story Points** tal como estaban al cerrarse, de modo que
+  quien después lea ese sprint vea la historia como era entonces y no como quedó tras una
+  reestimación o un renombre posterior. La instantánea DEBE conservar además los Story Points comprometidos al inicio
   registrados por FR-028, de modo que la diferencia entre ambos exprese el cambio de alcance ocurrido
   durante el sprint, y las cuatro fechas del sprint: la de inicio prevista, la de fin prevista, el
   momento real de inicio y el momento real de cierre.
@@ -710,7 +729,7 @@ que los mismos intentos sobre un sprint Activo se rechazan.
 | RN-12 | Una historia Completada puede desmarcarse mientras el sprint siga Activo. |
 | RN-13 | Al cerrar un sprint, las historias no completadas vuelven al backlog como Pendientes y sin sprint. |
 | RN-14 | Un sprint cerrado conserva el registro de todas las historias que estaban comprometidas en él al momento del cierre. |
-| RN-15 | Al cerrar un sprint se congela su instantánea: Story Points comprometidos al inicio, planificados al cierre y completados, historias involucradas, las cuatro fechas del sprint y el factor de horas por Story Point vigente. |
+| RN-15 | Al cerrar un sprint se congela su instantánea: Story Points comprometidos al inicio, planificados al cierre y completados, historias involucradas con su título, prioridad, Story Points y resultado al cierre, las cuatro fechas del sprint y el factor de horas por Story Point vigente. |
 | RN-16 | Los datos de un sprint cerrado no cambian ante modificaciones posteriores de las historias o del factor. |
 | RN-17 | Una historia no completada puede planificarse de nuevo en un sprint posterior, y su historial muestra todos los sprints en que estuvo. |
 | RN-18 | El estado Cerrado es definitivo: un sprint cerrado no se reabre, no se modifica y no admite cambios en sus historias. |
@@ -768,6 +787,11 @@ que los mismos intentos sobre un sprint Activo se rechazan.
   calculan acá y se entregan en el detalle del sprint (FR-053, RN-23), en lugar de que el dashboard
   reste fechas. Se usa la misma zona horaria única del sistema que esta feature ya emplea para los
   momentos reales de inicio y cierre (RC-07).
+- **RC-12**: `specs/010-project-reports` arma la sección de historias de un reporte de sprint
+  cerrado exclusivamente con la instantánea (su FR-021), para que no pueda contradecir a la sección
+  de métricas, que también sale de ahí. Por eso la instantánea congela el título y la prioridad
+  además de los Story Points: sin esos dos datos el reporte habría tenido que leerlos del backlog
+  vigente y mezclar dos momentos dentro del mismo documento.
 
 ---
 

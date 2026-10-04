@@ -70,6 +70,13 @@ a la planificación
      inconsistencia de datos— para que el contador de historias sin estimar y un dato roto no se
      confundan.
 
+- Iteración 5 (2026-10-04, barrido de clarificación sobre las specs 001 a 010): 16/16 ítems en
+  verde. Se cubrió con escenarios de aceptación la métrica de **series del proyecto** que la
+  iteración 4 había agregado sin verificación: cinco escenarios nuevos en US2 (actuales 6 a 10),
+  que prueban las seis series juntas, la marca de parcial en los puntos del sprint activo, la
+  exclusión de los Planificados, el valor 0 distinguible de la ausencia de dato y el caso vacío.
+  Sin ellos, FR-022 era un requisito que nadie iba a probar ni implementar. **Esto cambia el
+  cuerpo del issue #48** y exige volver a sincronizar la 008.
 - Iteración 4 (2026-10-03, enmienda derivada de `specs/009-project-dashboard`): 16/16 ítems en
   verde, sin regresiones. FR-022 pasó de definir una sola serie —la de velocidad, solo con Story
   Points completados— a definir una métrica de **series del proyecto** que entrega seis series

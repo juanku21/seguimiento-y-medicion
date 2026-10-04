@@ -56,6 +56,21 @@ a la planificación
   sección Clarifications. El motivo es que el dashboard tiene prohibido derivar valores por su
   cuenta, incluida la aritmética de fechas, así que el dato tiene que venir de donde vive el
   sprint. No cambia ninguna regla existente ni ningún escenario de las siete historias.
+- Iteración 7 (2026-10-04, barrido de clarificación sobre las specs 001 a 010): 16/16 ítems en
+  verde. Se cubrieron con escenarios de aceptación dos capacidades que las enmiendas habían
+  agregado sin verificación: los **días restantes** del sprint activo y la lectura de un sprint
+  cerrado **desde la instantánea** con título y prioridad congelados. Son cinco escenarios nuevos
+  en US6 (actuales 4 a 8). Sin ellos, FR-053 y FR-043 eran requisitos que nadie iba a probar ni
+  implementar, porque el tablero se arma desde las historias. **Esto cambia el cuerpo del issue
+  #26** y exige volver a sincronizar la 004.
+- Iteración 6 (2026-10-04, enmienda derivada de `specs/010-project-reports`): 16/16 ítems en verde,
+  sin regresiones. La instantánea de cierre ahora congela, de cada historia involucrada, su
+  **título**, su **prioridad** y sus **Story Points** al momento del cierre, además de su
+  resultado. Alcanza a FR-043, RN-15, RC-12 (nueva) y la sección Clarifications. El motivo es que
+  el reporte de un sprint cerrado arma su sección de historias solo con la instantánea: sin el
+  título y la prioridad habría tenido que leerlos del backlog vigente y el documento podría
+  mostrar una historia renombrada o reestimada junto a métricas calculadas sobre los valores
+  viejos. No cambia ningún escenario de las siete historias de usuario.
 - Iteración 3 (2026-09-25, `/speckit-clarify`): 16/16 ítems en verde, sin regresiones. Se cerraron
   tres ambigüedades nuevas que el barrido detectó:
   4. La instantánea guarda los Story Points comprometidos al inicio y los planificados al cierre; su
@@ -65,18 +80,19 @@ a la planificación
   6. La instantánea congela las cuatro fechas del sprint: inicio y fin previstas, inicio y cierre
      reales (FR-043, FR-051).
 
-### ⚠️ Pendiente de alinear con `specs/003-product-backlog`
+### ✅ Alineado con `specs/003-product-backlog` (verificado el 2026-10-04)
 
-La decisión 5 impone una restricción sobre operaciones que la spec 003 define sin condiciones:
+La decisión 5 imponía una restricción sobre operaciones que la spec 003 definía sin condiciones, y
+quedó pendiente de reflejarse allá. El barrido del 2026-10-04 verificó que **ya está resuelta**:
 
-- La spec 003 (FR-018) permite devolver una historia a "sin estimar" sin restricciones, y su US5
-  escenario 4 muestra como válido vaciar la lista de criterios de aceptación.
-- Con esta spec, esas dos operaciones se rechazan mientras la historia esté comprometida en un sprint
-  abierto.
+- Su FR-018 condiciona la vuelta a "sin estimar" a que la historia no esté comprometida en un
+  sprint abierto.
+- Su FR-022 rechaza dejar sin criterios a una historia comprometida en un sprint abierto.
+- El escenario 4 de su US5 vacía la lista de criterios solo en una historia "que no está
+  comprometida en ningún sprint".
 
-Conviene enmendar la spec 003 para que su FR-018 y su US5 remitan a esta condición. Eso alcanzaría a
-los issues #17 y #19 de GitHub (003-US3 y 003-US5). Mientras no se haga, las dos specs se contradicen
-sobre el mismo caso.
+Las dos specs dicen lo mismo. La advertencia anterior había quedado sin actualizar después de que
+la spec 003 se enmendara.
 
 ### Consistencia verificada con las specs anteriores
 

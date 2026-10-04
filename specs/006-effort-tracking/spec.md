@@ -41,6 +41,10 @@ comparable con la siguiente.
 
 ## Clarifications
 
+### Session 2026-10-04
+
+- Q: ¿La desviación porcentual por historia se redondea a 2 decimales, igual que la misma desviación por sprint y por proyecto de `specs/008-metrics-calculation`? (FR-049) → A: sí; misma convención, 2 decimales en el resultado final y ningún redondeo intermedio. Es el mismo cociente a distinta escala y se presenta igual en todo el producto. Esta pregunta había quedado sin responder en la sesión del 2026-10-02.
+
 ### Session 2026-10-02
 
 - Q: ¿Se puede registrar esfuerzo sobre una historia que quedó Completada dentro de un sprint ya Cerrado, por ejemplo cuando alguien carga el lunes las horas del viernes y el sprint se cerró el viernes a la tarde? (FR-016) → A: sí, dentro de un plazo de gracia posterior al cierre; vencido el plazo, el registro se rechaza. Durante ese plazo el esfuerzo del sprint sigue siendo corregible y recién después queda definitivo.
@@ -637,7 +641,11 @@ combinación.
 - **FR-048**: El sistema DEBE calcular la diferencia absoluta como las horas reales menos las horas
   estimadas, con signo: positiva cuando se trabajó de más y negativa cuando se trabajó de menos.
 - **FR-049**: El sistema DEBE calcular la diferencia porcentual como la diferencia absoluta dividida
-  por las horas estimadas, expresada en porcentaje y con el mismo signo.
+  por las horas estimadas, expresada en porcentaje y con el mismo signo. El resultado DEBE
+  redondearse a 2 decimales **únicamente al final**, sin redondear en ningún paso intermedio, con
+  la misma convención que `specs/008-metrics-calculation` (su FR-033) aplica a la desviación
+  porcentual por sprint y por proyecto. Es el mismo cociente visto a distinta escala y se presenta
+  igual en todo el producto.
 - **FR-050**: Cuando la historia está "sin estimar", el sistema DEBE presentar las horas estimadas, la
   diferencia absoluta y la diferencia porcentual como "no calculable", y NUNCA como 0.
 - **FR-051**: Cuando las horas estimadas son 0 —historia estimada en 0 Story Points—, el sistema DEBE
@@ -693,13 +701,14 @@ combinación.
 | RN-16 | Las horas estimadas de una historia son sus Story Points por el factor de horas por Story Point del proyecto. |
 | RN-17 | Si la historia está "sin estimar", las horas estimadas y ambas desviaciones son "no calculable", nunca 0. |
 | RN-18 | Si las horas estimadas son 0, la desviación absoluta es computable y la porcentual es "no calculable". |
-| RN-19 | La desviación absoluta es las horas reales menos las estimadas, con signo; la porcentual es esa diferencia sobre las estimadas. |
+| RN-19 | La desviación absoluta es las horas reales menos las estimadas, con signo; la porcentual es esa diferencia sobre las estimadas, redondeada a 2 decimales solo al final. |
 | RN-20 | Las horas estimadas se recalculan con el factor vigente; cambiar el factor nunca altera las horas reales. |
 | RN-21 | Ninguna otra acción del producto elimina registros de esfuerzo como efecto colateral. |
 | RN-22 | Una historia con esfuerzo registrado no puede eliminarse, ni siquiera después de borrarse todos sus registros. |
 | RN-23 | Un sprint Cerrado admite esfuerzo nuevo y corregido solo durante su plazo de gracia: un período configurable de todo el sistema, por defecto 48 horas, contado desde el cierre real del sprint. |
 | RN-24 | El plazo de gracia alcanza por igual a las historias Completadas que siguen en el sprint cerrado y a las no completadas que volvieron al backlog: en ambos casos el esfuerzo tardío se ancla a ese sprint. |
 | RN-25 | Vencido el plazo, la historia Completada rechaza todo registro nuevo y la devuelta al backlog lo acepta sin sprint asociado. |
+| RN-26 | La desviación porcentual se redondea a 2 decimales solo en el resultado final, con la misma convención que usa la feature de métricas. |
 
 ---
 
@@ -760,6 +769,10 @@ combinación.
 - **RC-12**: Esta feature no compara la fecha de un registro con las fechas del sprint asociado: se
   pueden registrar horas con una fecha anterior al inicio del sprint o posterior a su fecha de fin
   prevista, mientras la fecha cumpla FR-006.
+- **RC-13**: La desviación porcentual de esta feature y la de `specs/008-metrics-calculation` son el
+  mismo cociente a distinta escala —por historia acá, por sprint y por proyecto allá— y comparten
+  la convención de presentación: 2 decimales en el resultado final y ningún redondeo intermedio. Si
+  una de las dos cambiara, la otra DEBE cambiar con ella.
 
 ---
 
@@ -884,7 +897,10 @@ combinación.
   proporción de registros cargados dentro del plazo de gracia que el sistema acepta y ancla al
   sprint correcto: debe ser del 100 %, tanto para las historias Completadas como para las devueltas
   al backlog.
-- **SC-022**: El 100 % de las reglas de negocio (RN-01 a RN-25) tiene al menos una prueba
+- **SC-022**: La desviación porcentual se devuelve con exactamente 2 decimales en el 100 % de los
+  casos, y ningún resultado difiere del valor obtenido redondeando solo al final, verificado con al
+  menos un caso de decimal periódico.
+- **SC-023**: El 100 % de las reglas de negocio (RN-01 a RN-26) tiene al menos una prueba
   automatizada asociada que falla si la regla se rompe.
 
 ---

@@ -1,13 +1,13 @@
 ---
 name: "speckit-implement"
-description: "Execute the implementation plan by processing and executing all tasks defined in tasks.md"
-argument-hint: "Optional implementation guidance or task filter"
+description: "Ejecuta UNA tarea de tasks.md por invocación, delegando en los subagentes del proyecto, con pausas para que el desarrollador registre los commits"
+argument-hint: "Txxx [refactor]"
 compatibility: "Requires spec-kit project structure with .specify/ directory"
 metadata:
   author: "github-spec-kit"
   source: "templates/commands/implement.md"
 user-invocable: true
-disable-model-invocation: false
+disable-model-invocation: true
 ---
 
 
@@ -18,6 +18,26 @@ $ARGUMENTS
 ```
 
 You **MUST** consider the user input before proceeding (if not empty).
+
+## Invocación
+
+Esta skill ejecuta **una sola tarea** de `tasks.md` por invocación y termina en una pausa para que el desarrollador registre el commit. Validá la invocación antes de cualquier otra cosa, incluidos los extension hooks.
+
+**Uso:**
+
+- `/speckit-implement Txxx` — ejecuta la tarea `Txxx`.
+- `/speckit-implement Txxx refactor` — retoma **solo** la etapa de refactor de una tarea de implementación cuyo commit GREEN ya está registrado, por ejemplo si se cortó la sesión. Salta directamente a la etapa REFACTOR del flujo de implementación.
+
+**Reglas de invocación:**
+
+1. **Sin ID de tarea:** detenete y pedíselo al desarrollador. No ejecutes nunca la feature completa, una fase completa ni varias tareas, aunque `$ARGUMENTS` lo pida o sugiera un filtro de tareas.
+2. **Feature deducida de la rama:** ejecutá `git branch --show-current`.
+   - `hu/NNN-usX-...` → feature `specs/NNN-*/`, alcance = historia `USx`.
+   - `fase/NNN-<slug>` → feature `specs/NNN-*/`, alcance = la fase técnica que corresponde al slug.
+   - Cualquier otra rama, incluida `main`: detenete y preguntale al desarrollador en qué feature y alcance trabajar.
+   - Debe existir exactamente una carpeta `specs/NNN-*/`. Si no, detenete y explicá el problema.
+3. **Tarea ajena al alcance de la rama:** si `Txxx` pertenece a otra historia o a otra fase, advertilo y pedí confirmación explícita antes de seguir.
+4. **Tarea ya marcada `[X]`:** advertilo y pedí confirmación explícita antes de volver a ejecutarla.
 
 ## Pre-Execution Checks
 
@@ -93,94 +113,65 @@ You **MUST** consider the user input before proceeding (if not empty).
      - Display the table showing all checklists passed
      - Automatically proceed to step 3
 
-3. Load and analyze the implementation context:
+3. Cargá el contexto que necesita **la tarea en curso**, sin leer de más:
    - **REQUIRED**: Read tasks.md for the complete task list and execution plan
    - **REQUIRED**: Read plan.md for tech stack, architecture, and file structure
+   - **REQUIRED**: Read .specify/memory/constitution.md for governance constraints
    - **IF EXISTS**: Read data-model.md for entities and relationships
    - **IF EXISTS**: Read contracts/ for API specifications and test requirements
    - **IF EXISTS**: Read research.md for technical decisions and constraints
-   - **IF EXISTS**: Read .specify/memory/constitution.md for governance constraints
    - **IF EXISTS**: Read quickstart.md for integration scenarios
 
-4. **Project Setup Verification**:
-   - **REQUIRED**: Create/verify ignore files based on actual project setup:
+4. **Configuración general del proyecto**: crear o verificar archivos ignore (`.gitignore`, `.dockerignore`, `.eslintignore`, `.prettierignore` y equivalentes) **no** es un paso de esta skill. Es responsabilidad de las tareas técnicas que lo indiquen, y el subagente lo hace en el modo `tecnica`. No toques esos archivos por iniciativa propia.
 
-   **Detection & Creation Logic**:
-   - Check if the following command succeeds to determine if the repository is a git repo (create/verify .gitignore if so):
+5. **Localizar y clasificar la tarea**:
+   - Ubicá en `tasks.md` la línea de la tarea `Txxx` y la sección (fase y subsección) a la que pertenece. Tomá su texto completo, su marcador `[P]` si lo tiene y su etiqueta `[USn]` si la tiene. Si la tarea no existe, detenete y decilo.
+   - Clasificala a partir de su texto y de su sección:
+     - **De pruebas**: está en una subsección de pruebas (por ejemplo "Tests for User Story n") o su texto pide escribir pruebas unitarias o de integración.
+     - **De implementación**: está en una subsección de implementación de una historia y tiene pruebas que la justifican.
+     - **Técnica**: configuración, infraestructura, estructura del proyecto, documentación o Swagger, sin prueba asociada (habitualmente en fases de Setup, Foundational o Polish).
+   - Si la clasificación es dudosa, **preguntale al desarrollador de qué tipo es antes de delegar**. No lo supongas.
 
-     ```sh
-     git rev-parse --git-dir 2>/dev/null
-     ```
+6. **Delegación**:
+   - Invocá al subagente que corresponda al tipo de tarea con las entradas que define su propio archivo en `.claude/agents/`:
+     - `qa-builder`: carpeta de la feature (`specs/NNN-.../`), ID y texto completo de la tarea, y la historia (`USx`) o la fase técnica a la que pertenece.
+     - `code-builder`: lo mismo, más el **modo** (`green`, `refactor` o `tecnica`).
+   - **La conversación principal no escribe código ni pruebas**, ni completa lo que el subagente dejó a medias. Su trabajo es clasificar, delegar, mostrar el informe y marcar la tarea.
+   - En cada pausa, mostrá el informe del subagente tal como lo devolvió. Si el estado es `Bloqueada` o el informe trae preguntas o advertencias, presentalas al desarrollador y detenete sin marcar la tarea.
 
-   - Check if Dockerfile* exists or Docker in plan.md → create/verify .dockerignore
-   - Check if .eslintrc* exists → create/verify .eslintignore
-   - Check if eslint.config.* exists → ensure the config's `ignores` entries cover required patterns
-   - Check if .prettierrc* exists → create/verify .prettierignore
-   - Check if .npmrc or package.json exists → create/verify .npmignore (if publishing)
-   - Check if terraform files (*.tf) exist → create/verify .terraformignore
-   - Check if .helmignore needed (helm charts present) → create/verify .helmignore
+7. **Flujo por tipo de tarea**:
 
-   **If ignore file already exists**: Verify it contains essential patterns, append missing critical patterns only
-   **If ignore file missing**: Create with full pattern set for detected technology
+   **Tarea de pruebas**
+   1. Invocá a `qa-builder`.
+   2. Si devuelve `RED verificado`: marcá la tarea `[X]` en `tasks.md` y **detenete**.
+   3. Indicale al desarrollador que registre el commit con `/redactar-commit`, con pie `TDD: red` y `Closes #N`.
 
-   **Common Patterns by Technology** (from plan.md tech stack):
-   - **Node.js/JavaScript/TypeScript**: `node_modules/`, `dist/`, `build/`, `*.log`, `.env*`
-   - **Python**: `__pycache__/`, `*.pyc`, `.venv/`, `venv/`, `dist/`, `*.egg-info/`
-   - **Java**: `target/`, `*.class`, `*.jar`, `.gradle/`, `build/`
-   - **C#/.NET**: `bin/`, `obj/`, `*.user`, `*.suo`, `packages/`
-   - **Go**: `*.exe`, `*.test`, `vendor/`, `*.out`
-   - **Ruby**: `.bundle/`, `log/`, `tmp/`, `*.gem`, `vendor/bundle/`
-   - **PHP**: `vendor/`, `*.log`, `*.cache`, `*.env`
-   - **Rust**: `target/`, `debug/`, `release/`, `*.rs.bk`, `*.rlib`, `*.prof*`, `.idea/`, `*.log`, `.env*`
-   - **Kotlin**: `build/`, `out/`, `.gradle/`, `.idea/`, `*.class`, `*.jar`, `*.iml`, `*.log`, `.env*`
-   - **C++**: `build/`, `bin/`, `obj/`, `out/`, `*.o`, `*.so`, `*.a`, `*.exe`, `*.dll`, `.idea/`, `*.log`, `.env*`
-   - **C**: `build/`, `bin/`, `obj/`, `out/`, `*.o`, `*.a`, `*.so`, `*.exe`, `*.dll`, `autom4te.cache/`, `config.status`, `config.log`, `.idea/`, `*.log`, `.env*`
-   - **Swift**: `.build/`, `DerivedData/`, `*.swiftpm/`, `Packages/`
-   - **R**: `.Rproj.user/`, `.Rhistory`, `.RData`, `.Ruserdata`, `*.Rproj`, `packrat/`, `renv/`
-   - **Universal**: `.DS_Store`, `Thumbs.db`, `*.tmp`, `*.swp`, `.vscode/`, `.idea/`
+   **Tarea técnica**
+   1. Invocá a `code-builder` en modo `tecnica`.
+   2. Al terminar, marcá la tarea `[X]` en `tasks.md` y **detenete**.
+   3. Indicale que registre el commit con `/redactar-commit`, **sin pie TDD** y con `Closes #N`.
 
-   **Tool-Specific Patterns**:
-   - **Docker**: `node_modules/`, `.git/`, `Dockerfile*`, `.dockerignore`, `*.log*`, `.env*`, `coverage/`
-   - **ESLint**: `node_modules/`, `dist/`, `build/`, `coverage/`, `*.min.js`
-   - **Prettier**: `node_modules/`, `dist/`, `build/`, `coverage/`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`
-   - **Terraform**: `.terraform/`, `*.tfstate*`, `*.tfvars`, `.terraform.lock.hcl`
-   - **Kubernetes/k8s**: `*.secret.yaml`, `secrets/`, `.kube/`, `kubeconfig*`, `*.key`, `*.crt`
+   **Tarea de implementación** (una sola invocación de la skill, con dos pausas)
+   1. Invocá a `code-builder` en modo `green`.
+   2. **Pausa GREEN**: mostrá el informe y preguntale al desarrollador si va a hacer refactor.
+      - **No**: marcá la tarea `[X]` y **detenete**. Commit con pie `TDD: green` y `Closes #N`. Fin de la invocación.
+      - **Sí**: **no** marques la tarea. Indicale que registre el commit con pie `TDD: green` y `Refs #N`, y **esperá su confirmación explícita de que ya lo hizo**. No avances a refactor sin esa confirmación.
+   3. Invocá a `code-builder` en modo `refactor`.
+   4. **Pausa REFACTOR**: marcá la tarea `[X]` y **detenete**.
+      - Si el subagente hizo cambios: commit con pie `TDD: refactor` y `Closes #N`.
+      - Si el subagente no cambió nada: el commit contiene únicamente la marca `[X]` en `tasks.md`; indicale que es de tipo `chore`, con `Spec: NNN/Txxx` y `Closes #N`.
 
-5. Parse tasks.md structure and extract:
-   - **Task phases**: Setup, Tests, Core, Integration, Polish
-   - **Task dependencies**: Sequential vs parallel execution rules
-   - **Task details**: ID, description, file paths, parallel markers [P]
-   - **Execution flow**: Order and dependency requirements
+8. **Indicaciones de commit**: en cada pausa, indicá exactamente qué pie TDD corresponde (`red`, `green`, `refactor` o ninguno) y si va `Closes #N` o `Refs #N`, para que el desarrollador lo verifique contra los "Supuestos a verificar" que le muestra `/redactar-commit`. El commit lo ejecuta él; esta skill nunca corre comandos de Git de escritura. **Nunca encadenes otra tarea**: terminada la pausa, la invocación termina.
 
-6. Execute implementation following the task plan:
-   - **Phase-by-phase execution**: Complete each phase before moving to the next
-   - **Respect dependencies**: Run sequential tasks in order, parallel tasks [P] can run together
-   - **Follow TDD approach**: Execute test tasks before their corresponding implementation tasks
-   - **File-based coordination**: Tasks affecting the same files must run sequentially
-   - **Validation checkpoints**: Verify each phase completion before proceeding
+9. **Marca `[X]`**: es la **única escritura** de esta skill. Cambiá solo `- [ ]` por `- [X]` en la línea de la tarea, sin tocar nada más de `tasks.md` ni ningún otro archivo. Se hace **antes** de la pausa correspondiente, para que entre en el mismo commit que cierra la tarea.
 
-7. Implementation execution rules:
-   - **Setup first**: Initialize project structure, dependencies, configuration
-   - **Tests before code**: If you need to write tests for contracts, entities, and integration scenarios
-   - **Core development**: Implement models, services, CLI commands, endpoints
-   - **Integration work**: Database connections, middleware, logging, external services
-   - **Polish and validation**: Unit tests, performance optimization, documentation
+10. **Validación de cierre** (de la tarea, no de la feature):
+    - El subagente devolvió su informe y se lo mostró al desarrollador.
+    - La tarea quedó `[X]` cuando correspondía según su flujo, y no quedó marcada si está bloqueada o si falta el refactor.
+    - La pausa quedó indicada con el pie TDD y el `Closes`/`Refs` correctos.
+    - No se inició ninguna otra tarea.
 
-8. Progress tracking and error handling:
-   - Report progress after each completed task
-   - Halt execution if any non-parallel task fails
-   - For parallel tasks [P], continue with successful tasks, report failed ones
-   - Provide clear error messages with context for debugging
-   - Suggest next steps if implementation cannot proceed
-   - **IMPORTANT** For completed tasks, make sure to mark the task off as [X] in the tasks file.
-
-9. Completion validation:
-   - Verify all required tasks are completed
-   - Check that implemented features match the original specification
-   - Validate that tests pass and coverage meets requirements
-   - Confirm the implementation follows the technical plan
-
-Note: This command assumes a complete task breakdown exists in tasks.md. If tasks are incomplete or missing, suggest running `/speckit-tasks` first to regenerate the task list.
+Nota: esta skill supone que `tasks.md` ya existe y está completo. Si las tareas están incompletas o falta el archivo, sugerí ejecutar `/speckit-tasks` antes de seguir.
 
 ## Mandatory Post-Execution Hooks
 
@@ -217,13 +208,41 @@ Check if `.specify/extensions.yml` exists in the project root.
     To execute: `/{command}`
     ```
 
+Estos hooks corren al cerrar **la invocación** (la tarea o la etapa que la termina), no al completar la feature.
+
 ## Completion Report
 
-Report final status with summary of completed work.
+Informá, en pocas líneas:
+
+1. La tarea: ID, tipo y la historia o fase a la que pertenece.
+2. El subagente invocado y, si fue `code-builder`, el modo.
+3. El informe del subagente, tal como lo devolvió.
+4. Si la tarea quedó marcada `[X]` en `tasks.md`, o por qué no.
+5. El próximo paso del desarrollador: el commit que debe registrar con `/redactar-commit`, con su pie TDD y su `Closes`/`Refs`; y, si falta el refactor, que después del commit GREEN avise para continuar, o que retome con `/speckit-implement Txxx refactor` si se corta la sesión.
 
 ## Done When
 
-- [ ] All tasks in tasks.md completed and marked `[X]`
-- [ ] Implementation validated against specification, plan, and test coverage
+- [ ] La invocación trajo un ID de tarea y la feature quedó determinada por la rama
+- [ ] La tarea se localizó en `tasks.md` y se clasificó (pruebas, implementación o técnica), preguntando si era dudosa
+- [ ] Se delegó en el subagente correcto, con las entradas que define su archivo, y la conversación principal no escribió código ni pruebas
+- [ ] Se mostró el informe del subagente, y si estaba bloqueado o trajo preguntas se detuvo la ejecución
+- [ ] La marca `[X]` se puso solo cuando correspondía, antes de la pausa, y no se modificó nada más
+- [ ] La pausa indica el pie TDD y el `Closes`/`Refs` exactos, y no se avanzó de GREEN a REFACTOR sin la confirmación del commit
+- [ ] No se inició ninguna otra tarea ni fase
 - [ ] Extension hooks dispatched or skipped according to the rules in Mandatory Post-Execution Hooks above
-- [ ] Completion reported to user with summary of completed work
+
+## Adaptaciones del proyecto
+
+Esta skill proviene de Spec Kit (`templates/commands/implement.md`) y fue adaptada así:
+
+- Ejecuta **una sola tarea** por invocación (`/speckit-implement Txxx`), con `/speckit-implement Txxx refactor` para retomar un refactor pendiente; nunca recorre la feature, una fase ni varias tareas.
+- La feature y el alcance se deducen de la rama (`hu/NNN-...` o `fase/NNN-...`); otra rama obliga a preguntar.
+- Se agregó la clasificación de la tarea en de pruebas, de implementación o técnica, con pregunta al desarrollador si es dudosa.
+- El trabajo se delega en los subagentes `qa-builder` y `code-builder` (modos `green`, `refactor` y `tecnica`); la conversación principal no escribe código ni pruebas.
+- El flujo termina en pausas para que el desarrollador registre los commits con `/redactar-commit`, y no avanza de GREEN a REFACTOR sin su confirmación de que el commit GREEN existe.
+- En cada pausa se indica el pie TDD y si corresponde `Closes` o `Refs`.
+- La marca `[X]` en `tasks.md` es la única escritura de la skill y se hace antes de la pausa.
+- Se eliminó el paso "Project Setup Verification" (crear o verificar archivos ignore de forma automática): pasa a ser responsabilidad de las tareas técnicas.
+- `disable-model-invocation` quedó en `true`: la skill solo se ejecuta a pedido del desarrollador.
+
+Una actualización de Spec Kit puede sobrescribir este archivo. Si eso pasa, hay que volver a aplicar todas estas adaptaciones.

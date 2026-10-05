@@ -1,0 +1,17 @@
+
+# tipo(ámbito): descripción (máx. 72 caracteres, minúsculas, sin punto)
+#
+# Cuerpo opcional: qué cambia y por qué, en líneas de hasta 72 caracteres.
+#
+# Pies, en este orden y sin líneas en blanco entre ellos:
+# Spec: NNN/Txxx
+# TDD: red | green | refactor   (reglas de negocio, cálculos, validaciones)
+# Closes #N                     (commit que termina la tarea)
+# Refs #N                       (commits intermedios de la tarea)
+# BREAKING CHANGE: ...          (si rompe compatibilidad; además "!" tras el ámbito)
+#
+# Tipos: feat, fix, test, refactor, docs, style, chore
+# Ámbitos: auth, proyectos, backlog, sprints, poker, esfuerzo, defectos,
+#          metricas, dashboard, reportes, infra, deps, repo
+#
+# Las líneas que empiezan con # no forman parte del mensaje.

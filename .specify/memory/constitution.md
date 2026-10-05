@@ -1,11 +1,10 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Cambio de versión: 2.0.0 → 2.1.0
+Cambio de versión: 2.1.0 → 2.2.0
 Tipo de bump: MINOR (se amplían materialmente las guías de los Principios II y
-IX; no se elimina ninguna prohibición existente). Los dos ajustes de redacción
-del Principio IX ("código" → "repositorio Git") son consecuencia directa de la
-autorización nueva sobre la copia de trabajo local, no un cambio de alcance.
+IV con una convención de BDD y una tabla de dependencias autorizadas; no se
+elimina ni se redefine ninguna regla existente).
 
 Historial:
   - 1.0.0 (2026-09-19): ratificación original del documento.
@@ -22,6 +21,42 @@ Historial:
     commits separados; delimitación de la prohibición del ámbito a) al
     repositorio Git con autorización explícita sobre la copia de trabajo local;
     reglas de incorporación de skills de terceros.
+  - 2.2.0 (2026-10-04): convención de BDD que liga cada escenario Given/When/Then
+    de una spec a una prueba automatizada con nombre trazable, y tabla de
+    dependencias autorizadas con sus exclusiones.
+
+Principios modificados en 2.2.0:
+  - II. Desarrollo Guiado por Pruebas (NO NEGOCIABLE):
+    - Nueva viñeta de BDD: cada escenario Given/When/Then de una spec DEBE
+      implementarse como al menos una prueba automatizada cuyo nombre identifique
+      la historia y el escenario, sin incorporar herramientas de BDD. Fija la
+      convención por stack: en Go, función `TestUSn_<Escenario>` en el paquete
+      del módulo precedida por el comentario
+      `// Escenario: <nombre> (NNN/USn)`, con las variantes agrupadas como
+      subtests; en Vitest, un `describe("NNN/USn - <título>")` con un `it` por
+      escenario. La trazabilidad DEBE poder verificarse buscando `NNN/USn` en el
+      código de pruebas.
+    - Justificación ampliada con la exigencia de BDD de la cátedra.
+  - IV. Stack Fijo y Versiones Estables:
+    - Nueva subsección "Dependencias autorizadas": tabla de once entradas que
+      concede la autorización previa que el principio exige, por nombre y
+      propósito, dejando la versión exacta al plan de cada feature bajo la regla
+      de versiones estables. Cubre backend (driver de PostgreSQL para GORM, JWT,
+      bcrypt, UUID, Swagger, CORS), pruebas de backend (testify), frontend
+      (TypeScript, ESLint, Prettier), pruebas de frontend (vitest y la cadena de
+      Testing Library que indica la guía oficial de Next.js) y la herramienta de
+      desarrollo govulncheck.
+    - Dos viñetas de cierre: exclusiones por aplicación del Principio I (clientes
+      HTTP de terceros, cargadores de variables de entorno, contenedores de
+      prueba programáticos y herramientas de migración externas) y diferimiento
+      de las dependencias de WebSockets (spec 005), gráficos (spec 009) y
+      generación de PDF (spec 010) al momento de planificar esas specs.
+    - La tabla del stack obligatorio, la regla de versiones estables y el párrafo
+      de autorización previa no cambian.
+
+Secciones modificadas en 2.2.0: ninguna
+Secciones añadidas: ninguna
+Secciones eliminadas: ninguna
 
 Principios modificados en 2.1.0:
   - II. Desarrollo Guiado por Pruebas (NO NEGOCIABLE):
@@ -103,6 +138,10 @@ Seguimiento manual requerido:
     `.claude/skills/`.
   - El rol "Agile Enabler" queda nombrado en el ámbito c) como responsable
     humano de la revisión y el merge.
+  - `.specify/templates/plan-template.md` no menciona la tabla de dependencias
+    autorizadas que incorpora 2.2.0, y es el plan de cada feature el que fija la
+    versión exacta de cada dependencia. Conviene revisar si el plan debe
+    referenciarla de forma explícita.
 
 TODO pendientes: ninguno
 -->
@@ -145,11 +184,23 @@ refactorizar. Está prohibido escribir código de producción sin una prueba que
   separado, hecho por una persona según `docs/guia-commits.md`. Un agente que aplica el ciclo se
   detiene después de verificar que la prueba falla, para que se registre el commit RED antes de
   implementar.
+- Cada escenario Given/When/Then de una spec DEBE implementarse como al menos una prueba
+  automatizada cuyo nombre identifique la historia y el escenario, sin herramientas de BDD
+  adicionales:
+  - Backend (Go): función `TestUSn_<Escenario>` en el paquete del módulo (por ejemplo,
+    `TestUS1_CorreoDuplicado`), precedida por el comentario
+    `// Escenario: <nombre del escenario en spec.md> (NNN/USn)`. Las variantes de un mismo escenario
+    se agrupan como subtests (`t.Run`).
+  - Frontend (Vitest): bloque `describe("NNN/USn - <título de la historia>")` con un
+    `it("<nombre del escenario en spec.md>")` por escenario.
+  - La trazabilidad escenario → prueba DEBE poder verificarse buscando `NNN/USn` en el código de
+    pruebas.
 
 **Justificación**: un sistema que mide la calidad de otros proyectos pierde credibilidad si no
 puede demostrar la suya. La cobertura medible es el registro de qué se está probando realmente. La
 cátedra evalúa pruebas unitarias en métricas, estimación, reglas de negocio y validaciones, y la
-evidencia de TDD en el historial del repositorio.
+evidencia de TDD en el historial del repositorio. La cátedra exige BDD; la convención de nombres
+convierte cada escenario de la spec en una prueba ejecutable y rastreable sin sumar dependencias.
 
 ### III. Arquitectura por Capas
 
@@ -196,6 +247,33 @@ móviles del tipo `latest`.
 Instalar una dependencia externa no listada en esta tabla ni exigida explícitamente por el
 requisito en curso REQUIERE autorización previa y explícita del responsable humano, acompañada de
 una justificación que indique por qué se necesita y para qué se usará.
+
+**Dependencias autorizadas**
+
+Las siguientes dependencias cuentan con la autorización previa exigida por este principio. Se
+autoriza el nombre y el propósito; la versión exacta la fija el plan de cada feature, respetando la
+regla de versiones estables.
+
+| Ámbito | Dependencia | Propósito |
+| --- | --- | --- |
+| Backend | gorm.io/driver/postgres | Conexión de GORM con PostgreSQL |
+| Backend | github.com/golang-jwt/jwt/v5 | Emisión y validación de JWT |
+| Backend | golang.org/x/crypto (bcrypt) | Hash de contraseñas |
+| Backend | github.com/google/uuid | Identificadores UUID |
+| Backend | github.com/swaggo/swag, github.com/swaggo/gin-swagger, github.com/swaggo/files | Generación y publicación de Swagger |
+| Backend | github.com/gin-contrib/cors | CORS entre frontend y API |
+| Backend (pruebas) | github.com/stretchr/testify | Aserciones y mocks en pruebas |
+| Frontend | TypeScript y ESLint (incluidos por create-next-app) | Tipado y análisis estático |
+| Frontend | Prettier | Formateo del código |
+| Frontend (pruebas) | vitest, @vitejs/plugin-react, jsdom, @testing-library/react, @testing-library/dom y los paquetes que indique la guía oficial de Next.js para Vitest | Pruebas de componentes |
+| Herramienta de desarrollo | golang.org/x/vuln/cmd/govulncheck | Detección de vulnerabilidades conocidas en dependencias de Go |
+
+- Quedan excluidas por el Principio I, salvo nueva autorización: clientes HTTP de terceros (se usa
+  `fetch`), cargadores de variables de entorno (se usa la librería estándar), contenedores de prueba
+  programáticos (se usa Docker Compose, Principio V) y herramientas de migración externas (se usa
+  `AutoMigrate` de GORM, salvo justificación en el plan).
+- Las dependencias de WebSockets (spec 005), gráficos (spec 009) y generación de PDF (spec 010) se
+  autorizan al planificar esas specs.
 
 **Justificación**: fijar el stack y las versiones elimina decisiones repetidas, evita
 incompatibilidades sorpresivas y mantiene reproducible cualquier entorno.
@@ -498,4 +576,4 @@ este documento.
 - `CLAUDE.md` en la raíz es la guía operativa en tiempo de desarrollo y DEBE mantenerse alineado
   con esta constitución; ante discrepancia, manda la constitución.
 
-**Version**: 2.1.0 | **Ratified**: 2026-09-19 | **Last Amended**: 2026-10-04
+**Version**: 2.2.0 | **Ratified**: 2026-09-19 | **Last Amended**: 2026-10-04

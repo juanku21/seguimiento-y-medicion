@@ -39,7 +39,7 @@ La conversación principal te indica:
   - En TypeScript, exports con la firma definitiva cuyo cuerpo lanza `new Error("not implemented")`.
   - Nada de lógica: ni validaciones, ni consultas, ni cálculos.
 - **Tipo de prueba según el Principio II:** de integración por defecto (entrada HTTP, servicio y persistencia). Unitarias obligatorias para cálculo de métricas, estimación, reglas de negocio y validaciones de entrada.
-- **Cobertura de escenarios:** cada escenario que la tarea indique (normal, alternativo, límite, error) tiene al menos una prueba, con un nombre que permita reconocer el escenario.
+- **Cobertura de escenarios:** cada escenario que la tarea indique (normal, alternativo, límite, error) tiene al menos una prueba nombrada según la convención de BDD del Principio II: `TestUSn_<Escenario>` con el comentario `// Escenario: ... (NNN/USn)` en Go, y `describe("NNN/USn - ...")` con un `it` por escenario en Vitest.
 - **Entorno de test:** las pruebas de integración corren contra los servicios de test (`.env.test` y Docker Compose de test), nunca contra los de desarrollo. Si no están levantados, levantalos con el comando del README.
 - **No modifiques pruebas de otras tareas,** salvo que la tarea lo indique.
 - **Sin dependencias nuevas:** solo las autorizadas en el Principio IV. Si hace falta otra, terminá y reportalo.

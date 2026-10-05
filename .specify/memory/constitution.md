@@ -1,35 +1,69 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Cambio de versión: 1.1.0 → 1.2.0
-Tipo de bump: MINOR (se amplía materialmente la guía del Principio IX y la
-estructura del repositorio; no se elimina ninguna prohibición existente sobre
-el código ni el historial de Git)
+Cambio de versión: 2.0.0 → 2.1.0
+Tipo de bump: MINOR (se amplían materialmente las guías de los Principios II y
+IX; no se elimina ninguna prohibición existente). Los dos ajustes de redacción
+del Principio IX ("código" → "repositorio Git") son consecuencia directa de la
+autorización nueva sobre la copia de trabajo local, no un cambio de alcance.
 
 Historial:
   - 1.0.0 (2026-09-19): ratificación original del documento.
   - 1.1.0 (2026-09-19): enmienda de los Principios III y VIII.
-  - 1.2.0 (2026-09-20): enmienda del Principio IX (gestión de issues por
-    agentes vía MCP de GitHub bajo condiciones estrictas y ampliación de los
-    artefactos agénticos permitidos), del árbol de directorios y del Flujo de
+  - 1.2.0 (2026-09-20): enmienda del Principio IX (gestión de issues vía MCP de
+    GitHub bajo condiciones estrictas), del árbol de directorios y del Flujo de
     Trabajo de Desarrollo.
+  - 2.0.0 (2026-10-04): reorganización del Principio IX en seis ámbitos; se
+    permite proponer mensajes de commit y abrir pull requests con confirmación
+    humana, y se exige que toda escritura hacia GitHub pase por una skill
+    declarada.
+  - 2.1.0 (2026-10-04): obligatoriedad de pruebas unitarias en métricas,
+    estimación, reglas de negocio y validaciones; evidencia del ciclo TDD en
+    commits separados; delimitación de la prohibición del ámbito a) al
+    repositorio Git con autorización explícita sobre la copia de trabajo local;
+    reglas de incorporación de skills de terceros.
 
-Principios modificados en 1.2.0:
-  - IX. Gobierno del Repositorio y Límites de Agentes de IA: se separa el
-    ámbito de código e historial de Git (prohibición total para agentes, sin
-    cambios de fondo) del ámbito de gestión de issues del tablero (permitido
-    vía servidor MCP de GitHub bajo cinco condiciones acumulativas). Los
-    artefactos agénticos permitidos pasan a ser `CLAUDE.md` y el directorio
-    `.claude/` de la raíz; se mantiene la prohibición de `AGENTS.md`.
-    Justificación reescrita.
+Principios modificados en 2.1.0:
+  - II. Desarrollo Guiado por Pruebas (NO NEGOCIABLE):
+    - Las pruebas de integración se definen como verificación de punta a punta
+      (entrada HTTP, servicio y persistencia contra la base de test).
+    - Las pruebas unitarias pasan de excepcionales a OBLIGATORIAS en cuatro
+      dominios: cálculo de métricas, estimación (conversión de story points a
+      horas, velocidad y proyecciones), reglas de negocio (transiciones de
+      estado, permisos por rol y restricciones de dominio) y validaciones de
+      entrada. Fuera de esos casos se mantiene el criterio anterior de lógica
+      considerablemente compleja.
+    - Nueva regla de evidencia: cada etapa del ciclo (RED, GREEN, REFACTOR) se
+      registra en un commit separado hecho por una persona según
+      `docs/guia-commits.md`, y el agente que aplica el ciclo se detiene tras
+      verificar que la prueba falla.
+    - Justificación ampliada con el criterio de evaluación de la cátedra.
+  - IX. Gobierno del Repositorio y Límites de Agentes de IA:
+    - Ámbito a) renombrado: "Código e historial de Git" → "Repositorio Git e
+      historial". La prohibición se delimita al repositorio Git y su historial
+      (registrar cambios, crear o modificar ramas, integrar código a `main`) y
+      se agrega un párrafo que autoriza a los agentes a crear, modificar y
+      revisar archivos en la copia de trabajo local del desarrollador y a
+      ejecutar pruebas, formateadores, compilaciones y el entorno de test; esos
+      cambios llegan al repositorio solo cuando una persona los registra en un
+      commit. La lista de comandos prohibidos, las operaciones de lectura
+      permitidas y la aplicación técnica en `.claude/settings.json` no cambian.
+    - Ámbito f) ampliado con tres reglas: incorporación de skills de terceros
+      (copia de carpetas seleccionadas en `.claude/skills/` desde un commit fijo
+      del repositorio de origen, con su licencia, revisión humana previa del
+      contenido y registro del origen y las adaptaciones en el mensaje del
+      commit que la incorpora o la actualiza; prohibidos los plugins y las ramas
+      móviles por aplicación del Principio IV); precedencia de esta constitución
+      ante cualquier skill, propia o de terceros; y obligación de configurar las
+      herramientas para no generar archivos de instrucciones agénticas
+      (`agentRules: false` en `next.config` y `--no-agents-md` al crear el
+      proyecto Next.js).
+    - Justificación: "el código, el índice y el historial" → "el repositorio, su
+      índice y su historial", para no contradecir la autorización nueva.
 
-Secciones modificadas en 1.2.0:
-  - Restricciones Técnicas: el árbol de directorios incorpora `.claude/`
-    (skills, agentes y configuración) y `.github/ISSUE_TEMPLATE/`.
-  - Flujo de Trabajo de Desarrollo: nuevo paso 2 (publicación de historias y
-    tareas en GitHub con aprobación humana del plan); pasos 2 a 9 renumerados
-    a 3 a 10, y el paso de entrega precisa que la prohibición alcanza al
-    código y al historial, no al tablero de issues.
+Secciones modificadas en 2.1.0: ninguna
+Secciones añadidas: ninguna
+Secciones eliminadas: ninguna
 
 Principios modificados en 1.1.0:
   - III. Arquitectura por Capas: el backend fija `cmd/app/` como punto de
@@ -38,10 +72,6 @@ Principios modificados en 1.1.0:
     indentación de dos tabulaciones; el formateo pasa a regirse por el
     estándar oficial de cada lenguaje (`gofmt` en Go, convenciones oficiales
     de TypeScript en el frontend).
-
-Secciones modificadas en 1.1.0:
-  - Restricciones Técnicas: árbol de directorios actualizado con `cmd/app/`
-    e `internal/`.
 
 Principios definidos en 1.0.0 (ninguno previo existía):
   - I. Simplicidad Deliberada (YAGNI, KISS, DRY, SOLID)
@@ -54,19 +84,27 @@ Principios definidos en 1.0.0 (ninguno previo existía):
   - VIII. Estándares de Código y Documentación Viva
   - IX. Gobierno del Repositorio y Límites de Agentes de IA
 
-Secciones añadidas:
-  - Restricciones Técnicas (stack, estructura de directorios, modelo de datos)
-  - Flujo de Trabajo de Desarrollo (ciclo TDD, autorizaciones, puertas de calidad)
-  - Gobernanza
-
-Secciones eliminadas: ninguna (el documento previo era la plantilla vacía)
-
 Plantillas dependientes: no modificadas (leen la constitución en tiempo de
-ejecución). La skill de sincronización de issues y el `CLAUDE.md` de la raíz
-quedan alcanzados por el Principio IX enmendado y DEBEN revisarse contra él.
+ejecución).
 
-TODO pendientes: ninguno (TODO(INDENTACION_GO) queda resuelto al adoptar el
-estándar de formateo oficial de cada lenguaje).
+Seguimiento manual requerido:
+  - `CLAUDE.md` de la raíz referencia "Principio IX, ámbitos b y d" para la
+    exclusividad de la revisión y el merge: desde 2.0.0 esa regla vive en el
+    ámbito c. La referencia a "ámbito a" sigue siendo correcta. La corrección la
+    hace una persona.
+  - `CLAUDE.md` describe la prohibición del ámbito a) como escritura "en el
+    repositorio de código o en su índice"; conviene alinearla con la
+    delimitación de 2.1.0 (repositorio Git e historial) para que no se lea como
+    una prohibición de editar archivos de la copia de trabajo.
+  - `docs/guia-commits.md` todavía no existe y ahora lo exigen dos principios:
+    el ámbito b) del Principio IX como formato de toda propuesta de mensaje de
+    commit, y el Principio II como referencia de los commits de evidencia del
+    ciclo TDD. Las skills `/redactar-commit` y `/redactar-pr` ya existen en
+    `.claude/skills/`.
+  - El rol "Agile Enabler" queda nombrado en el ámbito c) como responsable
+    humano de la revisión y el merge.
+
+TODO pendientes: ninguno
 -->
 
 # Constitución de Software Metrics & Estimation
@@ -93,16 +131,25 @@ Para cada funcionalidad, la prueba DEBE escribirse antes que el código de produ
 obligatorio es: escribir la prueba → verificar que falla → implementar → verificar que pasa →
 refactorizar. Está prohibido escribir código de producción sin una prueba que lo justifique.
 
-- Las pruebas de integración son el mecanismo por defecto para verificar funcionalidades.
-- Las pruebas unitarias SOLO se escriben cuando exista lógica considerablemente compleja
-  (cálculos, gran cantidad de operaciones lógicas) que requiera verificación aislada.
+- Las pruebas de integración son el mecanismo por defecto para verificar cada funcionalidad de
+  punta a punta (entrada HTTP, servicio y persistencia contra la base de test).
+- Las pruebas unitarias son OBLIGATORIAS para el cálculo de métricas; la estimación (conversión de
+  story points a horas, velocidad y proyecciones); las reglas de negocio (transiciones de estado,
+  permisos por rol y restricciones de dominio) y las validaciones de entrada. Fuera de esos casos,
+  se escriben solo ante lógica considerablemente compleja que requiera verificación aislada.
 - Las pruebas DEBEN ejecutarse contra servicios y bases de datos de test, nunca contra el entorno
   de desarrollo (ver Principio V).
 - El backend y el frontend DEBEN exponer cada uno un comando documentado para generar el reporte
   de cobertura de pruebas.
+- Cada etapa del ciclo con evidencia (RED, GREEN, REFACTOR) queda registrada en un commit
+  separado, hecho por una persona según `docs/guia-commits.md`. Un agente que aplica el ciclo se
+  detiene después de verificar que la prueba falla, para que se registre el commit RED antes de
+  implementar.
 
 **Justificación**: un sistema que mide la calidad de otros proyectos pierde credibilidad si no
-puede demostrar la suya. La cobertura medible es el registro de qué se está probando realmente.
+puede demostrar la suya. La cobertura medible es el registro de qué se está probando realmente. La
+cátedra evalúa pruebas unitarias en métricas, estimación, reglas de negocio y validaciones, y la
+evidencia de TDD en el historial del repositorio.
 
 ### III. Arquitectura por Capas
 
@@ -231,51 +278,117 @@ el mismo cambio que el código nunca miente.
 
 ### IX. Gobierno del Repositorio y Límites de Agentes de IA
 
-**a) Código e historial de Git — prohibición total para agentes**
+**a) Repositorio Git e historial — prohibición total para agentes**
 
-Ningún agente de IA (no humano) puede ejecutar operación de escritura alguna sobre el código ni
-sobre el historial del repositorio colaborativo. La prohibición alcanza por igual a:
+Ningún agente de IA (no humano) puede ejecutar operación de escritura alguna sobre el repositorio
+Git ni sobre su historial: registrar cambios, crear o modificar ramas, ni integrar código a `main`.
+La prohibición se mantiene aunque una persona la pida: no es una preferencia revocable en
+conversación, es un límite del proyecto. Alcanza por igual a:
 
-- Los comandos de Git que escriben: `commit`, `branch`, `checkout -b`, `merge`, `rebase`, `push`,
-  `stash`, `tag`, `reset` y cualquier otro equivalente.
-- Las APIs y herramientas MCP que producen el mismo efecto: crear ramas, crear, modificar o
-  eliminar archivos remotos, hacer push, y abrir o mergear pull requests.
+- Los comandos de Git que escriben: `add`, `commit`, `branch` con argumentos, `checkout`, `switch`,
+  `merge`, `rebase`, `push`, `pull`, `fetch`, `stash`, `tag`, `reset`, `restore`, `revert`,
+  `cherry-pick` y cualquier otro equivalente.
+- Las APIs y herramientas MCP que producen el mismo efecto: crear ramas; crear, modificar o
+  eliminar archivos remotos; hacer push; y mergear, aprobar, cerrar o modificar pull requests.
 
-Estas operaciones son exclusivamente humanas. Los agentes solo pueden leer el repositorio.
+Un agente SOLO puede ejecutar operaciones de lectura sobre el repositorio: `status`, `diff`, `log`,
+`rev-parse`, `rev-list`, `branch --show-current` y `remote get-url`.
 
-**b) Gestión de issues del tablero — permitida bajo condiciones**
+Esta frontera DEBE estar además aplicada técnicamente: `.claude/settings.json` deniega los comandos
+de escritura de Git, de modo que la regla no dependa únicamente de la obediencia del agente.
 
-Un agente PUEDE crear, editar, etiquetar, comentar y cerrar issues, vincular sub-issues y crear
-etiquetas del repositorio, únicamente a través del servidor MCP de GitHub y cumpliendo TODAS las
+Los agentes PUEDEN crear, modificar y revisar archivos en la copia de trabajo local del
+desarrollador, y ejecutar pruebas, formateadores, compilaciones y el entorno de test. Esos cambios
+llegan al repositorio solo cuando una persona los revisa y los registra en un commit.
+
+**b) Mensajes de commit — propuesta sin ejecución**
+
+Un agente PUEDE redactar y proponer mensajes de commit, y solo eso, cumpliendo TODAS las
 condiciones siguientes, que son acumulativas:
+
+1. La propuesta se produce únicamente a pedido de una persona y a través de la skill dedicada
+   (`/redactar-commit`); un agente no redacta mensajes de commit por iniciativa propia.
+2. La propuesta se entrega como texto en la conversación. La persona la revisa, la modifica si hace
+   falta y ejecuta el commit ella misma.
+3. El formato y las reglas de redacción viven en `docs/guia-commits.md`, que es la referencia
+   obligatoria de toda propuesta.
+
+**c) Pull requests — apertura con confirmación; revisión y merge humanos**
+
+Un agente PUEDE redactar y abrir pull requests cumpliendo TODAS las condiciones siguientes, que son
+acumulativas:
+
+1. La redacción y la apertura se producen únicamente a pedido de una persona y a través de la skill
+   dedicada (`/redactar-pr`).
+2. El pull request se abre desde la rama de la historia de usuario o de la fase técnica y siempre
+   hacia `main`.
+3. Antes de abrirlo, el agente DEBE mostrar el título y el cuerpo completos y esperar la
+   confirmación explícita de una persona.
+4. Está prohibido mergear, aprobar, cerrar o modificar un pull request, y también solicitar
+   revisores. La revisión, la aprobación y el merge son exclusivos del Agile Enabler, el rol humano
+   responsable de la integración en `main`.
+
+**d) Gestión de issues del tablero — permitida bajo condiciones**
+
+Un agente PUEDE crear, editar, etiquetar, comentar y cerrar issues, vincular sub-issues,
+reordenarlos o cambiarlos de padre, y crear etiquetas del repositorio, únicamente a través del
+servidor MCP de GitHub y cumpliendo TODAS las condiciones siguientes, que son acumulativas:
 
 1. La fuente de verdad son los archivos de `specs/`. La sincronización es unidireccional, de
    `specs/` hacia GitHub: un agente jamás modifica una spec, un plan ni un `tasks.md` a partir del
    contenido de un issue.
-2. Antes de escribir en GitHub, el agente DEBE presentar el plan completo de cambios y esperar la
+2. Antes de escribir en GitHub, el agente DEBE presentar la lista completa de cambios y esperar la
    aprobación explícita de una persona.
 3. Está prohibido eliminar issues, comentarios o etiquetas. Un issue obsoleto se cierra como "no
    planificado" con un comentario que explica el motivo.
 4. Los campos Valor, Prioridad y Estimación, los milestones y las asignaciones los gestiona
    exclusivamente el equipo humano; el agente no los completa ni los modifica.
-5. El servidor MCP de GitHub DEBE configurarse exponiendo solo las herramientas de issues y
-   etiquetas, y sus credenciales nunca se versionan (aplicación del Principio VI).
+5. El servidor MCP de GitHub DEBE configurarse exponiendo solo las herramientas de issues, de
+   etiquetas y de apertura de pull requests, y sus credenciales nunca se versionan (aplicación del
+   Principio VI).
 
-**c) Archivos de instrucciones y configuración agéntica**
+**e) Canal único de escritura: skills y subagentes**
+
+Toda escritura permitida hacia GitHub pasa por un punto de entrada declarado y auditable:
+
+- La publicación o actualización de issues a partir de `specs/` se hace únicamente con la skill
+  `/sincronizar-github`, que delega en el subagente `sync-github`.
+- La conversación principal no invoca las herramientas de escritura de issues ni de etiquetas del
+  servidor MCP de GitHub. Su única herramienta de escritura es la de apertura de pull requests
+  (`create_pull_request`), y solo dentro de la skill `/redactar-pr`.
+- Si una persona pide en lenguaje natural redactar un commit, abrir un pull request o sincronizar
+  con GitHub, el agente no lo hace por cuenta propia: indica qué skill corresponde ejecutar
+  (`/redactar-commit`, `/redactar-pr` o `/sincronizar-github`).
+
+**f) Artefactos de instrucciones y configuración agéntica**
 
 - Los únicos artefactos agénticos permitidos son el archivo `CLAUDE.md` de la raíz y el directorio
   `.claude/` de la raíz (skills, subagentes y configuración de Claude Code), dado que el stack
   agéntico del proyecto es Claude.
 - Está prohibido crear archivos `AGENTS.md` en cualquier ubicación del repositorio, incluidas la
   raíz, `frontend/` y `backend/`.
+- Las skills de terceros se incorporan copiando en `.claude/skills/` solo las carpetas
+  seleccionadas, desde un commit fijo de su repositorio de origen y con su archivo de licencia.
+  Está prohibido instalarlas como plugins o desde ramas móviles (aplicación del Principio IV).
+  Antes de incorporarlas, una persona revisa su contenido (instrucciones, scripts y referencias a
+  otras skills). El repositorio y el commit de origen de cada skill, y sus adaptaciones, se
+  registran en el mensaje del commit que la incorpora o la actualiza.
+- Ante conflicto entre una skill, propia o de terceros, y esta constitución, prevalece la
+  constitución.
+- Las herramientas que generan archivos de instrucciones agénticas DEBEN configurarse para no
+  generarlos. En particular, en Next.js se desactiva la generación de `AGENTS.md`
+  (`agentRules: false` en `next.config` y `--no-agents-md` al crear el proyecto).
 
-**Justificación**: la trazabilidad de la autoría en un trabajo colaborativo evaluado depende de
-que cada commit tenga un responsable humano identificable, y por eso el código y el historial
-siguen siendo territorio exclusivamente humano. Los issues son otra cosa: no son autoría, son el
-reflejo organizacional de lo que ya está decidido en `specs/`. Como su contenido se deriva de
-archivos versionados por personas y cada escritura requiere aprobación humana previa, delegar esa
-transcripción en un agente ahorra trabajo mecánico sin ceder ni una decisión ni una línea de
-código.
+**Justificación**: en un trabajo colaborativo evaluado, cada commit y cada integración en `main`
+necesitan un responsable humano identificable; por eso el repositorio, su índice y su historial
+siguen siendo territorio exclusivamente humano, y la revisión y el merge quedan en manos del Agile
+Enabler. Lo que sí se delega es el trabajo mecánico que rodea a esa autoría: redactar un mensaje de
+commit, transcribir a issues lo que ya está decidido en `specs/`, preparar la descripción de un
+pull request. En los tres casos el agente produce texto derivado de archivos versionados por
+personas y una persona confirma antes de que ese texto llegue a GitHub, así que no se cede ninguna
+decisión ni ninguna línea de código. Canalizar cada escritura por una skill nombrada, en lugar de
+permitirla en cualquier punto de la conversación, hace que la frontera sea verificable: basta mirar
+qué skill se invocó.
 
 ## Restricciones Técnicas
 
@@ -298,6 +411,8 @@ código.
 │   └── settings.json
 ├── .github/
 │   └── ISSUE_TEMPLATE/  # Plantillas de issues: historia de usuario, fase técnica y tarea
+├── docs/
+│   └── guia-commits.md  # Formato y reglas de los mensajes de commit
 ├── README.md         # Documentación en español, siempre actualizada
 ├── CLAUDE.md         # Instrucciones agénticas de la raíz (junto con .claude/)
 └── .gitignore        # Con secciones #Frontend y #Backend
@@ -322,7 +437,7 @@ código.
 2. **Publicar el trabajo en el tablero**: las historias de usuario y las tareas de `specs/` se
    publican como issues de GitHub mediante la skill de sincronización, que presenta el plan
    completo de cambios y espera la aprobación explícita de una persona antes de escribir
-   (Principio IX, ámbito b).
+   (Principio IX, ámbito d).
 3. **Probar primero**: se escribe la prueba de integración de la funcionalidad y se verifica que
    falla (Principio II). Las pruebas unitarias se añaden solo ante lógica compleja aislable.
 4. **Levantar el entorno de test**: los servicios de test se arrancan con Docker Compose usando
@@ -334,8 +449,12 @@ código.
 7. **Refactorizar**: se eliminan duplicaciones y se simplifica sin romper pruebas.
 8. **Documentar**: se actualizan Swagger, el `README.md` y el `.gitignore` en el mismo cambio.
 9. **Verificar cobertura**: se ejecuta el comando de cobertura de backend y/o frontend.
-10. **Entregar**: el commit lo realiza una persona; ningún agente escribe en el código ni en el
-    historial del repositorio (Principio IX, ámbito a).
+10. **Entregar**: si se le pide, el agente propone el mensaje de commit con `/redactar-commit`,
+    pero el commit lo ejecuta una persona; ningún agente escribe en el código, en el índice ni en
+    el historial del repositorio (Principio IX, ámbitos a y b).
+11. **Abrir el pull request**: desde la rama de la historia o de la fase técnica hacia `main`, con
+    `/redactar-pr` y previa confirmación explícita del título y el cuerpo. La revisión, la
+    aprobación y el merge son exclusivos del Agile Enabler (Principio IX, ámbito c).
 
 **Puertas de calidad (todas deben pasar antes de dar por terminado un cambio)**
 
@@ -379,4 +498,4 @@ este documento.
 - `CLAUDE.md` en la raíz es la guía operativa en tiempo de desarrollo y DEBE mantenerse alineado
   con esta constitución; ante discrepancia, manda la constitución.
 
-**Version**: 1.2.0 | **Ratified**: 2026-09-19 | **Last Amended**: 2026-09-20
+**Version**: 2.1.0 | **Ratified**: 2026-09-19 | **Last Amended**: 2026-10-04

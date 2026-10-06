@@ -26,7 +26,7 @@ Está prohibido ejecutar cualquier operación que escriba en el repositorio de c
 ### Commits (solo propuesta)
 - Los mensajes de commit se proponen únicamente con la skill `/redactar-commit`, a pedido del desarrollador.
 - La propuesta se entrega como texto en el chat. El desarrollador la revisa, la modifica si hace falta y ejecuta el commit él mismo.
-- El formato y las reglas están en `docs/guia-commits.md`.
+- El formato de los mensajes de commit está en la constitución, Principio IX, ámbito b).
 
 ### Pull Requests (apertura con confirmación)
 - Los pull requests se redactan y abren únicamente con la skill `/redactar-pr`, a pedido del desarrollador, desde la rama de la historia o fase técnica y siempre hacia `main`.

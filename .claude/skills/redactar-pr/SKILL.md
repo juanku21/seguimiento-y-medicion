@@ -76,7 +76,7 @@ No propongas reescribir commits: la historia no se reescribe. Las observaciones 
 ## Paso 7. Redactar
 
 1. Leé `.github/pull_request_template.md` y completá todas sus secciones. Eliminá los comentarios HTML de instrucciones.
-2. Título: `tipo(ámbito): descripción (NNN/USx)`, de 72 caracteres o menos. El tipo suele ser `feat` para historias y `chore` para fases técnicas, y el ámbito es el del módulo, según la guía de commits.
+2. Título: `tipo(ámbito): descripción (NNN/USx)`, de 72 caracteres o menos. El tipo suele ser `feat` para historias y `chore` para fases técnicas, y el ámbito es el del módulo, según el formato de commits de la constitución (Principio IX, ámbito b).
 3. En "Historia de usuario" va `Closes #N` con el número del issue de la historia. Las sub-issues no van ahí, porque las cierran sus commits.
 4. Las tablas de tareas y de evidencia TDD se arman con los datos de los pasos 3 y 4.
 5. Mostrale al desarrollador, en este orden:

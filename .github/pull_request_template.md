@@ -75,7 +75,7 @@ Cobertura del módulo: <!-- porcentaje -->
 ## Checklist del autor
 
 - [ ] Todas las sub-issues tienen un commit con `Closes #N`.
-- [ ] Todos los commits siguen la guía de commits y tienen el pie `Spec:`.
+- [ ] Todos los commits siguen el formato de commits de la constitución (Principio IX, ámbito b) y tienen el pie `Spec:`.
 - [ ] La rama está actualizada con `main`.
 - [ ] Las pruebas pasan en el entorno local.
 - [ ] No se versionaron secretos ni archivos `.env` reales.

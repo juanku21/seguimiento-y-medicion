@@ -1,10 +1,10 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Cambio de versión: 2.1.0 → 2.2.0
-Tipo de bump: MINOR (se amplían materialmente las guías de los Principios II y
-IV con una convención de BDD y una tabla de dependencias autorizadas; no se
-elimina ni se redefine ninguna regla existente).
+Cambio de versión: 2.2.0 → 2.3.0
+Tipo de bump: MINOR (las reglas de formato de los mensajes de commit pasan a
+estar contenidas en la constitución y se elimina la dependencia de guías
+externas al repositorio; no se elimina ni se redefine ninguna regla existente).
 
 Historial:
   - 1.0.0 (2026-09-19): ratificación original del documento.
@@ -24,6 +24,40 @@ Historial:
   - 2.2.0 (2026-10-04): convención de BDD que liga cada escenario Given/When/Then
     de una spec a una prueba automatizada con nombre trazable, y tabla de
     dependencias autorizadas con sus exclusiones.
+  - 2.3.0 (2026-10-05): el formato de los mensajes de commit se incorpora
+    completo al Principio IX, ámbito b); se eliminan las referencias a la guía
+    externa de commits y la entrada `docs/` del árbol de directorios, y el árbol
+    incorpora `.specify/` y `specs/`.
+
+Principios modificados en 2.3.0:
+  - II. Desarrollo Guiado por Pruebas (NO NEGOCIABLE):
+    - La regla de evidencia del ciclo TDD ya no remite a una guía externa: los
+      commits de RED, GREEN y REFACTOR se registran según el formato de commits
+      del Principio IX, ámbito b). El resto de la regla no cambia.
+  - IX. Gobierno del Repositorio y Límites de Agentes de IA:
+    - Ámbito b), punto 3: la remisión a una guía externa de commits se reemplaza
+      por el formato completo de los mensajes de commit, que pasa a vivir en la
+      constitución: Conventional Commits con primera línea
+      `tipo(ámbito): descripción` de 72 caracteres o menos; tipos `feat`, `fix`,
+      `test`, `refactor`, `docs`, `style` y `chore`; ámbito del módulo de la spec
+      o transversal (`infra`, `deps`, `repo`); descripción en español, en
+      minúsculas, sin punto final y con el verbo en presente; pie
+      `Spec: NNN/Txxx` en todo commit derivado de una tarea de `tasks.md`, con
+      `Closes #N` si la termina o `Refs #N` si es intermedio, más `TDD: red`,
+      `TDD: green` o `TDD: refactor` en reglas de negocio, cálculos y
+      validaciones; ámbito `repo` y sin esos pies para la configuración del
+      repositorio que no surge de una spec; y un commit por tarea. Los puntos 1
+      y 2 del ámbito b) no cambian.
+
+Secciones modificadas en 2.3.0:
+  - Restricciones Técnicas, "Estructura del repositorio": se elimina del árbol de
+    directorios la entrada `docs/` con su archivo de guía de commits, y se
+    incorporan `.specify/` (configuración de Spec Kit, con `memory/`, donde vive
+    este documento) y `specs/` (una carpeta por feature), que el documento ya
+    referenciaba sin listarlas.
+
+Secciones añadidas: ninguna
+Secciones eliminadas: ninguna
 
 Principios modificados en 2.2.0:
   - II. Desarrollo Guiado por Pruebas (NO NEGOCIABLE):
@@ -131,11 +165,16 @@ Seguimiento manual requerido:
     repositorio de código o en su índice"; conviene alinearla con la
     delimitación de 2.1.0 (repositorio Git e historial) para que no se lea como
     una prohibición de editar archivos de la copia de trabajo.
-  - `docs/guia-commits.md` todavía no existe y ahora lo exigen dos principios:
-    el ámbito b) del Principio IX como formato de toda propuesta de mensaje de
-    commit, y el Principio II como referencia de los commits de evidencia del
-    ciclo TDD. Las skills `/redactar-commit` y `/redactar-pr` ya existen en
-    `.claude/skills/`.
+  - El formato de commits quedó centralizado en el ámbito b) del Principio IX,
+    pero cuatro artefactos siguen remitiendo a una guía externa del equipo:
+    `CLAUDE.md` de la raíz (sección "Commits"),
+    `.claude/skills/redactar-commit/SKILL.md`,
+    `.claude/skills/redactar-pr/SKILL.md` y
+    `.github/pull_request_template.md`. Deben apuntar al Principio IX, ámbito
+    b). La corrección la hace una persona.
+  - `specs/001-user-auth/plan.md` y `specs/001-user-auth/research.md` registran
+    la ausencia de la guía de commits como bloqueo del primer commit RED; ese
+    bloqueo desaparece con 2.3.0.
   - El rol "Agile Enabler" queda nombrado en el ámbito c) como responsable
     humano de la revisión y el merge.
   - `.specify/templates/plan-template.md` no menciona la tabla de dependencias
@@ -181,9 +220,9 @@ refactorizar. Está prohibido escribir código de producción sin una prueba que
 - El backend y el frontend DEBEN exponer cada uno un comando documentado para generar el reporte
   de cobertura de pruebas.
 - Cada etapa del ciclo con evidencia (RED, GREEN, REFACTOR) queda registrada en un commit
-  separado, hecho por una persona según `docs/guia-commits.md`. Un agente que aplica el ciclo se
-  detiene después de verificar que la prueba falla, para que se registre el commit RED antes de
-  implementar.
+  separado, hecho por una persona según el formato de commits del Principio IX, ámbito b). Un
+  agente que aplica el ciclo se detiene después de verificar que la prueba falla, para que se
+  registre el commit RED antes de implementar.
 - Cada escenario Given/When/Then de una spec DEBE implementarse como al menos una prueba
   automatizada cuyo nombre identifique la historia y el escenario, sin herramientas de BDD
   adicionales:
@@ -388,8 +427,23 @@ condiciones siguientes, que son acumulativas:
    (`/redactar-commit`); un agente no redacta mensajes de commit por iniciativa propia.
 2. La propuesta se entrega como texto en la conversación. La persona la revisa, la modifica si hace
    falta y ejecuta el commit ella misma.
-3. El formato y las reglas de redacción viven en `docs/guia-commits.md`, que es la referencia
-   obligatoria de toda propuesta.
+3. El formato de los mensajes de commit, que es la referencia obligatoria de toda propuesta, es el
+   siguiente:
+   - Los commits siguen Conventional Commits: la primera línea es `tipo(ámbito): descripción` y
+     DEBE tener 72 caracteres o menos.
+   - Los tipos permitidos son `feat`, `fix`, `test`, `refactor`, `docs`, `style` y `chore`.
+   - El ámbito es el módulo de la spec (`auth`, `proyectos`, `backlog`, `sprints`, `poker`,
+     `esfuerzo`, `defectos`, `metricas`, `dashboard`, `reportes`) o uno transversal (`infra`,
+     `deps`, `repo`).
+   - La descripción se escribe en español, en minúsculas, sin punto final y con el verbo en
+     presente.
+   - Todo commit derivado de una tarea de `tasks.md` DEBE llevar el pie `Spec: NNN/Txxx` y, además,
+     `Closes #N` si termina la tarea o `Refs #N` si es intermedio, donde `#N` es la sub-issue de la
+     tarea. En reglas de negocio, cálculos y validaciones DEBE llevar también `TDD: red`,
+     `TDD: green` o `TDD: refactor`.
+   - Los cambios de configuración del repositorio que no surgen de una spec usan el ámbito `repo` y
+     no llevan esos pies.
+   - Cada commit corresponde a una sola tarea.
 
 **c) Pull requests — apertura con confirmación; revisión y merge humanos**
 
@@ -489,8 +543,10 @@ qué skill se invocó.
 │   └── settings.json
 ├── .github/
 │   └── ISSUE_TEMPLATE/  # Plantillas de issues: historia de usuario, fase técnica y tarea
-├── docs/
-│   └── guia-commits.md  # Formato y reglas de los mensajes de commit
+├── .specify/         # Configuración de Spec Kit
+│   ├── memory/       # constitution.md: este documento
+│   └── templates/    # Plantillas de spec, plan y tasks
+├── specs/            # Una carpeta por feature: spec.md, plan.md, tasks.md
 ├── README.md         # Documentación en español, siempre actualizada
 ├── CLAUDE.md         # Instrucciones agénticas de la raíz (junto con .claude/)
 └── .gitignore        # Con secciones #Frontend y #Backend
@@ -576,4 +632,4 @@ este documento.
 - `CLAUDE.md` en la raíz es la guía operativa en tiempo de desarrollo y DEBE mantenerse alineado
   con esta constitución; ante discrepancia, manda la constitución.
 
-**Version**: 2.2.0 | **Ratified**: 2026-09-19 | **Last Amended**: 2026-10-04
+**Version**: 2.3.0 | **Ratified**: 2026-09-19 | **Last Amended**: 2026-10-05

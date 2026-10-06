@@ -1,6 +1,6 @@
 ---
 name: redactar-commit
-description: Propone el mensaje de commit para los cambios en staging, siguiendo la guía de commits del equipo, y lo entrega como comando listo para copiar. Nunca ejecuta el commit. Usar únicamente cuando el desarrollador ejecute /redactar-commit.
+description: Propone el mensaje de commit para los cambios en staging, siguiendo el formato de commits de la constitución (Principio IX, ámbito b), y lo entrega como comando listo para copiar. Nunca ejecuta el commit. Usar únicamente cuando el desarrollador ejecute /redactar-commit.
 disable-model-invocation: true
 argument-hint: "[ID de tarea (T013) o número de sub-issue (#58), opcional]"
 allowed-tools: Read, Grep, Glob, Bash(git branch --show-current), Bash(git status:*), Bash(git diff:*), Bash(git log:*), mcp__github__list_issues, mcp__github__issue_read
@@ -20,7 +20,7 @@ Proponés el mensaje de commit para los cambios que el desarrollador puso en *st
 
 ## Reglas del mensaje
 
-Resumen de la guía de commits del equipo. Si se modifica la guía, hay que actualizar también esta sección.
+Resumen del formato de commits de la constitución (Principio IX, ámbito b). Si se modifica la constitución, hay que actualizar también esta sección.
 
 **Formato:**
 

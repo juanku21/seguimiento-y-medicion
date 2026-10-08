@@ -91,7 +91,7 @@ hay dónde ejecutar la primera prueba (research.md, sección 0). Todas las tarea
 - [X] T010 Fijar `agentRules: false` en `frontend/next.config.ts` y verificar que no exista ningún
       `AGENTS.md` en el repositorio; si apareciera, avisar al desarrollador sin borrarlo
       (Principio IX, ámbito f) — depende de T009
-- [ ] T011 [P] Crear `frontend/.env.example` (versionado) con
+- [X] T011 [P] Crear `frontend/.env.example` (versionado) con
       `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080`, y a partir de él `frontend/.env.local` y
       `frontend/.env.test`, ambos **no versionados** — depende de T008
 - [ ] T012 Configurar Vitest en `frontend/vitest.config.ts` y los scripts `test`, `test:watch` y

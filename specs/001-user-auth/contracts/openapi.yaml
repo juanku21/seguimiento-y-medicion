@@ -1,0 +1,339 @@
+# Contrato de la API de autenticación y cuentas de usuario (spec 001).
+# Fuente de verdad del diseño: specs/001-user-auth/spec.md
+# Este archivo es el contrato acordado en la Fase 1 del plan. La documentación publicada en
+# /swagger/index.html se genera con `swag init` a partir de las anotaciones del código y DEBE
+# coincidir con este contrato (Principio VIII).
+openapi: 3.0.3
+
+info:
+  title: Software Metrics & Estimation — Autenticación y Cuentas de Usuario
+  description: |
+    Registro de cuentas, inicio y cierre de sesión, y consulta del propio perfil.
+
+    Las únicas operaciones públicas son el registro y el inicio de sesión (FR-019). Todas las demás
+    exigen una sesión válida enviada en la cabecera `Authorization: Bearer <token>`.
+
+    Una sesión ausente, vencida, cerrada por su titular o adulterada recibe exactamente la misma
+    respuesta: `401` con indicación de volver a iniciar sesión (FR-015, FR-016, RN-07).
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Entorno de desarrollo local
+
+tags:
+  - name: Autenticación
+    description: Registro, inicio y cierre de sesión
+  - name: Usuarios
+    description: Consulta del propio perfil
+
+paths:
+  /api/v1/auth/register:
+    post:
+      tags: [Autenticación]
+      summary: Registra una cuenta nueva
+      description: |
+        Crea una cuenta a partir de nombre completo, correo electrónico y contraseña (FR-001).
+
+        El correo se normaliza antes de usarse: se recortan los espacios al inicio y al final y se
+        pasa a minúsculas (FR-004). El correo normalizado debe ser único en todo el sistema
+        (FR-005); si dos solicitudes simultáneas usan el mismo correo, se crea exactamente una
+        cuenta y la restante recibe `409` (FR-007).
+
+        **El registro no emite sesión** (FR-009): al completarlo hay que iniciar sesión con las
+        credenciales recién creadas.
+      operationId: registerUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              normal:
+                summary: Registro válido
+                value:
+                  fullName: Ana Pérez
+                  email: ana@example.com
+                  password: Proyecto2026
+              conEspaciosYMayusculas:
+                summary: Correo que se normaliza al guardarse
+                value:
+                  fullName: Ana Pérez
+                  email: '  Ana@Example.COM  '
+                  password: Proyecto2026
+      responses:
+        '201':
+          description: Cuenta creada. La persona ya puede iniciar sesión con ese correo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+              example:
+                id: 3f1a9c64-7b2e-4d58-9a10-5c8e2f6b1d04
+                fullName: Ana Pérez
+                email: ana@example.com
+        '400':
+          description: |
+            Entrada inválida. Indica qué campo corregir y por qué, sin crear ninguna cuenta parcial
+            (FR-008). La respuesta nunca incluye la contraseña ni nada derivado de ella (FR-011).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              example:
+                error: Hay campos inválidos en la solicitud.
+                fields:
+                  - field: password
+                    message: La contraseña debe tener entre 8 y 72 caracteres.
+                  - field: email
+                    message: El formato del correo electrónico no es válido.
+        '409':
+          description: El correo normalizado ya está registrado (FR-005, FR-007).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: El correo electrónico no está disponible.
+
+  /api/v1/auth/login:
+    post:
+      tags: [Autenticación]
+      summary: Inicia sesión y emite una sesión vigente
+      description: |
+        Valida las credenciales y devuelve una sesión con momento de vencimiento (FR-012, FR-013).
+        Al correo se le aplica la misma normalización del registro (FR-004).
+
+        La sesión vence 8 horas después de su emisión y el plazo es fijo: no se renueva ni se
+        extiende por actividad (FR-018). Una misma cuenta puede tener varias sesiones vigentes en
+        distintos dispositivos sin que unas invaliden a otras (FR-017).
+      operationId: loginUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: ana@example.com
+              password: Proyecto2026
+      responses:
+        '200':
+          description: Sesión emitida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+              example:
+                token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzZjFhOWM2NCJ9.firma
+                expiresAt: '2026-10-05T22:30:00Z'
+        '400':
+          description: Falta el correo o la contraseña en la solicitud.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: |
+            Credenciales inválidas. **El mensaje es idéntico** tanto si el correo no existe como si
+            la contraseña es incorrecta, para que no se pueda averiguar qué correos están
+            registrados (FR-014, RN-06, SC-004).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Correo electrónico o contraseña incorrectos.
+
+  /api/v1/auth/logout:
+    post:
+      tags: [Autenticación]
+      summary: Cierra la sesión en curso
+      description: |
+        Invalida de inmediato la sesión con la que se hizo la petición (FR-024, FR-026): deja de
+        otorgar acceso aunque alguien la haya copiado antes del cierre y aunque no hayan pasado las
+        8 horas. Las demás sesiones vigentes de la misma cuenta no se ven afectadas (FR-017).
+
+        Un visitante sin sesión válida recibe `401` y la operación no produce ningún efecto ni
+        revela información de ninguna cuenta (escenario US5-5).
+      operationId: logoutUser
+      responses:
+        '204':
+          description: Sesión cerrada. Las funciones protegidas vuelven a exigir inicio de sesión.
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+
+  /api/v1/users/me:
+    get:
+      tags: [Usuarios]
+      summary: Devuelve el perfil del titular de la sesión
+      description: |
+        Devuelve el nombre completo y el correo electrónico del titular de la sesión con la que se
+        hizo la petición (FR-022). **No existe forma de consultar el perfil de otra cuenta**: no se
+        acepta ningún identificador como parámetro (FR-023).
+
+        El correo se devuelve tal como quedó normalizado, de forma consistente con el que se usa
+        para iniciar sesión (escenario US4-2). La respuesta nunca incluye la contraseña ni ninguna
+        representación derivada de ella (FR-011, escenario US4-3).
+      operationId: getOwnProfile
+      responses:
+        '200':
+          description: Perfil del titular de la sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+              example:
+                id: 3f1a9c64-7b2e-4d58-9a10-5c8e2f6b1d04
+                fullName: Ana Pérez
+                email: ana@example.com
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Token emitido por `/api/v1/auth/login`, enviado como `Authorization: Bearer <token>`.
+
+  responses:
+    SesionInvalida:
+      description: |
+        Se requiere iniciar sesión. Misma respuesta para sesión ausente, vencida, cerrada por su
+        titular o adulterada (FR-015, FR-016, RN-07). La acción solicitada no se ejecuta ni total ni
+        parcialmente (FR-020).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Se requiere iniciar sesión.
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [fullName, email, password]
+      properties:
+        fullName:
+          type: string
+          description: |
+            Nombre completo. Entre 2 y 100 caracteres contados después de recortar los espacios al
+            inicio y al final; un nombre compuesto solo por espacios equivale a ausente (FR-002).
+          minLength: 2
+          maxLength: 100
+          example: Ana Pérez
+        email:
+          type: string
+          format: email
+          description: |
+            Correo electrónico de hasta 254 caracteres. Se normaliza recortando los espacios
+            extremos y pasándolo a minúsculas (FR-003, FR-004).
+          maxLength: 254
+          example: ana@example.com
+        password:
+          type: string
+          format: password
+          description: |
+            Entre 8 y 72 caracteres, con al menos una letra y al menos un número (FR-006). El
+            máximo de 72 es una restricción del producto y se comunica en el formulario (RC-02).
+          minLength: 8
+          maxLength: 72
+          example: Proyecto2026
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          description: Correo electrónico, normalizado igual que en el registro (FR-012).
+          maxLength: 254
+          example: ana@example.com
+        password:
+          type: string
+          format: password
+          example: Proyecto2026
+
+    LoginResponse:
+      type: object
+      required: [token, expiresAt]
+      properties:
+        token:
+          type: string
+          description: JWT de la sesión emitida. Se envía en `Authorization: Bearer <token>`.
+        expiresAt:
+          type: string
+          format: date-time
+          description: Momento de vencimiento de la sesión, 8 horas después de la emisión (FR-018).
+          example: '2026-10-05T22:30:00Z'
+
+    UserProfile:
+      type: object
+      description: |
+        Datos visibles de una cuenta. **No incluye la contraseña ni ninguna representación derivada
+        de ella** (FR-011, SC-005).
+      required: [id, fullName, email]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador propio, estable e inmutable de la cuenta (FR-027).
+          example: 3f1a9c64-7b2e-4d58-9a10-5c8e2f6b1d04
+        fullName:
+          type: string
+          example: Ana Pérez
+        email:
+          type: string
+          format: email
+          description: Correo normalizado (FR-004).
+          example: ana@example.com
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Mensaje en español dirigido a la persona (Principio VIII).
+          example: Se requiere iniciar sesión.
+
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+          description: Nombre del campo inválido, tal como se envió en la solicitud.
+          example: password
+        message:
+          type: string
+          description: |
+            Qué hay que corregir y por qué. Nunca repite el valor enviado para la contraseña
+            (FR-011).
+          example: La contraseña debe tener entre 8 y 72 caracteres.
+
+    ValidationErrorResponse:
+      type: object
+      description: Rechazo por entrada inválida, con el detalle por campo (FR-008).
+      required: [error, fields]
+      properties:
+        error:
+          type: string
+          example: Hay campos inválidos en la solicitud.
+        fields:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/FieldError'
+
+# Todas las operaciones exigen sesión válida salvo las que declaran `security: []`
+# (registro e inicio de sesión), que son las únicas públicas (FR-019).
+security:
+  - BearerAuth: []

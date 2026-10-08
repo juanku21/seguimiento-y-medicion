@@ -1,0 +1,1010 @@
+# Contrato de la API de gestión de proyectos e integrantes (spec 002).
+# Fuente de verdad del diseño: specs/002-project-members/spec.md
+# Este archivo es el contrato acordado en la Fase 1 del plan. La documentación publicada en
+# /swagger/index.html se genera con `swag init` a partir de las anotaciones del código y DEBE
+# coincidir con este contrato (Principio VIII).
+openapi: 3.0.3
+
+info:
+  title: Software Metrics & Estimation — Gestión de Proyectos e Integrantes
+  description: |
+    Creación, modificación, ciclo de vida y consulta de proyectos, y gestión de sus integrantes.
+
+    **Todas** las operaciones exigen una sesión válida, sin excepciones (FR-046). La sesión se
+    envía en la cabecera `Authorization: Bearer <token>` emitida por `/api/v1/auth/login` de la
+    spec 001.
+
+    Dos reglas de visibilidad gobiernan todas las respuestas:
+
+    - Ante una solicitud sobre un proyecto del que quien pide **no es integrante**, la respuesta es
+      `404` con **el mismo cuerpo** que ante un identificador que no existe, sin revelar ningún
+      dato del proyecto ni su existencia (FR-049, SC-005).
+    - Ante una acción de administración (modificar, cambiar de estado, alta y baja de integrantes)
+      pedida por un integrante que **no es el propietario**, la respuesta es `403` y la acción no
+      produce ningún efecto (FR-050, SC-006).
+
+    Un proyecto en estado `finished` es de **solo lectura**: admite consulta por parte de cualquier
+    integrante y rechaza con `409` toda acción de administración (FR-018, RN-11).
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Entorno de desarrollo local
+
+tags:
+  - name: Proyectos
+    description: Creación, modificación, ciclo de vida y consulta de proyectos
+  - name: Integrantes
+    description: Alta y baja de integrantes del proyecto
+
+paths:
+  /api/v1/projects:
+    post:
+      tags: [Proyectos]
+      summary: Crea un proyecto
+      description: |
+        Crea un proyecto a partir de nombre, descripción opcional, fecha de inicio, fecha de
+        finalización prevista y factor de horas por Story Point (FR-001).
+
+        Quien lo crea queda como **propietario y como primer integrante** en el mismo acto (FR-007,
+        RN-01). El proyecto nace en estado `planned` y sin fecha de finalización real (FR-008).
+
+        El nombre no se repite entre los proyectos de un mismo propietario, comparándolo sin
+        distinguir mayúsculas y sin los espacios extremos (FR-004); el mismo nombre en proyectos de
+        propietarios distintos está permitido. Si el mismo propietario envía dos solicitudes
+        simultáneas con el mismo nombre, se crea exactamente un proyecto y la restante recibe `409`
+        (FR-011, SC-007).
+      operationId: createProject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectInput'
+            examples:
+              normal:
+                summary: Creación válida
+                value:
+                  name: Portal de Clientes
+                  description: Rediseño del portal de autogestión.
+                  startDate: '2026-10-01'
+                  plannedEndDate: '2026-12-20'
+                  hoursPerStoryPoint: 6.5
+              sinDescripcion:
+                summary: Sin descripción, que es opcional
+                value:
+                  name: Portal de Clientes
+                  startDate: '2026-10-01'
+                  plannedEndDate: '2026-12-20'
+                  hoursPerStoryPoint: 6.5
+      responses:
+        '201':
+          description: Proyecto creado en estado `planned`, con quien lo creó como propietario e integrante.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDetail'
+        '400':
+          $ref: '#/components/responses/EntradaInvalida'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '409':
+          description: Ya existe un proyecto propio con ese nombre (FR-004, FR-011).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Ya existe un proyecto propio con ese nombre.
+
+    get:
+      tags: [Proyectos]
+      summary: Lista los proyectos de los que quien consulta es integrante
+      description: |
+        Devuelve los proyectos de los que el titular de la sesión es integrante, incluidos los
+        propios (FR-031). **Ningún proyecto ajeno aparece** (FR-033).
+
+        El orden es estable y predecible: fecha de inicio descendente y, a igual fecha, nombre
+        ascendente (FR-035).
+
+        Cuando la persona no participa en ningún proyecto, la respuesta es `200` con una lista
+        vacía y una indicación clara, **no un error** (FR-034).
+
+        Esta feature no ofrece búsqueda, filtrado ni paginación del listado: están en "Fuera de
+        Alcance" de la spec.
+      operationId: listProjects
+      responses:
+        '200':
+          description: Listado de proyectos del titular de la sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectListResponse'
+              examples:
+                conProyectos:
+                  summary: Propietario de dos proyectos e integrante de un tercero
+                  value:
+                    projects:
+                      - id: 9b2f1c0a-5d3e-4a71-8c62-0f4e7a1b9d35
+                        name: Portal de Clientes
+                        status: in_progress
+                        startDate: '2026-10-01'
+                        plannedEndDate: '2026-12-20'
+                        memberCount: 3
+                        isOwner: true
+                      - id: 4c7a8e21-9b40-4d16-a5f3-2e8b6c1d0a97
+                        name: App Móvil
+                        status: planned
+                        startDate: '2026-09-15'
+                        plannedEndDate: '2026-11-30'
+                        memberCount: 1
+                        isOwner: false
+                    message: null
+                sinProyectos:
+                  summary: Usuario que todavía no participa en ningún proyecto
+                  value:
+                    projects: []
+                    message: Todavía no participás en ningún proyecto.
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+
+  /api/v1/projects/{projectId}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+
+    get:
+      tags: [Proyectos]
+      summary: Devuelve el estado completo del proyecto
+      description: |
+        Devuelve, en una sola respuesta, todo lo que responde "¿cómo va el proyecto?" (FR-042):
+        datos generales, propietario, factor de horas por Story Point, estado, fechas, fecha de
+        finalización real cuando exista, lista de integrantes, sprint activo cuando exista,
+        cantidad de historias del backlog por estado, y total de Story Points estimados con su
+        equivalente en horas.
+
+        Accesible a **cualquier integrante**, incluso si el proyecto está `finished` (FR-048,
+        escenario US6-3).
+
+        Cuando el proyecto no tiene sprint activo, `activeSprint` es `null` y
+        `hasActiveSprint` es `false`: es una situación normal, **no un error** (FR-043).
+
+        Cuando el proyecto no tiene historias en el backlog, los contadores por estado, el total de
+        Story Points y las horas estimadas son cero (FR-044).
+
+        El correo electrónico de los integrantes se incluye **únicamente cuando quien consulta es
+        el propietario** (FR-030).
+      operationId: getProjectDetail
+      responses:
+        '200':
+          description: Estado completo del proyecto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDetail'
+              examples:
+                enCurso:
+                  summary: Proyecto En curso consultado por su propietario
+                  value:
+                    id: 9b2f1c0a-5d3e-4a71-8c62-0f4e7a1b9d35
+                    name: Portal de Clientes
+                    description: Rediseño del portal de autogestión.
+                    status: in_progress
+                    startDate: '2026-10-01'
+                    plannedEndDate: '2026-12-20'
+                    actualEndDate: null
+                    hoursPerStoryPoint: 6.5
+                    readOnly: false
+                    owner:
+                      id: 3f1a9c64-7b2e-4d58-9a10-5c8e2f6b1d04
+                      fullName: Ana Pérez
+                    members:
+                      - userId: 3f1a9c64-7b2e-4d58-9a10-5c8e2f6b1d04
+                        fullName: Ana Pérez
+                        email: ana@example.com
+                        isOwner: true
+                        joinedAt: '2026-10-01T12:00:00Z'
+                      - userId: 7d5b2e18-0c93-4f42-b6a1-8e3f5c9d2a06
+                        fullName: Bruno Gómez
+                        email: bruno@example.com
+                        isOwner: false
+                        joinedAt: '2026-10-03T09:15:00Z'
+                    hasActiveSprint: true
+                    activeSprint:
+                      id: e1c4a7b9-2d58-4036-9f1e-7b5c8a2d4e03
+                      name: Sprint 4
+                    backlog:
+                      countsByState:
+                        pending: 5
+                        in_progress: 2
+                        completed: 7
+                      estimatedStoryPoints: 16
+                      estimatedHours: 104
+                reciénCreado:
+                  summary: Proyecto recién creado, sin backlog ni sprints
+                  value:
+                    id: 4c7a8e21-9b40-4d16-a5f3-2e8b6c1d0a97
+                    name: App Móvil
+                    description: null
+                    status: planned
+                    startDate: '2026-09-15'
+                    plannedEndDate: '2026-11-30'
+                    actualEndDate: null
+                    hoursPerStoryPoint: 6.5
+                    readOnly: false
+                    owner:
+                      id: 3f1a9c64-7b2e-4d58-9a10-5c8e2f6b1d04
+                      fullName: Ana Pérez
+                    members:
+                      - userId: 3f1a9c64-7b2e-4d58-9a10-5c8e2f6b1d04
+                        fullName: Ana Pérez
+                        email: ana@example.com
+                        isOwner: true
+                        joinedAt: '2026-09-15T10:00:00Z'
+                    hasActiveSprint: false
+                    activeSprint: null
+                    backlog:
+                      countsByState: {}
+                      estimatedStoryPoints: 0
+                      estimatedHours: 0
+                vistaDeUnIntegrante:
+                  summary: El mismo proyecto consultado por un integrante que no es el propietario — sin correos
+                  value:
+                    id: 9b2f1c0a-5d3e-4a71-8c62-0f4e7a1b9d35
+                    name: Portal de Clientes
+                    description: Rediseño del portal de autogestión.
+                    status: in_progress
+                    startDate: '2026-10-01'
+                    plannedEndDate: '2026-12-20'
+                    actualEndDate: null
+                    hoursPerStoryPoint: 6.5
+                    readOnly: false
+                    owner:
+                      id: 3f1a9c64-7b2e-4d58-9a10-5c8e2f6b1d04
+                      fullName: Ana Pérez
+                    members:
+                      - userId: 3f1a9c64-7b2e-4d58-9a10-5c8e2f6b1d04
+                        fullName: Ana Pérez
+                        isOwner: true
+                        joinedAt: '2026-10-01T12:00:00Z'
+                      - userId: 7d5b2e18-0c93-4f42-b6a1-8e3f5c9d2a06
+                        fullName: Bruno Gómez
+                        isOwner: false
+                        joinedAt: '2026-10-03T09:15:00Z'
+                    hasActiveSprint: true
+                    activeSprint:
+                      id: e1c4a7b9-2d58-4036-9f1e-7b5c8a2d4e03
+                      name: Sprint 4
+                    backlog:
+                      countsByState:
+                        pending: 5
+                        in_progress: 2
+                        completed: 7
+                      estimatedStoryPoints: 16
+                      estimatedHours: 104
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/ProyectoInexistente'
+
+    put:
+      tags: [Proyectos]
+      summary: Modifica los datos del proyecto
+      description: |
+        Reemplaza nombre, descripción, fecha de inicio, fecha de finalización prevista y factor de
+        horas por Story Point con el conjunto completo de valores enviado (FR-012). Se aplican
+        **exactamente las mismas validaciones que en la creación** (FR-013).
+
+        La modificación es **atómica**: si algún dato es inválido, ningún cambio se aplica (FR-015).
+        **No altera el estado del proyecto ni su fecha de finalización real** (FR-016).
+
+        Al validar la unicidad del nombre se excluye al propio proyecto, así que renombrarlo con el
+        mismo nombre que ya tenía se acepta (FR-014, escenario US5-3).
+
+        Un cambio del factor rige para el proyecto y para los sprints que se cierren en adelante;
+        los sprints ya cerrados conservan el factor vigente al momento de su cierre y sus métricas
+        no se recalculan (FR-017, RN-15).
+
+        Solo el propietario, y solo mientras el proyecto no esté `finished` (FR-018, FR-047).
+      operationId: updateProject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectInput'
+            example:
+              name: Portal de Clientes v2
+              description: Rediseño del portal de autogestión, fase 2.
+              startDate: '2026-10-01'
+              plannedEndDate: '2027-02-28'
+              hoursPerStoryPoint: 8
+      responses:
+        '200':
+          description: Proyecto actualizado. El estado y la fecha de finalización real no cambiaron.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDetail'
+        '400':
+          $ref: '#/components/responses/EntradaInvalida'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '403':
+          $ref: '#/components/responses/NoEsPropietario'
+        '404':
+          $ref: '#/components/responses/ProyectoInexistente'
+        '409':
+          description: |
+            Nombre repetido entre los proyectos del mismo propietario (FR-004), o proyecto
+            `finished` y por lo tanto de solo lectura (FR-018, RN-11).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                nombreRepetido:
+                  value:
+                    error: Ya existe un proyecto propio con ese nombre.
+                soloLectura:
+                  value:
+                    error: El proyecto está finalizado y es de solo lectura.
+
+  /api/v1/projects/{projectId}/status:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+
+    patch:
+      tags: [Proyectos]
+      summary: Avanza el estado del proyecto
+      description: |
+        Hace avanzar el proyecto al estado destino. Las **únicas** transiciones admitidas son
+        `planned` → `in_progress` e `in_progress` → `finished` (FR-037).
+
+        Cualquier otra transición se rechaza con `409`, incluidos el retroceso a un estado
+        anterior, el salto de `planned` a `finished` y la transición al estado actual (FR-038,
+        SC-009).
+
+        `planned` → `in_progress` **no exige ninguna condición** sobre el backlog ni sobre los
+        sprints (FR-041, escenario US6-5).
+
+        `in_progress` → `finished` se rechaza mientras el proyecto tenga un sprint activo: primero
+        hay que cerrarlo (FR-041, RN-16). Al aceptarse, el sistema registra la fecha de
+        finalización real con la fecha del cambio calculada en la **zona horaria única del
+        sistema**, independientemente de la zona del dispositivo de quien finaliza (FR-039). Esa
+        fecha después no se puede editar ni borrar por ninguna vía (FR-040, RN-10).
+
+        Solo el propietario (FR-047).
+      operationId: changeProjectStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusChangeRequest'
+            example:
+              status: in_progress
+      responses:
+        '200':
+          description: Estado actualizado. Al pasar a `finished` incluye `actualEndDate`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDetail'
+        '400':
+          description: El estado destino no es uno de los tres valores admitidos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '403':
+          $ref: '#/components/responses/NoEsPropietario'
+        '404':
+          $ref: '#/components/responses/ProyectoInexistente'
+        '409':
+          description: |
+            Transición no permitida (FR-038), finalización con un sprint activo (FR-041, RN-16) o
+            proyecto `finished` y por lo tanto de solo lectura (FR-018).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                saltoDeEstado:
+                  summary: Intento de pasar de planned a finished
+                  value:
+                    error: El proyecto debe pasar primero a En curso antes de finalizarse.
+                retroceso:
+                  value:
+                    error: Los estados del proyecto solo avanzan: no se puede volver a un estado anterior.
+                mismoEstado:
+                  value:
+                    error: El proyecto ya está En curso.
+                sprintActivo:
+                  value:
+                    error: No se puede finalizar el proyecto mientras tenga un sprint activo. Cerralo primero.
+                soloLectura:
+                  value:
+                    error: El proyecto está finalizado y es de solo lectura.
+
+  /api/v1/projects/{projectId}/members:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+
+    post:
+      tags: [Integrantes]
+      summary: Agrega un integrante al proyecto
+      description: |
+        Agrega como integrante a un **usuario ya registrado**, identificándolo por su correo
+        electrónico (FR-019). No existe forma de sumar a alguien que todavía no tiene cuenta
+        (RC-02).
+
+        El correo se normaliza antes de buscar al usuario: se recortan los espacios extremos y se
+        compara sin distinguir mayúsculas de minúsculas, igual que en la spec 001 (FR-020).
+
+        Si el correo no corresponde a ninguna cuenta, la respuesta es `422` y **no** `404`, para que
+        el `404` de este endpoint signifique siempre y solo "el proyecto no existe o no sos
+        integrante" (FR-021, FR-049, RC-03).
+
+        Si el usuario ya es integrante, la respuesta es `409` y la membresía **no se duplica**
+        (FR-022). Dos altas simultáneas del mismo usuario registran una sola membresía y la
+        restante recibe `409` (FR-023, SC-008).
+
+        Volver a agregar a alguien que había sido quitado le devuelve el acceso, con una fecha de
+        incorporación nueva, y sigue apareciendo una sola vez en la lista (FR-029).
+
+        Solo el propietario, y solo mientras el proyecto no esté `finished` (FR-018, FR-047).
+      operationId: addProjectMember
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddMemberRequest'
+            examples:
+              normal:
+                value:
+                  email: bruno@example.com
+              conEspaciosYMayusculas:
+                summary: Correo que se normaliza antes de buscar la cuenta
+                value:
+                  email: '  Bruno@Example.COM  '
+      responses:
+        '201':
+          description: El usuario quedó integrante y desde ese momento puede consultar el proyecto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectMemberView'
+              example:
+                userId: 7d5b2e18-0c93-4f42-b6a1-8e3f5c9d2a06
+                fullName: Bruno Gómez
+                email: bruno@example.com
+                isOwner: false
+                joinedAt: '2026-10-03T09:15:00Z'
+        '400':
+          $ref: '#/components/responses/EntradaInvalida'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '403':
+          $ref: '#/components/responses/NoEsPropietario'
+        '404':
+          $ref: '#/components/responses/ProyectoInexistente'
+        '409':
+          description: |
+            El usuario ya forma parte del proyecto (FR-022, FR-023) o el proyecto está `finished`
+            (FR-018, RN-11).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                yaEsIntegrante:
+                  value:
+                    error: La persona ya forma parte del proyecto.
+                soloLectura:
+                  value:
+                    error: El proyecto está finalizado y es de solo lectura.
+        '422':
+          description: |
+            El correo no corresponde a ningún usuario registrado (FR-021). La spec acepta de forma
+            explícita que esta respuesta revele que ese correo no está registrado, porque sin ella
+            el propietario no puede distinguir un correo mal escrito de un problema de permisos
+            (RC-03).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: No existe un usuario registrado con ese correo electrónico.
+
+  /api/v1/projects/{projectId}/members/{userId}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - name: userId
+        in: path
+        required: true
+        description: Identificador del usuario cuya membresía se quita.
+        schema:
+          type: string
+          format: uuid
+
+    delete:
+      tags: [Integrantes]
+      summary: Quita un integrante del proyecto
+      description: |
+        Quita la membresía de la persona indicada (FR-024).
+
+        **Solo le quita el acceso**: el esfuerzo, los votos de estimación, los defectos y cualquier
+        otro registro que haya generado se conservan y siguen mostrando su nombre (FR-027, RN-14,
+        SC-011). La persona pierde el acceso de inmediato y el proyecto pasa a comportarse para ella
+        como inexistente (FR-028).
+
+        El propietario **no puede quitarse a sí mismo**: la respuesta es `409` (FR-025, RN-12).
+        RC-04 fija que la propiedad no se transfiere en esta feature.
+
+        Si la persona no es integrante del proyecto, la respuesta es `404` (FR-026). El `404` del
+        proyecto se evalúa antes, así que no hay ambigüedad entre los dos casos.
+
+        Solo el propietario, y solo mientras el proyecto no esté `finished` (FR-018, FR-047).
+      operationId: removeProjectMember
+      responses:
+        '204':
+          description: La persona dejó de ser integrante. Lo que registró en el proyecto se conserva.
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '403':
+          $ref: '#/components/responses/NoEsPropietario'
+        '404':
+          description: |
+            El proyecto no existe o quien pide no es integrante (FR-049), o la persona indicada no
+            forma parte del proyecto (FR-026).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                proyectoInexistente:
+                  value:
+                    error: El proyecto no existe.
+                noEsIntegrante:
+                  value:
+                    error: La persona no forma parte del proyecto.
+        '409':
+          description: |
+            El propietario intentó quitarse a sí mismo (FR-025, RN-12) o el proyecto está
+            `finished` (FR-018, RN-11).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                propietario:
+                  value:
+                    error: El propietario no puede quitarse del proyecto.
+                soloLectura:
+                  value:
+                    error: El proyecto está finalizado y es de solo lectura.
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Token emitido por `/api/v1/auth/login` de la spec 001, enviado como
+        `Authorization: Bearer <token>`.
+
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      description: Identificador propio, estable e inmutable del proyecto (FR-009).
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    SesionInvalida:
+      description: |
+        Se requiere iniciar sesión. Misma respuesta para sesión ausente, vencida, cerrada por su
+        titular o adulterada, definida por la spec 001 (FR-046). La acción solicitada no se ejecuta
+        ni total ni parcialmente.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Se requiere iniciar sesión.
+
+    ProyectoInexistente:
+      description: |
+        El proyecto no existe, **o** existe y quien pide no es integrante. Las dos situaciones
+        devuelven **exactamente el mismo cuerpo**, sin revelar ningún dato del proyecto ni su
+        existencia, ni siquiera su nombre (FR-049, SC-005).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: El proyecto no existe.
+
+    NoEsPropietario:
+      description: |
+        Quien pide es integrante del proyecto pero no su propietario, y la acción es de
+        administración. La acción no produce ningún efecto (FR-050, SC-006).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Solo el propietario del proyecto puede realizar esta acción.
+
+    EntradaInvalida:
+      description: |
+        Entrada inválida. Indica qué campo corregir y por qué, sin aplicar ningún cambio parcial
+        (FR-010, FR-015).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+          example:
+            error: Hay campos inválidos en la solicitud.
+            fields:
+              - field: hoursPerStoryPoint
+                message: El factor de horas por Story Point admite como máximo 2 decimales.
+              - field: plannedEndDate
+                message: La fecha de finalización prevista no puede ser anterior a la fecha de inicio.
+
+  schemas:
+    ProjectInput:
+      type: object
+      description: |
+        Datos editables del proyecto. Se usa igual en la creación y en la modificación, porque
+        FR-013 exige exactamente las mismas validaciones en las dos.
+      required: [name, startDate, plannedEndDate, hoursPerStoryPoint]
+      properties:
+        name:
+          type: string
+          description: |
+            Nombre del proyecto. Entre 1 y 100 caracteres contados después de recortar los espacios
+            al inicio y al final; un nombre compuesto solo por espacios equivale a ausente (FR-002).
+            Se guarda con la capitalización que se escribió y se compara sin distinguirla (FR-004).
+          minLength: 1
+          maxLength: 100
+          example: Portal de Clientes
+        description:
+          type: string
+          nullable: true
+          description: |
+            Descripción opcional, de hasta 1000 caracteres (FR-003). Una descripción vacía o
+            compuesta solo por espacios se guarda como ausente.
+          maxLength: 1000
+          example: Rediseño del portal de autogestión.
+        startDate:
+          type: string
+          format: date
+          description: |
+            Fecha de inicio, como fecha de calendario sin hora (`YYYY-MM-DD`). Puede ser pasada,
+            presente o futura: el sistema no la compara con la fecha actual.
+          example: '2026-10-01'
+        plannedEndDate:
+          type: string
+          format: date
+          description: |
+            Fecha de finalización prevista, como fecha de calendario sin hora. **Nunca anterior** a
+            `startDate`; igual a `startDate` es válido (FR-005, RN-06).
+          example: '2026-12-20'
+        hoursPerStoryPoint:
+          type: number
+          description: |
+            Factor de horas por Story Point: el traductor entre la estimación relativa del equipo y
+            el esfuerzo en horas. **Mayor que 0, menor o igual a 40 y con hasta 2 decimales**; un
+            valor con más de 2 decimales se rechaza **sin redondear**, para que el valor que la
+            persona ve sea exactamente el que se usa en los cálculos (FR-006, RN-07).
+          exclusiveMinimum: 0
+          maximum: 40
+          multipleOf: 0.01
+          example: 6.5
+
+    StatusChangeRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: '#/components/schemas/ProjectStatus'
+
+    ProjectStatus:
+      type: string
+      description: |
+        Estado del proyecto en su ciclo de vida (FR-036). Las etiquetas en español las pone la
+        interfaz: `planned` es Planificado, `in_progress` es En curso y `finished` es Finalizado
+        (Principio VIII).
+      enum: [planned, in_progress, finished]
+      example: in_progress
+
+    ProjectListItem:
+      type: object
+      description: Elemento del listado de proyectos (FR-032).
+      required: [id, name, status, startDate, plannedEndDate, memberCount, isOwner]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Portal de Clientes
+        status:
+          $ref: '#/components/schemas/ProjectStatus'
+        startDate:
+          type: string
+          format: date
+          example: '2026-10-01'
+        plannedEndDate:
+          type: string
+          format: date
+          example: '2026-12-20'
+        memberCount:
+          type: integer
+          description: Cantidad de integrantes del proyecto. Siempre 1 o más (FR-007, RN-01).
+          minimum: 1
+          example: 3
+        isOwner:
+          type: boolean
+          description: Si quien consulta es el propietario del proyecto.
+          example: true
+
+    ProjectListResponse:
+      type: object
+      required: [projects]
+      properties:
+        projects:
+          type: array
+          description: |
+            Proyectos de los que quien consulta es integrante, ordenados por fecha de inicio
+            descendente y, a igual fecha, nombre ascendente (FR-035).
+          items:
+            $ref: '#/components/schemas/ProjectListItem'
+        message:
+          type: string
+          nullable: true
+          description: |
+            Indicación en español cuando la lista está vacía, para que la ausencia de proyectos no
+            se lea como un error (FR-034). Es `null` cuando hay al menos un proyecto.
+          example: Todavía no participás en ningún proyecto.
+
+    ProjectMemberView:
+      type: object
+      description: |
+        Integrante del proyecto (FR-030). El campo `email` se incluye **únicamente cuando quien
+        consulta es el propietario**; a los demás integrantes el sistema no lo revela por ninguna
+        vía de esta feature.
+      required: [userId, fullName, isOwner, joinedAt]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        fullName:
+          type: string
+          example: Bruno Gómez
+        email:
+          type: string
+          format: email
+          description: Correo normalizado. Presente solo si quien consulta es el propietario (FR-030).
+          example: bruno@example.com
+        isOwner:
+          type: boolean
+          description: |
+            Marca de propietario. Es un valor **derivado** de comparar el integrante con el
+            propietario del proyecto, no un dato almacenado en la membresía.
+          example: false
+        joinedAt:
+          type: string
+          format: date-time
+          description: Momento en que la persona se incorporó al proyecto (FR-030).
+          example: '2026-10-03T09:15:00Z'
+
+    OwnerRef:
+      type: object
+      description: Propietario del proyecto. Único y no transferible en esta feature (RC-04).
+      required: [id, fullName]
+      properties:
+        id:
+          type: string
+          format: uuid
+        fullName:
+          type: string
+          example: Ana Pérez
+
+    ActiveSprintRef:
+      type: object
+      description: |
+        Sprint activo del proyecto. Lo produce `specs/004-sprint-management`; esta feature solo lo
+        informa (RC-06).
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Sprint 4
+
+    BacklogSummary:
+      type: object
+      description: |
+        Resumen del backlog del proyecto. Lo produce `specs/003-product-backlog`; esta feature solo
+        lo informa y calcula las horas con el factor del proyecto (RC-06).
+      required: [countsByState, estimatedStoryPoints, estimatedHours]
+      properties:
+        countsByState:
+          type: object
+          description: |
+            Cantidad de historias por cada estado que defina la feature de backlog. Es un mapa y no
+            un conjunto fijo de campos porque esta spec declara explícitamente que no fija ese
+            conjunto de estados. Vacío cuando el proyecto no tiene historias (FR-044).
+          additionalProperties:
+            type: integer
+            minimum: 0
+          example:
+            pending: 5
+            in_progress: 2
+            completed: 7
+        estimatedStoryPoints:
+          type: integer
+          description: |
+            Total de Story Points de las historias **estimadas** del backlog. Las historias sin
+            estimar se cuentan en `countsByState` pero **no suman** acá (FR-045). Cero cuando el
+            proyecto no tiene historias (FR-044).
+          minimum: 0
+          example: 16
+        estimatedHours:
+          type: number
+          description: |
+            `estimatedStoryPoints` multiplicado por el factor vigente del proyecto (FR-045, RN-08).
+            Con 16 Story Points y factor 6,5 el valor es 104. Cero cuando no hay historias
+            estimadas.
+          minimum: 0
+          example: 104
+
+    ProjectDetail:
+      type: object
+      description: |
+        Estado completo del proyecto (FR-042). Es la respuesta de la creación, de la modificación,
+        del cambio de estado y de la consulta, para que la interfaz tenga siempre la vista entera
+        después de cada acción.
+      required:
+        - id
+        - name
+        - status
+        - startDate
+        - plannedEndDate
+        - hoursPerStoryPoint
+        - readOnly
+        - owner
+        - members
+        - hasActiveSprint
+        - backlog
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador propio, estable e inmutable, distinto del nombre (FR-009).
+        name:
+          type: string
+          example: Portal de Clientes
+        description:
+          type: string
+          nullable: true
+          example: Rediseño del portal de autogestión.
+        status:
+          $ref: '#/components/schemas/ProjectStatus'
+        startDate:
+          type: string
+          format: date
+          example: '2026-10-01'
+        plannedEndDate:
+          type: string
+          format: date
+          example: '2026-12-20'
+        actualEndDate:
+          type: string
+          format: date
+          nullable: true
+          description: |
+            Fecha de finalización real. Presente **solo** cuando el estado es `finished`. La fija el
+            sistema con la fecha del cambio en la zona horaria única del sistema y después no se
+            puede editar ni borrar (FR-039, FR-040, RN-10).
+          example: '2026-12-18'
+        hoursPerStoryPoint:
+          type: number
+          description: Factor vigente del proyecto, con hasta 2 decimales (FR-006).
+          example: 6.5
+        readOnly:
+          type: boolean
+          description: |
+            `true` cuando el estado es `finished`: el proyecto admite consulta pero rechaza toda
+            acción de administración (FR-018, RN-11, escenario US4-2).
+          example: false
+        owner:
+          $ref: '#/components/schemas/OwnerRef'
+        members:
+          type: array
+          description: |
+            Integrantes del proyecto, con el propietario identificado. **Nunca está vacía**: el
+            propietario siempre es integrante (FR-007, RN-01, escenario US3-5).
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ProjectMemberView'
+        hasActiveSprint:
+          type: boolean
+          description: |
+            Indicación explícita de si hay sprint activo, para que su ausencia no se lea como un
+            error ni como un dato faltante (FR-043).
+          example: true
+        activeSprint:
+          allOf:
+            - $ref: '#/components/schemas/ActiveSprintRef'
+          nullable: true
+          description: Sprint activo del proyecto, o `null` cuando no hay ninguno (FR-043).
+        backlog:
+          $ref: '#/components/schemas/BacklogSummary'
+
+    AddMemberRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          description: |
+            Correo electrónico de un usuario **ya registrado** (FR-019, RC-02). Se normaliza antes
+            de buscar la cuenta: se recortan los espacios extremos y se compara sin distinguir
+            mayúsculas de minúsculas (FR-020, RN-05).
+          maxLength: 254
+          example: bruno@example.com
+
+    ErrorResponse:
+      type: object
+      description: Esquema de error de la spec 001, reutilizado sin cambios.
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Mensaje en español dirigido a la persona (Principio VIII).
+          example: El proyecto no existe.
+
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+          description: Nombre del campo inválido, tal como se envió en la solicitud.
+          example: hoursPerStoryPoint
+        message:
+          type: string
+          description: Qué hay que corregir y por qué.
+          example: El factor de horas por Story Point debe ser mayor que 0 y menor o igual a 40.
+
+    ValidationErrorResponse:
+      type: object
+      description: Rechazo por entrada inválida, con el detalle por campo (FR-010).
+      required: [error, fields]
+      properties:
+        error:
+          type: string
+          example: Hay campos inválidos en la solicitud.
+        fields:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/FieldError'
+
+# Todas las operaciones de esta feature exigen sesión válida, sin excepciones (FR-046).
+# Ninguna declara `security: []`.
+security:
+  - BearerAuth: []

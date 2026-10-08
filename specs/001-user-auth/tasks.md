@@ -101,7 +101,7 @@ hay dónde ejecutar la primera prueba (research.md, sección 0). Todas las tarea
       `@vitest/coverage-v8 5.0.3`, previa fijación de `@types/node 24.19.1`, exactamente como indique la guía leída en T009 — depende de T009
 - [X] T013 [P] Configurar `prettier 3.9.9` en `frontend/` (archivo de configuración y script de
       formateo en `frontend/package.json`) — depende de T008
-- [ ] T014 [P] Crear `.gitignore` en la raíz con las secciones `#Frontend` y `#Backend`
+- [X] T014 [P] Crear `.gitignore` en la raíz con las secciones `#Frontend` y `#Backend`
       (Principio VI), excluyendo `.env`, `.env.test`, `.env.local`, `node_modules/`, `.next/`,
       `backend/docs/`, `coverage.out` y `coverage.html`
 

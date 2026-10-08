@@ -94,11 +94,11 @@ hay dónde ejecutar la primera prueba (research.md, sección 0). Todas las tarea
 - [X] T011 [P] Crear `frontend/.env.example` (versionado) con
       `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080`, y a partir de él `frontend/.env.local` y
       `frontend/.env.test`, ambos **no versionados** — depende de T008
-- [ ] T012 Configurar Vitest en `frontend/vitest.config.ts` y los scripts `test`, `test:watch` y
-      `test:coverage` en `frontend/package.json`, con `vitest 5.0.3`,
-      `@vitejs/plugin-react 6.1.1`, `jsdom 30.1.2`, `@testing-library/react 16.3.3`,
-      `@testing-library/dom 10.4.2`, `@testing-library/jest-dom 7.0.1` y
-      `vite-tsconfig-paths 6.1.1`, exactamente como indique la guía leída en T009 — depende de T009
+- [X] T012 Configurar Vitest en `frontend/vitest.config.mts` y los scripts `test` (`vitest run`),
+      `test:watch` (`vitest`) y `test:coverage` (`vitest run --coverage`) en `frontend/package.json`,
+      con `vitest 5.0.3`, `@vitejs/plugin-react 6.1.1`, `jsdom 30.1.2`,
+      `@testing-library/react 16.3.3`, `@testing-library/dom 10.4.2`, `vite-tsconfig-paths 6.1.1` y
+      `@vitest/coverage-v8 5.0.3`, previa fijación de `@types/node 24.19.1`, exactamente como indique la guía leída en T009 — depende de T009
 - [ ] T013 [P] Configurar `prettier 3.9.9` en `frontend/` (archivo de configuración y script de
       formateo en `frontend/package.json`) — depende de T008
 - [ ] T014 [P] Crear `.gitignore` en la raíz con las secciones `#Frontend` y `#Backend`

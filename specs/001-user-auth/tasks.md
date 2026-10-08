@@ -84,7 +84,7 @@ hay dónde ejecutar la primera prueba (research.md, sección 0). Todas las tarea
 - [X] T008 Crear la aplicación Next.js en `frontend/` con `create-next-app` fijando `next 16.3.8`,
       `react`/`react-dom 19.3.0`, `tailwindcss 4.3.3` y TypeScript (rama 5.x que fije
       `create-next-app`, **no** 7.x), pasando `--no-agents-md` (Principio IX, ámbito f)
-- [ ] T009 **PUERTA OBLIGATORIA**: leer la documentación de la versión instalada de Next.js en
+- [X] T009 **PUERTA OBLIGATORIA**: leer la documentación de la versión instalada de Next.js en
       `frontend/node_modules/next/dist/docs/`, en particular su guía oficial de Vitest, **antes** de
       escribir cualquier código de Next.js o configurar las pruebas. Si la guía exige un paquete
       fuera de la lista autorizada del Principio IV, detenerse y pedir autorización — depende de T008

@@ -68,7 +68,7 @@ hay dónde ejecutar la primera prueba (research.md, sección 0). Todas las tarea
       `docker compose --env-file .env.test -p smye-test up -d`, y verificar el aislamiento del
       Principio V con `psql -U smye -d smye_test -c "SELECT current_database(), inet_server_port();"`
       (debe responder `smye_test`; si responde `smye_dev`, detenerse) — depende de T002 y T003
-- [ ] T005 [P] Crear `backend/.env.example` (versionado) con `DB_HOST`, `DB_PORT`, `DB_USER`,
+- [X] T005 [P] Crear `backend/.env.example` (versionado) con `DB_HOST`, `DB_PORT`, `DB_USER`,
       `DB_PASSWORD`, `DB_NAME`, `JWT_SECRET`, `SERVER_PORT=8080` y
       `CORS_ALLOWED_ORIGIN=http://localhost:3000`, y a partir de él `backend/.env` y
       `backend/.env.test` (con `DB_PORT=5433` y `DB_NAME=smye_test`), ambos **no versionados**

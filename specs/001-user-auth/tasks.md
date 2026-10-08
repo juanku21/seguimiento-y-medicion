@@ -77,7 +77,7 @@ hay dónde ejecutar la primera prueba (research.md, sección 0). Todas las tarea
       `gorm.io/driver/postgres v1.6.3`, `golang-jwt/jwt/v5 v5.3.1`, `golang.org/x/crypto v0.57.0`,
       `google/uuid v1.6.0`, `gin-contrib/cors v1.7.9`, `swaggo/swag v1.16.6`,
       `swaggo/gin-swagger v1.6.1`, `swaggo/files v1.0.1`, `stretchr/testify v1.12.1` — depende de T001
-- [ ] T007 [P] Instalar las herramientas de Go fuera del módulo:
+- [X] T007 [P] Instalar las herramientas de Go fuera del módulo:
       `go install github.com/swaggo/swag/cmd/swag@v1.16.6` y
       `go install golang.org/x/vuln/cmd/govulncheck@v1.8.0` (sin archivos en el repositorio) —
       depende de T001

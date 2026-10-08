@@ -88,7 +88,7 @@ hay dónde ejecutar la primera prueba (research.md, sección 0). Todas las tarea
       `frontend/node_modules/next/dist/docs/`, en particular su guía oficial de Vitest, **antes** de
       escribir cualquier código de Next.js o configurar las pruebas. Si la guía exige un paquete
       fuera de la lista autorizada del Principio IV, detenerse y pedir autorización — depende de T008
-- [ ] T010 Fijar `agentRules: false` en `frontend/next.config.ts` y verificar que no exista ningún
+- [X] T010 Fijar `agentRules: false` en `frontend/next.config.ts` y verificar que no exista ningún
       `AGENTS.md` en el repositorio; si apareciera, avisar al desarrollador sin borrarlo
       (Principio IX, ámbito f) — depende de T009
 - [ ] T011 [P] Crear `frontend/.env.example` (versionado) con

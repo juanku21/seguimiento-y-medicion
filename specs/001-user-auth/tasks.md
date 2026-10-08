@@ -63,7 +63,7 @@ hay dónde ejecutar la primera prueba (research.md, sección 0). Todas las tarea
       `POSTGRES_HOST_PORT=5432`, y a partir de él `backend/postgres/.env` (desarrollo) y
       `backend/postgres/.env.test` (test, con `POSTGRES_DB=smye_test` y `POSTGRES_HOST_PORT=5433`),
       ambos **no versionados**
-- [ ] T004 Levantar los dos entornos con `backend/postgres/docker-compose.yml` usando
+- [X] T004 Levantar los dos entornos con `backend/postgres/docker-compose.yml` usando
       `docker compose --env-file .env -p smye-dev up -d` y
       `docker compose --env-file .env.test -p smye-test up -d`, y verificar el aislamiento del
       Principio V con `psql -U smye -d smye_test -c "SELECT current_database(), inet_server_port();"`

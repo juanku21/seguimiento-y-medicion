@@ -99,7 +99,7 @@ hay dónde ejecutar la primera prueba (research.md, sección 0). Todas las tarea
       con `vitest 5.0.3`, `@vitejs/plugin-react 6.1.1`, `jsdom 30.1.2`,
       `@testing-library/react 16.3.3`, `@testing-library/dom 10.4.2`, `vite-tsconfig-paths 6.1.1` y
       `@vitest/coverage-v8 5.0.3`, previa fijación de `@types/node 24.19.1`, exactamente como indique la guía leída en T009 — depende de T009
-- [ ] T013 [P] Configurar `prettier 3.9.9` en `frontend/` (archivo de configuración y script de
+- [X] T013 [P] Configurar `prettier 3.9.9` en `frontend/` (archivo de configuración y script de
       formateo en `frontend/package.json`) — depende de T008
 - [ ] T014 [P] Crear `.gitignore` en la raíz con las secciones `#Frontend` y `#Backend`
       (Principio VI), excluyendo `.env`, `.env.test`, `.env.local`, `node_modules/`, `.next/`,

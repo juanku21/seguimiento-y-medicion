@@ -47,7 +47,8 @@ Next.js 16.3.8 con React 19.3.0 y Tailwind CSS 4.3.3
 desarrollo (puerto 5432, base `smye_dev`) y de test (puerto 5433, base `smye_test`)
 
 **Pruebas**: `testify` v1.12.1 y la biblioteca estándar de Go (`net/http/httptest`) en el backend;
-Vitest 5.0.3 con `@testing-library/react` 16.3.3 y jsdom 30.1.2 en el frontend
+Vitest 5.0.3 con `@testing-library/react` 16.3.3 y jsdom 30.1.2 en el frontend, con cobertura por
+`@vitest/coverage-v8` 5.0.3 y `@types/node` 24.19.1 fijado para Node.js 24
 
 **Plataforma objetivo**: API HTTP en Linux (contenedor) y navegador moderno; desarrollo en Windows
 
@@ -118,7 +119,7 @@ Fase 1.*
 | I | El modelo de datos tiene 3 tablas y ninguna columna sin requisito que la pida. Se descartaron `issued_at`, `occurred_at` y una columna de correo sin normalizar por duplicar datos. Las interfaces de repositorio declaran 7 operaciones, todas usadas; sin CRUD especulativo. | **PASA** |
 | II | Los 26 escenarios se mapean a pruebas nombradas (tabla de trazabilidad más abajo). Las pruebas unitarias obligatorias son las de validaciones y reglas de negocio RN-01 a RN-09, que es exactamente lo que exige el Principio II para esta feature (no hay cálculo de métricas ni estimación todavía). | **PASA** |
 | III | `domain/` no importa a ninguna otra capa. Los dos paquetes de `platform/` no son módulos de feature y existen porque `cmd/app/` solo puede componer dependencias y las pruebas no pueden importar un paquete `main`. | **PASA** |
-| IV | Las 13 dependencias de Go y las 11 de npm están todas en la tabla autorizada o cubiertas por la cláusula de la guía oficial de Vitest de Next.js. `postgres:18.6-alpine` fija el patch, no una etiqueta móvil. Se descartó TypeScript 7 por riesgo sin requisito. | **PASA** |
+| IV | Las 13 dependencias de Go y las 11 de npm están todas en la tabla autorizada o cubiertas por la cláusula de la guía oficial de Vitest de Next.js; `@vitest/coverage-v8` se autorizó en la constitución 2.4.0 tras la lectura de la guía (T009). `postgres:18.6-alpine` fija el patch, no una etiqueta móvil. Se descartó TypeScript 7 por riesgo sin requisito. | **PASA** |
 | V | Un solo `docker-compose.yml` con dos nombres de proyecto y dos archivos de entorno da contenedores y volúmenes disjuntos. Las pruebas cargan `backend/.env.test` y la guía incluye una comprobación de que apuntan a `smye_test`. | **PASA** |
 | VI | `JWT_SECRET` validado al arrancar con un mínimo de 32 bytes; `password_hash` es la única forma en que existe la contraseña; `.gitignore` con secciones `#Frontend` y `#Backend` que excluyen `.env`, `node_modules/`, `.next/`, `backend/docs/` y los artefactos de cobertura. | **PASA** |
 | VII | Los cuatro endpoints validan antes de la capa de servicio. `gorm.ErrDuplicatedKey` se traduce a 409 en lugar de propagarse como error interno. El límite de 72 bytes se rechaza como validación y no como `panic` de bcrypt. Sin `panic` en el camino de ninguna petición. | **PASA** |
@@ -241,7 +242,7 @@ frontend/
 ├── .env.test                          # NO versionado
 ├── Dockerfile
 ├── next.config.ts                     # agentRules: false (Principio IX, ámbito f)
-├── vitest.config.ts
+├── vitest.config.mts                  # .mts según la guía de Vitest de Next.js
 ├── package.json
 └── tsconfig.json
 

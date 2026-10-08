@@ -57,8 +57,9 @@ y no es alcance añadido (Principio I): sin él no hay dónde ejecutar US1.
 | Pruebas frontend | jsdom | `30.1.2` |
 | Pruebas frontend | @testing-library/react | `16.3.3` |
 | Pruebas frontend | @testing-library/dom | `10.4.2` |
-| Pruebas frontend | @testing-library/jest-dom | `7.0.1` |
 | Pruebas frontend | vite-tsconfig-paths | `6.1.1` |
+| Cobertura frontend | @vitest/coverage-v8 | `5.0.3` |
+| Tipos de Node.js | @types/node | `24.19.1` |
 
 **Rationale**: todas son versiones estables publicadas, sin etiquetas alpha, beta, rc ni móviles
 (Principio IV). La imagen de PostgreSQL se fija con patch exacto (`18.6-alpine`) y no como `18`,
@@ -82,13 +83,33 @@ en 5.x.
 
 **Alternativas consideradas**: fijar `typescript@7.0.2` — descartada por el riesgo descrito.
 
-### Ninguna dependencia requiere autorización nueva
+### Dependencias de pruebas del frontend tras la lectura de la guía (T009)
 
 Todas las dependencias listadas están en la tabla de dependencias autorizadas del Principio IV.
-`@testing-library/jest-dom` y `vite-tsconfig-paths` quedan cubiertos por la cláusula "y los paquetes
-que indique la guía oficial de Next.js para Vitest". **No se solicita ninguna autorización
-adicional.** Si al leer la guía oficial de Vitest de la versión instalada apareciera un paquete
-fuera de esa lista, el trabajo se detiene y se pide autorización (Principio IV, paso 6 del flujo).
+`vite-tsconfig-paths` queda cubierto por la cláusula "y los paquetes que indique la guía oficial de
+Next.js para Vitest", porque la guía de Next.js 16.3.8 lo incluye en su comando de instalación para
+TypeScript.
+
+La lectura de la guía (T009) corrigió el supuesto inicial de esta sección:
+
+- **`@testing-library/jest-dom`**: se descarta. La guía no lo menciona, así que no lo cubre la
+  cláusula, y solo aporta matchers de conveniencia (`toBeInTheDocument`). Las pruebas usan las
+  aserciones nativas de Vitest, como la guía.
+- **`@vitest/coverage-v8 5.0.3`**: se incorpora. La guía no lo menciona, pero `vitest run --coverage`
+  lo requiere y el Principio II exige un comando de cobertura en el frontend. Lo autorizó el
+  responsable humano y quedó registrado en la constitución 2.4.0. Su versión acompaña a la de
+  `vitest`, que lo declara como dependencia par exacta.
+- **`@next/env`**: no se incorpora. Ninguna prueba de esta feature lee variables de entorno.
+- **`@types/node 24.19.1`**: `create-next-app` lo dejó con el rango `^20`, que choca con la
+  dependencia par de `vitest 5.0.3` (`^22.0.0 || >=24.0.0`) y además es un rango móvil. Se fija en la
+  última versión estable de la rama 24, que corresponde a Node.js 24.21.0, el runtime del proyecto.
+
+De la guía se toman también estas decisiones para T012:
+
+- El archivo de configuración es `frontend/vitest.config.mts`. Usa la extensión `.mts` porque
+  `package.json` no declara `"type": "module"`.
+- El script `test` ejecuta `vitest run` (una pasada), `test:watch` ejecuta `vitest` y
+  `test:coverage` ejecuta `vitest run --coverage`.
 
 ---
 

@@ -52,56 +52,56 @@ hay dónde ejecutar la primera prueba (research.md, sección 0). Todas las tarea
 
 **Rama**: `fase/001-setup`
 
-- [ ] T001 Instalar Go `1.27.1` y verificar con `go version` (prerrequisito bloqueante del
+- [X] T001 Instalar Go `1.27.1` y verificar con `go version` (prerrequisito bloqueante del
       desarrollador según research.md sección 0; no produce archivos en el repositorio)
-- [ ] T002 [P] Crear `backend/postgres/docker-compose.yml` con el servicio PostgreSQL en la imagen
+- [X] T002 [P] Crear `backend/postgres/docker-compose.yml` con el servicio PostgreSQL en la imagen
       `postgres:18.6-alpine` (patch exacto, nunca `18`, `18-alpine` ni `latest`), parametrizado por
       `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` y `POSTGRES_HOST_PORT`, con volumen
       nombrado para los datos
-- [ ] T003 [P] Crear `backend/postgres/.env.example` (versionado) con las claves
+- [X] T003 [P] Crear `backend/postgres/.env.example` (versionado) con las claves
       `POSTGRES_USER=smye`, `POSTGRES_PASSWORD=cambiar_este_valor`, `POSTGRES_DB=smye_dev`,
       `POSTGRES_HOST_PORT=5432`, y a partir de él `backend/postgres/.env` (desarrollo) y
       `backend/postgres/.env.test` (test, con `POSTGRES_DB=smye_test` y `POSTGRES_HOST_PORT=5433`),
       ambos **no versionados**
-- [ ] T004 Levantar los dos entornos con `backend/postgres/docker-compose.yml` usando
+- [X] T004 Levantar los dos entornos con `backend/postgres/docker-compose.yml` usando
       `docker compose --env-file .env -p smye-dev up -d` y
       `docker compose --env-file .env.test -p smye-test up -d`, y verificar el aislamiento del
       Principio V con `psql -U smye -d smye_test -c "SELECT current_database(), inet_server_port();"`
       (debe responder `smye_test`; si responde `smye_dev`, detenerse) — depende de T002 y T003
-- [ ] T005 [P] Crear `backend/.env.example` (versionado) con `DB_HOST`, `DB_PORT`, `DB_USER`,
+- [X] T005 [P] Crear `backend/.env.example` (versionado) con `DB_HOST`, `DB_PORT`, `DB_USER`,
       `DB_PASSWORD`, `DB_NAME`, `JWT_SECRET`, `SERVER_PORT=8080` y
       `CORS_ALLOWED_ORIGIN=http://localhost:3000`, y a partir de él `backend/.env` y
       `backend/.env.test` (con `DB_PORT=5433` y `DB_NAME=smye_test`), ambos **no versionados**
-- [ ] T006 Inicializar el módulo de Go en `backend/go.mod` y fijar las versiones exactas de
+- [X] T006 Inicializar el módulo de Go en `backend/go.mod` y fijar las versiones exactas de
       research.md sección 1: `gin v1.12.0`, `gorm.io/gorm v1.31.2`,
       `gorm.io/driver/postgres v1.6.3`, `golang-jwt/jwt/v5 v5.3.1`, `golang.org/x/crypto v0.57.0`,
       `google/uuid v1.6.0`, `gin-contrib/cors v1.7.9`, `swaggo/swag v1.16.6`,
       `swaggo/gin-swagger v1.6.1`, `swaggo/files v1.0.1`, `stretchr/testify v1.12.1` — depende de T001
-- [ ] T007 [P] Instalar las herramientas de Go fuera del módulo:
+- [X] T007 [P] Instalar las herramientas de Go fuera del módulo:
       `go install github.com/swaggo/swag/cmd/swag@v1.16.6` y
       `go install golang.org/x/vuln/cmd/govulncheck@v1.8.0` (sin archivos en el repositorio) —
       depende de T001
-- [ ] T008 Crear la aplicación Next.js en `frontend/` con `create-next-app` fijando `next 16.3.8`,
+- [X] T008 Crear la aplicación Next.js en `frontend/` con `create-next-app` fijando `next 16.3.8`,
       `react`/`react-dom 19.3.0`, `tailwindcss 4.3.3` y TypeScript (rama 5.x que fije
       `create-next-app`, **no** 7.x), pasando `--no-agents-md` (Principio IX, ámbito f)
-- [ ] T009 **PUERTA OBLIGATORIA**: leer la documentación de la versión instalada de Next.js en
+- [X] T009 **PUERTA OBLIGATORIA**: leer la documentación de la versión instalada de Next.js en
       `frontend/node_modules/next/dist/docs/`, en particular su guía oficial de Vitest, **antes** de
       escribir cualquier código de Next.js o configurar las pruebas. Si la guía exige un paquete
       fuera de la lista autorizada del Principio IV, detenerse y pedir autorización — depende de T008
-- [ ] T010 Fijar `agentRules: false` en `frontend/next.config.ts` y verificar que no exista ningún
+- [X] T010 Fijar `agentRules: false` en `frontend/next.config.ts` y verificar que no exista ningún
       `AGENTS.md` en el repositorio; si apareciera, avisar al desarrollador sin borrarlo
       (Principio IX, ámbito f) — depende de T009
-- [ ] T011 [P] Crear `frontend/.env.example` (versionado) con
+- [X] T011 [P] Crear `frontend/.env.example` (versionado) con
       `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080`, y a partir de él `frontend/.env.local` y
       `frontend/.env.test`, ambos **no versionados** — depende de T008
-- [ ] T012 Configurar Vitest en `frontend/vitest.config.ts` y los scripts `test`, `test:watch` y
-      `test:coverage` en `frontend/package.json`, con `vitest 5.0.3`,
-      `@vitejs/plugin-react 6.1.1`, `jsdom 30.1.2`, `@testing-library/react 16.3.3`,
-      `@testing-library/dom 10.4.2`, `@testing-library/jest-dom 7.0.1` y
-      `vite-tsconfig-paths 6.1.1`, exactamente como indique la guía leída en T009 — depende de T009
-- [ ] T013 [P] Configurar `prettier 3.9.9` en `frontend/` (archivo de configuración y script de
+- [X] T012 Configurar Vitest en `frontend/vitest.config.mts` y los scripts `test` (`vitest run`),
+      `test:watch` (`vitest`) y `test:coverage` (`vitest run --coverage`) en `frontend/package.json`,
+      con `vitest 5.0.3`, `@vitejs/plugin-react 6.1.1`, `jsdom 30.1.2`,
+      `@testing-library/react 16.3.3`, `@testing-library/dom 10.4.2`, `vite-tsconfig-paths 6.1.1` y
+      `@vitest/coverage-v8 5.0.3`, previa fijación de `@types/node 24.19.1`, exactamente como indique la guía leída en T009 — depende de T009
+- [X] T013 [P] Configurar `prettier 3.9.9` en `frontend/` (archivo de configuración y script de
       formateo en `frontend/package.json`) — depende de T008
-- [ ] T014 [P] Crear `.gitignore` en la raíz con las secciones `#Frontend` y `#Backend`
+- [X] T014 [P] Crear `.gitignore` en la raíz con las secciones `#Frontend` y `#Backend`
       (Principio VI), excluyendo `.env`, `.env.test`, `.env.local`, `node_modules/`, `.next/`,
       `backend/docs/`, `coverage.out` y `coverage.html`
 

@@ -1,10 +1,10 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Cambio de versión: 2.2.0 → 2.3.0
-Tipo de bump: MINOR (las reglas de formato de los mensajes de commit pasan a
-estar contenidas en la constitución y se elimina la dependencia de guías
-externas al repositorio; no se elimina ni se redefine ninguna regla existente).
+Cambio de versión: 2.3.0 → 2.4.0
+Tipo de bump: MINOR (se amplía la tabla de dependencias autorizadas del
+Principio IV con el proveedor de cobertura de Vitest; no se elimina ni se
+redefine ninguna regla existente).
 
 Historial:
   - 1.0.0 (2026-09-19): ratificación original del documento.
@@ -28,6 +28,21 @@ Historial:
     completo al Principio IX, ámbito b); se eliminan las referencias a la guía
     externa de commits y la entrada `docs/` del árbol de directorios, y el árbol
     incorpora `.specify/` y `specs/`.
+  - 2.4.0 (2026-10-08): se autoriza `@vitest/coverage-v8` como proveedor de
+    cobertura del frontend.
+
+Principios modificados en 2.4.0:
+  - IV. Stack Fijo y Versiones Estables:
+    - La fila "Frontend (pruebas)" de la tabla de dependencias autorizadas
+      incorpora `@vitest/coverage-v8`. La guía oficial de Vitest de Next.js
+      16.3.8 no lo menciona, por lo que no quedaba cubierto por la cláusula de
+      esa fila, y es necesario para el comando de cobertura del frontend que
+      exige el Principio II. Autorizado por el responsable humano al cerrar la
+      tarea 001/T009, en la que también se decidió no incorporar
+      `@testing-library/jest-dom` ni `@next/env`.
+
+Secciones añadidas en 2.4.0: ninguna
+Secciones eliminadas en 2.4.0: ninguna
 
 Principios modificados en 2.3.0:
   - II. Desarrollo Guiado por Pruebas (NO NEGOCIABLE):
@@ -304,7 +319,7 @@ regla de versiones estables.
 | Backend (pruebas) | github.com/stretchr/testify | Aserciones y mocks en pruebas |
 | Frontend | TypeScript y ESLint (incluidos por create-next-app) | Tipado y análisis estático |
 | Frontend | Prettier | Formateo del código |
-| Frontend (pruebas) | vitest, @vitejs/plugin-react, jsdom, @testing-library/react, @testing-library/dom y los paquetes que indique la guía oficial de Next.js para Vitest | Pruebas de componentes |
+| Frontend (pruebas) | vitest, @vitejs/plugin-react, jsdom, @testing-library/react, @testing-library/dom, @vitest/coverage-v8 y los paquetes que indique la guía oficial de Next.js para Vitest | Pruebas de componentes y reporte de cobertura |
 | Herramienta de desarrollo | golang.org/x/vuln/cmd/govulncheck | Detección de vulnerabilidades conocidas en dependencias de Go |
 
 - Quedan excluidas por el Principio I, salvo nueva autorización: clientes HTTP de terceros (se usa
@@ -632,4 +647,4 @@ este documento.
 - `CLAUDE.md` en la raíz es la guía operativa en tiempo de desarrollo y DEBE mantenerse alineado
   con esta constitución; ante discrepancia, manda la constitución.
 
-**Version**: 2.3.0 | **Ratified**: 2026-09-19 | **Last Amended**: 2026-10-05
+**Version**: 2.4.0 | **Ratified**: 2026-09-19 | **Last Amended**: 2026-10-08

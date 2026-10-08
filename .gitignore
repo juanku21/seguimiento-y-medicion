@@ -1,0 +1,48 @@
+#Frontend
+# Dependencias instaladas por npm
+/frontend/node_modules/
+
+# Artefactos de compilación y exportación de Next.js
+/frontend/.next/
+/frontend/out/
+/frontend/build/
+
+# Reporte de cobertura de Vitest
+/frontend/coverage/
+
+# Archivos generados por TypeScript y Next.js
+/frontend/*.tsbuildinfo
+/frontend/next-env.d.ts
+
+# Registros de depuración de los gestores de paquetes
+/frontend/npm-debug.log*
+/frontend/yarn-debug.log*
+/frontend/yarn-error.log*
+/frontend/.pnpm-debug.log*
+
+# Variables de entorno: se versiona solo la plantilla .env.example
+/frontend/.env*
+!/frontend/.env.example
+
+# Configuración local de Vercel y certificados
+/frontend/.vercel
+/frontend/*.pem
+
+# Archivos del sistema operativo
+.DS_Store
+
+#Backend
+# Variables de entorno de la aplicación: se versiona solo .env.example
+/backend/.env
+/backend/.env.test
+
+# Variables de entorno del servicio PostgreSQL: se versiona solo .env.example
+/backend/postgres/.env
+/backend/postgres/.env.test
+
+# Documentación Swagger generada con swag init
+/backend/docs/
+
+# Reportes de cobertura de go test y go tool cover
+/backend/coverage.out
+/backend/coverage.html

@@ -52,7 +52,7 @@ hay dónde ejecutar la primera prueba (research.md, sección 0). Todas las tarea
 
 **Rama**: `fase/001-setup`
 
-- [ ] T001 Instalar Go `1.27.1` y verificar con `go version` (prerrequisito bloqueante del
+- [X] T001 Instalar Go `1.27.1` y verificar con `go version` (prerrequisito bloqueante del
       desarrollador según research.md sección 0; no produce archivos en el repositorio)
 - [ ] T002 [P] Crear `backend/postgres/docker-compose.yml` con el servicio PostgreSQL en la imagen
       `postgres:18.6-alpine` (patch exacto, nunca `18`, `18-alpine` ni `latest`), parametrizado por

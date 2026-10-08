@@ -81,7 +81,7 @@ hay dónde ejecutar la primera prueba (research.md, sección 0). Todas las tarea
       `go install github.com/swaggo/swag/cmd/swag@v1.16.6` y
       `go install golang.org/x/vuln/cmd/govulncheck@v1.8.0` (sin archivos en el repositorio) —
       depende de T001
-- [ ] T008 Crear la aplicación Next.js en `frontend/` con `create-next-app` fijando `next 16.3.8`,
+- [X] T008 Crear la aplicación Next.js en `frontend/` con `create-next-app` fijando `next 16.3.8`,
       `react`/`react-dom 19.3.0`, `tailwindcss 4.3.3` y TypeScript (rama 5.x que fije
       `create-next-app`, **no** 7.x), pasando `--no-agents-md` (Principio IX, ámbito f)
 - [ ] T009 **PUERTA OBLIGATORIA**: leer la documentación de la versión instalada de Next.js en

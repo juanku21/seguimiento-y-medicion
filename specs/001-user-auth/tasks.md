@@ -58,7 +58,7 @@ hay dónde ejecutar la primera prueba (research.md, sección 0). Todas las tarea
       `postgres:18.6-alpine` (patch exacto, nunca `18`, `18-alpine` ni `latest`), parametrizado por
       `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` y `POSTGRES_HOST_PORT`, con volumen
       nombrado para los datos
-- [ ] T003 [P] Crear `backend/postgres/.env.example` (versionado) con las claves
+- [X] T003 [P] Crear `backend/postgres/.env.example` (versionado) con las claves
       `POSTGRES_USER=smye`, `POSTGRES_PASSWORD=cambiar_este_valor`, `POSTGRES_DB=smye_dev`,
       `POSTGRES_HOST_PORT=5432`, y a partir de él `backend/postgres/.env` (desarrollo) y
       `backend/postgres/.env.test` (test, con `POSTGRES_DB=smye_test` y `POSTGRES_HOST_PORT=5433`),

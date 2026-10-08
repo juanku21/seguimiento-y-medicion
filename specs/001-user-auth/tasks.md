@@ -72,7 +72,7 @@ hay dónde ejecutar la primera prueba (research.md, sección 0). Todas las tarea
       `DB_PASSWORD`, `DB_NAME`, `JWT_SECRET`, `SERVER_PORT=8080` y
       `CORS_ALLOWED_ORIGIN=http://localhost:3000`, y a partir de él `backend/.env` y
       `backend/.env.test` (con `DB_PORT=5433` y `DB_NAME=smye_test`), ambos **no versionados**
-- [ ] T006 Inicializar el módulo de Go en `backend/go.mod` y fijar las versiones exactas de
+- [X] T006 Inicializar el módulo de Go en `backend/go.mod` y fijar las versiones exactas de
       research.md sección 1: `gin v1.12.0`, `gorm.io/gorm v1.31.2`,
       `gorm.io/driver/postgres v1.6.3`, `golang-jwt/jwt/v5 v5.3.1`, `golang.org/x/crypto v0.57.0`,
       `google/uuid v1.6.0`, `gin-contrib/cors v1.7.9`, `swaggo/swag v1.16.6`,

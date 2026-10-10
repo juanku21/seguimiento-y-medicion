@@ -293,7 +293,7 @@ casos.
       `jti` (= `sessions.id`), `sub` (= `users.id`), `exp` (= `sessions.expires_at`) e `iat`
       (= `sessions.created_at`); el vencimiento es **8 horas fijas desde la emisión y no se renueva
       por actividad** (FR-018); un token con firma inválida se rechaza
-- [ ] T041 [P] [US2] Pruebas unitarias **obligatorias** de la regla RN-06 en
+- [X] T041 [P] [US2] Pruebas unitarias **obligatorias** de la regla RN-06 en
       `backend/internal/auth/service/auth_service_test.go`: la comparación bcrypt de contraseña y el
       **mensaje genérico idéntico** (`Correo electrónico o contraseña incorrectos.`) tanto para
       correo inexistente como para contraseña incorrecta (FR-014, SC-004)

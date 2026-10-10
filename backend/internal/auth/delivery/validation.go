@@ -40,8 +40,8 @@ func NormalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
-// ValidateFullName exige un nombre de entre 2 y 100 runas contadas tras recortar los espacios
-// extremos; vacío o solo de espacios equivale a ausente (FR-002, RN-03).
+// ValidateFullName exige un nombre de entre minFullNameLength y maxFullNameLength runas, contadas
+// tras recortar los espacios extremos; vacío o solo de espacios equivale a ausente (FR-002, RN-03).
 func ValidateFullName(fullName string) error {
 	length := utf8.RuneCountInString(strings.TrimSpace(fullName))
 	if length < minFullNameLength || length > maxFullNameLength {
@@ -51,7 +51,7 @@ func ValidateFullName(fullName string) error {
 }
 
 // ValidateEmail exige un correo con formato válido según net/mail.ParseAddress, sin nombre para
-// mostrar y de hasta 254 caracteres (FR-003). Exigir que la dirección analizada coincida con la
+// mostrar y de hasta maxEmailLength caracteres (FR-003). Exigir que la dirección analizada coincida con la
 // entrada descarta los formatos con ángulos, comentarios o varias direcciones.
 func ValidateEmail(email string) error {
 	if email == "" || utf8.RuneCountInString(email) > maxEmailLength {
@@ -64,12 +64,14 @@ func ValidateEmail(email string) error {
 	return nil
 }
 
-// ValidatePassword exige una contraseña de entre 8 y 72 runas, de como máximo 72 bytes en UTF-8 y
-// con al menos una letra y un dígito (FR-006, RN-04). El exceso de bytes comparte el mensaje del
-// rango; la falta de composición se informa con un mensaje propio.
+// ValidatePassword exige una contraseña de entre minPasswordLength y maxPasswordLength runas, de
+// como máximo maxPasswordBytes bytes en UTF-8 y con al menos una letra y un dígito (FR-006, RN-04).
+// El exceso de bytes comparte el mensaje del rango; la falta de composición tiene un mensaje propio.
 func ValidatePassword(password string) error {
 	length := utf8.RuneCountInString(password)
-	if length < minPasswordLength || length > maxPasswordLength || len(password) > maxPasswordBytes {
+	outOfRange := length < minPasswordLength || length > maxPasswordLength
+	exceedsBcryptLimit := len(password) > maxPasswordBytes
+	if outOfRange || exceedsBcryptLimit {
 		return errPasswordLength
 	}
 

@@ -230,7 +230,7 @@ ninguna otra historia.
 
 ### Implementación de la Historia 1
 
-- [ ] T029 [US1] Implementar normalización y validación de entrada en
+- [X] T029 [US1] Implementar normalización y validación de entrada en
       `backend/internal/auth/delivery/validation.go`, con los valores límite 2, 100, 8, 72 y 254
       declarados como **constantes nombradas en un único lugar** (research.md sección 13). La
       validación ocurre antes de la capa de servicio (Principio VII) y el límite de 72 bytes se

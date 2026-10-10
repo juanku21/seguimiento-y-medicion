@@ -12,9 +12,9 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/domain"
 )
 
-// UserRepository implementa domain.UserRepository sobre la tabla users. Firma mínima creada por
-// T027 para que compilen las pruebas de integración; Create lo implementa T031 y FindByEmail y
-// FindByID corresponden a las historias US2 y US4.
+// UserRepository implementa domain.UserRepository sobre las tablas users y auth_events. Create
+// está implementado; FindByEmail y FindByID son firmas mínimas que corresponden a las historias
+// US2 y US4.
 type UserRepository struct {
 	db *gorm.DB
 }

@@ -237,7 +237,7 @@ ninguna otra historia.
       rechaza como entrada inválida, nunca como `panic` de bcrypt
 - [X] T030 [US1] Implementar el hash bcrypt en `backend/internal/auth/service/password.go` con
       `golang.org/x/crypto/bcrypt` (FR-010, RN-05)
-- [ ] T031 [US1] Implementar `Create(ctx, user, event)` en
+- [X] T031 [US1] Implementar `Create(ctx, user, event)` en
       `backend/internal/auth/repository/user_repository.go`: `INSERT users` +
       `INSERT auth_events(account_created)` en **una sola transacción** (research.md sección 5), y
       traducir `gorm.ErrDuplicatedKey` al error de correo no disponible, sin "consultar y después

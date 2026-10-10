@@ -202,7 +202,7 @@ ninguna otra historia.
       y 72 runas, al menos una letra y un dígito, y como máximo 72 bytes en UTF-8** (RN-04);
       correo con formato válido vía `net/mail.ParseAddress`, sin nombre para mostrar y **hasta 254
       caracteres** (FR-003)
-- [ ] T026 [P] [US1] Pruebas unitarias **obligatorias** de hash de contraseña en
+- [X] T026 [P] [US1] Pruebas unitarias **obligatorias** de hash de contraseña en
       `backend/internal/auth/service/password_test.go`, cubriendo RN-05: el hash no es reversible,
       mide 60 caracteres, dos hashes de la misma contraseña difieren y la contraseña en claro no
       aparece en ninguna salida

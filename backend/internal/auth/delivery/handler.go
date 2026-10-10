@@ -45,34 +45,24 @@ func NewHandler(auth *service.AuthService) *Handler {
 //	@Produce		json
 //	@Param			request	body		RegisterRequest			true	"Datos de la cuenta nueva"
 //	@Success		201		{object}	UserProfile				"Cuenta creada. La persona ya puede iniciar sesión con ese correo."
-//	@Failure		400		{object}	ValidationErrorResponse	"Entrada inválida: indica qué campo corregir y por qué, sin crear ninguna cuenta (FR-008)."
+//	@Failure		400		{object}	ValidationErrorResponse	"Entrada inválida, sin crear ninguna cuenta. Tiene dos formas: ValidationErrorResponse cuando uno o más campos no cumplen las reglas, con qué campo corregir y por qué (FR-008); ErrorResponse cuando el cuerpo no es un JSON válido o está vacío."
 //	@Failure		409		{object}	ErrorResponse			"El correo normalizado ya está registrado (FR-005, FR-007)."
 //	@Failure		500		{object}	ErrorResponse			"Error interno sin detalles expuestos."
 //	@Router			/api/v1/auth/register [post]
 func (h *Handler) registerUser(c *gin.Context) {
-	// Se decodifica el cuerpo sin reglas de binding: un JSON mal formado o con tipos incorrectos se
-	// rechaza con 400 descriptivo, y las reglas de cada campo las aplica validation.go.
+	// Se decodifica el cuerpo sin reglas de binding: un cuerpo vacío, mal formado o con tipos incorrectos se
+	// rechaza con 400 y ErrorResponse, y las reglas de cada campo las aplica validation.go.
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{Error: msgInvalidBody})
 		return
 	}
 
-	// Se normaliza el correo y se valida cada campo, acumulando un detalle por campo inválido
-	// (FR-008). El nombre se guarda recortado, igual que se midió al validarlo (RN-03).
+	// Se normaliza el correo y se validan los campos; ante cualquier campo inválido se responde 400
+	// con su detalle (FR-008). El nombre se guarda recortado, igual que se midió al validarlo (RN-03).
 	fullName := strings.TrimSpace(req.FullName)
 	email := NormalizeEmail(req.Email)
-	fields := []FieldError{}
-	if err := ValidateFullName(fullName); err != nil {
-		fields = append(fields, FieldError{Field: "fullName", Message: err.Error()})
-	}
-	if err := ValidateEmail(email); err != nil {
-		fields = append(fields, FieldError{Field: "email", Message: err.Error()})
-	}
-	if err := ValidatePassword(req.Password); err != nil {
-		fields = append(fields, FieldError{Field: "password", Message: err.Error()})
-	}
-	if len(fields) > 0 {
+	if fields := validateRegistration(fullName, email, req.Password); len(fields) > 0 {
 		c.JSON(http.StatusBadRequest, ValidationErrorResponse{Error: msgInvalidFields, Fields: fields})
 		return
 	}
@@ -91,6 +81,26 @@ func (h *Handler) registerUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, newUserProfile(user))
+}
+
+// validateRegistration aplica las reglas de cada campo del registro y devuelve un detalle por cada
+// campo inválido, en el orden fullName, email, password. Si todos son válidos, la lista queda vacía.
+func validateRegistration(fullName, email, password string) []FieldError {
+	checks := []struct {
+		field string
+		err   error
+	}{
+		{field: "fullName", err: ValidateFullName(fullName)},
+		{field: "email", err: ValidateEmail(email)},
+		{field: "password", err: ValidatePassword(password)},
+	}
+	fields := []FieldError{}
+	for _, check := range checks {
+		if check.err != nil {
+			fields = append(fields, FieldError{Field: check.field, Message: check.err.Error()})
+		}
+	}
+	return fields
 }
 
 // newUserProfile arma los datos visibles de la cuenta, sin la contraseña ni su hash (FR-011).

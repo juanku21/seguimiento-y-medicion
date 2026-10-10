@@ -250,7 +250,7 @@ ninguna otra historia.
       (`id`, `fullName`, `email`), `ErrorResponse` (`error`) , `FieldError` (`field`, `message`) y
       `ValidationErrorResponse` (`error`, `fields` con `minItems: 1`). **Ningún DTO de salida tiene
       campo de contraseña ni nada derivado de ella** (FR-011, SC-005)
-- [ ] T034 [US1] Implementar el manejador `registerUser` en
+- [X] T034 [US1] Implementar el manejador `registerUser` en
       `backend/internal/auth/delivery/handler.go` con anotaciones `swag` en español, registrado como
       ruta **pública** `POST /api/v1/auth/register` en
       `backend/internal/auth/delivery/routes.go`, devolviendo `201` con `UserProfile`, `400` con

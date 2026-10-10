@@ -288,7 +288,7 @@ casos.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T040 [P] [US2] Pruebas unitarias de emisión y parseo del JWT en
+- [X] T040 [P] [US2] Pruebas unitarias de emisión y parseo del JWT en
       `backend/internal/auth/service/token_test.go`: `HS256` con el secreto de `JWT_SECRET`, claims
       `jti` (= `sessions.id`), `sub` (= `users.id`), `exp` (= `sessions.expires_at`) e `iat`
       (= `sessions.created_at`); el vencimiento es **8 horas fijas desde la emisión y no se renueva

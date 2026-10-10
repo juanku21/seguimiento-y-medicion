@@ -150,7 +150,7 @@ arranque del servidor y el ayudante de aislamiento de las pruebas.
       del evento**) y `UpdatedAt timestamptz NOT NULL`; más las cuatro constantes de Go tipadas
       `account_created`, `login_succeeded`, `login_failed` y `logout` (no `enum` de PostgreSQL).
       **Ninguna columna admite contraseñas** (FR-030)
-- [ ] T021 [P] Declarar los errores de dominio en `backend/internal/auth/domain/errors.go`: correo
+- [X] T021 [P] Declarar los errores de dominio en `backend/internal/auth/domain/errors.go`: correo
       no disponible (FR-005), credenciales inválidas (FR-014, mensaje único) y sesión inválida
       (FR-015)
 - [ ] T022 Declarar en `backend/internal/auth/domain/repository.go` las tres interfaces con

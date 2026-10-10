@@ -235,7 +235,7 @@ ninguna otra historia.
       declarados como **constantes nombradas en un único lugar** (research.md sección 13). La
       validación ocurre antes de la capa de servicio (Principio VII) y el límite de 72 bytes se
       rechaza como entrada inválida, nunca como `panic` de bcrypt
-- [ ] T030 [US1] Implementar el hash bcrypt en `backend/internal/auth/service/password.go` con
+- [X] T030 [US1] Implementar el hash bcrypt en `backend/internal/auth/service/password.go` con
       `golang.org/x/crypto/bcrypt` (FR-010, RN-05)
 - [ ] T031 [US1] Implementar `Create(ctx, user, event)` en
       `backend/internal/auth/repository/user_repository.go`: `INSERT users` +

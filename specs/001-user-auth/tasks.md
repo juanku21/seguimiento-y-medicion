@@ -143,7 +143,7 @@ arranque del servidor y el ayudante de aislamiento de las pruebas.
       `RevokedAt timestamptz` **anulable**, `CreatedAt timestamptz NOT NULL` (**es el momento de
       emisión**) y `UpdatedAt timestamptz NOT NULL`. Sin columna de estado: los tres estados se
       derivan de los datos
-- [ ] T020 [P] Declarar la entidad `AuthEvent` en `backend/internal/auth/domain/auth_event.go` con
+- [X] T020 [P] Declarar la entidad `AuthEvent` en `backend/internal/auth/domain/auth_event.go` con
       los campos de data-model.md sección 3: `ID uuid` PK,
       `EventType varchar(32) NOT NULL`, `UserID uuid` **anulable** con FK a `users.id` e indexada,
       `AttemptedEmail varchar(254)` **anulable**, `CreatedAt timestamptz NOT NULL` (**es el momento

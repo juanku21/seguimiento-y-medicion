@@ -555,6 +555,30 @@ calidad. Todas las tareas son **técnicas**.
 
 ---
 
+## Fase 9: Convergence
+
+**Propósito**: cerrar las brechas que `/speckit-converge` encontró entre lo que piden la spec, el
+plan y la constitución y lo que ya está implementado en las fases 1 y 2. Todas las tareas son
+**técnicas** y no tienen prueba asociada.
+
+**Rama**: cada tarea se hace en la rama del trabajo al que corrige: T083 en
+`hu/001-us2-inicio-de-sesion` y T084 en `fase/001-foundational`.
+
+- [ ] T083 Fijar `github.com/golang-jwt/jwt/v5 v5.3.1` en `backend/go.mod` con
+      `go get github.com/golang-jwt/jwt/v5@v5.3.1` y verificar con
+      `go list -m github.com/golang-jwt/jwt/v5` que resuelve `v5.3.1`, porque `go mod tidy` lo quitó
+      en T023 al no haber todavía ningún import (research.md sección 1, T006). Se hace **antes de
+      T040**, la primera tarea que importa el paquete, para que ese import tome la versión fijada y
+      no la última publicada — depende de T023
+- [ ] T084 Corregir el comentario de `OpenDatabase` en
+      `backend/internal/platform/testsupport/database.go`: sobra el primer "abre" y una línea supera
+      el ancho del resto del archivo (Principio VIII) — depende de T024
+
+**Checkpoint**: `go list -m github.com/golang-jwt/jwt/v5` responde `v5.3.1` y el comentario del
+ayudante de pruebas describe exactamente lo que hace la función.
+
+---
+
 ## Dependencias y Orden de Ejecución
 
 ### Dependencias entre fases

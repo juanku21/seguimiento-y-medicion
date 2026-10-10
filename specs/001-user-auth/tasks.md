@@ -312,7 +312,7 @@ casos.
 
 ### Implementación de la Historia 2
 
-- [ ] T044 [US2] Implementar la emisión y el parseo del token en
+- [X] T044 [US2] Implementar la emisión y el parseo del token en
       `backend/internal/auth/service/token.go` con `golang-jwt/jwt/v5`, `HS256` y los claims `jti`,
       `sub`, `exp` e `iat` (data-model.md sección 2) — depende de T015
 - [ ] T045 [US2] Añadir la comparación de contraseña con bcrypt en

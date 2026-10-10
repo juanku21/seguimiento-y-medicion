@@ -40,30 +40,31 @@ func IssueToken(secret string, session domain.Session) (string, error) {
 // rechazado (firma, algoritmo, formato, vencimiento o claims ilegibles) se informa como
 // domain.ErrInvalidSession, para que el llamador lo trate como falta de sesión (FR-015).
 func ParseToken(secret string, token string, now time.Time) (TokenClaims, error) {
+	// Verifica firma, algoritmo y vencimiento con la librería, usando now como reloj.
+	keyFunc := func(*jwt.Token) (any, error) { return []byte(secret), nil }
 	claims := jwt.RegisteredClaims{}
-	_, err := jwt.ParseWithClaims(token, &claims, func(*jwt.Token) (any, error) {
-		return []byte(secret), nil
-	},
+	_, err := jwt.ParseWithClaims(token, &claims, keyFunc,
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
 		jwt.WithExpirationRequired(),
 		jwt.WithIssuedAt(),
 		jwt.WithTimeFunc(func() time.Time { return now }),
 	)
 	if err != nil {
-		return TokenClaims{}, fmt.Errorf("%w: %v", domain.ErrInvalidSession, err)
+		return TokenClaims{}, invalidSession("%v", err)
 	}
 
-	// Los claims jti y sub deben ser UUID válidos y iat debe estar presente.
+	// Los claims jti y sub deben ser UUID válidos. iat se comprueba aparte porque WithIssuedAt
+	// solo lo compara con now cuando está presente, pero no exige que exista.
 	sessionID, err := uuid.Parse(claims.ID)
 	if err != nil {
-		return TokenClaims{}, fmt.Errorf("%w: jti inválido: %v", domain.ErrInvalidSession, err)
+		return TokenClaims{}, invalidSession("jti inválido: %v", err)
 	}
 	userID, err := uuid.Parse(claims.Subject)
 	if err != nil {
-		return TokenClaims{}, fmt.Errorf("%w: sub inválido: %v", domain.ErrInvalidSession, err)
+		return TokenClaims{}, invalidSession("sub inválido: %v", err)
 	}
 	if claims.IssuedAt == nil {
-		return TokenClaims{}, fmt.Errorf("%w: falta iat", domain.ErrInvalidSession)
+		return TokenClaims{}, invalidSession("falta iat")
 	}
 
 	return TokenClaims{
@@ -72,4 +73,10 @@ func ParseToken(secret string, token string, now time.Time) (TokenClaims, error)
 		IssuedAt:  claims.IssuedAt.Time,
 		ExpiresAt: claims.ExpiresAt.Time,
 	}, nil
+}
+
+// invalidSession arma un error que envuelve domain.ErrInvalidSession con el detalle del rechazo.
+// El detalle se formatea con %v para no exponer la cadena de errores interna de la librería.
+func invalidSession(format string, args ...any) error {
+	return fmt.Errorf("%w: %s", domain.ErrInvalidSession, fmt.Sprintf(format, args...))
 }

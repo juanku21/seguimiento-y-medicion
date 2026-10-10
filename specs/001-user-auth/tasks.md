@@ -206,7 +206,7 @@ ninguna otra historia.
       `backend/internal/auth/service/password_test.go`, cubriendo RN-05: el hash no es reversible,
       mide 60 caracteres, dos hashes de la misma contraseña difieren y la contraseña en claro no
       aparece en ninguna salida
-- [ ] T027 [US1] Pruebas de integración de la historia en
+- [X] T027 [US1] Pruebas de integración de la historia en
       `backend/internal/auth/delivery/handler_test.go`, una función por escenario de spec.md,
       precedida por `// Escenario: <nombre del escenario> (001/US1)`: `TestUS1_AltaExitosa`,
       `TestUS1_CorreoNormalizado`, `TestUS1_LimitesDeContrasena` (8 y 72 caracteres),

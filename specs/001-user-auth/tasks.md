@@ -219,7 +219,7 @@ ninguna otra historia.
       dígito). Cada
       escenario asserta además la fila `account_created` en `auth_events` con `user_id`
       (FR-028, SC-009) — depende de T024
-- [ ] T028 [P] [US1] Pruebas de frontend en
+- [X] T028 [P] [US1] Pruebas de frontend en
       `frontend/src/features/auth/components/register-form.test.tsx` y
       `frontend/src/features/auth/validation.test.ts`, con
       `describe("001/US1 - Registro de cuenta")` y un `it` por escenario, incluido que el formulario

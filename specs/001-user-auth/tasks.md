@@ -128,7 +128,7 @@ arranque del servidor y el ayudante de aislamiento de las pruebas.
       `backend/internal/platform/config/dotenv.go` usando solo `bufio` y `strings`, para que
       `go test ./...` cargue `backend/.env.test` sin exportar variables a mano (research.md
       sección 8)
-- [ ] T017 Abrir la conexión GORM con `TranslateError: true` y ejecutar `AutoMigrate` de los tres
+- [X] T017 Abrir la conexión GORM con `TranslateError: true` y ejecutar `AutoMigrate` de los tres
       modelos en `backend/internal/platform/database/postgres.go` (research.md sección 7; sin
       herramientas de migración externas) — depende de T018, T019 y T020
 - [X] T018 [P] Declarar la entidad `User` en `backend/internal/auth/domain/user.go` con los campos

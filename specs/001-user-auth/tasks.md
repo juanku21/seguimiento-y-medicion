@@ -120,7 +120,7 @@ arranque del servidor y el ayudante de aislamiento de las pruebas.
 
 **Rama**: `fase/001-foundational`
 
-- [ ] T015 Implementar la lectura de variables de entorno con la biblioteca estándar en
+- [X] T015 Implementar la lectura de variables de entorno con la biblioteca estándar en
       `backend/internal/platform/config/config.go`, incluida la validación al arrancar de que
       `JWT_SECRET` tenga **al menos 32 bytes** (si falta o es más corto, la aplicación no arranca y
       lo informa; research.md sección 2) — prohibido usar cargadores de terceros (Principio IV)

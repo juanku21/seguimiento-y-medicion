@@ -242,7 +242,7 @@ ninguna otra historia.
       `INSERT auth_events(account_created)` en **una sola transacción** (research.md sección 5), y
       traducir `gorm.ErrDuplicatedKey` al error de correo no disponible, sin "consultar y después
       insertar" (FR-007, SC-006) — depende de T029
-- [ ] T032 [US1] Implementar `Register` en `backend/internal/auth/service/auth_service.go`: hash,
+- [X] T032 [US1] Implementar `Register` en `backend/internal/auth/service/auth_service.go`: hash,
       construcción del `User` con UUID y del `AuthEvent` `account_created`, y delegación al
       repositorio. **No emite sesión** (FR-009) — depende de T030 y T031
 - [ ] T033 [US1] Declarar en `backend/internal/auth/delivery/dto.go` los esquemas de

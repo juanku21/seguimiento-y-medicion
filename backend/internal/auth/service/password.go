@@ -1,9 +1,17 @@
 package service
 
-import "errors"
+import (
+	"fmt"
 
-// HashPassword devuelve el hash bcrypt de la contraseña (FR-010, RN-05). Firma mínima creada por
-// T026 para que compilen las pruebas; la implementación corresponde a T030.
+	"golang.org/x/crypto/bcrypt"
+)
+
+// HashPassword devuelve el hash bcrypt de la contraseña con el coste por defecto (FR-010, RN-05).
+// Si bcrypt la rechaza, el error se envuelve sin incluir la contraseña y no se devuelve hash.
 func HashPassword(password string) (string, error) {
-	return "", errors.New("not implemented")
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", fmt.Errorf("hashing password: %w", err)
+	}
+	return string(hash), nil
 }

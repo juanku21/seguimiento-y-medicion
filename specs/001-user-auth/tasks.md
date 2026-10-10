@@ -245,7 +245,7 @@ ninguna otra historia.
 - [X] T032 [US1] Implementar `Register` en `backend/internal/auth/service/auth_service.go`: hash,
       construcción del `User` con UUID y del `AuthEvent` `account_created`, y delegación al
       repositorio. **No emite sesión** (FR-009) — depende de T030 y T031
-- [ ] T033 [US1] Declarar en `backend/internal/auth/delivery/dto.go` los esquemas de
+- [X] T033 [US1] Declarar en `backend/internal/auth/delivery/dto.go` los esquemas de
       contracts/openapi.yaml: `RegisterRequest` (`fullName`, `email`, `password`), `UserProfile`
       (`id`, `fullName`, `email`), `ErrorResponse` (`error`) , `FieldError` (`field`, `message`) y
       `ValidationErrorResponse` (`error`, `fields` con `minItems: 1`). **Ningún DTO de salida tiene

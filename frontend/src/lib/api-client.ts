@@ -23,6 +23,11 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+// Arma un error sin detalle por campo, para los casos en que se muestra un mensaje genérico.
+function genericError(status: number, message: string): ApiError {
+  return { status, message, fields: [] };
+}
+
 // Reconoce un elemento del detalle por campo de ValidationErrorResponse.
 function isFieldError(value: unknown): value is FieldError {
   return (
@@ -46,7 +51,7 @@ async function readJson(response: Response): Promise<unknown> {
 // genérico para no mostrar nada técnico.
 function toApiError(status: number, body: unknown): ApiError {
   if (!isRecord(body) || typeof body.error !== "string") {
-    return { status, message: UNEXPECTED_ERROR_MESSAGE, fields: [] };
+    return genericError(status, UNEXPECTED_ERROR_MESSAGE);
   }
   const fields = Array.isArray(body.fields)
     ? body.fields.filter(isFieldError)
@@ -69,10 +74,7 @@ export async function postJson<T>(
       body: JSON.stringify(body),
     });
   } catch {
-    return {
-      ok: false,
-      error: { status: 0, message: NETWORK_ERROR_MESSAGE, fields: [] },
-    };
+    return { ok: false, error: genericError(0, NETWORK_ERROR_MESSAGE) };
   }
 
   const data = await readJson(response);
@@ -82,11 +84,7 @@ export async function postJson<T>(
   if (!isData(data)) {
     return {
       ok: false,
-      error: {
-        status: response.status,
-        message: UNEXPECTED_ERROR_MESSAGE,
-        fields: [],
-      },
+      error: genericError(response.status, UNEXPECTED_ERROR_MESSAGE),
     };
   }
   return { ok: true, data };

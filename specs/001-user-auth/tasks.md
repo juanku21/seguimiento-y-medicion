@@ -259,7 +259,7 @@ ninguna otra historia.
 - [X] T035 [P] [US1] Declarar los tipos de petición y respuesta en `frontend/src/types/auth.ts` y la
       variable `NEXT_PUBLIC_API_BASE_URL` tipada en `frontend/src/config/env.ts`. **Prohibido el
       tipo `any`** (Principio VIII) — depende de T009
-- [ ] T036 [US1] Implementar el cliente HTTP con `fetch` nativo en
+- [X] T036 [US1] Implementar el cliente HTTP con `fetch` nativo en
       `frontend/src/lib/api-client.ts` (sin clientes de terceros, Principio IV) y la llamada de
       registro en `frontend/src/features/auth/api.ts` — depende de T035
 - [ ] T037 [US1] Implementar `frontend/src/utils/normalize-email.ts` (recorte y minúsculas, igual

@@ -131,7 +131,7 @@ arranque del servidor y el ayudante de aislamiento de las pruebas.
 - [ ] T017 Abrir la conexión GORM con `TranslateError: true` y ejecutar `AutoMigrate` de los tres
       modelos en `backend/internal/platform/database/postgres.go` (research.md sección 7; sin
       herramientas de migración externas) — depende de T018, T019 y T020
-- [ ] T018 [P] Declarar la entidad `User` en `backend/internal/auth/domain/user.go` con los campos
+- [X] T018 [P] Declarar la entidad `User` en `backend/internal/auth/domain/user.go` con los campos
       de data-model.md sección 1: `ID uuid` PK generado con `google/uuid`,
       `FullName varchar(100) NOT NULL`, `Email varchar(254) NOT NULL` con **índice único**,
       `PasswordHash varchar(60) NOT NULL` (largo fijo de bcrypt), `CreatedAt` y `UpdatedAt`

@@ -153,7 +153,7 @@ arranque del servidor y el ayudante de aislamiento de las pruebas.
 - [X] T021 [P] Declarar los errores de dominio en `backend/internal/auth/domain/errors.go`: correo
       no disponible (FR-005), credenciales inválidas (FR-014, mensaje único) y sesión inválida
       (FR-015)
-- [ ] T022 Declarar en `backend/internal/auth/domain/repository.go` las tres interfaces con
+- [X] T022 Declarar en `backend/internal/auth/domain/repository.go` las tres interfaces con
       **exactamente** las siete operaciones de data-model.md sección 5 —
       `UserRepository`: `Create(ctx, user, event) error`, `FindByEmail(ctx, email) (*User, error)`,
       `FindByID(ctx, id) (*User, error)`; `SessionRepository`: `Create(ctx, session, event) error`,

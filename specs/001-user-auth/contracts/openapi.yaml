@@ -76,19 +76,32 @@ paths:
                 email: ana@example.com
         '400':
           description: |
-            Entrada inválida. Indica qué campo corregir y por qué, sin crear ninguna cuenta parcial
-            (FR-008). La respuesta nunca incluye la contraseña ni nada derivado de ella (FR-011).
+            Entrada inválida, sin crear ninguna cuenta parcial. La respuesta nunca incluye la
+            contraseña ni nada derivado de ella (FR-011). Tiene dos formas:
+            - `ValidationErrorResponse` cuando uno o más campos no cumplen las reglas: indica qué
+              campo corregir y por qué (FR-008).
+            - `ErrorResponse` cuando el cuerpo no es un JSON válido o está vacío: no hay un campo
+              concreto que señalar (Principio VII: nunca un error interno).
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ValidationErrorResponse'
-              example:
-                error: Hay campos inválidos en la solicitud.
-                fields:
-                  - field: password
-                    message: La contraseña debe tener entre 8 y 72 caracteres.
-                  - field: email
-                    message: El formato del correo electrónico no es válido.
+                oneOf:
+                  - $ref: '#/components/schemas/ValidationErrorResponse'
+                  - $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                camposInvalidos:
+                  summary: Uno o más campos no cumplen las reglas
+                  value:
+                    error: Hay campos inválidos en la solicitud.
+                    fields:
+                      - field: password
+                        message: La contraseña debe tener entre 8 y 72 caracteres.
+                      - field: email
+                        message: El formato del correo electrónico no es válido.
+                jsonInvalido:
+                  summary: El cuerpo no es un JSON válido
+                  value:
+                    error: El cuerpo de la solicitud debe ser un JSON válido.
         '409':
           description: El correo normalizado ya está registrado (FR-005, FR-007).
           content:

@@ -165,7 +165,7 @@ arranque del servidor y el ayudante de aislamiento de las pruebas.
       `backend/internal/auth/delivery/routes.go`, el middleware de CORS leyendo
       `CORS_ALLOWED_ORIGIN` y la publicación de Swagger en `/swagger/index.html` con `gin-swagger` —
       depende de T015 y T017
-- [ ] T024 Implementar el ayudante de pruebas de integración en
+- [X] T024 Implementar el ayudante de pruebas de integración en
       `backend/internal/platform/testsupport/database.go`: carga `backend/.env.test` con T016,
       abre la conexión, **verifica que la base sea `smye_test`** antes de tocar nada, y vacía las
       tres tablas con `TRUNCATE users, sessions, auth_events CASCADE` antes de cada caso

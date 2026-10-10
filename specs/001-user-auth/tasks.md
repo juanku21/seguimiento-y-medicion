@@ -195,7 +195,7 @@ ninguna otra historia.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T025 [P] [US1] Pruebas unitarias **obligatorias** de validación y normalización en
+- [X] T025 [P] [US1] Pruebas unitarias **obligatorias** de validación y normalización en
       `backend/internal/auth/delivery/validation_test.go`, cubriendo RN-01 a RN-04: correo
       normalizado con `TrimSpace` + `ToLower` (RN-01, RN-02); nombre de **entre 2 y 100 runas tras
       `TrimSpace`**, con nombre vacío o solo de espacios rechazado (RN-03); contraseña de **entre 8

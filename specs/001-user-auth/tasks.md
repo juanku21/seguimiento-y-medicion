@@ -124,7 +124,7 @@ arranque del servidor y el ayudante de aislamiento de las pruebas.
       `backend/internal/platform/config/config.go`, incluida la validación al arrancar de que
       `JWT_SECRET` tenga **al menos 32 bytes** (si falta o es más corto, la aplicación no arranca y
       lo informa; research.md sección 2) — prohibido usar cargadores de terceros (Principio IV)
-- [ ] T016 Implementar el ayudante lector de archivos `KEY=VALUE` en
+- [X] T016 Implementar el ayudante lector de archivos `KEY=VALUE` en
       `backend/internal/platform/config/dotenv.go` usando solo `bufio` y `strings`, para que
       `go test ./...` cargue `backend/.env.test` sin exportar variables a mano (research.md
       sección 8)

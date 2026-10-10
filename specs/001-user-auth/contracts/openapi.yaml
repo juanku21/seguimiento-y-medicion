@@ -240,8 +240,10 @@ components:
           type: string
           format: password
           description: |
-            Entre 8 y 72 caracteres, con al menos una letra y al menos un número (FR-006). El
-            máximo de 72 es una restricción del producto y se comunica en el formulario (RC-02).
+            Entre 8 y 72 caracteres, como máximo 72 bytes en UTF-8, con al menos una letra y al
+            menos un número (FR-006). El máximo de 72 es una restricción del producto y se
+            comunica en el formulario (RC-02). Una contraseña de 72 caracteres o menos que supera
+            los 72 bytes (por ejemplo, con letras acentuadas) se rechaza con el mismo mensaje.
           minLength: 8
           maxLength: 72
           example: Proyecto2026

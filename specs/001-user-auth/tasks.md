@@ -214,14 +214,18 @@ ninguna otra historia.
       solicitudes simultáneas con el mismo correo dejan exactamente una cuenta**, SC-006),
       `TestUS1_RegistroNoEmiteSesion`, `TestUS1_CorreoDuplicado` (otra capitalización → `409`) y
       `TestUS1_EntradaInvalida` (subtests con `t.Run` para nombre ausente, correo ausente, correo
-      con formato inválido, contraseña de 7 y de 73 caracteres, sin letra y sin dígito). Cada
+      con formato inválido, contraseña de 7 y de 73 caracteres, **contraseña de menos de 72
+      caracteres que supera los 72 bytes en UTF-8 (responde `400`, nunca `500`)**, sin letra y sin
+      dígito). Cada
       escenario asserta además la fila `account_created` en `auth_events` con `user_id`
       (FR-028, SC-009) — depende de T024
 - [ ] T028 [P] [US1] Pruebas de frontend en
       `frontend/src/features/auth/components/register-form.test.tsx` y
       `frontend/src/features/auth/validation.test.ts`, con
       `describe("001/US1 - Registro de cuenta")` y un `it` por escenario, incluido que el formulario
-      **muestra el límite de 8 a 72 caracteres antes de enviar, no al fallar** (RC-02) — depende
+      **muestra el límite de 8 a 72 caracteres antes de enviar, no al fallar** (RC-02), **que una
+      contraseña de 72 caracteres o menos que supera los 72 bytes en UTF-8 (40 letras acentuadas y
+      un número) se rechaza antes de enviar, y que un emoji cuenta como un solo carácter** — depende
       de T012
 
 ### Implementación de la Historia 1
@@ -260,7 +264,10 @@ ninguna otra historia.
       registro en `frontend/src/features/auth/api.ts` — depende de T035
 - [ ] T037 [US1] Implementar `frontend/src/utils/normalize-email.ts` (recorte y minúsculas, igual
       que el backend) y las reglas de RC-02 en `frontend/src/features/auth/validation.ts`, con los
-      límites 2, 100, 8, 72 y 254 como constantes nombradas en un único lugar — depende de T035
+      límites 2, 100, 8, 72 y 254 como constantes nombradas en un único lugar. **Los caracteres se
+      cuentan por punto de código (`[...value].length`, no `value.length`) y el tope de 72 bytes de
+      la contraseña se mide con `new TextEncoder().encode(value).length`**, igual que el backend
+      (FR-006, RN-04) — depende de T035
 - [ ] T038 [US1] Implementar los componentes de UI reutilizables `Button`, `Input` y `Alert` en
       `frontend/src/components/` y el `RegisterForm` en
       `frontend/src/features/auth/components/register-form.tsx`, con mensajes en español — depende
@@ -681,13 +688,13 @@ Cada historia añade valor sin romper las anteriores.
   (Principio V).
 - Tres puntos del plan esperan decisión del desarrollador y conviene resolverlos antes de las tareas
   que los tocan: la instalación de Go (T001), el límite de 72 **bytes** de la contraseña frente a
-  RN-04 expresado en caracteres (T025, T029) y el transporte del token en `sessionStorage` frente a
-  una cookie `HttpOnly` (T050), que conviene que evalúe `/revisar-seguridad`.
-- **El límite de la contraseña bloquea a T025.** FR-006 y RN-04 lo expresan en caracteres y el
-  diseño lo aplica en bytes de UTF-8: para una contraseña con acentos los dos límites no coinciden
-  (40 caracteres acentuados son 80 bytes). Hay que decidirlo **antes** de escribir T025, porque la
-  prueba y la implementación se escriben contra una regla o contra la otra. Si se confirma el límite
-  en bytes, hay que enmendar FR-006 y RN-04 en la spec, que es la fuente de verdad.
+  RN-04 expresado en caracteres (T025, T029; resuelto, ver el punto siguiente) y el transporte
+  del token en `sessionStorage` frente a una cookie `HttpOnly` (T050), que conviene que evalúe
+  `/revisar-seguridad`.
+- **El límite de la contraseña ya no bloquea a T025** (resuelto el 2026-10-10). Se confirmó el
+  límite en bytes y FR-006, RN-04 y RC-02 se enmendaron en la spec: la contraseña mide entre 8 y 72
+  caracteres y, además, como máximo 72 bytes en UTF-8 (40 caracteres acentuados son 80 bytes y se
+  rechazan). T025 y T029 se escriben contra esa regla.
 - **Criterios de éxito no automatizables.** SC-001 (registro en menos de 2 minutos, 95 % al primer
   intento), SC-002 (inicio de sesión y pantalla protegida en menos de 30 segundos) y SC-007 (volver
   a estar operativo en menos de 1 minuto tras el vencimiento) son métricas de experiencia de uso: no

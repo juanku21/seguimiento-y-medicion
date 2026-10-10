@@ -225,23 +225,24 @@ la biblioteca estándar y nadie la mantiene.
 - **Además**, se rechaza con el mismo error de validación descriptivo toda contraseña cuya
   codificación UTF-8 supere los **72 bytes**.
 
-### Desvío que requiere confirmación del desarrollador
+### Desvío confirmado por el desarrollador (2026-10-10)
 
-FR-006 y RN-04 dicen "entre 8 y 72 **caracteres**". bcrypt opera sobre bytes y falla por encima de
-72 bytes: `bcrypt.GenerateFromPassword` devuelve `ErrPasswordTooLong`. Con caracteres multibyte
-(acentos, emoji) una contraseña de 72 caracteres puede superar los 72 bytes, y entonces hay dos
-salidas posibles y ninguna cumple todo:
+Antes de la enmienda, FR-006 y RN-04 decían solo "entre 8 y 72 **caracteres**". bcrypt opera sobre
+bytes y falla por encima de 72 bytes: `bcrypt.GenerateFromPassword` devuelve `ErrPasswordTooLong`.
+Con caracteres multibyte (acentos, emoji) una contraseña de 72 caracteres puede superar los 72
+bytes, y entonces había dos salidas posibles y ninguna cumplía todo:
 
-1. Rechazarla como entrada inválida — se aparta de la letra de RN-04 para un subconjunto de
+1. Rechazarla como entrada inválida, apartándose de la letra de RN-04 para un subconjunto de
    contraseñas.
-2. Dejar que bcrypt falle — produciría un error interno en el camino de la petición, lo que
-   **viola el Principio VII** y la condición de error de la spec, que exige rechazo descriptivo.
+2. Dejar que bcrypt falle, lo que produciría un error interno en el camino de la petición,
+   **violaría el Principio VII** y no cumpliría la condición de error de la spec, que exige un
+   rechazo descriptivo.
 
-Se elige (1) porque el Principio VII no admite excepción y porque RC-02 obliga a comunicar el
+Se eligió (1) porque el Principio VII no admite excepción y porque RC-02 obliga a comunicar el
 límite en el formulario en lugar de descubrirlo al fallar. El mensaje usa el mismo texto del rango
-permitido, sin repetir la contraseña (FR-011). **Se señala explícitamente al desarrollador**: si
-prefiere otra resolución, corresponde ajustar FR-006 y RN-04 en la spec, que es la fuente de verdad;
-un agente no modifica la spec por su cuenta.
+permitido, sin repetir la contraseña (FR-011). **Confirmado el 2026-10-10**: el desarrollador aceptó
+esta resolución y FR-006, RN-04 y RC-02 se enmendaron en la spec (sesión de clarificación de esa
+fecha). Desde entonces la opción 1 ya no es un desvío: es la regla de la spec.
 
 **Rationale del coste**: `DefaultCost` (10) es el valor recomendado por el paquete. No se expone un
 parámetro de entorno para bajarlo en pruebas: sumaría configuración no solicitada (Principio I) y
@@ -522,7 +523,7 @@ lado, no repetidos en cada punto de uso.
 | Versiones exactas de todo el stack | Sección 1; ninguna autorización nueva necesaria |
 | Cómo revocar un JWT de inmediato (FR-026) | Sección 2; `jti` más tabla `sessions` |
 | Cómo garantizar unicidad bajo concurrencia (FR-007) | Sección 3; índice único y `ErrDuplicatedKey` |
-| Límite de contraseña frente a bcrypt | Sección 4; desvío documentado, requiere confirmación |
+| Límite de contraseña frente a bcrypt | Sección 4; desvío confirmado el 2026-10-10 y spec enmendada |
 | Dónde y cómo registrar los eventos (FR-028) | Sección 5; tabla `auth_events`, misma transacción |
 | Aislamiento dev/test (Principio V) | Sección 8; un compose, dos nombres de proyecto y puertos |
 | Transporte del token | Sección 9; `Bearer` y `sessionStorage`, compromiso señalado |
@@ -532,6 +533,6 @@ lado, no repetidos en cada punto de uso.
 ### Puntos abiertos para el desarrollador (no bloquean el diseño)
 
 1. **Instalar Go 1.27.1** (prerrequisito bloqueante de la implementación).
-2. **Confirmar el tratamiento del límite de 72** (sección 4): si la resolución elegida no convence,
-   la spec debe ajustarse antes de implementar.
+2. ~~**Confirmar el tratamiento del límite de 72** (sección 4)~~: resuelto el 2026-10-10; la spec
+   se enmendó para exigir además como máximo 72 bytes en UTF-8.
 3. **Revisar el transporte del token** (sección 9) desde la óptica de seguridad.

@@ -235,6 +235,7 @@ curl.exe -i -X POST http://localhost:8080/api/v1/auth/register `
 | `400` con una entrada por cada campo inválido y **sin la contraseña en el mensaje** | FR-008, FR-011 |
 | Contraseñas de exactamente 8 y de exactamente 72 caracteres: aceptadas | Casos límite |
 | Contraseñas de 7 y de 73 caracteres, o solo letras, o solo números: rechazadas | FR-006 |
+| Contraseña de menos de 72 caracteres que supera los 72 bytes (40 letras acentuadas y un número): rechazada | FR-006, RN-04 |
 | Nombres de exactamente 2 y de exactamente 100 caracteres: aceptados | FR-002 |
 | Nombre compuesto solo por espacios: rechazado como ausente | FR-002 |
 

@@ -120,52 +120,52 @@ arranque del servidor y el ayudante de aislamiento de las pruebas.
 
 **Rama**: `fase/001-foundational`
 
-- [ ] T015 Implementar la lectura de variables de entorno con la biblioteca estándar en
+- [X] T015 Implementar la lectura de variables de entorno con la biblioteca estándar en
       `backend/internal/platform/config/config.go`, incluida la validación al arrancar de que
       `JWT_SECRET` tenga **al menos 32 bytes** (si falta o es más corto, la aplicación no arranca y
       lo informa; research.md sección 2) — prohibido usar cargadores de terceros (Principio IV)
-- [ ] T016 Implementar el ayudante lector de archivos `KEY=VALUE` en
+- [X] T016 Implementar el ayudante lector de archivos `KEY=VALUE` en
       `backend/internal/platform/config/dotenv.go` usando solo `bufio` y `strings`, para que
       `go test ./...` cargue `backend/.env.test` sin exportar variables a mano (research.md
       sección 8)
-- [ ] T017 Abrir la conexión GORM con `TranslateError: true` y ejecutar `AutoMigrate` de los tres
+- [X] T017 Abrir la conexión GORM con `TranslateError: true` y ejecutar `AutoMigrate` de los tres
       modelos en `backend/internal/platform/database/postgres.go` (research.md sección 7; sin
       herramientas de migración externas) — depende de T018, T019 y T020
-- [ ] T018 [P] Declarar la entidad `User` en `backend/internal/auth/domain/user.go` con los campos
+- [X] T018 [P] Declarar la entidad `User` en `backend/internal/auth/domain/user.go` con los campos
       de data-model.md sección 1: `ID uuid` PK generado con `google/uuid`,
       `FullName varchar(100) NOT NULL`, `Email varchar(254) NOT NULL` con **índice único**,
       `PasswordHash varchar(60) NOT NULL` (largo fijo de bcrypt), `CreatedAt` y `UpdatedAt`
       `timestamptz NOT NULL`. El modelo no declara colecciones ni `Preload` hacia `sessions` ni
       `auth_events`
-- [ ] T019 [P] Declarar la entidad `Session` en `backend/internal/auth/domain/session.go` con los
+- [X] T019 [P] Declarar la entidad `Session` en `backend/internal/auth/domain/session.go` con los
       campos de data-model.md sección 2: `ID uuid` PK (es el claim `jti`),
       `UserID uuid NOT NULL` con FK a `users.id` e indexada, `ExpiresAt timestamptz NOT NULL`,
       `RevokedAt timestamptz` **anulable**, `CreatedAt timestamptz NOT NULL` (**es el momento de
       emisión**) y `UpdatedAt timestamptz NOT NULL`. Sin columna de estado: los tres estados se
       derivan de los datos
-- [ ] T020 [P] Declarar la entidad `AuthEvent` en `backend/internal/auth/domain/auth_event.go` con
+- [X] T020 [P] Declarar la entidad `AuthEvent` en `backend/internal/auth/domain/auth_event.go` con
       los campos de data-model.md sección 3: `ID uuid` PK,
       `EventType varchar(32) NOT NULL`, `UserID uuid` **anulable** con FK a `users.id` e indexada,
       `AttemptedEmail varchar(254)` **anulable**, `CreatedAt timestamptz NOT NULL` (**es el momento
       del evento**) y `UpdatedAt timestamptz NOT NULL`; más las cuatro constantes de Go tipadas
       `account_created`, `login_succeeded`, `login_failed` y `logout` (no `enum` de PostgreSQL).
       **Ninguna columna admite contraseñas** (FR-030)
-- [ ] T021 [P] Declarar los errores de dominio en `backend/internal/auth/domain/errors.go`: correo
+- [X] T021 [P] Declarar los errores de dominio en `backend/internal/auth/domain/errors.go`: correo
       no disponible (FR-005), credenciales inválidas (FR-014, mensaje único) y sesión inválida
       (FR-015)
-- [ ] T022 Declarar en `backend/internal/auth/domain/repository.go` las tres interfaces con
+- [X] T022 Declarar en `backend/internal/auth/domain/repository.go` las tres interfaces con
       **exactamente** las siete operaciones de data-model.md sección 5 —
       `UserRepository`: `Create(ctx, user, event) error`, `FindByEmail(ctx, email) (*User, error)`,
       `FindByID(ctx, id) (*User, error)`; `SessionRepository`: `Create(ctx, session, event) error`,
       `FindByID(ctx, id) (*Session, error)`, `Revoke(ctx, id, at, event) error`;
       `AuthEventRepository`: `Create(ctx, event) error`. **Prohibido** declarar `Update`, `Delete`,
       `List` ni búsquedas por otros campos (Principio III) — depende de T018, T019, T020
-- [ ] T023 Componer dependencias y arrancar el servidor en `backend/cmd/app/main.go` (sin lógica de
+- [X] T023 Componer dependencias y arrancar el servidor en `backend/cmd/app/main.go` (sin lógica de
       negocio, Principio III), con el grupo de rutas `/api/v1` vacío en
       `backend/internal/auth/delivery/routes.go`, el middleware de CORS leyendo
       `CORS_ALLOWED_ORIGIN` y la publicación de Swagger en `/swagger/index.html` con `gin-swagger` —
       depende de T015 y T017
-- [ ] T024 Implementar el ayudante de pruebas de integración en
+- [X] T024 Implementar el ayudante de pruebas de integración en
       `backend/internal/platform/testsupport/database.go`: carga `backend/.env.test` con T016,
       abre la conexión, **verifica que la base sea `smye_test`** antes de tocar nada, y vacía las
       tres tablas con `TRUNCATE users, sessions, auth_events CASCADE` antes de cada caso
@@ -552,6 +552,30 @@ calidad. Todas las tareas son **técnicas**.
 > conceptualmente va antes de T081, pero se numeró al final a propósito. Los 81 issues de
 > `T001`–`T081` ya están publicados en GitHub y renumerar los dejaría desalineados; agregar al final
 > solo suma un issue nuevo.
+
+---
+
+## Fase 9: Convergence
+
+**Propósito**: cerrar las brechas que `/speckit-converge` encontró entre lo que piden la spec, el
+plan y la constitución y lo que ya está implementado en las fases 1 y 2. Todas las tareas son
+**técnicas** y no tienen prueba asociada.
+
+**Rama**: cada tarea se hace en la rama del trabajo al que corrige: T083 en
+`hu/001-us2-inicio-de-sesion` y T084 en `fase/001-foundational`.
+
+- [ ] T083 Fijar `github.com/golang-jwt/jwt/v5 v5.3.1` en `backend/go.mod` con
+      `go get github.com/golang-jwt/jwt/v5@v5.3.1` y verificar con
+      `go list -m github.com/golang-jwt/jwt/v5` que resuelve `v5.3.1`, porque `go mod tidy` lo quitó
+      en T023 al no haber todavía ningún import (research.md sección 1, T006). Se hace **antes de
+      T040**, la primera tarea que importa el paquete, para que ese import tome la versión fijada y
+      no la última publicada — depende de T023
+- [ ] T084 Corregir el comentario de `OpenDatabase` en
+      `backend/internal/platform/testsupport/database.go`: sobra el primer "abre" y una línea supera
+      el ancho del resto del archivo (Principio VIII) — depende de T024
+
+**Checkpoint**: `go list -m github.com/golang-jwt/jwt/v5` responde `v5.3.1` y el comentario del
+ayudante de pruebas describe exactamente lo que hace la función.
 
 ---
 

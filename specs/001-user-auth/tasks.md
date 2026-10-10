@@ -160,7 +160,7 @@ arranque del servidor y el ayudante de aislamiento de las pruebas.
       `FindByID(ctx, id) (*Session, error)`, `Revoke(ctx, id, at, event) error`;
       `AuthEventRepository`: `Create(ctx, event) error`. **Prohibido** declarar `Update`, `Delete`,
       `List` ni búsquedas por otros campos (Principio III) — depende de T018, T019, T020
-- [ ] T023 Componer dependencias y arrancar el servidor en `backend/cmd/app/main.go` (sin lógica de
+- [X] T023 Componer dependencias y arrancar el servidor en `backend/cmd/app/main.go` (sin lógica de
       negocio, Principio III), con el grupo de rutas `/api/v1` vacío en
       `backend/internal/auth/delivery/routes.go`, el middleware de CORS leyendo
       `CORS_ALLOWED_ORIGIN` y la publicación de Swagger en `/swagger/index.html` con `gin-swagger` —

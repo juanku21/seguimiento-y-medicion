@@ -3,9 +3,9 @@ package delivery
 
 import "github.com/gin-gonic/gin"
 
-// RegisterRoutes crea el grupo versionado /api/v1 sobre el que se registran las rutas públicas y
-// protegidas de la feature con los manejadores recibidos. Todavía está vacío: cada historia de
-// usuario agrega aquí sus rutas (POST /api/v1/auth/register lo registra T034).
+// RegisterRoutes crea el grupo versionado /api/v1 y registra en él las rutas de la feature con los
+// manejadores recibidos. El registro es público: no pasa por el middleware de sesión.
 func RegisterRoutes(router *gin.Engine, handler *Handler) {
-	router.Group("/api/v1")
+	api := router.Group("/api/v1")
+	api.POST("/auth/register", handler.registerUser)
 }

@@ -137,7 +137,7 @@ arranque del servidor y el ayudante de aislamiento de las pruebas.
       `PasswordHash varchar(60) NOT NULL` (largo fijo de bcrypt), `CreatedAt` y `UpdatedAt`
       `timestamptz NOT NULL`. El modelo no declara colecciones ni `Preload` hacia `sessions` ni
       `auth_events`
-- [ ] T019 [P] Declarar la entidad `Session` en `backend/internal/auth/domain/session.go` con los
+- [X] T019 [P] Declarar la entidad `Session` en `backend/internal/auth/domain/session.go` con los
       campos de data-model.md sección 2: `ID uuid` PK (es el claim `jti`),
       `UserID uuid NOT NULL` con FK a `users.id` e indexada, `ExpiresAt timestamptz NOT NULL`,
       `RevokedAt timestamptz` **anulable**, `CreatedAt timestamptz NOT NULL` (**es el momento de

@@ -564,7 +564,7 @@ plan y la constitución y lo que ya está implementado en las fases 1 y 2. Todas
 **Rama**: cada tarea se hace en la rama del trabajo al que corrige: T083 en
 `hu/001-us2-inicio-de-sesion` y T084 en `fase/001-foundational`.
 
-- [ ] T083 Fijar `github.com/golang-jwt/jwt/v5 v5.3.1` en `backend/go.mod` con
+- [X] T083 Fijar `github.com/golang-jwt/jwt/v5 v5.3.1` en `backend/go.mod` con
       `go get github.com/golang-jwt/jwt/v5@v5.3.1` y verificar con
       `go list -m github.com/golang-jwt/jwt/v5` que resuelve `v5.3.1`, porque `go mod tidy` lo quitó
       en T023 al no haber todavía ningún import (research.md sección 1, T006). Se hace **antes de

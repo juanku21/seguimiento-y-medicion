@@ -306,7 +306,7 @@ casos.
       las dos últimas respuestas sean idénticas (SC-004). Se asserta la fila `login_succeeded` con
       `user_id` y, en los fallos, `login_failed` con `attempted_email` normalizado y `user_id`
       **nulo cuando el correo no existe** (FR-029, SC-009) — depende de T024 y T027
-- [ ] T043 [P] [US2] Pruebas de frontend en
+- [X] T043 [P] [US2] Pruebas de frontend en
       `frontend/src/features/auth/components/login-form.test.tsx` con
       `describe("001/US2 - Inicio de sesión")` y un `it` por escenario — depende de T012
 

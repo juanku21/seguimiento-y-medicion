@@ -338,7 +338,7 @@ casos.
 - [X] T047 [US2] Implementar `Create(ctx, event)` en
       `backend/internal/auth/repository/auth_event_repository.go` para el evento `login_failed`
       (FR-029)
-- [ ] T085 [US2] Implementar `FindByEmail(ctx, email)` en
+- [X] T085 [US2] Implementar `FindByEmail(ctx, email)` en
       `backend/internal/auth/repository/user_repository.go`: busca por igualdad exacta sobre la
       columna `email`, que ya guarda el valor normalizado (data-model.md sección 1), y traduce
       `gorm.ErrRecordNotFound` a `domain.ErrInvalidCredentials`, nunca `(nil, nil)` (FR-014);

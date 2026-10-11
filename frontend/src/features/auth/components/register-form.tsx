@@ -11,7 +11,7 @@ import {
   validateFullName,
   validatePassword,
 } from "@/features/auth/validation";
-import type { RegisterRequest } from "@/types/auth";
+import type { FieldError, RegisterRequest } from "@/types/auth";
 import { normalizeEmail } from "@/utils/normalize-email";
 
 type FieldName = keyof RegisterRequest;
@@ -36,6 +36,18 @@ function validate(values: RegisterRequest): FieldErrors {
   ];
   for (const [field, message] of checks) {
     if (message) {
+      errors[field] = message;
+    }
+  }
+  return errors;
+}
+
+// Ubica junto a cada campo el detalle que informa el backend, descartando los que no son del
+// formulario.
+function toFieldErrors(fields: FieldError[]): FieldErrors {
+  const errors: FieldErrors = {};
+  for (const { field, message } of fields) {
+    if (isFieldName(field)) {
       errors[field] = message;
     }
   }
@@ -87,13 +99,7 @@ export function RegisterForm() {
 
     // Un rechazo muestra el mensaje general y, si el backend lo informa, el detalle junto a cada
     // campo.
-    const backendErrors: FieldErrors = {};
-    for (const { field, message } of result.error.fields) {
-      if (isFieldName(field)) {
-        backendErrors[field] = message;
-      }
-    }
-    setFieldErrors(backendErrors);
+    setFieldErrors(toFieldErrors(result.error.fields));
     setGeneralError(result.error.message);
   }
 

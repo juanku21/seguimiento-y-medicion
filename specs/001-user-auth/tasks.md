@@ -268,7 +268,7 @@ ninguna otra historia.
       cuentan por punto de código (`[...value].length`, no `value.length`) y el tope de 72 bytes de
       la contraseña se mide con `new TextEncoder().encode(value).length`**, igual que el backend
       (FR-006, RN-04) — depende de T035
-- [ ] T038 [US1] Implementar los componentes de UI reutilizables `Button`, `Input` y `Alert` en
+- [X] T038 [US1] Implementar los componentes de UI reutilizables `Button`, `Input` y `Alert` en
       `frontend/src/components/` y el `RegisterForm` en
       `frontend/src/features/auth/components/register-form.tsx`, con mensajes en español — depende
       de T036 y T037

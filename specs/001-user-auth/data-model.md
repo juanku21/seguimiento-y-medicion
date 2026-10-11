@@ -16,10 +16,10 @@ Reglas transversales obligatorias (restricciones técnicas de la constitución):
 
 **Glosario**: donde la spec dice "caracteres", este documento dice **runas** (`rune` de Go, un punto
 de código Unicode), que es la unidad en la que se cuenta al validar y la que también cuenta
-`varchar(n)` de PostgreSQL. Las dos coinciden en todos los límites de esta feature, con **una
-excepción**: el máximo de la contraseña, que bcrypt impone en **bytes** y no en runas (ver la
-sección 1 y [research.md](./research.md), sección 4). Esa diferencia está señalada en el
-[plan](./plan.md) como punto a confirmar con el desarrollador.
+`varchar(n)` de PostgreSQL. Las dos coinciden en todos los límites de esta feature. La contraseña
+tiene **además** un tope de 72 **bytes** en UTF-8, que impone bcrypt y que la spec recoge en FR-006 y
+RN-04 desde la sesión de clarificación del 2026-10-10 (ver la sección 1 y
+[research.md](./research.md), sección 4).
 
 ---
 

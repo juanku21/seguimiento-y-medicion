@@ -79,11 +79,11 @@ generado y organización en módulos.
 ### Puntos señalados al desarrollador (no bloquean el diseño)
 
 1. **Go no está instalado.** Hay que instalar Go 1.27.1 antes de la primera tarea de backend.
-2. **Límite de 72 de la contraseña frente a bcrypt.** FR-006 y RN-04 lo expresan en caracteres;
-   bcrypt opera en bytes. El plan rechaza como entrada inválida toda contraseña de más de 72 bytes
-   en UTF-8, para no violar el Principio VII con un error interno. Es un desvío de la letra de RN-04
-   para contraseñas multibyte y **conviene confirmarlo**; si no se acepta, hay que ajustar la spec,
-   que es la fuente de verdad. Detalle en [research.md](./research.md), sección 4.
+2. **Límite de 72 de la contraseña frente a bcrypt — resuelto el 2026-10-10.** bcrypt opera en
+   bytes. El plan rechaza como entrada inválida toda contraseña de más de 72 bytes en UTF-8, para no
+   violar el Principio VII con un error interno. El desarrollador confirmó la resolución y FR-006,
+   RN-04 y RC-02 se enmendaron en la spec para exigir entre 8 y 72 caracteres y, además, como
+   máximo 72 bytes en UTF-8. Detalle en [research.md](./research.md), sección 4.
 3. **Transporte del token.** Se eligió `Authorization: Bearer` con el token en `sessionStorage`, lo
    que lo deja expuesto a XSS a diferencia de una cookie `HttpOnly`. Ningún requisito fija el
    transporte. Conviene que lo evalúe la revisión de seguridad; el detalle y el impacto del cambio

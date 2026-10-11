@@ -6,7 +6,8 @@
 
 **Creada**: 2026-09-19
 
-**Estado**: Clarificada — sin preguntas abiertas (sesión de clarificación del 2026-09-20)
+**Estado**: Clarificada — sin preguntas abiertas (sesiones de clarificación del 2026-09-20 y del
+2026-10-10)
 
 **Entrada**: Descripción del usuario: "Autenticación y cuentas de usuario para Software Metrics &
 Estimation, un sistema web multiusuario para estimar, planificar, seguir y medir proyectos de
@@ -35,6 +36,10 @@ auditables.
 - Q: ¿El sistema debe limitar la cantidad de intentos fallidos de inicio de sesión sobre una misma cuenta? → A: no; intentos ilimitados, con el riesgo de prueba automática de contraseñas documentado y aceptado.
 - Q: ¿El sistema debe dejar registro de los eventos de autenticación (altas, inicios exitosos, intentos fallidos y cierres de sesión)? → A: sí, registro para diagnóstico con fecha, tipo y cuenta involucrada; sin pantalla de consulta dentro de la aplicación.
 - Q: Al terminar el registro, ¿la persona queda con la sesión ya iniciada o debe iniciar sesión con las credenciales recién creadas? → A: debe iniciar sesión; el registro no emite sesión.
+
+### Session 2026-10-10
+
+- Q: El límite superior de 72 de la contraseña, ¿se mide en caracteres o en bytes, si el mecanismo de protección de contraseñas no admite más de 72 bytes y un carácter acentuado ocupa más de uno? (FR-006, RN-04) → A: en ambos: entre 8 y 72 caracteres y, además, como máximo 72 bytes en codificación UTF-8; la contraseña que supera los 72 bytes se rechaza como entrada inválida con el mismo mensaje del rango permitido.
 
 ---
 
@@ -240,6 +245,8 @@ función protegida vuelve a exigir credenciales.
 - **Contraseña de exactamente 8 caracteres**: válida.
 - **Contraseña de exactamente 72 caracteres**: válida.
 - **Contraseña de 73 caracteres**: rechazada.
+- **Contraseña de menos de 72 caracteres que ocupa más de 72 bytes en UTF-8** (por ejemplo, 40
+  letras acentuadas y un número): rechazada con el mismo mensaje del rango permitido.
 - **Contraseña de 8 caracteres solo con letras o solo con números**: rechazada por no cumplir la
   composición mínima.
 - **Nombre de exactamente 2 y de exactamente 100 caracteres**: válidos; el conteo se hace después de
@@ -273,8 +280,8 @@ función protegida vuelve a exigir credenciales.
 - **FR-004**: El sistema DEBE normalizar el correo antes de usarlo: recortar los espacios al inicio y
   al final y compararlo sin distinguir mayúsculas de minúsculas.
 - **FR-005**: El sistema DEBE garantizar que el correo normalizado sea único en todo el sistema.
-- **FR-006**: El sistema DEBE exigir una contraseña de entre 8 y 72 caracteres que contenga al menos
-  una letra y al menos un número.
+- **FR-006**: El sistema DEBE exigir una contraseña de entre 8 y 72 caracteres, que ocupe como
+  máximo 72 bytes en codificación UTF-8 y que contenga al menos una letra y al menos un número.
 - **FR-007**: El sistema DEBE crear una única cuenta cuando se reciben dos solicitudes de registro
   simultáneas con el mismo correo normalizado, y rechazar la restante por correo ya registrado.
 - **FR-008**: El sistema DEBE rechazar un registro inválido indicando qué campo debe corregirse y por
@@ -361,7 +368,7 @@ función protegida vuelve a exigir credenciales.
 | RN-01 | El correo electrónico identifica de forma única a una persona en todo el sistema. |
 | RN-02 | La comparación de correos ignora mayúsculas/minúsculas y espacios al inicio y al final. |
 | RN-03 | El nombre completo es obligatorio y mide entre 2 y 100 caracteres. |
-| RN-04 | La contraseña mide entre 8 y 72 caracteres e incluye al menos una letra y un número. |
+| RN-04 | La contraseña mide entre 8 y 72 caracteres, ocupa como máximo 72 bytes en UTF-8 e incluye al menos una letra y un número. |
 | RN-05 | Las contraseñas no se almacenan, muestran ni registran en texto legible bajo ninguna circunstancia. |
 | RN-06 | El mensaje ante credenciales inválidas es genérico y no revela si el correo existe. |
 | RN-07 | Una sesión vencida o adulterada equivale a no tener sesión. |
@@ -374,8 +381,9 @@ función protegida vuelve a exigir credenciales.
 
 - **RC-01**: La feature no depende de ningún servicio externo de identidad: el sistema es la única
   fuente de verdad de las cuentas.
-- **RC-02**: El límite superior de 72 caracteres de contraseña es una restricción del producto y debe
-  comunicarse a la persona en el formulario, no descubrirse al fallar.
+- **RC-02**: El límite superior de 72 caracteres de contraseña, y como máximo 72 bytes en UTF-8, es
+  una restricción del producto y debe comunicarse a la persona en el formulario, no descubrirse al
+  fallar.
 - **RC-03**: No existe ningún mecanismo para recuperar una contraseña olvidada dentro de esta
   feature; una persona que la pierda queda sin acceso hasta que se especifique esa funcionalidad.
 - **RC-04**: Todas las demás features del producto se construyen sobre esta: cualquier cambio en las
@@ -390,7 +398,7 @@ función protegida vuelve a exigir credenciales.
 | Campo obligatorio faltante (nombre, correo o contraseña) | Rechazo con indicación del campo faltante; no se crea ni modifica nada. |
 | Correo con formato inválido | Rechazo indicando que el formato del correo no es válido. |
 | Nombre fuera del rango de 2 a 100 caracteres | Rechazo indicando el rango permitido. |
-| Contraseña fuera del rango de 8 a 72 caracteres | Rechazo indicando el rango permitido, sin repetir la contraseña en el mensaje. |
+| Contraseña fuera del rango de 8 a 72 caracteres o de más de 72 bytes en UTF-8 | Rechazo indicando el rango permitido, sin repetir la contraseña en el mensaje. |
 | Contraseña sin al menos una letra y un número | Rechazo indicando la composición requerida. |
 | Correo ya registrado | Rechazo informando que el correo no está disponible. |
 | Credenciales incorrectas (correo inexistente o contraseña errónea) | Un único mensaje genérico, idéntico en ambos casos. |
@@ -489,5 +497,5 @@ función protegida vuelve a exigir credenciales.
 
 ## Preguntas Abiertas
 
-Ninguna. Las cinco decisiones pendientes se resolvieron en la sesión de clarificación del
-2026-09-20 (ver la sección Clarifications).
+Ninguna. Las seis decisiones pendientes se resolvieron en las sesiones de clarificación del
+2026-09-20 y del 2026-10-10 (ver la sección Clarifications).

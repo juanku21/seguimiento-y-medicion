@@ -31,6 +31,8 @@ import (
 
 	_ "github.com/juanku21/seguimiento-y-medicion/backend/docs"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/delivery"
+	"github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/repository"
+	"github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/service"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/config"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/database"
 )
@@ -70,6 +72,9 @@ func run() error {
 	}
 	defer sqlDB.Close()
 
+	// Se componen repositorio, servicio y manejadores de la feature de autenticación.
+	handler := delivery.NewHandler(service.NewAuthService(repository.NewUserRepository(db)))
+
 	// El router habilita CORS solo para el origen del frontend, publica Swagger y registra las
 	// rutas de la feature de autenticación.
 	router := gin.Default()
@@ -80,7 +85,7 @@ func run() error {
 		MaxAge:       12 * time.Hour,
 	}))
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	delivery.RegisterRoutes(router)
+	delivery.RegisterRoutes(router, handler)
 
 	// ReadHeaderTimeout acota el tiempo para recibir las cabeceras y evita conexiones colgadas.
 	server := &http.Server{

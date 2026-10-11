@@ -262,7 +262,7 @@ ninguna otra historia.
 - [X] T036 [US1] Implementar el cliente HTTP con `fetch` nativo en
       `frontend/src/lib/api-client.ts` (sin clientes de terceros, Principio IV) y la llamada de
       registro en `frontend/src/features/auth/api.ts` — depende de T035
-- [ ] T037 [US1] Implementar `frontend/src/utils/normalize-email.ts` (recorte y minúsculas, igual
+- [X] T037 [US1] Implementar `frontend/src/utils/normalize-email.ts` (recorte y minúsculas, igual
       que el backend) y las reglas de RC-02 en `frontend/src/features/auth/validation.ts`, con los
       límites 2, 100, 8, 72 y 254 como constantes nombradas en un único lugar. **Los caracteres se
       cuentan por punto de código (`[...value].length`, no `value.length`) y el tope de 72 bytes de

@@ -359,7 +359,7 @@ casos.
       `200`, `400` y `401` — depende de T048
 - [X] T050 [US2] Implementar la lectura y escritura del token en `sessionStorage` en
       `frontend/src/lib/session-storage.ts` (research.md sección 9) — depende de T035
-- [ ] T051 [US2] Implementar el contexto de sesión en
+- [X] T051 [US2] Implementar el contexto de sesión en
       `frontend/src/providers/session-provider.tsx`, montarlo en `frontend/src/app/layout.tsx` y
       exponer el acceso al estado en `frontend/src/hooks/use-session.ts` — depende de T050
 - [X] T052 [US2] Implementar la llamada de inicio de sesión en

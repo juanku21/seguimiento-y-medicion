@@ -357,7 +357,7 @@ casos.
       anotaciones `swag` en español en `backend/internal/auth/delivery/handler.go` y la ruta
       **pública** `POST /api/v1/auth/login` en `backend/internal/auth/delivery/routes.go`, con
       `200`, `400` y `401` — depende de T048
-- [ ] T050 [US2] Implementar la lectura y escritura del token en `sessionStorage` en
+- [X] T050 [US2] Implementar la lectura y escritura del token en `sessionStorage` en
       `frontend/src/lib/session-storage.ts` (research.md sección 9) — depende de T035
 - [ ] T051 [US2] Implementar el contexto de sesión en
       `frontend/src/providers/session-provider.tsx`, montarlo en `frontend/src/app/layout.tsx` y

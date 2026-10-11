@@ -331,7 +331,7 @@ casos.
       `sub`, `exp` e `iat` (data-model.md sección 2) — depende de T015
 - [X] T045 [US2] Añadir la comparación de contraseña con bcrypt en
       `backend/internal/auth/service/password.go` (FR-012)
-- [ ] T046 [US2] Implementar `Create(ctx, session, event)` en
+- [X] T046 [US2] Implementar `Create(ctx, session, event)` en
       `backend/internal/auth/repository/session_repository.go`: `INSERT sessions` +
       `INSERT auth_events(login_succeeded)` en **una sola transacción**, con
       `expires_at = created_at` más 8 horas (FR-013, FR-018)

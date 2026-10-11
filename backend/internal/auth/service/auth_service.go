@@ -61,9 +61,6 @@ type LoginResult struct {
 	ExpiresAt time.Time
 }
 
-// sessionLifetime es el plazo fijo de una sesión desde su emisión (FR-013, FR-018).
-const sessionLifetime = 8 * time.Hour
-
 // Login valida las credenciales y emite una sesión; ante cualquier credencial inválida devuelve
 // domain.ErrInvalidCredentials (FR-014, RN-06). Recibe el correo ya normalizado por delivery, igual
 // que Register (research.md sección 3). El correo inexistente y la contraseña incorrecta devuelven
@@ -86,14 +83,15 @@ func (s *AuthService) Login(ctx context.Context, email string, password string) 
 		return LoginResult{}, err
 	}
 
-	// Persiste la sesión con su evento login_succeeded y emite el JWT con las fechas de la sesión
-	// ya guardada, de modo que iat y exp coincidan con created_at y expires_at.
+	// Fija las fechas de la sesión desde un único instante, de modo que expires_at quede exactamente
+	// domain.SessionLifetime después de created_at; la persiste con su evento login_succeeded y
+	// emite el JWT con esas mismas fechas, para que iat y exp coincidan con las de la fila.
 	now := time.Now()
 	session := &domain.Session{
 		ID:        uuid.New(),
 		UserID:    user.ID,
 		CreatedAt: now,
-		ExpiresAt: now.Add(sessionLifetime),
+		ExpiresAt: now.Add(domain.SessionLifetime),
 	}
 	event := &domain.AuthEvent{
 		ID:        uuid.New(),

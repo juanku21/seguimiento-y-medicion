@@ -6,6 +6,10 @@ import (
 	"github.com/google/uuid"
 )
 
+// SessionLifetime es el plazo fijo de una sesión desde su emisión; no se renueva con el uso
+// (FR-013, FR-018).
+const SessionLifetime = 8 * time.Hour
+
 // Session es el permiso temporal de una persona para operar y se persiste en la tabla sessions
 // (data-model.md sección 2). El ID es el claim jti del JWT y lo genera la aplicación; CreatedAt es
 // el momento de emisión y ExpiresAt queda fijo en CreatedAt más 8 horas. RevokedAt es nulo mientras

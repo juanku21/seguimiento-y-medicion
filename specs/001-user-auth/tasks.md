@@ -343,7 +343,7 @@ casos.
       columna `email`, que ya guarda el valor normalizado (data-model.md sección 1), y traduce
       `gorm.ErrRecordNotFound` a `domain.ErrInvalidCredentials`, nunca `(nil, nil)` (FR-014);
       cualquier otro error se envuelve y se propaga (Principio VII)
-- [ ] T048 [US2] Implementar `Login` en `backend/internal/auth/service/auth_service.go`: normaliza
+- [X] T048 [US2] Implementar `Login` en `backend/internal/auth/service/auth_service.go`: normaliza
       el correo igual que el registro (FR-012), busca con `FindByEmail`, compara la contraseña,
       crea la `Session`, emite el JWT y devuelve **el mismo error genérico** en los dos caminos de
       fallo, registrando `login_failed` — depende de T044, T045, T046, T047 y T085

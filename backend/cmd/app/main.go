@@ -72,9 +72,15 @@ func run() error {
 	}
 	defer sqlDB.Close()
 
-	// Se componen repositorio, servicio y manejadores de la feature de autenticación. Los
-	// repositorios de sesiones y eventos se conectan al implementarse en T046 y T047.
-	handler := delivery.NewHandler(service.NewAuthService(repository.NewUserRepository(db), nil, nil, cfg.JWTSecret))
+	// Se componen los repositorios de cuentas, sesiones y eventos, el servicio y los manejadores de
+	// la feature de autenticación.
+	auth := service.NewAuthService(
+		repository.NewUserRepository(db),
+		repository.NewSessionRepository(db),
+		repository.NewAuthEventRepository(db),
+		cfg.JWTSecret,
+	)
+	handler := delivery.NewHandler(auth)
 
 	// El router habilita CORS solo para el origen del frontend, publica Swagger y registra las
 	// rutas de la feature de autenticación.

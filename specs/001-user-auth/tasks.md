@@ -347,7 +347,7 @@ casos.
       el correo igual que el registro (FR-012), busca con `FindByEmail`, compara la contraseña,
       crea la `Session`, emite el JWT y devuelve **el mismo error genérico** en los dos caminos de
       fallo, registrando `login_failed` — depende de T044, T045, T046, T047 y T085
-- [ ] T049 [US2] Añadir `LoginRequest` (`email`, `password`) y `LoginResponse` (`token`,
+- [X] T049 [US2] Añadir `LoginRequest` (`email`, `password`) y `LoginResponse` (`token`,
       `expiresAt`) a `backend/internal/auth/delivery/dto.go`, el manejador `loginUser` con
       anotaciones `swag` en español en `backend/internal/auth/delivery/handler.go` y la ruta
       **pública** `POST /api/v1/auth/login` en `backend/internal/auth/delivery/routes.go`, con

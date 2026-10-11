@@ -362,7 +362,7 @@ casos.
 - [ ] T051 [US2] Implementar el contexto de sesión en
       `frontend/src/providers/session-provider.tsx`, montarlo en `frontend/src/app/layout.tsx` y
       exponer el acceso al estado en `frontend/src/hooks/use-session.ts` — depende de T050
-- [ ] T052 [US2] Implementar la llamada de inicio de sesión en
+- [X] T052 [US2] Implementar la llamada de inicio de sesión en
       `frontend/src/features/auth/api.ts`, el `LoginForm` en
       `frontend/src/features/auth/components/login-form.tsx` y la pantalla
       `frontend/src/app/login/page.tsx` — depende de T051

@@ -183,3 +183,67 @@ func TestParseToken_RejectsInvalidSignature(t *testing.T) {
 		})
 	}
 }
+
+// signTestClaims firma con HS256 y el secreto de test los claims indicados, sin pasar por
+// IssueToken, para armar tokens con firma válida pero con claims que la emisión nunca produciría.
+func signTestClaims(t *testing.T, claims jwt.RegisteredClaims) string {
+	t.Helper()
+	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(testJWTSecret))
+	require.NoError(t, err)
+	return token
+}
+
+// Un token bien firmado cuyo iat es posterior al instante de validación se rechaza como sesión
+// inválida (FR-015): ninguna sesión legítima puede haberse emitido en el futuro.
+func TestParseToken_RejectsFutureIssuedAt(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	session := newTestSession(now.Add(time.Hour))
+	token := issueTestToken(t, session)
+
+	_, err := ParseToken(testJWTSecret, token, now)
+	assert.True(t, errors.Is(err, domain.ErrInvalidSession), "se esperaba ErrInvalidSession, se obtuvo %v", err)
+}
+
+// Un token bien firmado y vigente que no trae iat se rechaza como sesión inválida (FR-015), porque
+// iat es uno de los cuatro claims obligatorios de la sesión (data-model.md sección 2).
+func TestParseToken_RejectsMissingIssuedAt(t *testing.T) {
+	session := newTestSession(time.Now())
+	token := signTestClaims(t, jwt.RegisteredClaims{
+		ID:        session.ID.String(),
+		Subject:   session.UserID.String(),
+		ExpiresAt: jwt.NewNumericDate(session.ExpiresAt),
+	})
+
+	_, err := ParseToken(testJWTSecret, token, session.CreatedAt.Add(time.Minute))
+	assert.True(t, errors.Is(err, domain.ErrInvalidSession), "se esperaba ErrInvalidSession, se obtuvo %v", err)
+}
+
+// Un token bien firmado y vigente cuyo jti o sub no es un UUID se rechaza como sesión inválida
+// (FR-015): esos claims identifican la fila de sessions y la cuenta, y no admiten otro formato.
+func TestParseToken_RejectsNonUUIDClaims(t *testing.T) {
+	session := newTestSession(time.Now())
+	valid := jwt.RegisteredClaims{
+		ID:        session.ID.String(),
+		Subject:   session.UserID.String(),
+		IssuedAt:  jwt.NewNumericDate(session.CreatedAt),
+		ExpiresAt: jwt.NewNumericDate(session.ExpiresAt),
+	}
+
+	// Cada variante altera un solo claim y deja el resto válido.
+	cases := map[string]func(c *jwt.RegisteredClaims){
+		"jti que no es UUID": func(c *jwt.RegisteredClaims) { c.ID = "no-es-un-uuid" },
+		"jti vacío":          func(c *jwt.RegisteredClaims) { c.ID = "" },
+		"sub que no es UUID": func(c *jwt.RegisteredClaims) { c.Subject = "no-es-un-uuid" },
+		"sub vacío":          func(c *jwt.RegisteredClaims) { c.Subject = "" },
+	}
+	for name, mutate := range cases {
+		t.Run(name, func(t *testing.T) {
+			claims := valid
+			mutate(&claims)
+			token := signTestClaims(t, claims)
+
+			_, err := ParseToken(testJWTSecret, token, session.CreatedAt.Add(time.Minute))
+			assert.True(t, errors.Is(err, domain.ErrInvalidSession), "se esperaba ErrInvalidSession, se obtuvo %v", err)
+		})
+	}
+}

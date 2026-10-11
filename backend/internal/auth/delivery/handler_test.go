@@ -797,3 +797,153 @@ func TestUS2_ContrasenaIncorrecta(t *testing.T) {
 			wrongPassword.Body.Bytes(), unknownEmail.Body.Bytes())
 	}
 }
+
+// Pruebas de integración de las ramas de entrada y de error de POST /api/v1/auth/login (T086). No
+// son escenarios Given/When/Then de US2, así que se nombran por el manejador y no por la historia.
+
+// Mensajes exactos del contrato para el cuerpo ilegible y los campos faltantes, y mensaje genérico
+// del 500, que no expone detalles internos (FR-011).
+const (
+	invalidBodyMessage   = "El cuerpo de la solicitud debe ser un JSON válido."
+	invalidFieldsMessage = "Hay campos inválidos en la solicitud."
+	internalErrorMessage = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
+)
+
+// postLoginRaw envía a la ruta de inicio de sesión el cuerpo tal cual, sin serializarlo.
+func postLoginRaw(t *testing.T, router *gin.Engine, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, loginPath, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	return rec
+}
+
+// requireErrorResponse exige el estado indicado con un ErrorResponse cuyo único campo es error con
+// el mensaje esperado, sin token ni detalle de campos.
+func requireErrorResponse(t *testing.T, rec *httptest.ResponseRecorder, wantStatus int, wantMessage string) {
+	t.Helper()
+	if rec.Code != wantStatus {
+		t.Fatalf("estado %d, se esperaba %d; cuerpo: %s", rec.Code, wantStatus, rec.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("el cuerpo no es JSON válido: %v; cuerpo: %s", err, rec.Body.String())
+	}
+	if len(resp) != 1 || resp["error"] != wantMessage {
+		t.Errorf("cuerpo %s, se esperaba solo {\"error\": %q}", rec.Body.String(), wantMessage)
+	}
+}
+
+// requireNoLoginSideEffects exige que el intento no haya creado sesiones ni registrado eventos.
+func requireNoLoginSideEffects(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if n := countRows(t, db, &domain.Session{}, ""); n != 0 {
+		t.Errorf("se crearon %d sesiones, se esperaba 0", n)
+	}
+	if n := countRows(t, db, &domain.AuthEvent{}, ""); n != 0 {
+		t.Errorf("se registraron %d eventos, se esperaba 0", n)
+	}
+}
+
+// Un cuerpo que no es un JSON válido, o que falta, responde 400 con ErrorResponse y el mensaje del
+// contrato, nunca 500 ni ValidationErrorResponse, y no deja sesiones ni eventos (Principio VII).
+func TestLoginUser_InvalidJSONBody(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"JSON mal formado", `{"email": "ana@example.com", "password": `},
+		{"texto que no es JSON", "email=ana@example.com&password=Proyecto2026"},
+		{"cuerpo vacío", ""},
+		{"campo con tipo incorrecto", `{"email": 42, "password": "Proyecto2026"}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			router, db := newTestRouter(t)
+			seedAccount(t, db)
+
+			rec := postLoginRaw(t, router, tc.body)
+
+			requireErrorResponse(t, rec, http.StatusBadRequest, invalidBodyMessage)
+			requireNoLoginSideEffects(t, db)
+		})
+	}
+}
+
+// Un correo o una contraseña vacíos responden 400 con ValidationErrorResponse que señala
+// exactamente los campos faltantes, sin llegar al servicio: no se registra login_failed ni se crea
+// sesión. El correo de solo espacios cuenta como vacío porque se valida ya normalizado.
+func TestLoginUser_MissingFields(t *testing.T) {
+	cases := []struct {
+		name string
+		body map[string]any
+		want []string
+	}{
+		{"correo vacío", map[string]any{"email": "", "password": anaPassword}, []string{"email"}},
+		{"correo de solo espacios", map[string]any{"email": "   ", "password": anaPassword}, []string{"email"}},
+		{"correo ausente", map[string]any{"password": anaPassword}, []string{"email"}},
+		{"contraseña vacía", map[string]any{"email": anaEmail, "password": ""}, []string{"password"}},
+		{"contraseña ausente", map[string]any{"email": anaEmail}, []string{"password"}},
+		{"correo y contraseña vacíos", map[string]any{"email": "", "password": ""}, []string{"email", "password"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			router, db := newTestRouter(t)
+			seedAccount(t, db)
+			payload, err := json.Marshal(tc.body)
+			if err != nil {
+				t.Fatalf("no se pudo serializar la solicitud: %v", err)
+			}
+
+			rec := postLoginRaw(t, router, string(payload))
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("estado %d, se esperaba %d; cuerpo: %s", rec.Code, http.StatusBadRequest, rec.Body.String())
+			}
+			var resp validationErrorBody
+			if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("el cuerpo del 400 no es JSON válido: %v; cuerpo: %s", err, rec.Body.String())
+			}
+			if resp.Error != invalidFieldsMessage {
+				t.Errorf("error = %q, se esperaba %q", resp.Error, invalidFieldsMessage)
+			}
+			got := make([]string, 0, len(resp.Fields))
+			for _, f := range resp.Fields {
+				got = append(got, f.Field)
+				if f.Message == "" {
+					t.Errorf("el campo %q no trae mensaje", f.Field)
+				}
+			}
+			if strings.Join(got, ",") != strings.Join(tc.want, ",") {
+				t.Errorf("campos señalados %v, se esperaba %v", got, tc.want)
+			}
+			requireNoLoginSideEffects(t, db)
+		})
+	}
+}
+
+// Si la base falla durante el inicio de sesión, la respuesta es 500 con el mensaje genérico y sin
+// filtrar el error interno de la base ni la contraseña (Principio VII, FR-011). El fallo se provoca
+// cerrando el pool de conexiones del router de test antes de la solicitud.
+func TestLoginUser_DatabaseFailureReturnsGenericError(t *testing.T) {
+	router, db := newTestRouter(t)
+	seedAccount(t, db)
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("no se pudo obtener el pool de conexiones: %v", err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatalf("no se pudo cerrar el pool de conexiones: %v", err)
+	}
+
+	rec := postLogin(t, router, anaEmail, anaPassword)
+
+	requireErrorResponse(t, rec, http.StatusInternalServerError, internalErrorMessage)
+	body := strings.ToLower(rec.Body.String())
+	for _, leak := range []string{"sql", "closed", "database", "buscar cuenta", anaEmail, strings.ToLower(anaPassword)} {
+		if strings.Contains(body, leak) {
+			t.Errorf("el 500 filtra %q: %s", leak, rec.Body.String())
+		}
+	}
+}

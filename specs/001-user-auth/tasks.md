@@ -316,7 +316,7 @@ casos.
 - [X] T043 [P] [US2] Pruebas de frontend en
       `frontend/src/features/auth/components/login-form.test.tsx` con
       `describe("001/US2 - Inicio de sesión")` y un `it` por escenario — depende de T012
-- [ ] T086 [P] [US2] Pruebas de las ramas que T044, T045 y T049 implementaron sin prueba:
+- [X] T086 [P] [US2] Pruebas de las ramas que T044, T045 y T049 implementaron sin prueba:
       unitarias **obligatorias** en `backend/internal/auth/service/token_test.go`, donde
       `ParseToken` rechaza con `ErrInvalidSession` un token con `iat` futuro, un token sin `iat` y
       un token cuyo `jti` o `sub` no es un UUID (FR-015); en

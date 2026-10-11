@@ -240,3 +240,41 @@ func TestUS1_ValidacionEntradaInvalida(t *testing.T) {
 		})
 	}
 }
+
+// validateLogin solo exige que el correo, ya normalizado, y la contraseña estén presentes: devuelve
+// un detalle por cada campo vacío, en el orden email, password, y ninguno cuando ambos vienen
+// (Principio II, validaciones de entrada). Un valor que no cumpla las reglas del registro no se
+// rechaza acá, porque simplemente no coincidirá con ninguna cuenta.
+func TestValidateLogin_RequiresEmailAndPassword(t *testing.T) {
+	cases := []struct {
+		name     string
+		email    string
+		password string
+		want     []string
+	}{
+		{"correo y contraseña presentes", "ana@example.com", "Proyecto2026", nil},
+		{"credenciales que no cumplen las reglas del registro", "no-es-un-correo", "corta", nil},
+		{"correo vacío", "", "Proyecto2026", []string{"email"}},
+		{"contraseña vacía", "ana@example.com", "", []string{"password"}},
+		{"correo y contraseña vacíos", "", "", []string{"email", "password"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fields := validateLogin(tc.email, tc.password)
+
+			got := make([]string, 0, len(fields))
+			for _, f := range fields {
+				got = append(got, f.Field)
+				if f.Message == "" {
+					t.Errorf("el campo %q no trae mensaje", f.Field)
+				}
+				if tc.password != "" && strings.Contains(f.Message, tc.password) {
+					t.Errorf("el mensaje de %q repite la contraseña: %q", f.Field, f.Message)
+				}
+			}
+			if strings.Join(got, ",") != strings.Join(tc.want, ",") {
+				t.Errorf("campos señalados %v, se esperaba %v", got, tc.want)
+			}
+		})
+	}
+}

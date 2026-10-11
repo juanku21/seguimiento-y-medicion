@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -148,6 +149,25 @@ func TestComparePassword_RejectsDifferentPassword(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			err := ComparePassword(hash, candidate)
 			assert.True(t, errors.Is(err, domain.ErrInvalidCredentials), "se esperaba ErrInvalidCredentials, se obtuvo %v", err)
+		})
+	}
+}
+
+// Un hash guardado con formato inválido no es una contraseña incorrecta sino un fallo interno
+// (Principio VII): la comparación devuelve un error que no es ErrInvalidCredentials, para que el
+// llamador no lo confunda con un rechazo de credenciales, y que no contiene la contraseña.
+func TestComparePassword_InvalidStoredHashIsNotInvalidCredentials(t *testing.T) {
+	for name, storedHash := range map[string]string{
+		"hash demasiado corto":   "no-es-un-hash-bcrypt",
+		"hash con prefijo ajeno": strings.Repeat("x", 60),
+		"hash vacío":             "",
+		"hash con versión ajena": "$9a" + hashForTest(t, knownPassword)[3:],
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := ComparePassword(storedHash, knownPassword)
+			require.Error(t, err, "un hash inválido no debería aceptar la contraseña")
+			assert.False(t, errors.Is(err, domain.ErrInvalidCredentials), "un hash inválido no debería informarse como ErrInvalidCredentials, se obtuvo %v", err)
+			assert.NotContains(t, err.Error(), knownPassword, "el error no debería contener la contraseña")
 		})
 	}
 }

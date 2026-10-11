@@ -335,7 +335,7 @@ casos.
       `backend/internal/auth/repository/session_repository.go`: `INSERT sessions` +
       `INSERT auth_events(login_succeeded)` en **una sola transacción**, con
       `expires_at = created_at` más 8 horas (FR-013, FR-018)
-- [ ] T047 [US2] Implementar `Create(ctx, event)` en
+- [X] T047 [US2] Implementar `Create(ctx, event)` en
       `backend/internal/auth/repository/auth_event_repository.go` para el evento `login_failed`
       (FR-029)
 - [ ] T085 [US2] Implementar `FindByEmail(ctx, email)` en

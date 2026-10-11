@@ -316,6 +316,13 @@ casos.
 - [X] T043 [P] [US2] Pruebas de frontend en
       `frontend/src/features/auth/components/login-form.test.tsx` con
       `describe("001/US2 - Inicio de sesión")` y un `it` por escenario — depende de T012
+- [ ] T086 [P] [US2] Pruebas unitarias **obligatorias** de los rechazos que T044 y T045
+      implementaron sin prueba: en `backend/internal/auth/service/token_test.go`, `ParseToken`
+      rechaza con `ErrInvalidSession` un token con `iat` futuro, un token sin `iat` y un token cuyo
+      `jti` o `sub` no es un UUID (FR-015); en `backend/internal/auth/service/auth_service_test.go`,
+      `ComparePassword` ante un hash guardado con formato inválido devuelve un error que **no** es
+      `domain.ErrInvalidCredentials` (Principio VII). El código ya existe, así que estas pruebas
+      pasan desde el primer commit
 
 ### Implementación de la Historia 2
 
@@ -331,6 +338,11 @@ casos.
 - [ ] T047 [US2] Implementar `Create(ctx, event)` en
       `backend/internal/auth/repository/auth_event_repository.go` para el evento `login_failed`
       (FR-029)
+- [ ] T085 [US2] Implementar `FindByEmail(ctx, email)` en
+      `backend/internal/auth/repository/user_repository.go`: busca por igualdad exacta sobre la
+      columna `email`, que ya guarda el valor normalizado (data-model.md sección 1), y traduce
+      `gorm.ErrRecordNotFound` a `domain.ErrInvalidCredentials`, nunca `(nil, nil)` (FR-014);
+      cualquier otro error se envuelve y se propaga (Principio VII)
 - [ ] T048 [US2] Implementar `Login` en `backend/internal/auth/service/auth_service.go`: normaliza
       el correo igual que el registro (FR-012), busca con `FindByEmail`, compara la contraseña,
       crea la `Session`, emite el JWT y devuelve **el mismo error genérico** en los dos caminos de
@@ -349,6 +361,10 @@ casos.
       `frontend/src/features/auth/api.ts`, el `LoginForm` en
       `frontend/src/features/auth/components/login-form.tsx` y la pantalla
       `frontend/src/app/login/page.tsx` — depende de T051
+
+> **Nota sobre la numeración**: T085 y T086 se agregaron al implementar la historia y se numeraron
+> al final por el mismo motivo que T082: renumerar desalinearía los issues ya publicados. T085 se
+> ejecuta antes de T048, que depende de ella.
 
 **Checkpoint**: US1 y US2 funcionan de forma independiente.
 
@@ -583,36 +599,6 @@ plan y la constitución y lo que ya está implementado en las fases 1 y 2. Todas
 
 **Checkpoint**: `go list -m github.com/golang-jwt/jwt/v5` responde `v5.3.1` y el comentario del
 ayudante de pruebas describe exactamente lo que hace la función.
-
----
-
-## Fase 10: Brechas de la Historia 2
-
-**Propósito**: completar dos huecos detectados al implementar la Historia 2: la búsqueda por correo
-que necesita `Login` y que ninguna tarea implementaba, y las pruebas de los rechazos que T044 y T045
-implementaron sin prueba (Principio II).
-
-**Rama**: `hu/001-us2-inicio-sesion`.
-
-> **Nota sobre la numeración**: T085 se ejecuta antes de T048, que depende de ella, y T086 es una
-> tarea de pruebas de la Historia 2. Se numeraron al final por el mismo motivo que T082: renumerar
-> desalinearía los issues ya publicados.
-
-- [ ] T085 [US2] Implementar `FindByEmail(ctx, email)` en
-      `backend/internal/auth/repository/user_repository.go`: busca por igualdad exacta sobre la
-      columna `email`, que ya guarda el valor normalizado (data-model.md sección 1), y traduce
-      `gorm.ErrRecordNotFound` a `domain.ErrInvalidCredentials`, nunca `(nil, nil)` (FR-014);
-      cualquier otro error se envuelve y se propaga (Principio VII)
-- [ ] T086 [P] [US2] Pruebas unitarias **obligatorias** de los rechazos que T044 y T045
-      implementaron sin prueba: en `backend/internal/auth/service/token_test.go`, `ParseToken`
-      rechaza con `ErrInvalidSession` un token con `iat` futuro, un token sin `iat` y un token cuyo
-      `jti` o `sub` no es un UUID (FR-015); en `backend/internal/auth/service/auth_service_test.go`,
-      `ComparePassword` ante un hash guardado con formato inválido devuelve un error que **no** es
-      `domain.ErrInvalidCredentials` (Principio VII). El código ya existe, así que estas pruebas
-      pasan desde el primer commit
-
-**Checkpoint**: `Login` encuentra la cuenta por su correo normalizado y todas las ramas de rechazo
-de `ParseToken` y `ComparePassword` tienen una prueba que las ejercita.
 
 ---
 

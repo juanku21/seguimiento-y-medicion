@@ -304,7 +304,7 @@ casos.
       `backend/internal/auth/service/auth_service_test.go`: la comparación bcrypt de contraseña y el
       **mensaje genérico idéntico** (`Correo electrónico o contraseña incorrectos.`) tanto para
       correo inexistente como para contraseña incorrecta (FR-014, SC-004)
-- [ ] T042 [US2] Pruebas de integración de la historia en
+- [X] T042 [US2] Pruebas de integración de la historia en
       `backend/internal/auth/delivery/handler_test.go`, una función por escenario precedida por
       `// Escenario: <nombre del escenario> (001/US2)`: `TestUS2_InicioExitoso` (`200` con `token` y
       `expiresAt` a 8 horas), `TestUS2_CorreoConEspaciosYMayusculas`,

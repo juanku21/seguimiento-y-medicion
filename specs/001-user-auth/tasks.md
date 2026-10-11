@@ -328,6 +328,12 @@ casos.
       `400` con `ErrorResponse` ante un cuerpo que no es JSON válido, `400` con los campos
       faltantes ante correo vacío o contraseña vacía, y `500` genérico sin filtrar detalles cuando
       falla la base. El código ya existe, así que estas pruebas pasan desde el primer commit
+- [ ] T087 [US2] Prueba unitaria **obligatoria** de la regla RN-06 frente a la medición de tiempos
+      en `backend/internal/auth/service/auth_service_test.go`: `Login` con un correo inexistente
+      tarda lo mismo que con una contraseña incorrecta, de modo que el tiempo de respuesta no
+      permita averiguar qué correos están registrados (FR-014, SC-004). La prueba compara
+      duraciones relativas, no absolutas: el camino del correo inexistente debe tardar al menos la
+      mitad que el de la contraseña incorrecta, con bcrypt al coste por defecto
 
 ### Implementación de la Historia 2
 
@@ -357,6 +363,12 @@ casos.
       anotaciones `swag` en español en `backend/internal/auth/delivery/handler.go` y la ruta
       **pública** `POST /api/v1/auth/login` en `backend/internal/auth/delivery/routes.go`, con
       `200`, `400` y `401` — depende de T048
+- [ ] T088 [US2] Igualar el tiempo de los dos caminos de fallo de `Login` en
+      `backend/internal/auth/service/auth_service.go`: cuando `FindByEmail` no encuentra la cuenta,
+      comparar igualmente la contraseña recibida con `ComparePassword` contra un hash bcrypt fijo
+      que no pertenece a ninguna cuenta, generado una sola vez con el coste por defecto, y
+      descartar el resultado antes de registrar `login_failed` y devolver
+      `domain.ErrInvalidCredentials` (FR-014, SC-004) — depende de T087
 - [X] T050 [US2] Implementar la lectura y escritura del token en `sessionStorage` en
       `frontend/src/lib/session-storage.ts` (research.md sección 9) — depende de T035
 - [X] T051 [US2] Implementar el contexto de sesión en
@@ -367,9 +379,10 @@ casos.
       `frontend/src/features/auth/components/login-form.tsx` y la pantalla
       `frontend/src/app/login/page.tsx` — depende de T051
 
-> **Nota sobre la numeración**: T085 y T086 se agregaron al implementar la historia y se numeraron
-> al final por el mismo motivo que T082: renumerar desalinearía los issues ya publicados. T085 se
-> ejecuta antes de T048, que depende de ella.
+> **Nota sobre la numeración**: T085 a T088 se agregaron después de planificar la historia y se
+> numeraron al final por el mismo motivo que T082: renumerar desalinearía los issues ya publicados.
+> T085 y T086 surgieron al implementarla; T085 se ejecuta antes de T048, que depende de ella. T087 y
+> T088 surgieron en la revisión general de la rama.
 
 **Checkpoint**: US1 y US2 funcionan de forma independiente.
 

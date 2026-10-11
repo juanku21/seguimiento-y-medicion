@@ -328,7 +328,7 @@ casos.
       `400` con `ErrorResponse` ante un cuerpo que no es JSON válido, `400` con los campos
       faltantes ante correo vacío o contraseña vacía, y `500` genérico sin filtrar detalles cuando
       falla la base. El código ya existe, así que estas pruebas pasan desde el primer commit
-- [ ] T087 [US2] Prueba unitaria **obligatoria** de la regla RN-06 frente a la medición de tiempos
+- [X] T087 [US2] Prueba unitaria **obligatoria** de la regla RN-06 frente a la medición de tiempos
       en `backend/internal/auth/service/auth_service_test.go`: `Login` con un correo inexistente
       tarda lo mismo que con una contraseña incorrecta, de modo que el tiempo de respuesta no
       permita averiguar qué correos están registrados (FR-014, SC-004). La prueba compara

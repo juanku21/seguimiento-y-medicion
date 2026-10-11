@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -217,4 +218,58 @@ func TestUS2_ContrasenaIncorrecta(t *testing.T) {
 	assert.Equal(t, unknownErr.Error(), err.Error(), "el mensaje debería ser idéntico al del correo inexistente")
 	assert.True(t, errors.Is(err, domain.ErrInvalidCredentials) && errors.Is(unknownErr, domain.ErrInvalidCredentials),
 		"ambos caminos deberían devolver ErrInvalidCredentials; contraseña incorrecta: %v, correo inexistente: %v", err, unknownErr)
+}
+
+// timingSamples es la cantidad de repeticiones de cada camino de fallo en la medición de tiempos;
+// se comparan medianas para que una pausa aislada del planificador no decida el resultado.
+const timingSamples = 5
+
+// medianDuration devuelve la mediana de las duraciones medidas.
+func medianDuration(samples []time.Duration) time.Duration {
+	sorted := slices.Clone(samples)
+	slices.Sort(sorted)
+	return sorted[len(sorted)/2]
+}
+
+// RN-06 frente a la medición de tiempos (FR-014, SC-004): el inicio de sesión con un correo
+// inexistente tarda lo mismo que con una contraseña incorrecta, de modo que el tiempo de respuesta
+// no permita averiguar qué correos están registrados. La cuenta usa un hash con el coste por
+// defecto de bcrypt, como en producción. Se comparan duraciones relativas y no absolutas: la
+// mediana del correo inexistente debe ser al menos la mitad de la mediana de la contraseña
+// incorrecta. Las muestras de ambos caminos se intercalan para que las dos sufran la misma carga.
+func TestLogin_UnknownEmailTakesAsLongAsWrongPassword(t *testing.T) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(knownPassword), bcrypt.DefaultCost)
+	require.NoError(t, err)
+	user := domain.User{
+		ID:           uuid.New(),
+		FullName:     "Ana Pérez",
+		Email:        knownEmail,
+		PasswordHash: string(hash),
+	}
+	users := &fakeUserRepository{byEmail: map[string]domain.User{knownEmail: user}}
+	service := NewAuthService(users, &fakeSessionRepository{}, &fakeAuthEventRepository{}, testJWTSecret)
+
+	// Mide un intento fallido y verifica que siga siendo el rechazo genérico de credenciales.
+	measure := func(email string) time.Duration {
+		start := time.Now()
+		_, err := service.Login(context.Background(), email, wrongPassword)
+		elapsed := time.Since(start)
+		require.ErrorIs(t, err, domain.ErrInvalidCredentials, "el intento con %s debería rechazarse como credenciales inválidas", email)
+		return elapsed
+	}
+
+	// Calienta ambos caminos y después toma las muestras intercaladas.
+	measure(knownEmail)
+	measure(unknownEmail)
+	var wrongPasswordSamples, unknownEmailSamples []time.Duration
+	for range timingSamples {
+		wrongPasswordSamples = append(wrongPasswordSamples, measure(knownEmail))
+		unknownEmailSamples = append(unknownEmailSamples, measure(unknownEmail))
+	}
+
+	wrongPasswordMedian := medianDuration(wrongPasswordSamples)
+	unknownEmailMedian := medianDuration(unknownEmailSamples)
+	assert.GreaterOrEqual(t, 2*unknownEmailMedian, wrongPasswordMedian,
+		"el correo inexistente (mediana %v, muestras %v) debería tardar al menos la mitad que la contraseña incorrecta (mediana %v, muestras %v)",
+		unknownEmailMedian, unknownEmailSamples, wrongPasswordMedian, wrongPasswordSamples)
 }

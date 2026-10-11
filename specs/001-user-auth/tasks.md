@@ -316,13 +316,18 @@ casos.
 - [X] T043 [P] [US2] Pruebas de frontend en
       `frontend/src/features/auth/components/login-form.test.tsx` con
       `describe("001/US2 - Inicio de sesión")` y un `it` por escenario — depende de T012
-- [ ] T086 [P] [US2] Pruebas unitarias **obligatorias** de los rechazos que T044 y T045
-      implementaron sin prueba: en `backend/internal/auth/service/token_test.go`, `ParseToken`
-      rechaza con `ErrInvalidSession` un token con `iat` futuro, un token sin `iat` y un token cuyo
-      `jti` o `sub` no es un UUID (FR-015); en `backend/internal/auth/service/auth_service_test.go`,
-      `ComparePassword` ante un hash guardado con formato inválido devuelve un error que **no** es
-      `domain.ErrInvalidCredentials` (Principio VII). El código ya existe, así que estas pruebas
-      pasan desde el primer commit
+- [ ] T086 [P] [US2] Pruebas de las ramas que T044, T045 y T049 implementaron sin prueba:
+      unitarias **obligatorias** en `backend/internal/auth/service/token_test.go`, donde
+      `ParseToken` rechaza con `ErrInvalidSession` un token con `iat` futuro, un token sin `iat` y
+      un token cuyo `jti` o `sub` no es un UUID (FR-015); en
+      `backend/internal/auth/service/auth_service_test.go`, donde `ComparePassword` ante un hash
+      guardado con formato inválido devuelve un error que **no** es `domain.ErrInvalidCredentials`
+      (Principio VII); y en `backend/internal/auth/delivery/validation_test.go`, donde
+      `validateLogin` exige correo y contraseña presentes (Principio II, validaciones). De
+      integración en `backend/internal/auth/delivery/handler_test.go` para `POST /api/v1/auth/login`:
+      `400` con `ErrorResponse` ante un cuerpo que no es JSON válido, `400` con los campos
+      faltantes ante correo vacío o contraseña vacía, y `500` genérico sin filtrar detalles cuando
+      falla la base. El código ya existe, así que estas pruebas pasan desde el primer commit
 
 ### Implementación de la Historia 2
 

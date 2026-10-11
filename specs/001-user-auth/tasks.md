@@ -322,7 +322,7 @@ casos.
 - [X] T044 [US2] Implementar la emisión y el parseo del token en
       `backend/internal/auth/service/token.go` con `golang-jwt/jwt/v5`, `HS256` y los claims `jti`,
       `sub`, `exp` e `iat` (data-model.md sección 2) — depende de T015
-- [ ] T045 [US2] Añadir la comparación de contraseña con bcrypt en
+- [X] T045 [US2] Añadir la comparación de contraseña con bcrypt en
       `backend/internal/auth/service/password.go` (FR-012)
 - [ ] T046 [US2] Implementar `Create(ctx, session, event)` en
       `backend/internal/auth/repository/session_repository.go`: `INSERT sessions` +

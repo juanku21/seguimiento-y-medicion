@@ -363,7 +363,7 @@ casos.
       anotaciones `swag` en español en `backend/internal/auth/delivery/handler.go` y la ruta
       **pública** `POST /api/v1/auth/login` en `backend/internal/auth/delivery/routes.go`, con
       `200`, `400` y `401` — depende de T048
-- [ ] T088 [US2] Igualar el tiempo de los dos caminos de fallo de `Login` en
+- [X] T088 [US2] Igualar el tiempo de los dos caminos de fallo de `Login` en
       `backend/internal/auth/service/auth_service.go`: cuando `FindByEmail` no encuentra la cuenta,
       comparar igualmente la contraseña recibida con `ComparePassword` contra un hash bcrypt fijo
       que no pertenece a ninguna cuenta, generado una sola vez con el coste por defecto, y

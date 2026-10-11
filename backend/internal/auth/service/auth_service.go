@@ -12,6 +12,13 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/domain"
 )
 
+// dummyPasswordHash es un hash bcrypt fijo que no pertenece a ninguna cuenta: se generó una sola vez
+// a partir de una contraseña aleatoria que se descartó, así que ninguna contraseña coincide con él.
+// Es una constante para que no pueda fallar en tiempo de petición, y su coste (10) DEBE coincidir
+// con bcrypt.DefaultCost, el que usa HashPassword, para que la comparación tarde lo mismo que contra
+// el hash de una cuenta real.
+const dummyPasswordHash = "$2a$10$rcWxubgAs6rxvVTHunidy.roSFrxuOos6j0CBdxhg9nG02swWCgOm"
+
 // AuthService reúne los casos de uso de la autenticación sobre las interfaces de repositorio del
 // dominio y el secreto de firma del JWT.
 type AuthService struct {
@@ -68,8 +75,12 @@ type LoginResult struct {
 // propagan envueltos, sin convertirlos en credenciales inválidas.
 func (s *AuthService) Login(ctx context.Context, email string, password string) (LoginResult, error) {
 	// Busca la cuenta y compara la contraseña; cada rechazo de credenciales registra el intento.
+	// Si el correo no existe, compara igualmente la contraseña contra dummyPasswordHash y descarta
+	// el resultado: así ese camino tarda lo mismo que el de la contraseña incorrecta y el tiempo de
+	// respuesta no revela qué correos están registrados (FR-014, SC-004).
 	user, err := s.users.FindByEmail(ctx, email)
 	if errors.Is(err, domain.ErrInvalidCredentials) {
+		_ = ComparePassword(dummyPasswordHash, password)
 		return LoginResult{}, s.recordLoginFailed(ctx, nil, email)
 	}
 	if err != nil {

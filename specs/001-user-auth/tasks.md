@@ -272,7 +272,7 @@ ninguna otra historia.
       `frontend/src/components/` y el `RegisterForm` en
       `frontend/src/features/auth/components/register-form.tsx`, con mensajes en español — depende
       de T036 y T037
-- [ ] T039 [US1] Crear `frontend/src/app/layout.tsx`, la portada pública
+- [X] T039 [US1] Crear `frontend/src/app/layout.tsx`, la portada pública
       `frontend/src/app/page.tsx`, la pantalla `frontend/src/app/register/page.tsx` y
       `frontend/src/styles/globals.css` con Tailwind — depende de T038
 

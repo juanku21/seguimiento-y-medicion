@@ -4,6 +4,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -60,9 +61,67 @@ type LoginResult struct {
 	ExpiresAt time.Time
 }
 
+// sessionLifetime es el plazo fijo de una sesión desde su emisión (FR-013, FR-018).
+const sessionLifetime = 8 * time.Hour
+
 // Login valida las credenciales y emite una sesión; ante cualquier credencial inválida devuelve
-// domain.ErrInvalidCredentials (FR-014, RN-06). Firma mínima para las pruebas de T041; la
-// implementación corresponde a T048.
+// domain.ErrInvalidCredentials (FR-014, RN-06). Recibe el correo ya normalizado por delivery, igual
+// que Register (research.md sección 3). El correo inexistente y la contraseña incorrecta devuelven
+// el mismo error y registran login_failed; los fallos de repositorio o de un hash corrupto se
+// propagan envueltos, sin convertirlos en credenciales inválidas.
 func (s *AuthService) Login(ctx context.Context, email string, password string) (LoginResult, error) {
-	return LoginResult{}, errors.New("not implemented")
+	// Busca la cuenta y compara la contraseña; cada rechazo de credenciales registra el intento.
+	user, err := s.users.FindByEmail(ctx, email)
+	if errors.Is(err, domain.ErrInvalidCredentials) {
+		return LoginResult{}, s.recordLoginFailed(ctx, nil, email)
+	}
+	if err != nil {
+		return LoginResult{}, fmt.Errorf("buscar cuenta: %w", err)
+	}
+	err = ComparePassword(user.PasswordHash, password)
+	if errors.Is(err, domain.ErrInvalidCredentials) {
+		return LoginResult{}, s.recordLoginFailed(ctx, &user.ID, email)
+	}
+	if err != nil {
+		return LoginResult{}, err
+	}
+
+	// Persiste la sesión con su evento login_succeeded y emite el JWT con las fechas de la sesión
+	// ya guardada, de modo que iat y exp coincidan con created_at y expires_at.
+	now := time.Now()
+	session := &domain.Session{
+		ID:        uuid.New(),
+		UserID:    user.ID,
+		CreatedAt: now,
+		ExpiresAt: now.Add(sessionLifetime),
+	}
+	event := &domain.AuthEvent{
+		ID:        uuid.New(),
+		EventType: domain.EventLoginSucceeded,
+		UserID:    &user.ID,
+	}
+	if err := s.sessions.Create(ctx, session, event); err != nil {
+		return LoginResult{}, fmt.Errorf("crear sesión: %w", err)
+	}
+	token, err := IssueToken(s.jwtSecret, *session)
+	if err != nil {
+		return LoginResult{}, err
+	}
+	return LoginResult{Token: token, ExpiresAt: session.ExpiresAt}, nil
+}
+
+// recordLoginFailed registra el evento login_failed con el correo intentado y la cuenta, si existe
+// (data-model.md sección 3), y devuelve el error genérico de credenciales inválidas. Si el evento no
+// se puede persistir, propaga ese fallo envuelto.
+func (s *AuthService) recordLoginFailed(ctx context.Context, userID *uuid.UUID, email string) error {
+	event := &domain.AuthEvent{
+		ID:             uuid.New(),
+		EventType:      domain.EventLoginFailed,
+		UserID:         userID,
+		AttemptedEmail: &email,
+	}
+	if err := s.events.Create(ctx, event); err != nil {
+		return fmt.Errorf("registrar inicio fallido: %w", err)
+	}
+	return domain.ErrInvalidCredentials
 }

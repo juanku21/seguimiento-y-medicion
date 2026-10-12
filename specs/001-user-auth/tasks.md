@@ -408,7 +408,7 @@ siendo públicos.
       `backend/internal/auth/domain/session_test.go`: una sesión es vigente **solo si**
       `revoked_at IS NULL AND expires_at > now()`; `CERRADA` y `VENCIDA` son estados **terminales**
       y una sesión no vuelve a ser vigente (data-model.md sección 2)
-- [ ] T054 [P] [US3] Pruebas unitarias **obligatorias** de RN-08 y RN-09 en
+- [X] T054 [P] [US3] Pruebas unitarias **obligatorias** de RN-08 y RN-09 en
       `backend/internal/auth/delivery/routes_test.go`: registro e inicio de sesión son las **únicas**
       rutas públicas y todas las demás exigen sesión (FR-019); la acción se atribuye al titular
       identificado por el claim `sub` (FR-021, RN-09)

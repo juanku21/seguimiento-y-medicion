@@ -465,7 +465,7 @@ respuesta no contiene la contraseña ni nada derivado de ella.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T062 [US4] Pruebas de integración de la historia en
+- [X] T062 [US4] Pruebas de integración de la historia en
       `backend/internal/auth/delivery/handler_test.go`, una función por escenario precedida por
       `// Escenario: <nombre del escenario> (001/US4)`: `TestUS4_PerfilPropio`,
       `TestUS4_CorreoNormalizadoEnPerfil`, `TestUS4_RespuestaSinContrasena` (inspección del **cuerpo

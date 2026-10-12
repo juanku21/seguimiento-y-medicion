@@ -2,6 +2,7 @@ package delivery
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -945,5 +946,258 @@ func TestLoginUser_DatabaseFailureReturnsGenericError(t *testing.T) {
 		if strings.Contains(body, leak) {
 			t.Errorf("el 500 filtra %q: %s", leak, rec.Body.String())
 		}
+	}
+}
+
+// Pruebas de integración de US4 (T062): cubren GET /api/v1/users/me de punta a punta, con la sesión
+// emitida por el inicio de sesión real y verificada por el middleware contra la base smye_test. El
+// endpoint no acepta ningún identificador: el perfil se resuelve solo desde la sesión (FR-022,
+// FR-023).
+
+// profilePath es la ruta protegida del perfil propio según contracts/openapi.yaml.
+const profilePath = "/api/v1/users/me"
+
+// Datos de una segunda cuenta, para comprobar que una sesión nunca devuelve el perfil de otra.
+const (
+	brunoFullName = "Bruno Díaz"
+	brunoEmail    = "bruno@example.com"
+	brunoPassword = "Otraclave2026"
+)
+
+// seedNamedAccount inserta directamente en users una cuenta con los datos indicados y su contraseña
+// hasheada, sin pasar por el endpoint de registro.
+func seedNamedAccount(t *testing.T, db *gorm.DB, fullName, email, password string) domain.User {
+	t.Helper()
+	hash, err := service.HashPassword(password)
+	if err != nil {
+		t.Fatalf("no se pudo hashear la contraseña de la cuenta: %v", err)
+	}
+	user := domain.User{ID: uuid.New(), FullName: fullName, Email: email, PasswordHash: hash}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("no se pudo preparar la cuenta %s: %v", email, err)
+	}
+	return user
+}
+
+// loginTokenFor inicia sesión con las credenciales indicadas y devuelve el token emitido.
+func loginTokenFor(t *testing.T, router *gin.Engine, email, password string) string {
+	t.Helper()
+	rec := postLogin(t, router, email, password)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("el inicio de sesión de preparación de %s devolvió %d; cuerpo: %s", email, rec.Code, rec.Body.String())
+	}
+	var body loginResponseBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body.Token == "" {
+		t.Fatalf("el inicio de sesión de preparación no devolvió un token: %v; cuerpo: %s", err, rec.Body.String())
+	}
+	return body.Token
+}
+
+// getProfile pide el perfil a la ruta indicada con la cabecera Authorization recibida; si es vacía,
+// la petición sale sin cabecera, como la de un visitante sin sesión.
+func getProfile(t *testing.T, router *gin.Engine, target, authorization string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, target, nil)
+	if authorization != "" {
+		req.Header.Set("Authorization", authorization)
+	}
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	return rec
+}
+
+// requireOwnProfile exige un 200 cuyo cuerpo sea exactamente el UserProfile de la cuenta indicada:
+// solo id, fullName y email, con los valores guardados de esa cuenta (FR-022).
+func requireOwnProfile(t *testing.T, rec *httptest.ResponseRecorder, want domain.User) {
+	t.Helper()
+	if rec.Code != http.StatusOK {
+		t.Fatalf("estado %d, se esperaba %d; cuerpo: %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var profile map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &profile); err != nil {
+		t.Fatalf("el cuerpo del 200 no es JSON válido: %v; cuerpo: %s", err, rec.Body.String())
+	}
+	if len(profile) != 3 {
+		t.Errorf("el perfil tiene %d campos, se esperaban solo id, fullName y email; cuerpo: %s", len(profile), rec.Body.String())
+	}
+	wantFields := map[string]string{"id": want.ID.String(), "fullName": want.FullName, "email": want.Email}
+	for key, value := range wantFields {
+		if profile[key] != value {
+			t.Errorf("%s = %v, se esperaba %q", key, profile[key], value)
+		}
+	}
+}
+
+// Escenario: Perfil propio (001/US4)
+// Dado un usuario con sesión vigente, cuando consulta su perfil, entonces ve su nombre completo y su
+// correo. Con dos cuentas en el sistema, cada sesión devuelve solo el perfil de su titular, y ningún
+// identificador enviado en la consulta ni en la ruta permite ver el perfil de otra cuenta (FR-022,
+// FR-023).
+func TestUS4_PerfilPropio(t *testing.T) {
+	router, db := newTestRouter(t)
+	ana := seedAccount(t, db)
+	bruno := seedNamedAccount(t, db, brunoFullName, brunoEmail, brunoPassword)
+	anaToken := loginTokenFor(t, router, anaEmail, anaPassword)
+	brunoToken := loginTokenFor(t, router, brunoEmail, brunoPassword)
+
+	t.Run("cada titular ve su propio perfil", func(t *testing.T) {
+		requireOwnProfile(t, getProfile(t, router, profilePath, "Bearer "+anaToken), ana)
+		requireOwnProfile(t, getProfile(t, router, profilePath, "Bearer "+brunoToken), bruno)
+	})
+
+	t.Run("un identificador en la consulta no cambia el titular", func(t *testing.T) {
+		for _, param := range []string{"id", "userId", "user_id", "email"} {
+			value := bruno.ID.String()
+			if param == "email" {
+				value = bruno.Email
+			}
+			target := profilePath + "?" + param + "=" + value
+			requireOwnProfile(t, getProfile(t, router, target, "Bearer "+anaToken), ana)
+		}
+	})
+
+	t.Run("no existe ruta de perfil por identificador", func(t *testing.T) {
+		rec := getProfile(t, router, "/api/v1/users/"+bruno.ID.String(), "Bearer "+anaToken)
+		if rec.Code == http.StatusOK {
+			t.Errorf("GET /api/v1/users/{id} respondió 200; no debe existir forma de consultar otra cuenta (FR-023); cuerpo: %s", rec.Body.String())
+		}
+		if strings.Contains(rec.Body.String(), brunoEmail) || strings.Contains(rec.Body.String(), brunoFullName) {
+			t.Errorf("la respuesta revela datos de otra cuenta: %s", rec.Body.String())
+		}
+	})
+}
+
+// Escenario: Correo normalizado en perfil (001/US4)
+// Dado un usuario que se registró con "  Ana@Example.COM  ", cuando consulta su perfil, entonces ve
+// el correo tal como quedó normalizado, el mismo que usa para iniciar sesión (FR-004).
+func TestUS4_CorreoNormalizadoEnPerfil(t *testing.T) {
+	router, db := newTestRouter(t)
+	body := validRegistration()
+	body["email"] = "  Ana@Example.COM  "
+	id := requireCreatedProfile(t, postRegister(t, router, body), anaPassword, anaFullName, anaEmail)
+	token := loginTokenFor(t, router, "  ANA@example.com ", anaPassword)
+
+	rec := getProfile(t, router, profilePath, "Bearer "+token)
+
+	var stored domain.User
+	if err := db.First(&stored, "id = ?", id).Error; err != nil {
+		t.Fatalf("no se encontró la cuenta registrada: %v", err)
+	}
+	if stored.Email != anaEmail {
+		t.Fatalf("correo guardado %q, se esperaba %q", stored.Email, anaEmail)
+	}
+	requireOwnProfile(t, rec, stored)
+
+	// El correo que muestra el perfil sirve tal cual para iniciar sesión.
+	if again := postLogin(t, router, stored.Email, anaPassword); again.Code != http.StatusOK {
+		t.Errorf("iniciar sesión con el correo del perfil devolvió %d; cuerpo: %s", again.Code, again.Body.String())
+	}
+}
+
+// Escenario: Respuesta sin contraseña (001/US4)
+// Dado un usuario cuyo perfil se consulta, cuando se inspecciona la respuesta completa (cuerpo y
+// cabeceras), entonces no aparece la contraseña, ni el hash guardado, ni ninguna representación
+// derivada, ni campos con nombre de contraseña o hash (FR-011, SC-005).
+func TestUS4_RespuestaSinContrasena(t *testing.T) {
+	router, db := newTestRouter(t)
+	ana := seedAccount(t, db)
+	token := loginTokenFor(t, router, anaEmail, anaPassword)
+
+	rec := getProfile(t, router, profilePath, "Bearer "+token)
+
+	requireOwnProfile(t, rec, ana)
+
+	// Representaciones prohibidas: la contraseña en claro y codificada, el hash completo, su parte de
+	// sal y digesto sin el prefijo de versión y coste, y los prefijos bcrypt, también escapados.
+	forbidden := map[string]string{
+		"contraseña en claro":      anaPassword,
+		"contraseña en minúsculas": strings.ToLower(anaPassword),
+		"contraseña en base64":     base64.StdEncoding.EncodeToString([]byte(anaPassword)),
+		"contraseña en base64url":  base64.RawURLEncoding.EncodeToString([]byte(anaPassword)),
+		"hash bcrypt completo":     ana.PasswordHash,
+		"sal y digesto del hash":   ana.PasswordHash[len(ana.PasswordHash)-53:],
+		"prefijo bcrypt $2a$":      "$2a$",
+		"prefijo bcrypt $2b$":      "$2b$",
+		"prefijo bcrypt escapado":  `$2`,
+	}
+	var headers strings.Builder
+	for name, values := range rec.Header() {
+		headers.WriteString(name + ": " + strings.Join(values, ",") + "\n")
+	}
+	for label, value := range forbidden {
+		if strings.Contains(rec.Body.String(), value) {
+			t.Errorf("el cuerpo contiene %s: %s", label, rec.Body.String())
+		}
+		if strings.Contains(headers.String(), value) {
+			t.Errorf("las cabeceras contienen %s: %s", label, headers.String())
+		}
+	}
+
+	// Ningún campo, en ninguna forma de escritura, se llama como la contraseña o su hash.
+	lowerBody := strings.ToLower(rec.Body.String())
+	for _, name := range []string{"password", "passwordhash", "password_hash", "hash", "contraseña", "contrasena"} {
+		if strings.Contains(lowerBody, name) {
+			t.Errorf("el cuerpo menciona %q: %s", name, rec.Body.String())
+		}
+	}
+}
+
+// Escenario: Perfil sin sesión (001/US4)
+// Dado un visitante sin sesión válida, cuando consulta el perfil, entonces el acceso se rechaza con
+// el 401 del contrato, idéntico en todos los casos, sin revelar ningún dato de ninguna cuenta
+// (FR-015, FR-016, SC-003).
+func TestUS4_PerfilSinSesion(t *testing.T) {
+	router, db, secret := newTestRouterWithSecret(t)
+	ana := seedAccount(t, db)
+	token := loginTokenFor(t, router, anaEmail, anaPassword)
+	now := time.Now()
+
+	// signedSession guarda una sesión de Ana con los momentos indicados y devuelve su token firmado
+	// con el secreto de test.
+	signedSession := func(createdAt, expiresAt time.Time, revokedAt *time.Time) string {
+		t.Helper()
+		session := domain.Session{ID: uuid.New(), UserID: ana.ID, CreatedAt: createdAt, ExpiresAt: expiresAt, RevokedAt: revokedAt}
+		if err := db.Create(&session).Error; err != nil {
+			t.Fatalf("no se pudo preparar la sesión: %v", err)
+		}
+		signed, err := service.IssueToken(secret, session)
+		if err != nil {
+			t.Fatalf("no se pudo firmar el token de preparación: %v", err)
+		}
+		return signed
+	}
+	revokedAt := now.Add(-time.Minute)
+	expiredToken := signedSession(now.Add(-9*time.Hour), now.Add(-time.Hour), nil)
+	closedToken := signedSession(now.Add(-time.Hour), now.Add(7*time.Hour), &revokedAt)
+
+	cases := []struct {
+		name          string
+		authorization string
+	}{
+		{"sin cabecera Authorization", ""},
+		{"texto que no es un JWT", "Bearer no-es-un-jwt"},
+		{"firma alterada", "Bearer " + token[:len(token)-2] + flipLastChars(token[len(token)-2:])},
+		{"esquema distinto de Bearer", "Basic " + token},
+		{"sesión vencida", "Bearer " + expiredToken},
+		{"sesión cerrada", "Bearer " + closedToken},
+	}
+	baseline := getProfile(t, router, profilePath, "")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := getProfile(t, router, profilePath, tc.authorization)
+
+			requireErrorResponse(t, rec, http.StatusUnauthorized, sessionRequiredMessage)
+			if rec.Body.String() != baseline.Body.String() ||
+				rec.Header().Get("Content-Type") != baseline.Header().Get("Content-Type") {
+				t.Errorf("el rechazo (%q, %s) difiere del de sesión ausente (%q, %s)",
+					rec.Header().Get("Content-Type"), rec.Body.String(),
+					baseline.Header().Get("Content-Type"), baseline.Body.String())
+			}
+			for _, leak := range []string{ana.ID.String(), anaEmail, anaFullName} {
+				if strings.Contains(rec.Body.String(), leak) {
+					t.Errorf("el rechazo revela %q: %s", leak, rec.Body.String())
+				}
+			}
+		})
 	}
 }

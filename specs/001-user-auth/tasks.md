@@ -420,7 +420,7 @@ siendo públicos.
       las respuestas de sesión ausente, vencida y adulterada sean **idénticas** (`401` con
       `Se requiere iniciar sesión.`) y que la acción protegida **no se ejecute ni parcialmente**
       (FR-015, FR-016, FR-020) — depende de T024
-- [ ] T056 [P] [US3] Pruebas de frontend en `frontend/src/hooks/use-session.test.tsx` con
+- [X] T056 [P] [US3] Pruebas de frontend en `frontend/src/hooks/use-session.test.tsx` con
       `describe("001/US3 - Protección de las funciones del sistema")`: sin token la guardia redirige
       a `/login`, y un `401` de la API también — depende de T012
 

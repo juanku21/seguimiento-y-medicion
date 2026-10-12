@@ -15,3 +15,9 @@ export function useSession(): SessionState {
   }
   return session;
 }
+
+// Guardia de ruta del lado del cliente (research.md, "Protección de rutas del frontend"): devuelve
+// el token vigente y lleva a /login cuando no hay sesión. Firma mínima de T056; la implementa T061.
+export function useRequireSession(): string | null {
+  throw new Error("not implemented");
+}

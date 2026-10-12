@@ -89,3 +89,12 @@ export async function postJson<T>(
   }
   return { ok: true, data };
 }
+
+// Envía un GET autenticado a la ruta indicada de la API. Ante un 401 limpia la sesión para que la
+// guardia lleve a /login (FR-016). Firma mínima de T056; la implementa T061.
+export async function getJson<T>(
+  path: string,
+  isData: (value: unknown) => value is T,
+): Promise<ApiResult<T>> {
+  throw new Error("not implemented");
+}

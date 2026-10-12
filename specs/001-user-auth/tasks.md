@@ -432,7 +432,7 @@ siendo públicos.
 - [X] T058 [US3] Implementar `FindByID(ctx, id)` en
       `backend/internal/auth/repository/session_repository.go` para la verificación del `jti` en
       cada petición protegida (FR-026) — depende de T046
-- [ ] T059 [US3] Implementar `ValidateSession` en
+- [X] T059 [US3] Implementar `ValidateSession` en
       `backend/internal/auth/service/auth_service.go`: valida la firma y el `exp` del token antes de
       tocar la base, y después exige que la fila exista con `revoked_at` nulo y `expires_at` futuro.
       Fila inexistente, cerrada, vencida y firma inválida se tratan de forma **idéntica** (FR-015,

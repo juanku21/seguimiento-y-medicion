@@ -479,7 +479,7 @@ respuesta no contiene la contraseña ni nada derivado de ella.
 
 ### Implementación de la Historia 4
 
-- [ ] T064 [US4] Implementar `FindByID(ctx, id)` en
+- [X] T064 [US4] Implementar `FindByID(ctx, id)` en
       `backend/internal/auth/repository/user_repository.go` — depende de T031
 - [ ] T065 [US4] Implementar la obtención del perfil del titular en
       `backend/internal/auth/service/auth_service.go`, resolviendo la identidad desde el claim `sub`

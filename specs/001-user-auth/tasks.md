@@ -437,7 +437,7 @@ siendo públicos.
       tocar la base, y después exige que la fila exista con `revoked_at` nulo y `expires_at` futuro.
       Fila inexistente, cerrada, vencida y firma inválida se tratan de forma **idéntica** (FR-015,
       RN-07) — depende de T057 y T058
-- [ ] T060 [US3] Implementar el middleware de exigencia de sesión en
+- [X] T060 [US3] Implementar el middleware de exigencia de sesión en
       `backend/internal/auth/delivery/middleware.go`, dejando en el contexto el titular para la
       atribución (FR-021), y aplicarlo al grupo de rutas protegidas en
       `backend/internal/auth/delivery/routes.go`, manteniendo públicas solo registro e inicio de

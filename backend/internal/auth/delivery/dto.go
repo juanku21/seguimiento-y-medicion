@@ -1,5 +1,7 @@
 package delivery
 
+import "time"
+
 // RegisterRequest es el cuerpo de POST /api/v1/auth/register (contracts/openapi.yaml). Las
 // etiquetas validate y de longitud solo documentan el contrato en Swagger: la validación real la
 // hacen las funciones de validation.go, que devuelven los mensajes por campo (FR-008).
@@ -45,4 +47,21 @@ type ValidationErrorResponse struct {
 	Error string `json:"error" validate:"required" example:"Hay campos inválidos en la solicitud."`
 	// Detalle de cada campo inválido; nunca está vacío.
 	Fields []FieldError `json:"fields" validate:"required" minItems:"1"`
+}
+
+// LoginRequest es el cuerpo de POST /api/v1/auth/login (contracts/openapi.yaml). El correo se
+// normaliza igual que en el registro antes de buscar la cuenta (FR-004, FR-012).
+type LoginRequest struct {
+	// Correo electrónico de la cuenta; se recortan los espacios extremos y se pasa a minúsculas.
+	Email string `json:"email" validate:"required" format:"email" maxLength:"254" example:"ana@example.com"`
+	// Contraseña de la cuenta; nunca se repite en ninguna respuesta (FR-011).
+	Password string `json:"password" validate:"required" format:"password" example:"Proyecto2026"`
+}
+
+// LoginResponse es la sesión emitida por un inicio de sesión exitoso (FR-013).
+type LoginResponse struct {
+	// JWT de la sesión emitida. Se envía en `Authorization: Bearer <token>`.
+	Token string `json:"token" validate:"required" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzZjFhOWM2NCJ9.firma"`
+	// Momento de vencimiento de la sesión, 8 horas después de la emisión (FR-018).
+	ExpiresAt time.Time `json:"expiresAt" validate:"required" format:"date-time" example:"2026-10-05T22:30:00Z"`
 }

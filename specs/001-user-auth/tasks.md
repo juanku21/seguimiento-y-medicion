@@ -295,16 +295,16 @@ casos.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T040 [P] [US2] Pruebas unitarias de emisión y parseo del JWT en
+- [X] T040 [P] [US2] Pruebas unitarias de emisión y parseo del JWT en
       `backend/internal/auth/service/token_test.go`: `HS256` con el secreto de `JWT_SECRET`, claims
       `jti` (= `sessions.id`), `sub` (= `users.id`), `exp` (= `sessions.expires_at`) e `iat`
       (= `sessions.created_at`); el vencimiento es **8 horas fijas desde la emisión y no se renueva
       por actividad** (FR-018); un token con firma inválida se rechaza
-- [ ] T041 [P] [US2] Pruebas unitarias **obligatorias** de la regla RN-06 en
+- [X] T041 [P] [US2] Pruebas unitarias **obligatorias** de la regla RN-06 en
       `backend/internal/auth/service/auth_service_test.go`: la comparación bcrypt de contraseña y el
       **mensaje genérico idéntico** (`Correo electrónico o contraseña incorrectos.`) tanto para
       correo inexistente como para contraseña incorrecta (FR-014, SC-004)
-- [ ] T042 [US2] Pruebas de integración de la historia en
+- [X] T042 [US2] Pruebas de integración de la historia en
       `backend/internal/auth/delivery/handler_test.go`, una función por escenario precedida por
       `// Escenario: <nombre del escenario> (001/US2)`: `TestUS2_InicioExitoso` (`200` con `token` y
       `expiresAt` a 8 horas), `TestUS2_CorreoConEspaciosYMayusculas`,
@@ -313,42 +313,76 @@ casos.
       las dos últimas respuestas sean idénticas (SC-004). Se asserta la fila `login_succeeded` con
       `user_id` y, en los fallos, `login_failed` con `attempted_email` normalizado y `user_id`
       **nulo cuando el correo no existe** (FR-029, SC-009) — depende de T024 y T027
-- [ ] T043 [P] [US2] Pruebas de frontend en
+- [X] T043 [P] [US2] Pruebas de frontend en
       `frontend/src/features/auth/components/login-form.test.tsx` con
       `describe("001/US2 - Inicio de sesión")` y un `it` por escenario — depende de T012
+- [X] T086 [P] [US2] Pruebas de las ramas que T044, T045 y T049 implementaron sin prueba:
+      unitarias **obligatorias** en `backend/internal/auth/service/token_test.go`, donde
+      `ParseToken` rechaza con `ErrInvalidSession` un token con `iat` futuro, un token sin `iat` y
+      un token cuyo `jti` o `sub` no es un UUID (FR-015); en
+      `backend/internal/auth/service/auth_service_test.go`, donde `ComparePassword` ante un hash
+      guardado con formato inválido devuelve un error que **no** es `domain.ErrInvalidCredentials`
+      (Principio VII); y en `backend/internal/auth/delivery/validation_test.go`, donde
+      `validateLogin` exige correo y contraseña presentes (Principio II, validaciones). De
+      integración en `backend/internal/auth/delivery/handler_test.go` para `POST /api/v1/auth/login`:
+      `400` con `ErrorResponse` ante un cuerpo que no es JSON válido, `400` con los campos
+      faltantes ante correo vacío o contraseña vacía, y `500` genérico sin filtrar detalles cuando
+      falla la base. El código ya existe, así que estas pruebas pasan desde el primer commit
+- [X] T087 [US2] Prueba unitaria **obligatoria** de la regla RN-06 frente a la medición de tiempos
+      en `backend/internal/auth/service/auth_service_test.go`: `Login` con un correo inexistente
+      tarda lo mismo que con una contraseña incorrecta, de modo que el tiempo de respuesta no
+      permita averiguar qué correos están registrados (FR-014, SC-004). La prueba compara
+      duraciones relativas, no absolutas: el camino del correo inexistente debe tardar al menos la
+      mitad que el de la contraseña incorrecta, con bcrypt al coste por defecto
 
 ### Implementación de la Historia 2
 
-- [ ] T044 [US2] Implementar la emisión y el parseo del token en
+- [X] T044 [US2] Implementar la emisión y el parseo del token en
       `backend/internal/auth/service/token.go` con `golang-jwt/jwt/v5`, `HS256` y los claims `jti`,
       `sub`, `exp` e `iat` (data-model.md sección 2) — depende de T015
-- [ ] T045 [US2] Añadir la comparación de contraseña con bcrypt en
+- [X] T045 [US2] Añadir la comparación de contraseña con bcrypt en
       `backend/internal/auth/service/password.go` (FR-012)
-- [ ] T046 [US2] Implementar `Create(ctx, session, event)` en
+- [X] T046 [US2] Implementar `Create(ctx, session, event)` en
       `backend/internal/auth/repository/session_repository.go`: `INSERT sessions` +
       `INSERT auth_events(login_succeeded)` en **una sola transacción**, con
       `expires_at = created_at` más 8 horas (FR-013, FR-018)
-- [ ] T047 [US2] Implementar `Create(ctx, event)` en
+- [X] T047 [US2] Implementar `Create(ctx, event)` en
       `backend/internal/auth/repository/auth_event_repository.go` para el evento `login_failed`
       (FR-029)
-- [ ] T048 [US2] Implementar `Login` en `backend/internal/auth/service/auth_service.go`: normaliza
+- [X] T085 [US2] Implementar `FindByEmail(ctx, email)` en
+      `backend/internal/auth/repository/user_repository.go`: busca por igualdad exacta sobre la
+      columna `email`, que ya guarda el valor normalizado (data-model.md sección 1), y traduce
+      `gorm.ErrRecordNotFound` a `domain.ErrInvalidCredentials`, nunca `(nil, nil)` (FR-014);
+      cualquier otro error se envuelve y se propaga (Principio VII)
+- [X] T048 [US2] Implementar `Login` en `backend/internal/auth/service/auth_service.go`: normaliza
       el correo igual que el registro (FR-012), busca con `FindByEmail`, compara la contraseña,
       crea la `Session`, emite el JWT y devuelve **el mismo error genérico** en los dos caminos de
-      fallo, registrando `login_failed` — depende de T044, T045, T046 y T047
-- [ ] T049 [US2] Añadir `LoginRequest` (`email`, `password`) y `LoginResponse` (`token`,
+      fallo, registrando `login_failed` — depende de T044, T045, T046, T047 y T085
+- [X] T049 [US2] Añadir `LoginRequest` (`email`, `password`) y `LoginResponse` (`token`,
       `expiresAt`) a `backend/internal/auth/delivery/dto.go`, el manejador `loginUser` con
       anotaciones `swag` en español en `backend/internal/auth/delivery/handler.go` y la ruta
       **pública** `POST /api/v1/auth/login` en `backend/internal/auth/delivery/routes.go`, con
       `200`, `400` y `401` — depende de T048
-- [ ] T050 [US2] Implementar la lectura y escritura del token en `sessionStorage` en
+- [X] T088 [US2] Igualar el tiempo de los dos caminos de fallo de `Login` en
+      `backend/internal/auth/service/auth_service.go`: cuando `FindByEmail` no encuentra la cuenta,
+      comparar igualmente la contraseña recibida con `ComparePassword` contra un hash bcrypt fijo
+      que no pertenece a ninguna cuenta, generado una sola vez con el coste por defecto, y
+      descartar el resultado antes de registrar `login_failed` y devolver
+      `domain.ErrInvalidCredentials` (FR-014, SC-004) — depende de T087
+- [X] T050 [US2] Implementar la lectura y escritura del token en `sessionStorage` en
       `frontend/src/lib/session-storage.ts` (research.md sección 9) — depende de T035
-- [ ] T051 [US2] Implementar el contexto de sesión en
+- [X] T051 [US2] Implementar el contexto de sesión en
       `frontend/src/providers/session-provider.tsx`, montarlo en `frontend/src/app/layout.tsx` y
       exponer el acceso al estado en `frontend/src/hooks/use-session.ts` — depende de T050
-- [ ] T052 [US2] Implementar la llamada de inicio de sesión en
+- [X] T052 [US2] Implementar la llamada de inicio de sesión en
       `frontend/src/features/auth/api.ts`, el `LoginForm` en
       `frontend/src/features/auth/components/login-form.tsx` y la pantalla
       `frontend/src/app/login/page.tsx` — depende de T051
+
+> **Nota sobre la numeración**: T085 a T088 se agregaron después de planificar la historia y se
+> numeraron al final por el mismo motivo que T082: renumerar desalinearía los issues ya publicados.
+> T085 y T086 surgieron al implementarla; T085 se ejecuta antes de T048, que depende de ella. T087 y
+> T088 surgieron en la revisión general de la rama.
 
 **Checkpoint**: US1 y US2 funcionan de forma independiente.
 
@@ -571,7 +605,7 @@ plan y la constitución y lo que ya está implementado en las fases 1 y 2. Todas
 **Rama**: cada tarea se hace en la rama del trabajo al que corrige: T083 en
 `hu/001-us2-inicio-de-sesion` y T084 en `fase/001-foundational`.
 
-- [ ] T083 Fijar `github.com/golang-jwt/jwt/v5 v5.3.1` en `backend/go.mod` con
+- [X] T083 Fijar `github.com/golang-jwt/jwt/v5 v5.3.1` en `backend/go.mod` con
       `go get github.com/golang-jwt/jwt/v5@v5.3.1` y verificar con
       `go list -m github.com/golang-jwt/jwt/v5` que resuelve `v5.3.1`, porque `go mod tidy` lo quitó
       en T023 al no haber todavía ningún import (research.md sección 1, T006). Se hace **antes de

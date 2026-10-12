@@ -12,14 +12,18 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/service"
 )
 
-// Mensajes generales de las respuestas de error del registro, en español y dirigidos a la persona.
-// Los textos del 400 y del 409 los fija contracts/openapi.yaml; el del 500 no expone detalles
-// internos (FR-011).
+// Mensajes de las respuestas de error del registro y del inicio de sesión, en español y dirigidos
+// a la persona. Los textos del 400, del 401 y del 409 los fija contracts/openapi.yaml; el del 500
+// no expone detalles internos (FR-011). El 401 es único para correo inexistente y contraseña
+// incorrecta (FR-014, RN-06).
 const (
-	msgInvalidFields    = "Hay campos inválidos en la solicitud."
-	msgInvalidBody      = "El cuerpo de la solicitud debe ser un JSON válido."
-	msgEmailUnavailable = "El correo electrónico no está disponible."
-	msgInternalError    = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
+	msgInvalidFields         = "Hay campos inválidos en la solicitud."
+	msgInvalidBody           = "El cuerpo de la solicitud debe ser un JSON válido."
+	msgEmailUnavailable      = "El correo electrónico no está disponible."
+	msgInvalidCredentials    = "Correo electrónico o contraseña incorrectos."
+	msgInternalError         = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
+	msgLoginEmailRequired    = "El correo electrónico es obligatorio."
+	msgLoginPasswordRequired = "La contraseña es obligatoria."
 )
 
 // Handler agrupa los manejadores HTTP de la feature de autenticación sobre el servicio.
@@ -81,6 +85,71 @@ func (h *Handler) registerUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, newUserProfile(user))
+}
+
+// loginUser godoc
+//
+//	@Summary		Inicia sesión y emite una sesión vigente
+//	@Description	Valida las credenciales y devuelve una sesión con momento de vencimiento (FR-012, FR-013).
+//	@Description	Al correo se le aplica la misma normalización del registro (FR-004).
+//	@Description	La sesión vence 8 horas después de su emisión y el plazo es fijo: no se renueva ni se
+//	@Description	extiende por actividad (FR-018). Una misma cuenta puede tener varias sesiones vigentes en
+//	@Description	distintos dispositivos sin que unas invaliden a otras (FR-017).
+//	@Tags			Autenticación
+//	@ID				loginUser
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		LoginRequest			true	"Credenciales de la cuenta"
+//	@Success		200		{object}	LoginResponse			"Sesión emitida."
+//	@Failure		400		{object}	ValidationErrorResponse	"Falta el correo o la contraseña en la solicitud. Si el cuerpo no es un JSON válido o está vacío, la respuesta es ErrorResponse."
+//	@Failure		401		{object}	ErrorResponse			"Credenciales inválidas. El mensaje es idéntico tanto si el correo no existe como si la contraseña es incorrecta (FR-014, RN-06, SC-004)."
+//	@Failure		500		{object}	ErrorResponse			"Error interno sin detalles expuestos."
+//	@Router			/api/v1/auth/login [post]
+func (h *Handler) loginUser(c *gin.Context) {
+	// Se decodifica el cuerpo igual que en el registro: un cuerpo vacío o mal formado es 400 con
+	// ErrorResponse.
+	var req LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: msgInvalidBody})
+		return
+	}
+
+	// Se normaliza el correo antes de llegar al servicio (research.md sección 3) y se exige que
+	// estén presentes el correo y la contraseña, única regla de entrada que fija el contrato.
+	email := NormalizeEmail(req.Email)
+	if fields := validateLogin(email, req.Password); len(fields) > 0 {
+		c.JSON(http.StatusBadRequest, ValidationErrorResponse{Error: msgInvalidFields, Fields: fields})
+		return
+	}
+
+	// Se inicia la sesión y se traducen los errores del servicio: las credenciales inválidas son
+	// 401 con el mensaje genérico y cualquier otro error es 500, registrado sin la contraseña.
+	result, err := h.auth.Login(c.Request.Context(), email, req.Password)
+	if errors.Is(err, domain.ErrInvalidCredentials) {
+		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: msgInvalidCredentials})
+		return
+	}
+	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "no se pudo iniciar la sesión", "error", err)
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: msgInternalError})
+		return
+	}
+
+	c.JSON(http.StatusOK, LoginResponse{Token: result.Token, ExpiresAt: result.ExpiresAt})
+}
+
+// validateLogin exige la presencia del correo ya normalizado y de la contraseña, y devuelve un
+// detalle por cada campo faltante, en el orden email, password. No aplica las reglas de formato
+// del registro: una credencial que no las cumpla simplemente no coincide con ninguna cuenta.
+func validateLogin(email, password string) []FieldError {
+	fields := []FieldError{}
+	if email == "" {
+		fields = append(fields, FieldError{Field: "email", Message: msgLoginEmailRequired})
+	}
+	if password == "" {
+		fields = append(fields, FieldError{Field: "password", Message: msgLoginPasswordRequired})
+	}
+	return fields
 }
 
 // validateRegistration aplica las reglas de cada campo del registro y devuelve un detalle por cada

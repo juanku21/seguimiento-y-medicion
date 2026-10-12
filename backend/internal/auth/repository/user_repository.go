@@ -12,9 +12,8 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/domain"
 )
 
-// UserRepository implementa domain.UserRepository sobre las tablas users y auth_events. Create
-// está implementado; FindByEmail y FindByID son firmas mínimas que corresponden a las historias
-// US2 y US4.
+// UserRepository implementa domain.UserRepository sobre las tablas users y auth_events. Create y
+// FindByEmail están implementados; FindByID es una firma mínima que corresponde a la historia US4.
 type UserRepository struct {
 	db *gorm.DB
 }
@@ -45,9 +44,19 @@ func (r *UserRepository) Create(ctx context.Context, user *domain.User, event *d
 	})
 }
 
-// FindByEmail busca la cuenta por correo normalizado. Firma mínima: la implementa US2.
+// FindByEmail busca la cuenta por igualdad exacta sobre la columna email, que ya guarda el correo
+// normalizado (data-model.md sección 1); la normalización del valor buscado es responsabilidad del
+// servicio. Si no existe, devuelve domain.ErrInvalidCredentials y nunca (nil, nil), para no revelar
+// si el correo está registrado (FR-014); cualquier otro error se envuelve y se propaga.
 func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
-	return nil, errors.New("not implemented")
+	var user domain.User
+	if err := r.db.WithContext(ctx).Where("email = ?", email).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domain.ErrInvalidCredentials
+		}
+		return nil, fmt.Errorf("buscar usuario por correo: %w", err)
+	}
+	return &user, nil
 }
 
 // FindByID busca la cuenta por identificador. Firma mínima: la implementa US4.

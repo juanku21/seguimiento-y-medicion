@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -39,16 +40,29 @@ type validationErrorBody struct {
 	} `json:"fields"`
 }
 
-// newTestRouter abre la base de test vacía y compone la cadena real repositorio, servicio,
+// newTestRouter abre la base de test vacía y compone la cadena real repositorios, servicio,
 // manejadores y rutas, igual que cmd/app, sin CORS ni Swagger.
 func newTestRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
-	db, _ := testsupport.OpenDatabase(t)
-	handler := NewHandler(service.NewAuthService(repository.NewUserRepository(db)))
-	router := gin.New()
-	RegisterRoutes(router, handler)
+	router, db, _ := newTestRouterWithSecret(t)
 	return router, db
+}
+
+// newTestRouterWithSecret es newTestRouter que además devuelve el JWT_SECRET de backend/.env.test
+// con el que se compuso el servicio, para que las pruebas verifiquen la firma de los tokens.
+func newTestRouterWithSecret(t *testing.T) (*gin.Engine, *gorm.DB, string) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	db, cfg := testsupport.OpenDatabase(t)
+	auth := service.NewAuthService(
+		repository.NewUserRepository(db),
+		repository.NewSessionRepository(db),
+		repository.NewAuthEventRepository(db),
+		cfg.JWTSecret,
+	)
+	router := gin.New()
+	RegisterRoutes(router, NewHandler(auth))
+	return router, db, cfg.JWTSecret
 }
 
 // validRegistration devuelve el cuerpo del escenario normal de US1; cada prueba modifica o quita
@@ -444,4 +458,492 @@ func fieldMessage(resp validationErrorBody, field string) string {
 		}
 	}
 	return ""
+}
+
+// Pruebas de integración de US2 (T042): cubren POST /api/v1/auth/login de punta a punta, incluida la
+// fila de sessions y los eventos login_succeeded y login_failed de auth_events (FR-029, SC-009).
+
+// loginPath es la ruta pública de inicio de sesión según contracts/openapi.yaml.
+const loginPath = "/api/v1/auth/login"
+
+// invalidCredentialsMessage es el texto exacto del 401 que fija el contrato, idéntico para correo
+// inexistente y contraseña incorrecta (FR-014, RN-06).
+const invalidCredentialsMessage = "Correo electrónico o contraseña incorrectos."
+
+// sessionLifetime es el plazo fijo de una sesión desde su emisión (FR-018).
+const sessionLifetime = 8 * time.Hour
+
+// Datos de la cuenta de los escenarios de US2.
+const (
+	anaFullName = "Ana Pérez"
+	anaEmail    = "ana@example.com"
+	anaPassword = "Proyecto2026"
+)
+
+// loginResponseBody refleja LoginResponse del contrato; se declara en la prueba para no depender de
+// los DTO de producción al leer la respuesta.
+type loginResponseBody struct {
+	Token     string    `json:"token"`
+	ExpiresAt time.Time `json:"expiresAt"`
+}
+
+// seedAccount inserta directamente en users la cuenta de Ana con su contraseña hasheada, para que
+// las pruebas de US2 no dependan del endpoint de registro.
+func seedAccount(t *testing.T, db *gorm.DB) domain.User {
+	t.Helper()
+	hash, err := service.HashPassword(anaPassword)
+	if err != nil {
+		t.Fatalf("no se pudo hashear la contraseña de la cuenta: %v", err)
+	}
+	user := domain.User{ID: uuid.New(), FullName: anaFullName, Email: anaEmail, PasswordHash: hash}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("no se pudo preparar la cuenta: %v", err)
+	}
+	return user
+}
+
+// postLogin envía el correo y la contraseña a la ruta de inicio de sesión y devuelve la respuesta.
+func postLogin(t *testing.T, router *gin.Engine, email, password string) *httptest.ResponseRecorder {
+	t.Helper()
+	payload, err := json.Marshal(map[string]string{"email": email, "password": password})
+	if err != nil {
+		t.Fatalf("no se pudo serializar la solicitud: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, loginPath, bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	return rec
+}
+
+// requireIssuedSession exige un 200 con LoginResponse (solo token y expiresAt, sin la contraseña),
+// un JWT firmado con el secreto de test cuyo sub es la cuenta y cuyo jti es una fila vigente de
+// sessions, y un vencimiento de 8 horas fijas desde la emisión, entre before y after (FR-013,
+// FR-018). Devuelve la respuesta decodificada y la fila de la sesión.
+func requireIssuedSession(t *testing.T, db *gorm.DB, secret string, rec *httptest.ResponseRecorder, userID uuid.UUID, before, after time.Time) (loginResponseBody, domain.Session) {
+	t.Helper()
+	if rec.Code != http.StatusOK {
+		t.Fatalf("estado %d, se esperaba %d; cuerpo: %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), anaPassword) {
+		t.Errorf("la respuesta contiene la contraseña en claro: %s", rec.Body.String())
+	}
+
+	// El cuerpo se lee primero como mapa para detectar campos de más y después como LoginResponse.
+	var raw map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("el cuerpo del 200 no es JSON válido: %v; cuerpo: %s", err, rec.Body.String())
+	}
+	for key := range raw {
+		if key != "token" && key != "expiresAt" {
+			t.Errorf("la respuesta tiene el campo inesperado %q (solo token y expiresAt)", key)
+		}
+	}
+	var resp loginResponseBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("el cuerpo del 200 no respeta LoginResponse: %v; cuerpo: %s", err, rec.Body.String())
+	}
+	if resp.Token == "" {
+		t.Fatalf("la respuesta no trae token")
+	}
+
+	// El vencimiento informado está a 8 horas del momento de la solicitud; se tolera un segundo
+	// por la precisión de la base y del JWT.
+	if resp.ExpiresAt.Before(before.Add(sessionLifetime-time.Second)) || resp.ExpiresAt.After(after.Add(sessionLifetime+time.Second)) {
+		t.Errorf("expiresAt = %s, se esperaba 8 horas después de la emisión (entre %s y %s)",
+			resp.ExpiresAt, before.Add(sessionLifetime), after.Add(sessionLifetime))
+	}
+
+	// El token es válido con el secreto de test y apunta a la cuenta y a una fila de sessions.
+	claims, err := service.ParseToken(secret, resp.Token, time.Now())
+	if err != nil {
+		t.Fatalf("el token emitido no es válido: %v", err)
+	}
+	if claims.UserID != userID {
+		t.Errorf("sub del token = %s, se esperaba %s", claims.UserID, userID)
+	}
+	var session domain.Session
+	if err := db.First(&session, "id = ?", claims.SessionID).Error; err != nil {
+		t.Fatalf("no existe la fila de sessions del jti %s: %v", claims.SessionID, err)
+	}
+
+	// La fila es vigente, pertenece a la cuenta, vence a 8 horas fijas de su emisión y coincide con
+	// el vencimiento de la respuesta y del token.
+	if session.UserID != userID {
+		t.Errorf("la sesión pertenece a %s, se esperaba %s", session.UserID, userID)
+	}
+	if session.RevokedAt != nil {
+		t.Errorf("la sesión recién emitida está cerrada (revoked_at = %s)", session.RevokedAt)
+	}
+	if got := session.ExpiresAt.Sub(session.CreatedAt); got != sessionLifetime {
+		t.Errorf("expires_at - created_at = %s, se esperaba %s", got, sessionLifetime)
+	}
+	if diff := resp.ExpiresAt.Sub(session.ExpiresAt).Abs(); diff >= time.Second {
+		t.Errorf("expiresAt de la respuesta (%s) difiere de expires_at de la sesión (%s)", resp.ExpiresAt, session.ExpiresAt)
+	}
+	if diff := claims.ExpiresAt.Sub(session.ExpiresAt).Abs(); diff >= time.Second {
+		t.Errorf("exp del token (%s) difiere de expires_at de la sesión (%s)", claims.ExpiresAt, session.ExpiresAt)
+	}
+	return resp, session
+}
+
+// requireLoginSucceededEvents exige exactamente want eventos login_succeeded, todos atribuidos a la
+// cuenta, con su momento y sin correo intentado, y ningún login_failed (FR-028, FR-029, SC-009).
+func requireLoginSucceededEvents(t *testing.T, db *gorm.DB, userID uuid.UUID, want int) {
+	t.Helper()
+	var events []domain.AuthEvent
+	if err := db.Where("event_type = ?", domain.EventLoginSucceeded).Find(&events).Error; err != nil {
+		t.Fatalf("no se pudo consultar auth_events: %v", err)
+	}
+	if len(events) != want {
+		t.Fatalf("hay %d eventos login_succeeded, se esperaban %d", len(events), want)
+	}
+	for _, e := range events {
+		if e.UserID == nil || *e.UserID != userID {
+			t.Errorf("login_succeeded tiene user_id %v, se esperaba %s", e.UserID, userID)
+		}
+		if e.AttemptedEmail != nil {
+			t.Errorf("login_succeeded tiene attempted_email %q, se esperaba nulo", *e.AttemptedEmail)
+		}
+		if e.CreatedAt.IsZero() {
+			t.Errorf("login_succeeded no registra el momento del evento")
+		}
+	}
+	if n := countRows(t, db, &domain.AuthEvent{}, "event_type = ?", domain.EventLoginFailed); n != 0 {
+		t.Errorf("hay %d eventos login_failed, se esperaba 0", n)
+	}
+}
+
+// requireInvalidCredentials exige un 401 con el mensaje genérico del contrato, sin token ni la
+// contraseña enviada en el cuerpo (FR-011, FR-014).
+func requireInvalidCredentials(t *testing.T, rec *httptest.ResponseRecorder, password string) {
+	t.Helper()
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("estado %d, se esperaba %d; cuerpo: %s", rec.Code, http.StatusUnauthorized, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), password) {
+		t.Errorf("la respuesta de error repite la contraseña: %s", rec.Body.String())
+	}
+	var resp struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("el cuerpo del 401 no es JSON válido: %v; cuerpo: %s", err, rec.Body.String())
+	}
+	if resp.Error != invalidCredentialsMessage {
+		t.Errorf("error = %q, se esperaba %q", resp.Error, invalidCredentialsMessage)
+	}
+	if strings.Contains(rec.Body.String(), `"token"`) {
+		t.Errorf("el rechazo incluye un token: %s", rec.Body.String())
+	}
+}
+
+// requireLoginFailedEvent exige exactamente un evento login_failed con el correo normalizado
+// intentado y el user_id esperado (nil cuando el correo no existe), y que el intento no haya creado
+// sesiones ni eventos login_succeeded (FR-029, SC-009).
+func requireLoginFailedEvent(t *testing.T, db *gorm.DB, wantUserID *uuid.UUID, wantEmail string) {
+	t.Helper()
+	var events []domain.AuthEvent
+	if err := db.Where("event_type = ?", domain.EventLoginFailed).Find(&events).Error; err != nil {
+		t.Fatalf("no se pudo consultar auth_events: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("hay %d eventos login_failed, se esperaba exactamente 1", len(events))
+	}
+	event := events[0]
+	switch {
+	case wantUserID == nil && event.UserID != nil:
+		t.Errorf("login_failed tiene user_id %s, se esperaba nulo porque el correo no existe", *event.UserID)
+	case wantUserID != nil && (event.UserID == nil || *event.UserID != *wantUserID):
+		t.Errorf("login_failed tiene user_id %v, se esperaba %s", event.UserID, *wantUserID)
+	}
+	if event.AttemptedEmail == nil || *event.AttemptedEmail != wantEmail {
+		t.Errorf("login_failed tiene attempted_email %v, se esperaba %q", event.AttemptedEmail, wantEmail)
+	}
+	if event.CreatedAt.IsZero() {
+		t.Errorf("login_failed no registra el momento del evento")
+	}
+	if n := countRows(t, db, &domain.Session{}, ""); n != 0 {
+		t.Errorf("el intento fallido creó %d sesiones, se esperaba 0", n)
+	}
+	if n := countRows(t, db, &domain.AuthEvent{}, "event_type = ?", domain.EventLoginSucceeded); n != 0 {
+		t.Errorf("el intento fallido dejó %d eventos login_succeeded, se esperaba 0", n)
+	}
+}
+
+// Escenario: Inicio exitoso (001/US2)
+// Dada la cuenta ana@example.com con Proyecto2026, iniciar sesión con esas credenciales responde 200
+// con un token válido y expiresAt a 8 horas, crea una sesión vigente y deja el evento
+// login_succeeded atribuido a la cuenta (FR-012, FR-013, FR-018, FR-029).
+func TestUS2_InicioExitoso(t *testing.T) {
+	router, db, secret := newTestRouterWithSecret(t)
+	user := seedAccount(t, db)
+
+	before := time.Now()
+	rec := postLogin(t, router, anaEmail, anaPassword)
+	after := time.Now()
+
+	requireIssuedSession(t, db, secret, rec, user.ID, before, after)
+	if n := countRows(t, db, &domain.Session{}, ""); n != 1 {
+		t.Errorf("hay %d sesiones, se esperaba 1", n)
+	}
+	requireLoginSucceededEvents(t, db, user.ID, 1)
+}
+
+// Escenario: Correo con espacios y mayúsculas (001/US2)
+// Iniciar sesión escribiendo "  ANA@Example.com  " es exitoso porque el correo se normaliza igual
+// que en el registro (FR-012, FR-004).
+func TestUS2_CorreoConEspaciosYMayusculas(t *testing.T) {
+	router, db, secret := newTestRouterWithSecret(t)
+	user := seedAccount(t, db)
+
+	before := time.Now()
+	rec := postLogin(t, router, "  ANA@Example.com  ", anaPassword)
+	after := time.Now()
+
+	requireIssuedSession(t, db, secret, rec, user.ID, before, after)
+	requireLoginSucceededEvents(t, db, user.ID, 1)
+}
+
+// Escenario: Sesiones simultáneas (001/US2)
+// Dos inicios de sesión seguidos de la misma cuenta, como desde dos dispositivos, dejan dos
+// sesiones vigentes y distintas: la segunda no cierra ni invalida la primera (FR-017).
+func TestUS2_SesionesSimultaneas(t *testing.T) {
+	router, db, secret := newTestRouterWithSecret(t)
+	user := seedAccount(t, db)
+
+	before := time.Now()
+	first := postLogin(t, router, anaEmail, anaPassword)
+	second := postLogin(t, router, anaEmail, anaPassword)
+	after := time.Now()
+
+	firstResp, firstSession := requireIssuedSession(t, db, secret, first, user.ID, before, after)
+	secondResp, secondSession := requireIssuedSession(t, db, secret, second, user.ID, before, after)
+	if firstSession.ID == secondSession.ID || firstResp.Token == secondResp.Token {
+		t.Fatalf("los dos inicios de sesión comparten sesión (%s) o token", firstSession.ID)
+	}
+
+	// Tras el segundo inicio, la primera sesión sigue vigente en la base y su token sigue válido.
+	var reloaded domain.Session
+	if err := db.First(&reloaded, "id = ?", firstSession.ID).Error; err != nil {
+		t.Fatalf("la primera sesión desapareció: %v", err)
+	}
+	if reloaded.RevokedAt != nil || !reloaded.ExpiresAt.Equal(firstSession.ExpiresAt) {
+		t.Errorf("la segunda sesión alteró la primera: revoked_at = %v, expires_at = %s (antes %s)",
+			reloaded.RevokedAt, reloaded.ExpiresAt, firstSession.ExpiresAt)
+	}
+	if _, err := service.ParseToken(secret, firstResp.Token, time.Now()); err != nil {
+		t.Errorf("el token de la primera sesión dejó de ser válido: %v", err)
+	}
+	if n := countRows(t, db, &domain.Session{}, "user_id = ? AND revoked_at IS NULL", user.ID); n != 2 {
+		t.Errorf("hay %d sesiones vigentes de la cuenta, se esperaban 2", n)
+	}
+	requireLoginSucceededEvents(t, db, user.ID, 2)
+}
+
+// Escenario: Correo inexistente (001/US2)
+// Sin cuenta para nadie@example.com, el intento con cualquier contraseña responde 401 con el
+// mensaje genérico y deja login_failed con el correo normalizado y user_id nulo, sin inventar una
+// cuenta (FR-014, FR-029, SC-009). La variante con espacios y mayúsculas verifica la normalización
+// del correo registrado en el evento.
+func TestUS2_CorreoInexistente(t *testing.T) {
+	cases := []struct {
+		name  string
+		email string
+	}{
+		{"correo tal cual", "nadie@example.com"},
+		{"correo con espacios y mayúsculas", "  Nadie@Example.COM  "},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			router, db := newTestRouter(t)
+			seedAccount(t, db)
+
+			rec := postLogin(t, router, tc.email, "CualquierCosa1")
+
+			requireInvalidCredentials(t, rec, "CualquierCosa1")
+			requireLoginFailedEvent(t, db, nil, "nadie@example.com")
+			if n := countRows(t, db, &domain.User{}, ""); n != 1 {
+				t.Errorf("hay %d cuentas, se esperaba solo la existente", n)
+			}
+		})
+	}
+}
+
+// Escenario: Contraseña incorrecta (001/US2)
+// Con la cuenta ana@example.com, una contraseña incorrecta responde 401 con el mismo mensaje del
+// correo inexistente y deja login_failed atribuido a la cuenta. Las respuestas de ambos fallos se
+// comparan byte a byte (estado, Content-Type y cuerpo) para que no revelen qué correos existen
+// (FR-014, RN-06, SC-004).
+func TestUS2_ContrasenaIncorrecta(t *testing.T) {
+	router, db := newTestRouter(t)
+	user := seedAccount(t, db)
+
+	wrongPassword := postLogin(t, router, anaEmail, "Incorrecta123")
+
+	requireInvalidCredentials(t, wrongPassword, "Incorrecta123")
+	requireLoginFailedEvent(t, db, &user.ID, anaEmail)
+
+	// Se compara con la respuesta al correo inexistente, obtenida con la misma contraseña.
+	unknownEmail := postLogin(t, router, "nadie@example.com", "Incorrecta123")
+	if wrongPassword.Code != unknownEmail.Code {
+		t.Errorf("estados distintos: contraseña incorrecta %d, correo inexistente %d", wrongPassword.Code, unknownEmail.Code)
+	}
+	if a, b := wrongPassword.Header().Get("Content-Type"), unknownEmail.Header().Get("Content-Type"); a != b {
+		t.Errorf("Content-Type distinto: contraseña incorrecta %q, correo inexistente %q", a, b)
+	}
+	if !bytes.Equal(wrongPassword.Body.Bytes(), unknownEmail.Body.Bytes()) {
+		t.Errorf("cuerpos distintos:\ncontraseña incorrecta: %q\ncorreo inexistente:    %q",
+			wrongPassword.Body.Bytes(), unknownEmail.Body.Bytes())
+	}
+}
+
+// Pruebas de integración de las ramas de entrada y de error de POST /api/v1/auth/login (T086). No
+// son escenarios Given/When/Then de US2, así que se nombran por el manejador y no por la historia.
+
+// Mensajes exactos del contrato para el cuerpo ilegible y los campos faltantes, y mensaje genérico
+// del 500, que no expone detalles internos (FR-011).
+const (
+	invalidBodyMessage   = "El cuerpo de la solicitud debe ser un JSON válido."
+	invalidFieldsMessage = "Hay campos inválidos en la solicitud."
+	internalErrorMessage = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
+)
+
+// postLoginRaw envía a la ruta de inicio de sesión el cuerpo tal cual, sin serializarlo.
+func postLoginRaw(t *testing.T, router *gin.Engine, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, loginPath, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	return rec
+}
+
+// requireErrorResponse exige el estado indicado con un ErrorResponse cuyo único campo es error con
+// el mensaje esperado, sin token ni detalle de campos.
+func requireErrorResponse(t *testing.T, rec *httptest.ResponseRecorder, wantStatus int, wantMessage string) {
+	t.Helper()
+	if rec.Code != wantStatus {
+		t.Fatalf("estado %d, se esperaba %d; cuerpo: %s", rec.Code, wantStatus, rec.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("el cuerpo no es JSON válido: %v; cuerpo: %s", err, rec.Body.String())
+	}
+	if len(resp) != 1 || resp["error"] != wantMessage {
+		t.Errorf("cuerpo %s, se esperaba solo {\"error\": %q}", rec.Body.String(), wantMessage)
+	}
+}
+
+// requireNoLoginSideEffects exige que el intento no haya creado sesiones ni registrado eventos.
+func requireNoLoginSideEffects(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if n := countRows(t, db, &domain.Session{}, ""); n != 0 {
+		t.Errorf("se crearon %d sesiones, se esperaba 0", n)
+	}
+	if n := countRows(t, db, &domain.AuthEvent{}, ""); n != 0 {
+		t.Errorf("se registraron %d eventos, se esperaba 0", n)
+	}
+}
+
+// Un cuerpo que no es un JSON válido, o que falta, responde 400 con ErrorResponse y el mensaje del
+// contrato, nunca 500 ni ValidationErrorResponse, y no deja sesiones ni eventos (Principio VII).
+func TestLoginUser_InvalidJSONBody(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"JSON mal formado", `{"email": "ana@example.com", "password": `},
+		{"texto que no es JSON", "email=ana@example.com&password=Proyecto2026"},
+		{"cuerpo vacío", ""},
+		{"campo con tipo incorrecto", `{"email": 42, "password": "Proyecto2026"}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			router, db := newTestRouter(t)
+			seedAccount(t, db)
+
+			rec := postLoginRaw(t, router, tc.body)
+
+			requireErrorResponse(t, rec, http.StatusBadRequest, invalidBodyMessage)
+			requireNoLoginSideEffects(t, db)
+		})
+	}
+}
+
+// Un correo o una contraseña vacíos responden 400 con ValidationErrorResponse que señala
+// exactamente los campos faltantes, sin llegar al servicio: no se registra login_failed ni se crea
+// sesión. El correo de solo espacios cuenta como vacío porque se valida ya normalizado.
+func TestLoginUser_MissingFields(t *testing.T) {
+	cases := []struct {
+		name string
+		body map[string]any
+		want []string
+	}{
+		{"correo vacío", map[string]any{"email": "", "password": anaPassword}, []string{"email"}},
+		{"correo de solo espacios", map[string]any{"email": "   ", "password": anaPassword}, []string{"email"}},
+		{"correo ausente", map[string]any{"password": anaPassword}, []string{"email"}},
+		{"contraseña vacía", map[string]any{"email": anaEmail, "password": ""}, []string{"password"}},
+		{"contraseña ausente", map[string]any{"email": anaEmail}, []string{"password"}},
+		{"correo y contraseña vacíos", map[string]any{"email": "", "password": ""}, []string{"email", "password"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			router, db := newTestRouter(t)
+			seedAccount(t, db)
+			payload, err := json.Marshal(tc.body)
+			if err != nil {
+				t.Fatalf("no se pudo serializar la solicitud: %v", err)
+			}
+
+			rec := postLoginRaw(t, router, string(payload))
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("estado %d, se esperaba %d; cuerpo: %s", rec.Code, http.StatusBadRequest, rec.Body.String())
+			}
+			var resp validationErrorBody
+			if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("el cuerpo del 400 no es JSON válido: %v; cuerpo: %s", err, rec.Body.String())
+			}
+			if resp.Error != invalidFieldsMessage {
+				t.Errorf("error = %q, se esperaba %q", resp.Error, invalidFieldsMessage)
+			}
+			got := make([]string, 0, len(resp.Fields))
+			for _, f := range resp.Fields {
+				got = append(got, f.Field)
+				if f.Message == "" {
+					t.Errorf("el campo %q no trae mensaje", f.Field)
+				}
+			}
+			if strings.Join(got, ",") != strings.Join(tc.want, ",") {
+				t.Errorf("campos señalados %v, se esperaba %v", got, tc.want)
+			}
+			requireNoLoginSideEffects(t, db)
+		})
+	}
+}
+
+// Si la base falla durante el inicio de sesión, la respuesta es 500 con el mensaje genérico y sin
+// filtrar el error interno de la base ni la contraseña (Principio VII, FR-011). El fallo se provoca
+// cerrando el pool de conexiones del router de test antes de la solicitud.
+func TestLoginUser_DatabaseFailureReturnsGenericError(t *testing.T) {
+	router, db := newTestRouter(t)
+	seedAccount(t, db)
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("no se pudo obtener el pool de conexiones: %v", err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatalf("no se pudo cerrar el pool de conexiones: %v", err)
+	}
+
+	rec := postLogin(t, router, anaEmail, anaPassword)
+
+	requireErrorResponse(t, rec, http.StatusInternalServerError, internalErrorMessage)
+	body := strings.ToLower(rec.Body.String())
+	for _, leak := range []string{"sql", "closed", "database", "buscar cuenta", anaEmail, strings.ToLower(anaPassword)} {
+		if strings.Contains(body, leak) {
+			t.Errorf("el 500 filtra %q: %s", leak, rec.Body.String())
+		}
+	}
 }

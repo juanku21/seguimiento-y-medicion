@@ -429,7 +429,7 @@ siendo públicos.
 - [X] T057 [US3] Implementar las reglas de vigencia de la sesión en
       `backend/internal/auth/domain/session.go` como predicado derivado de los datos, sin columna de
       estado (RN-07) — depende de T019
-- [ ] T058 [US3] Implementar `FindByID(ctx, id)` en
+- [X] T058 [US3] Implementar `FindByID(ctx, id)` en
       `backend/internal/auth/repository/session_repository.go` para la verificación del `jti` en
       cada petición protegida (FR-026) — depende de T046
 - [ ] T059 [US3] Implementar `ValidateSession` en

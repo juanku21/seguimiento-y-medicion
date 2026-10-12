@@ -26,3 +26,12 @@ type Session struct {
 	CreatedAt time.Time  `gorm:"type:timestamptz;not null"`
 	UpdatedAt time.Time  `gorm:"type:timestamptz;not null"`
 }
+
+// IsActive indica si la sesión está vigente en el instante now: lo está únicamente si no fue
+// revocada (RevokedAt nulo) y su vencimiento todavía no llegó (ExpiresAt posterior a now), de forma
+// estricta (RN-07, data-model.md sección 2). VENCIDA y CERRADA son estados terminales: ninguno de
+// los dos vuelve a ser vigente con el paso del tiempo. Firma mínima de T053; la implementación real
+// queda a cargo de T057.
+func (s Session) IsActive(now time.Time) bool {
+	return false
+}

@@ -404,7 +404,7 @@ siendo públicos.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T053 [P] [US3] Pruebas unitarias **obligatorias** de la regla RN-07 en
+- [X] T053 [P] [US3] Pruebas unitarias **obligatorias** de la regla RN-07 en
       `backend/internal/auth/domain/session_test.go`: una sesión es vigente **solo si**
       `revoked_at IS NULL AND expires_at > now()`; `CERRADA` y `VENCIDA` son estados **terminales**
       y una sesión no vuelve a ser vigente (data-model.md sección 2)

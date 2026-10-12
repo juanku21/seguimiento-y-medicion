@@ -60,20 +60,17 @@ function toApiError(status: number, body: unknown): ApiError {
   return { status, message: body.error, fields };
 }
 
-// Envía body como JSON con POST a la ruta indicada de la API usando fetch nativo. Los fallos de red,
-// las respuestas no exitosas y los cuerpos que no cumplen isData se devuelven como error.
-export async function postJson<T>(
+// Envía la petición a la ruta indicada de la API usando fetch nativo y traduce la respuesta a
+// ApiResult. Los fallos de red, las respuestas no exitosas y los cuerpos que no cumplen isData se
+// devuelven como error.
+async function request<T>(
   path: string,
-  body: unknown,
+  init: RequestInit,
   isData: (value: unknown) => value is T,
 ): Promise<ApiResult<T>> {
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    response = await fetch(`${API_BASE_URL}${path}`, init);
   } catch {
     return { ok: false, error: genericError(0, NETWORK_ERROR_MESSAGE) };
   }
@@ -91,6 +88,24 @@ export async function postJson<T>(
   return { ok: true, data };
 }
 
+// Envía body como JSON con POST a la ruta indicada de la API. No toca la sesión ante un 401,
+// porque en el inicio de sesión ese código significa credenciales inválidas.
+export function postJson<T>(
+  path: string,
+  body: unknown,
+  isData: (value: unknown) => value is T,
+): Promise<ApiResult<T>> {
+  return request(
+    path,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+    isData,
+  );
+}
+
 // Envía un GET autenticado a la ruta indicada de la API con el token de la pestaña en la cabecera
 // Authorization (research.md, sección 9). Ante un 401 borra la sesión y deja la marca del rechazo,
 // para que la guardia lleve a /login con el aviso de volver a iniciar sesión (FR-016).
@@ -99,28 +114,16 @@ export async function getJson<T>(
   isData: (value: unknown) => value is T,
 ): Promise<ApiResult<T>> {
   const token = readToken();
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+  const result = await request(
+    path,
+    {
       method: "GET",
       headers: token === null ? {} : { Authorization: `Bearer ${token}` },
-    });
-  } catch {
-    return { ok: false, error: genericError(0, NETWORK_ERROR_MESSAGE) };
-  }
-
-  const data = await readJson(response);
-  if (response.status === 401) {
+    },
+    isData,
+  );
+  if (!result.ok && result.error.status === 401) {
     rejectSession();
   }
-  if (!response.ok) {
-    return { ok: false, error: toApiError(response.status, data) };
-  }
-  if (!isData(data)) {
-    return {
-      ok: false,
-      error: genericError(response.status, UNEXPECTED_ERROR_MESSAGE),
-    };
-  }
-  return { ok: true, data };
+  return result;
 }

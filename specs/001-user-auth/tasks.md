@@ -442,7 +442,7 @@ siendo públicos.
       atribución (FR-021), y aplicarlo al grupo de rutas protegidas en
       `backend/internal/auth/delivery/routes.go`, manteniendo públicas solo registro e inicio de
       sesión (FR-019) — depende de T059
-- [ ] T061 [US3] Implementar la guardia de ruta del lado del cliente en
+- [X] T061 [US3] Implementar la guardia de ruta del lado del cliente en
       `frontend/src/hooks/use-session.ts` y el manejo del `401` en
       `frontend/src/lib/api-client.ts`, que limpia el token y redirige a `/login` con un aviso
       explícito de volver a iniciar sesión (FR-016, research.md sección 9) — depende de T051

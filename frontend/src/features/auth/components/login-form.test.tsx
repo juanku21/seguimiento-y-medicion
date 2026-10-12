@@ -20,8 +20,13 @@ const router = vi.hoisted(() => ({
   prefetch: vi.fn<(href: string) => void>(),
 }));
 
+// Cadena de consulta de la URL actual de /login. Cada escenario la fija antes
+// de montar el formulario; por defecto está vacía, como al entrar sin motivo.
+const currentSearch = vi.hoisted(() => ({ value: "" }));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => router,
+  useSearchParams: () => new URLSearchParams(currentSearch.value),
 }));
 
 // Datos de la cuenta de los escenarios y respuestas del contrato
@@ -171,5 +176,55 @@ describe("001/US2 - Inicio de sesión", () => {
     expect(await screen.findByText(genericError)).toBeDefined();
     expect(storedValues()).toHaveLength(0);
     expect(navigations()).toHaveLength(0);
+  });
+});
+
+// Aviso explícito que muestra la pantalla de inicio de sesión cuando llega
+// desde una acción rechazada por sesión inválida (FR-016).
+const sessionNotice =
+  "Tu sesión no es válida o venció. Volvé a iniciar sesión para continuar.";
+
+// Monta la pantalla de inicio de sesión dentro del proveedor de sesión, con la
+// cadena de consulta indicada en la URL.
+function renderLoginAt(search: string) {
+  currentSearch.value = search;
+  render(
+    <SessionProvider>
+      <LoginForm />
+    </SessionProvider>,
+  );
+}
+
+describe("001/US3 - Protección de las funciones del sistema", () => {
+  // Cada escenario parte de una pestaña sin sesión y con la URL sin consulta.
+  beforeEach(() => {
+    sessionStorage.clear();
+    vi.clearAllMocks();
+    currentSearch.value = "";
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    currentSearch.value = "";
+  });
+
+  // La guardia llevó a /login?motivo=sesion porque la API rechazó la sesión:
+  // la pantalla informa de forma explícita que hay que volver a iniciar sesión.
+  it("Caso límite — la sesión vence entre una acción y la siguiente: el inicio de sesión muestra el aviso", () => {
+    renderLoginAt("motivo=sesion");
+
+    expect(screen.getByText(sessionNotice)).toBeDefined();
+  });
+
+  // El visitante que entra a /login sin motivo usa el inicio de sesión con
+  // normalidad, sin un aviso de sesión vencida que no le corresponde.
+  it("Caso alternativo — visitante sin sesión accede al inicio de sesión: no muestra el aviso", () => {
+    renderLoginAt("");
+
+    expect(screen.queryByText(sessionNotice)).toBeNull();
+    expect(
+      screen.getByRole("button", { name: /iniciar sesión/i }),
+    ).toBeDefined();
   });
 });

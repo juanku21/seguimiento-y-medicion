@@ -66,6 +66,18 @@ function navigatedPaths(): string[] {
   );
 }
 
+// Rutas completas a las que la guardia pidió navegar, con la cadena de
+// consulta incluida, para observar si viaja el aviso de volver a iniciar sesión.
+function navigatedHrefs(): string[] {
+  return [...router.push.mock.calls, ...router.replace.mock.calls].map(
+    ([href]) => href,
+  );
+}
+
+// Destino de la guardia cuando la API rechaza la sesión con 401: el inicio de
+// sesión con el motivo que activa el aviso explícito (FR-016).
+const sessionRejectedLogin = "/login?motivo=sesion";
+
 // Pantalla protegida de prueba: solo muestra su contenido si la guardia
 // devuelve una sesión.
 function ProtectedScreen() {
@@ -128,5 +140,36 @@ describe("001/US3 - Protección de las funciones del sistema", () => {
     });
     await waitFor(() => expect(navigatedPaths()).toContain("/login"));
     expect(storedValues()).not.toContain(issuedToken);
+  });
+
+  // Cuando la API rechaza con 401 una sesión que la pestaña creía vigente, la
+  // guardia lleva al inicio de sesión con el motivo en la URL, para que esa
+  // pantalla avise explícitamente que hay que volver a iniciar sesión (FR-016).
+  it("Caso límite — la sesión vence entre una acción y la siguiente: redirige con el aviso de volver a iniciar sesión", async () => {
+    writeToken(issuedToken);
+    stubFetch(401, { error: invalidSessionMessage });
+
+    renderProtectedScreen();
+    await act(async () => {
+      await getJson(protectedPath, isAnyRecord);
+    });
+
+    await waitFor(() =>
+      expect(navigatedHrefs()).toContain(sessionRejectedLogin),
+    );
+  });
+
+  // Quien nunca inició sesión no recibió ningún rechazo de la API: la guardia
+  // lo lleva a /login sin el motivo, de modo que no ve el aviso de sesión
+  // vencida.
+  it("Caso de error — acceso a una función protegida sin sesión: redirige sin el aviso de volver a iniciar sesión", async () => {
+    stubFetch(200, {});
+
+    renderProtectedScreen();
+
+    await waitFor(() => expect(navigatedHrefs()).toContain("/login"));
+    expect(navigatedHrefs().every((href) => !href.includes("motivo"))).toBe(
+      true,
+    );
   });
 });

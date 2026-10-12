@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "@/config/env";
+import { readToken, rejectSession } from "@/lib/session-storage";
 import type { FieldError } from "@/types/auth";
 
 // Error de una llamada a la API ya traducido a un mensaje en español. fields trae el detalle por
@@ -90,11 +91,36 @@ export async function postJson<T>(
   return { ok: true, data };
 }
 
-// Envía un GET autenticado a la ruta indicada de la API. Ante un 401 limpia la sesión para que la
-// guardia lleve a /login (FR-016). Firma mínima de T056; la implementa T061.
+// Envía un GET autenticado a la ruta indicada de la API con el token de la pestaña en la cabecera
+// Authorization (research.md, sección 9). Ante un 401 borra la sesión y deja la marca del rechazo,
+// para que la guardia lleve a /login con el aviso de volver a iniciar sesión (FR-016).
 export async function getJson<T>(
   path: string,
   isData: (value: unknown) => value is T,
 ): Promise<ApiResult<T>> {
-  throw new Error("not implemented");
+  const token = readToken();
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method: "GET",
+      headers: token === null ? {} : { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    return { ok: false, error: genericError(0, NETWORK_ERROR_MESSAGE) };
+  }
+
+  const data = await readJson(response);
+  if (response.status === 401) {
+    rejectSession();
+  }
+  if (!response.ok) {
+    return { ok: false, error: toApiError(response.status, data) };
+  }
+  if (!isData(data)) {
+    return {
+      ok: false,
+      error: genericError(response.status, UNEXPECTED_ERROR_MESSAGE),
+    };
+  }
+  return { ok: true, data };
 }

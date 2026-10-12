@@ -1,4 +1,4 @@
-import { isRecord, postJson, type ApiResult } from "@/lib/api-client";
+import { getJson, isRecord, postJson, type ApiResult } from "@/lib/api-client";
 import type {
   LoginRequest,
   LoginResponse,
@@ -6,7 +6,8 @@ import type {
   UserProfile,
 } from "@/types/auth";
 
-// Reconoce el perfil que devuelve el registro exitoso (201), sin confiar en el cuerpo recibido.
+// Reconoce el perfil que devuelven el registro exitoso (201) y la consulta del propio perfil (200),
+// sin confiar en el cuerpo recibido.
 function isUserProfile(value: unknown): value is UserProfile {
   return (
     isRecord(value) &&
@@ -40,4 +41,11 @@ export function loginUser(
   request: LoginRequest,
 ): Promise<ApiResult<LoginResponse>> {
   return postJson("/api/v1/auth/login", request, isLoginResponse);
+}
+
+// Consulta el perfil del titular de la sesión con GET /api/v1/users/me. No envía ningún
+// identificador de cuenta: el backend lo resuelve desde el token (FR-022, FR-023). Ante un 401 el
+// cliente HTTP descarta la sesión de la pestaña (FR-016).
+export function getOwnProfile(): Promise<ApiResult<UserProfile>> {
+  return getJson("/api/v1/users/me", isUserProfile);
 }

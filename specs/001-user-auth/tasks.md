@@ -489,7 +489,7 @@ respuesta no contiene la contraseña ni nada derivado de ella.
       como ruta **protegida** `GET /api/v1/users/me` en
       `backend/internal/auth/delivery/routes.go`, devolviendo `200` con `UserProfile` y `401` con la
       respuesta `SesionInvalida` — depende de T065
-- [ ] T067 [US4] Implementar la llamada de perfil en `frontend/src/features/auth/api.ts`, el
+- [X] T067 [US4] Implementar la llamada de perfil en `frontend/src/features/auth/api.ts`, el
       `ProfileCard` en `frontend/src/features/auth/components/profile-card.tsx` y la pantalla
       protegida `frontend/src/app/profile/page.tsx` con la guardia de T061 — depende de T061
 

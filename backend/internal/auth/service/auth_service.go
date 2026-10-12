@@ -134,3 +134,28 @@ func (s *AuthService) recordLoginFailed(ctx context.Context, userID *uuid.UUID, 
 	}
 	return domain.ErrInvalidCredentials
 }
+
+// ValidateSession verifica el token de una petición protegida y devuelve sus claims si la sesión
+// está vigente (FR-015, RN-07). Primero valida la firma y el exp con ParseToken, sin tocar la base;
+// después lee la fila por el jti y exige que siga vigente según Session.IsActive. Firma inválida,
+// fila inexistente, cerrada o vencida devuelven el mismo domain.ErrInvalidSession; solo un fallo
+// del repositorio se propaga envuelto, para que no se confunda con la falta de sesión.
+func (s *AuthService) ValidateSession(ctx context.Context, token string) (TokenClaims, error) {
+	now := time.Now()
+	claims, err := ParseToken(s.jwtSecret, token, now)
+	if err != nil {
+		return TokenClaims{}, domain.ErrInvalidSession
+	}
+
+	session, err := s.sessions.FindByID(ctx, claims.SessionID)
+	if errors.Is(err, domain.ErrInvalidSession) {
+		return TokenClaims{}, domain.ErrInvalidSession
+	}
+	if err != nil {
+		return TokenClaims{}, fmt.Errorf("buscar sesión: %w", err)
+	}
+	if !session.IsActive(now) {
+		return TokenClaims{}, domain.ErrInvalidSession
+	}
+	return claims, nil
+}

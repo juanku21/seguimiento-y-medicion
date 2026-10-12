@@ -404,15 +404,15 @@ siendo públicos.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T053 [P] [US3] Pruebas unitarias **obligatorias** de la regla RN-07 en
+- [X] T053 [P] [US3] Pruebas unitarias **obligatorias** de la regla RN-07 en
       `backend/internal/auth/domain/session_test.go`: una sesión es vigente **solo si**
       `revoked_at IS NULL AND expires_at > now()`; `CERRADA` y `VENCIDA` son estados **terminales**
       y una sesión no vuelve a ser vigente (data-model.md sección 2)
-- [ ] T054 [P] [US3] Pruebas unitarias **obligatorias** de RN-08 y RN-09 en
+- [X] T054 [P] [US3] Pruebas unitarias **obligatorias** de RN-08 y RN-09 en
       `backend/internal/auth/delivery/routes_test.go`: registro e inicio de sesión son las **únicas**
       rutas públicas y todas las demás exigen sesión (FR-019); la acción se atribuye al titular
       identificado por el claim `sub` (FR-021, RN-09)
-- [ ] T055 [US3] Pruebas de integración de la historia en
+- [X] T055 [US3] Pruebas de integración de la historia en
       `backend/internal/auth/delivery/middleware_test.go`, montando el middleware con `httptest`
       sobre un manejador protegido de prueba, una función por escenario precedida por
       `// Escenario: <nombre del escenario> (001/US3)`: `TestUS3_AccesoConSesionVigente`,
@@ -420,29 +420,29 @@ siendo públicos.
       las respuestas de sesión ausente, vencida y adulterada sean **idénticas** (`401` con
       `Se requiere iniciar sesión.`) y que la acción protegida **no se ejecute ni parcialmente**
       (FR-015, FR-016, FR-020) — depende de T024
-- [ ] T056 [P] [US3] Pruebas de frontend en `frontend/src/hooks/use-session.test.tsx` con
+- [X] T056 [P] [US3] Pruebas de frontend en `frontend/src/hooks/use-session.test.tsx` con
       `describe("001/US3 - Protección de las funciones del sistema")`: sin token la guardia redirige
       a `/login`, y un `401` de la API también — depende de T012
 
 ### Implementación de la Historia 3
 
-- [ ] T057 [US3] Implementar las reglas de vigencia de la sesión en
+- [X] T057 [US3] Implementar las reglas de vigencia de la sesión en
       `backend/internal/auth/domain/session.go` como predicado derivado de los datos, sin columna de
       estado (RN-07) — depende de T019
-- [ ] T058 [US3] Implementar `FindByID(ctx, id)` en
+- [X] T058 [US3] Implementar `FindByID(ctx, id)` en
       `backend/internal/auth/repository/session_repository.go` para la verificación del `jti` en
       cada petición protegida (FR-026) — depende de T046
-- [ ] T059 [US3] Implementar `ValidateSession` en
+- [X] T059 [US3] Implementar `ValidateSession` en
       `backend/internal/auth/service/auth_service.go`: valida la firma y el `exp` del token antes de
       tocar la base, y después exige que la fila exista con `revoked_at` nulo y `expires_at` futuro.
       Fila inexistente, cerrada, vencida y firma inválida se tratan de forma **idéntica** (FR-015,
       RN-07) — depende de T057 y T058
-- [ ] T060 [US3] Implementar el middleware de exigencia de sesión en
+- [X] T060 [US3] Implementar el middleware de exigencia de sesión en
       `backend/internal/auth/delivery/middleware.go`, dejando en el contexto el titular para la
       atribución (FR-021), y aplicarlo al grupo de rutas protegidas en
       `backend/internal/auth/delivery/routes.go`, manteniendo públicas solo registro e inicio de
       sesión (FR-019) — depende de T059
-- [ ] T061 [US3] Implementar la guardia de ruta del lado del cliente en
+- [X] T061 [US3] Implementar la guardia de ruta del lado del cliente en
       `frontend/src/hooks/use-session.ts` y el manejo del `401` en
       `frontend/src/lib/api-client.ts`, que limpia el token y redirige a `/login` con un aviso
       explícito de volver a iniciar sesión (FR-016, research.md sección 9) — depende de T051

@@ -13,8 +13,8 @@ import (
 )
 
 // SessionRepository implementa domain.SessionRepository sobre las tablas sessions y auth_events.
-// Create está implementado; FindByID y Revoke son firmas mínimas que corresponden a las historias
-// US3 y US5.
+// Create y FindByID están implementados; Revoke es una firma mínima que corresponde a la historia
+// US5.
 type SessionRepository struct {
 	db *gorm.DB
 }
@@ -40,9 +40,19 @@ func (r *SessionRepository) Create(ctx context.Context, session *domain.Session,
 	})
 }
 
-// FindByID busca la sesión por su jti. Firma mínima: la implementa US3.
+// FindByID busca la sesión por su jti para verificarla en cada petición protegida (FR-026). Solo
+// resuelve la existencia de la fila: la vigencia (revoked_at y expires_at) la decide el servicio.
+// Si no existe, devuelve domain.ErrInvalidSession y nunca (nil, nil) (FR-015); cualquier otro error
+// se envuelve y se propaga.
 func (r *SessionRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain.Session, error) {
-	return nil, errors.New("not implemented")
+	var session domain.Session
+	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&session).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domain.ErrInvalidSession
+		}
+		return nil, fmt.Errorf("buscar sesión por id: %w", err)
+	}
+	return &session, nil
 }
 
 // Revoke cierra la sesión y registra su evento logout. Firma mínima: la implementa US5.

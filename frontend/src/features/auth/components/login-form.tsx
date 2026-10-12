@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
@@ -12,11 +12,17 @@ import { normalizeEmail } from "@/utils/normalize-email";
 // Ruta del área protegida a la que se llega después de iniciar sesión.
 const PROTECTED_HOME = "/profile";
 
+// Aviso explícito para quien llega desde una acción rechazada por sesión inválida (FR-016). La
+// guardia de sesión lo pide con el parámetro motivo=sesion en la URL.
+const SESSION_NOTICE =
+  "Tu sesión no es válida o venció. Volvé a iniciar sesión para continuar.";
+
 // Formulario de inicio de sesión (US2). Envía el correo normalizado; si el backend emite la sesión
 // guarda el token y lleva al área protegida, y si la rechaza muestra el mensaje que devuelve, que
 // es el mismo para correo inexistente y contraseña incorrecta (FR-014).
 export function LoginForm() {
   const router = useRouter();
+  const showSessionNotice = useSearchParams().get("motivo") === "sesion";
   const { startSession } = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -49,6 +55,7 @@ export function LoginForm() {
 
   return (
     <form noValidate onSubmit={handleSubmit} className="flex flex-col gap-5">
+      {showSessionNotice && <Alert>{SESSION_NOTICE}</Alert>}
       {error && <Alert>{error}</Alert>}
       <Input
         label="Correo electrónico"

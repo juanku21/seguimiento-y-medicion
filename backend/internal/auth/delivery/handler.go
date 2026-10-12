@@ -138,6 +138,47 @@ func (h *Handler) loginUser(c *gin.Context) {
 	c.JSON(http.StatusOK, LoginResponse{Token: result.Token, ExpiresAt: result.ExpiresAt})
 }
 
+// getOwnProfile godoc
+//
+//	@Summary		Devuelve el perfil del titular de la sesión
+//	@Description	Devuelve el nombre completo y el correo electrónico del titular de la sesión con la que se
+//	@Description	hizo la petición (FR-022). No existe forma de consultar el perfil de otra cuenta: no se
+//	@Description	acepta ningún identificador como parámetro (FR-023). El correo se devuelve tal como quedó
+//	@Description	normalizado, y la respuesta nunca incluye la contraseña ni ninguna representación derivada
+//	@Description	de ella (FR-011).
+//	@Tags			Usuarios
+//	@ID				getOwnProfile
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	UserProfile		"Perfil del titular de la sesión."
+//	@Failure		401	{object}	ErrorResponse	"Se requiere iniciar sesión. Misma respuesta para sesión ausente, vencida, cerrada por su titular o adulterada (FR-015, FR-016, RN-07)."
+//	@Failure		500	{object}	ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/users/me [get]
+func (h *Handler) getOwnProfile(c *gin.Context) {
+	// La identidad sale solo del sub que dejó el middleware de sesión, nunca de la petición
+	// (FR-023). Si no está, la sesión no se verificó y se responde el 401 del contrato.
+	userID, ok := userIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: msgSessionRequired})
+		return
+	}
+
+	// Se obtiene la cuenta y se traducen los errores del servicio: una cuenta inexistente es sesión
+	// inválida (401) y cualquier otro error es 500 genérico, registrado en el log.
+	user, err := h.auth.GetOwnProfile(c.Request.Context(), userID)
+	if errors.Is(err, domain.ErrInvalidSession) {
+		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: msgSessionRequired})
+		return
+	}
+	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "no se pudo obtener el perfil", "error", err)
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: msgInternalError})
+		return
+	}
+
+	c.JSON(http.StatusOK, newUserProfile(user))
+}
+
 // validateLogin exige la presencia del correo ya normalizado y de la contraseña, y devuelve un
 // detalle por cada campo faltante, en el orden email, password. No aplica las reglas de formato
 // del registro: una credencial que no las cumpla simplemente no coincide con ninguna cuenta.

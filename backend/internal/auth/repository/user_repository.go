@@ -12,8 +12,7 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/domain"
 )
 
-// UserRepository implementa domain.UserRepository sobre las tablas users y auth_events. Create y
-// FindByEmail están implementados; FindByID es una firma mínima que corresponde a la historia US4.
+// UserRepository implementa domain.UserRepository sobre las tablas users y auth_events.
 type UserRepository struct {
 	db *gorm.DB
 }
@@ -59,7 +58,17 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*domain
 	return &user, nil
 }
 
-// FindByID busca la cuenta por identificador. Firma mínima: la implementa US4.
+// FindByID busca la cuenta por su identificador para la consulta del propio perfil (FR-022). Si no
+// existe, devuelve domain.ErrInvalidSession y nunca (nil, nil), porque el id proviene del claim sub
+// de una sesión y una cuenta inexistente equivale a una sesión inválida; cualquier otro error se
+// envuelve y se propaga.
 func (r *UserRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
-	return nil, errors.New("not implemented")
+	var user domain.User
+	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domain.ErrInvalidSession
+		}
+		return nil, fmt.Errorf("buscar usuario por id: %w", err)
+	}
+	return &user, nil
 }

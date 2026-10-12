@@ -465,7 +465,7 @@ respuesta no contiene la contraseña ni nada derivado de ella.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T062 [US4] Pruebas de integración de la historia en
+- [X] T062 [US4] Pruebas de integración de la historia en
       `backend/internal/auth/delivery/handler_test.go`, una función por escenario precedida por
       `// Escenario: <nombre del escenario> (001/US4)`: `TestUS4_PerfilPropio`,
       `TestUS4_CorreoNormalizadoEnPerfil`, `TestUS4_RespuestaSinContrasena` (inspección del **cuerpo
@@ -473,23 +473,23 @@ respuesta no contiene la contraseña ni nada derivado de ella.
       SC-005) y `TestUS4_PerfilSinSesion` (`401`, SC-003). El endpoint **no acepta ningún
       identificador como parámetro**: no hay forma de consultar el perfil de otra cuenta (FR-023) —
       depende de T055
-- [ ] T063 [P] [US4] Pruebas de frontend en
+- [X] T063 [P] [US4] Pruebas de frontend en
       `frontend/src/features/auth/components/profile-card.test.tsx` con
       `describe("001/US4 - Consulta del propio perfil")` y un `it` por escenario — depende de T012
 
 ### Implementación de la Historia 4
 
-- [ ] T064 [US4] Implementar `FindByID(ctx, id)` en
+- [X] T064 [US4] Implementar `FindByID(ctx, id)` en
       `backend/internal/auth/repository/user_repository.go` — depende de T031
-- [ ] T065 [US4] Implementar la obtención del perfil del titular en
+- [X] T065 [US4] Implementar la obtención del perfil del titular en
       `backend/internal/auth/service/auth_service.go`, resolviendo la identidad desde el claim `sub`
       que dejó el middleware (FR-022, FR-023) — depende de T060 y T064
-- [ ] T066 [US4] Implementar el manejador `getOwnProfile` en
+- [X] T066 [US4] Implementar el manejador `getOwnProfile` en
       `backend/internal/auth/delivery/handler.go` con anotaciones `swag` en español y registrarlo
       como ruta **protegida** `GET /api/v1/users/me` en
       `backend/internal/auth/delivery/routes.go`, devolviendo `200` con `UserProfile` y `401` con la
       respuesta `SesionInvalida` — depende de T065
-- [ ] T067 [US4] Implementar la llamada de perfil en `frontend/src/features/auth/api.ts`, el
+- [X] T067 [US4] Implementar la llamada de perfil en `frontend/src/features/auth/api.ts`, el
       `ProfileCard` en `frontend/src/features/auth/components/profile-card.tsx` y la pantalla
       protegida `frontend/src/app/profile/page.tsx` con la guardia de T061 — depende de T061
 

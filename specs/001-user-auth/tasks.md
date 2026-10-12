@@ -484,7 +484,7 @@ respuesta no contiene la contraseña ni nada derivado de ella.
 - [X] T065 [US4] Implementar la obtención del perfil del titular en
       `backend/internal/auth/service/auth_service.go`, resolviendo la identidad desde el claim `sub`
       que dejó el middleware (FR-022, FR-023) — depende de T060 y T064
-- [ ] T066 [US4] Implementar el manejador `getOwnProfile` en
+- [X] T066 [US4] Implementar el manejador `getOwnProfile` en
       `backend/internal/auth/delivery/handler.go` con anotaciones `swag` en español y registrarlo
       como ruta **protegida** `GET /api/v1/users/me` en
       `backend/internal/auth/delivery/routes.go`, devolviendo `200` con `UserProfile` y `401` con la

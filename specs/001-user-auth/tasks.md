@@ -473,7 +473,7 @@ respuesta no contiene la contraseña ni nada derivado de ella.
       SC-005) y `TestUS4_PerfilSinSesion` (`401`, SC-003). El endpoint **no acepta ningún
       identificador como parámetro**: no hay forma de consultar el perfil de otra cuenta (FR-023) —
       depende de T055
-- [ ] T063 [P] [US4] Pruebas de frontend en
+- [X] T063 [P] [US4] Pruebas de frontend en
       `frontend/src/features/auth/components/profile-card.test.tsx` con
       `describe("001/US4 - Consulta del propio perfil")` y un `it` por escenario — depende de T012
 

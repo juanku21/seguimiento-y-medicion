@@ -159,3 +159,12 @@ func (s *AuthService) ValidateSession(ctx context.Context, token string) (TokenC
 	}
 	return claims, nil
 }
+
+// GetOwnProfile devuelve la cuenta del titular de la sesión para la consulta del propio perfil
+// (FR-022). Recibe el identificador del claim sub que el middleware de sesión dejó en el contexto,
+// nunca uno pedido por la persona, así que no hay forma de leer el perfil de otra cuenta (FR-023).
+// Los errores se propagan tal cual: una cuenta inexistente llega como domain.ErrInvalidSession,
+// reconocible con errors.Is, y los fallos del repositorio ya vienen envueltos.
+func (s *AuthService) GetOwnProfile(ctx context.Context, userID uuid.UUID) (*domain.User, error) {
+	return s.users.FindByID(ctx, userID)
+}

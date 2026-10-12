@@ -412,7 +412,7 @@ siendo públicos.
       `backend/internal/auth/delivery/routes_test.go`: registro e inicio de sesión son las **únicas**
       rutas públicas y todas las demás exigen sesión (FR-019); la acción se atribuye al titular
       identificado por el claim `sub` (FR-021, RN-09)
-- [ ] T055 [US3] Pruebas de integración de la historia en
+- [X] T055 [US3] Pruebas de integración de la historia en
       `backend/internal/auth/delivery/middleware_test.go`, montando el middleware con `httptest`
       sobre un manejador protegido de prueba, una función por escenario precedida por
       `// Escenario: <nombre del escenario> (001/US3)`: `TestUS3_AccesoConSesionVigente`,

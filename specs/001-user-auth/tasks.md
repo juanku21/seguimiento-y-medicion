@@ -519,7 +519,7 @@ mismo token responde `401` en una función protegida.
       `TestUS5_CierreNoAfectaOtrasSesiones` (dos dispositivos, FR-017) y `TestUS5_CierreSinSesion`
       (`401`, sin efecto ni información de ninguna cuenta). Se asserta la fila `logout` con
       `user_id` (FR-028, SC-009) — depende de T062
-- [ ] T069 [P] [US5] Pruebas de frontend en
+- [X] T069 [P] [US5] Pruebas de frontend en
       `frontend/src/features/auth/components/logout-button.test.tsx` con
       `describe("001/US5 - Cierre de sesión")` y un `it` por escenario, incluido que la interfaz
       vuelve al estado de visitante — depende de T012

@@ -537,7 +537,7 @@ mismo token responde `401` en una función protegida.
       `backend/internal/auth/delivery/handler.go` con anotaciones `swag` en español y registrarlo
       como ruta **protegida** `POST /api/v1/auth/logout` en
       `backend/internal/auth/delivery/routes.go`, devolviendo `204` y `401` — depende de T071
-- [ ] T073 [US5] Implementar la llamada de cierre en `frontend/src/features/auth/api.ts`, el
+- [X] T073 [US5] Implementar la llamada de cierre en `frontend/src/features/auth/api.ts`, el
       `LogoutButton` en `frontend/src/features/auth/components/logout-button.tsx` montado en
       `frontend/src/app/profile/page.tsx`, y la limpieza del token en
       `frontend/src/lib/session-storage.ts` con el estado de visitante en el proveedor de sesión —

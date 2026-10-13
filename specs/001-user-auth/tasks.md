@@ -526,7 +526,7 @@ mismo token responde `401` en una función protegida.
 
 ### Implementación de la Historia 5
 
-- [ ] T070 [US5] Implementar `Revoke(ctx, id, at, event)` en
+- [X] T070 [US5] Implementar `Revoke(ctx, id, at, event)` en
       `backend/internal/auth/repository/session_repository.go`: `UPDATE sessions.revoked_at` +
       `INSERT auth_events(logout)` en **una sola transacción**, afectando **solo** a esa fila
       (FR-017, FR-026) — depende de T058

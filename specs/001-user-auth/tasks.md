@@ -530,7 +530,7 @@ mismo token responde `401` en una función protegida.
       `backend/internal/auth/repository/session_repository.go`: `UPDATE sessions.revoked_at` +
       `INSERT auth_events(logout)` en **una sola transacción**, afectando **solo** a esa fila
       (FR-017, FR-026) — depende de T058
-- [ ] T071 [US5] Implementar `Logout` en `backend/internal/auth/service/auth_service.go`, revocando
+- [X] T071 [US5] Implementar `Logout` en `backend/internal/auth/service/auth_service.go`, revocando
       la sesión del `jti` con el que se hizo la petición, sin tocar `expires_at` (FR-018, FR-024) —
       depende de T070
 - [ ] T072 [US5] Implementar el manejador `logoutUser` en

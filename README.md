@@ -17,6 +17,7 @@ Software Metrics & Estimation es un sistema diseñado para la estimación, segui
 - [Análisis de Métricas](#análisis-de-métricas)
 - [Panel de Control y Reportes](#panel-de-control-y-reportes)
 - [Cobertura de Pruebas](#cobertura-de-pruebas)
+- [Análisis de Vulnerabilidades](#análisis-de-vulnerabilidades)
 - [Equipo de Trabajo](#equipo-de-trabajo)
 
 ---
@@ -116,6 +117,26 @@ npm run test:coverage
 ```
 
 El resumen se imprime en la terminal y el reporte navegable queda en `frontend/coverage/index.html`.
+
+---
+
+## Análisis de Vulnerabilidades
+
+Las dependencias del backend y la versión de Go se revisan con `govulncheck` (versión 1.8.0), que informa las vulnerabilidades conocidas que alcanzan al código. Desde `backend/`:
+
+```bash
+# Con la herramienta instalada (go install golang.org/x/vuln/cmd/govulncheck@v1.8.0)
+govulncheck ./...
+
+# Sin instalarla, sin modificar go.mod
+go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+```
+
+El último análisis (2026-10-13) no reporta vulnerabilidades que alcancen al código. Queda un único aviso a nivel de módulo, justificado a continuación:
+
+| Aviso | Módulo | Justificación |
+| --- | --- | --- |
+| [GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932) | `golang.org/x/crypto` | El aviso corresponde al paquete `golang.org/x/crypto/openpgp`, que no tiene versión corregida. El proyecto solo usa `golang.org/x/crypto/bcrypt` y ningún paquete importa `openpgp`, por lo que el código vulnerable no se compila en la aplicación. |
 
 ---
 

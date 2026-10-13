@@ -566,7 +566,7 @@ calidad. Todas las tareas son **técnicas**.
 - [X] T077 [P] Documentar y verificar los comandos de cobertura exigidos por el Principio II:
       `go test ./... -coverprofile=coverage.out` más `go tool cover` en el backend, y el script
       `test:coverage` de `frontend/package.json` en el frontend
-- [ ] T078 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
+- [X] T078 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
 - [ ] T079 Actualizar `README.md` de la raíz en español con la sección introductoria del proyecto y
       el paso a paso completo de ejecución, incluido el paso de `swag init` que un clon recién hecho

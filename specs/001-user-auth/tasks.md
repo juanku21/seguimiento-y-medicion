@@ -558,7 +558,7 @@ calidad. Todas las tareas son **técnicas**.
       `backend/docs/` coincida con [contracts/openapi.yaml](./contracts/openapi.yaml) en rutas,
       códigos de respuesta y esquemas (Principio VIII); corregir las anotaciones si difieren —
       depende de T072
-- [ ] T075 [P] Crear `backend/Dockerfile` con una versión estable de la imagen base de Go, que
+- [X] T075 [P] Crear `backend/Dockerfile` con una versión estable de la imagen base de Go, que
       ejecute `swag init` durante la construcción para que `backend/docs/` no haga falta versionado
       (research.md sección 10) — depende de T074
 - [ ] T076 [P] Crear `frontend/Dockerfile` con una versión estable de la imagen base de Node.js

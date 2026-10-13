@@ -1,0 +1,19 @@
+# Archivos excluidos del contexto de construcción de la imagen del backend.
+
+# Variables de entorno: los secretos nunca entran en la imagen (Principio VI).
+.env
+.env.*
+
+# Documentación Swagger: el Dockerfile la regenera con swag init (research.md sección 10).
+docs/
+
+# Servicio PostgreSQL: tiene su propio docker-compose y no forma parte de la API.
+postgres/
+
+# Reportes de cobertura.
+coverage.out
+coverage.html
+
+# Archivos de la propia imagen.
+Dockerfile
+.dockerignore

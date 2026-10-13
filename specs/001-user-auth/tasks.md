@@ -563,7 +563,7 @@ calidad. Todas las tareas son **técnicas**.
       (research.md sección 10) — depende de T074
 - [X] T076 [P] Crear `frontend/Dockerfile` con una versión estable de la imagen base de Node.js
       (Principio V)
-- [ ] T077 [P] Documentar y verificar los comandos de cobertura exigidos por el Principio II:
+- [X] T077 [P] Documentar y verificar los comandos de cobertura exigidos por el Principio II:
       `go test ./... -coverprofile=coverage.out` más `go tool cover` en el backend, y el script
       `test:coverage` de `frontend/package.json` en el frontend
 - [ ] T078 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada

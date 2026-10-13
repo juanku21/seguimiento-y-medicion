@@ -16,6 +16,7 @@ Software Metrics & Estimation es un sistema diseñado para la estimación, segui
   - [Gestión de Defectos](#gestión-de-defectos)
 - [Análisis de Métricas](#análisis-de-métricas)
 - [Panel de Control y Reportes](#panel-de-control-y-reportes)
+- [Cobertura de Pruebas](#cobertura-de-pruebas)
 - [Equipo de Trabajo](#equipo-de-trabajo)
 
 ---
@@ -76,6 +77,45 @@ La aplicación calcula continuamente indicadores para medir la eficiencia y cali
 
 - **Panel de Control (Dashboard):** Muestra de forma visual el estado del proyecto e indicadores clave del progreso.
 - **Reportes Exportables:** Generación de informes detallados por proyecto o por ciclo, con el desglose de tareas, métricas, registro de tiempo y balance de defectos en formato PDF.
+
+---
+
+## Cobertura de Pruebas
+
+El backend y el frontend exponen cada uno un comando para generar el reporte de cobertura de pruebas. Los reportes son artefactos reproducibles y no se versionan (`.gitignore`).
+
+### Backend
+
+Las pruebas de integración corren siempre contra la base de **test** (`smye_test`, puerto 5433), configurada en `backend/.env.test`; nunca contra la base de desarrollo. Antes de medir la cobertura hay que levantar ese contenedor:
+
+```bash
+cd backend/postgres
+docker compose --env-file .env.test -p smye-test up -d
+```
+
+Con la base de test arriba, desde `backend/`:
+
+```bash
+# Ejecuta todas las pruebas y guarda el perfil de cobertura en coverage.out
+go test ./... -coverprofile=coverage.out
+
+# Muestra la cobertura por función y el total en la terminal
+go tool cover -func=coverage.out
+
+# Genera el reporte navegable en coverage.html
+go tool cover -html=coverage.out -o coverage.html
+```
+
+### Frontend
+
+Desde `frontend/`, con las dependencias instaladas (`npm ci`):
+
+```bash
+# Ejecuta Vitest una vez con el proveedor de cobertura v8
+npm run test:coverage
+```
+
+El resumen se imprime en la terminal y el reporte navegable queda en `frontend/coverage/index.html`.
 
 ---
 

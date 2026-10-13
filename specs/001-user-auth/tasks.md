@@ -554,7 +554,7 @@ calidad. Todas las tareas son **técnicas**.
 
 **Rama**: `fase/001-polish`
 
-- [ ] T074 Generar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
+- [X] T074 Generar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
       `backend/docs/` coincida con [contracts/openapi.yaml](./contracts/openapi.yaml) en rutas,
       códigos de respuesta y esquemas (Principio VIII); corregir las anotaciones si difieren —
       depende de T072

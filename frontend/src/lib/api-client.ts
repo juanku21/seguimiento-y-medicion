@@ -106,18 +106,19 @@ export function postJson<T>(
   );
 }
 
-// Envía un GET autenticado a la ruta indicada de la API con el token de la pestaña en la cabecera
-// Authorization (research.md, sección 9). Ante un 401 borra la sesión y deja la marca del rechazo,
-// para que la guardia lleve a /login con el aviso de volver a iniciar sesión (FR-016).
-export async function getJson<T>(
+// Envía una petición autenticada sin cuerpo con el token de la pestaña en la cabecera Authorization
+// (research.md, sección 9). Ante un 401 borra la sesión y deja la marca del rechazo, para que la
+// guardia lleve a /login con el aviso de volver a iniciar sesión (FR-016).
+async function authorizedRequest<T>(
   path: string,
+  method: "GET" | "POST",
   isData: (value: unknown) => value is T,
 ): Promise<ApiResult<T>> {
   const token = readToken();
   const result = await request(
     path,
     {
-      method: "GET",
+      method,
       headers: token === null ? {} : { Authorization: `Bearer ${token}` },
     },
     isData,
@@ -126,4 +127,23 @@ export async function getJson<T>(
     rejectSession();
   }
   return result;
+}
+
+// Envía un GET autenticado a la ruta indicada de la API.
+export function getJson<T>(
+  path: string,
+  isData: (value: unknown) => value is T,
+): Promise<ApiResult<T>> {
+  return authorizedRequest(path, "GET", isData);
+}
+
+// Reconoce una respuesta sin cuerpo, como el 204 del cierre de sesión.
+function isEmpty(value: unknown): value is undefined {
+  return value === undefined;
+}
+
+// Envía un POST autenticado y sin cuerpo a la ruta indicada de la API, para las acciones cuya
+// respuesta exitosa no trae contenido.
+export function postEmpty(path: string): Promise<ApiResult<undefined>> {
+  return authorizedRequest(path, "POST", isEmpty);
 }

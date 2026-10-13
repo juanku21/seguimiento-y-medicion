@@ -138,6 +138,48 @@ func (h *Handler) loginUser(c *gin.Context) {
 	c.JSON(http.StatusOK, LoginResponse{Token: result.Token, ExpiresAt: result.ExpiresAt})
 }
 
+// logoutUser godoc
+//
+//	@Summary		Cierra la sesión en curso
+//	@Description	Invalida de inmediato la sesión con la que se hizo la petición (FR-024, FR-026): deja de
+//	@Description	otorgar acceso aunque alguien la haya copiado antes del cierre y aunque no hayan pasado las
+//	@Description	8 horas. Las demás sesiones vigentes de la misma cuenta no se ven afectadas (FR-017).
+//	@Description	Un visitante sin sesión válida recibe 401 y la operación no produce ningún efecto ni revela
+//	@Description	información de ninguna cuenta.
+//	@Tags			Autenticación
+//	@ID				logoutUser
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		204	"Sesión cerrada. Las funciones protegidas vuelven a exigir inicio de sesión."
+//	@Failure		401	{object}	ErrorResponse	"Se requiere iniciar sesión. Misma respuesta para sesión ausente, vencida, cerrada por su titular o adulterada (FR-015, FR-016, RN-07)."
+//	@Failure		500	{object}	ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/auth/logout [post]
+func (h *Handler) logoutUser(c *gin.Context) {
+	// Los claims salen solo de la sesión que verificó el middleware, nunca de la petición. Si no
+	// están, la sesión no se verificó y se responde el 401 del contrato.
+	claims, ok := claimsFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: msgSessionRequired})
+		return
+	}
+
+	// Se revoca la sesión y se traducen los errores del servicio: una sesión que ya no existe o que
+	// se cerró entre la verificación y el cierre es 401, y cualquier otro error es 500 genérico,
+	// registrado en el log. El cierre exitoso responde 204 sin cuerpo.
+	err := h.auth.Logout(c.Request.Context(), claims)
+	if errors.Is(err, domain.ErrInvalidSession) {
+		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: msgSessionRequired})
+		return
+	}
+	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "no se pudo cerrar la sesión", "error", err)
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: msgInternalError})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
 // getOwnProfile godoc
 //
 //	@Summary		Devuelve el perfil del titular de la sesión

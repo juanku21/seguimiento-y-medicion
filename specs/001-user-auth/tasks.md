@@ -511,7 +511,7 @@ mismo token responde `401` en una función protegida.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T068 [US5] Pruebas de integración de la historia en
+- [X] T068 [US5] Pruebas de integración de la historia en
       `backend/internal/auth/delivery/handler_test.go`, una función por escenario precedida por
       `// Escenario: <nombre del escenario> (001/US5)`: `TestUS5_CierreExitoso` (`204`),
       `TestUS5_NuevoInicioTrasCierre` (crea una **fila nueva** en `sessions`),

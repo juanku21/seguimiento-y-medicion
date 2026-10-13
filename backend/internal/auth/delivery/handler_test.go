@@ -1201,3 +1201,300 @@ func TestUS4_PerfilSinSesion(t *testing.T) {
 		})
 	}
 }
+
+// Pruebas de integración de US5 (T068): cubren POST /api/v1/auth/logout de punta a punta, con la
+// sesión emitida por el inicio de sesión real, verificada por el middleware y revocada en la base
+// smye_test. El cierre invalida de inmediato solo la sesión de la petición, sin tocar su
+// vencimiento, y deja el evento logout atribuido a la cuenta (FR-017, FR-024 a FR-026, FR-028).
+
+// logoutPath es la ruta protegida de cierre de sesión según contracts/openapi.yaml.
+const logoutPath = "/api/v1/auth/logout"
+
+// postLogout pide el cierre de sesión con la cabecera Authorization recibida; si es vacía, la
+// petición sale sin cabecera, como la de un visitante sin sesión.
+func postLogout(t *testing.T, router *gin.Engine, authorization string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, logoutPath, nil)
+	if authorization != "" {
+		req.Header.Set("Authorization", authorization)
+	}
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	return rec
+}
+
+// requireLoggedOut exige el 204 del contrato, sin cuerpo, como confirmación del cierre (FR-024).
+func requireLoggedOut(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("estado %d, se esperaba %d; cuerpo: %s", rec.Code, http.StatusNoContent, rec.Body.String())
+	}
+	if rec.Body.Len() != 0 {
+		t.Errorf("el 204 trae cuerpo: %s", rec.Body.String())
+	}
+}
+
+// sessionOf devuelve la fila de sessions que corresponde al jti del token, leída en este momento.
+func sessionOf(t *testing.T, db *gorm.DB, secret, token string) domain.Session {
+	t.Helper()
+	claims, err := service.ParseToken(secret, token, time.Now())
+	if err != nil {
+		t.Fatalf("el token de preparación no es válido: %v", err)
+	}
+	var session domain.Session
+	if err := db.First(&session, "id = ?", claims.SessionID).Error; err != nil {
+		t.Fatalf("no existe la fila de sessions del jti %s: %v", claims.SessionID, err)
+	}
+	return session
+}
+
+// requireLogoutEvents exige exactamente want eventos logout, todos atribuidos a la cuenta, con su
+// momento y sin correo intentado (FR-028, FR-029, SC-009).
+func requireLogoutEvents(t *testing.T, db *gorm.DB, userID uuid.UUID, want int) {
+	t.Helper()
+	var events []domain.AuthEvent
+	if err := db.Where("event_type = ?", domain.EventLogout).Find(&events).Error; err != nil {
+		t.Fatalf("no se pudo consultar auth_events: %v", err)
+	}
+	if len(events) != want {
+		t.Fatalf("hay %d eventos logout, se esperaban %d", len(events), want)
+	}
+	for _, e := range events {
+		if e.UserID == nil || *e.UserID != userID {
+			t.Errorf("logout tiene user_id %v, se esperaba %s", e.UserID, userID)
+		}
+		if e.AttemptedEmail != nil {
+			t.Errorf("logout tiene attempted_email %q, se esperaba nulo", *e.AttemptedEmail)
+		}
+		if e.CreatedAt.IsZero() {
+			t.Errorf("logout no registra el momento del evento")
+		}
+	}
+}
+
+// Escenario: Cierre exitoso (001/US5)
+// Dado un usuario con sesión vigente, cuando cierra su sesión, entonces el sistema confirma el
+// cierre con 204, marca revoked_at en esa sesión sin tocar su vencimiento y deja el evento logout
+// atribuido a la cuenta (FR-018, FR-024, FR-026, FR-028, SC-009).
+func TestUS5_CierreExitoso(t *testing.T) {
+	router, db, secret := newTestRouterWithSecret(t)
+	ana := seedAccount(t, db)
+	token := loginTokenFor(t, router, anaEmail, anaPassword)
+	issued := sessionOf(t, db, secret, token)
+
+	before := time.Now()
+	rec := postLogout(t, router, "Bearer "+token)
+	after := time.Now()
+
+	requireLoggedOut(t, rec)
+	closed := sessionOf(t, db, secret, token)
+	if closed.RevokedAt == nil {
+		t.Fatalf("la sesión sigue sin revoked_at después del cierre")
+	}
+	if closed.RevokedAt.Before(before.Add(-time.Second)) || closed.RevokedAt.After(after.Add(time.Second)) {
+		t.Errorf("revoked_at = %s, se esperaba el momento del cierre (entre %s y %s)", closed.RevokedAt, before, after)
+	}
+	if !closed.ExpiresAt.Equal(issued.ExpiresAt) {
+		t.Errorf("el cierre modificó expires_at: %s (antes %s)", closed.ExpiresAt, issued.ExpiresAt)
+	}
+	requireLogoutEvents(t, db, ana.ID, 1)
+}
+
+// Escenario: Nuevo inicio tras cierre (001/US5)
+// Dado un usuario que cerró su sesión, cuando vuelve a iniciar sesión con credenciales correctas,
+// entonces obtiene una sesión nueva y vigente: una fila nueva en sessions, distinta de la cerrada,
+// que sigue cerrada (FR-025).
+func TestUS5_NuevoInicioTrasCierre(t *testing.T) {
+	router, db, secret := newTestRouterWithSecret(t)
+	ana := seedAccount(t, db)
+	oldToken := loginTokenFor(t, router, anaEmail, anaPassword)
+	oldSession := sessionOf(t, db, secret, oldToken)
+	requireLoggedOut(t, postLogout(t, router, "Bearer "+oldToken))
+
+	before := time.Now()
+	rec := postLogin(t, router, anaEmail, anaPassword)
+	after := time.Now()
+
+	resp, newSession := requireIssuedSession(t, db, secret, rec, ana.ID, before, after)
+	if newSession.ID == oldSession.ID || resp.Token == oldToken {
+		t.Fatalf("el nuevo inicio reutilizó la sesión cerrada (%s) o su token", oldSession.ID)
+	}
+	if n := countRows(t, db, &domain.Session{}, "user_id = ?", ana.ID); n != 2 {
+		t.Errorf("hay %d filas en sessions, se esperaban 2 (la cerrada y la nueva)", n)
+	}
+	if reloaded := sessionOf(t, db, secret, oldToken); reloaded.RevokedAt == nil {
+		t.Errorf("el nuevo inicio reabrió la sesión cerrada %s", oldSession.ID)
+	}
+	requireOwnProfile(t, getProfile(t, router, profilePath, "Bearer "+resp.Token), ana)
+	requireLoginSucceededEvents(t, db, ana.ID, 2)
+	requireLogoutEvents(t, db, ana.ID, 1)
+}
+
+// Escenario: Token cerrado no sirve (001/US5)
+// Dado un usuario que cerró su sesión, cuando se intenta usar esa misma sesión para acceder a una
+// función protegida, desde su dispositivo o desde cualquier otro, entonces el acceso se rechaza con
+// el 401 del contrato aunque no hayan pasado las 8 horas de vigencia (FR-025, FR-026). Volver a
+// cerrar con el mismo token tampoco tiene efecto.
+func TestUS5_TokenCerradoNoSirve(t *testing.T) {
+	router, db, secret := newTestRouterWithSecret(t)
+	ana := seedAccount(t, db)
+	token := loginTokenFor(t, router, anaEmail, anaPassword)
+	requireLoggedOut(t, postLogout(t, router, "Bearer "+token))
+
+	// La sesión cerrada todavía tendría horas de vigencia: el rechazo se debe solo al cierre.
+	closed := sessionOf(t, db, secret, token)
+	if !closed.ExpiresAt.After(time.Now().Add(sessionLifetime - time.Minute)) {
+		t.Fatalf("expires_at = %s ya no está a casi 8 horas; la prueba no aislaría el cierre", closed.ExpiresAt)
+	}
+
+	t.Run("desde el mismo dispositivo", func(t *testing.T) {
+		rec := getProfile(t, router, profilePath, "Bearer "+token)
+		requireErrorResponse(t, rec, http.StatusUnauthorized, sessionRequiredMessage)
+	})
+
+	t.Run("copiado en otro dispositivo", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, profilePath, nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("User-Agent", "otro-dispositivo/1.0")
+		req.RemoteAddr = "203.0.113.7:51000"
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		requireErrorResponse(t, rec, http.StatusUnauthorized, sessionRequiredMessage)
+		if strings.Contains(rec.Body.String(), anaEmail) {
+			t.Errorf("el rechazo revela datos de la cuenta: %s", rec.Body.String())
+		}
+	})
+
+	t.Run("un segundo cierre con el mismo token", func(t *testing.T) {
+		rec := postLogout(t, router, "Bearer "+token)
+		requireErrorResponse(t, rec, http.StatusUnauthorized, sessionRequiredMessage)
+		if again := sessionOf(t, db, secret, token); again.RevokedAt == nil || !again.RevokedAt.Equal(*closed.RevokedAt) {
+			t.Errorf("el segundo cierre alteró revoked_at: %v (antes %v)", again.RevokedAt, closed.RevokedAt)
+		}
+	})
+
+	requireLogoutEvents(t, db, ana.ID, 1)
+}
+
+// Escenario: Cierre no afecta otras sesiones (001/US5)
+// Dado un usuario con sesiones vigentes en dos dispositivos, cuando cierra la sesión en uno,
+// entonces la del otro dispositivo sigue funcionando con normalidad (FR-017, FR-026).
+func TestUS5_CierreNoAfectaOtrasSesiones(t *testing.T) {
+	router, db, secret := newTestRouterWithSecret(t)
+	ana := seedAccount(t, db)
+	laptopToken := loginTokenFor(t, router, anaEmail, anaPassword)
+	phoneToken := loginTokenFor(t, router, anaEmail, anaPassword)
+	phoneBefore := sessionOf(t, db, secret, phoneToken)
+
+	requireLoggedOut(t, postLogout(t, router, "Bearer "+laptopToken))
+
+	// La sesión del otro dispositivo sigue intacta en la base y sigue dando acceso.
+	phoneAfter := sessionOf(t, db, secret, phoneToken)
+	if phoneAfter.RevokedAt != nil || !phoneAfter.ExpiresAt.Equal(phoneBefore.ExpiresAt) {
+		t.Errorf("el cierre alteró la otra sesión: revoked_at = %v, expires_at = %s (antes %s)",
+			phoneAfter.RevokedAt, phoneAfter.ExpiresAt, phoneBefore.ExpiresAt)
+	}
+	requireOwnProfile(t, getProfile(t, router, profilePath, "Bearer "+phoneToken), ana)
+
+	// Solo la sesión cerrada deja de servir y solo ella queda revocada.
+	if laptop := sessionOf(t, db, secret, laptopToken); laptop.RevokedAt == nil {
+		t.Errorf("la sesión cerrada sigue sin revoked_at")
+	}
+	requireErrorResponse(t, getProfile(t, router, profilePath, "Bearer "+laptopToken), http.StatusUnauthorized, sessionRequiredMessage)
+	if n := countRows(t, db, &domain.Session{}, "user_id = ? AND revoked_at IS NULL", ana.ID); n != 1 {
+		t.Errorf("hay %d sesiones vigentes de la cuenta, se esperaba 1", n)
+	}
+	requireLogoutEvents(t, db, ana.ID, 1)
+}
+
+// Escenario: Cierre sin sesión (001/US5)
+// Dado un visitante sin sesión válida, cuando solicita cerrar sesión, entonces recibe el 401 del
+// contrato, idéntico en todos los casos, la operación no produce ningún efecto (ninguna sesión
+// cambia y no se registra logout) y no revela información de ninguna cuenta (FR-015, FR-016).
+func TestUS5_CierreSinSesion(t *testing.T) {
+	router, db, secret := newTestRouterWithSecret(t)
+	ana := seedAccount(t, db)
+	token := loginTokenFor(t, router, anaEmail, anaPassword)
+	now := time.Now()
+
+	// signedSession guarda una sesión de Ana con los momentos indicados y devuelve su token firmado
+	// con el secreto de test.
+	signedSession := func(createdAt, expiresAt time.Time, revokedAt *time.Time) string {
+		t.Helper()
+		session := domain.Session{ID: uuid.New(), UserID: ana.ID, CreatedAt: createdAt, ExpiresAt: expiresAt, RevokedAt: revokedAt}
+		if err := db.Create(&session).Error; err != nil {
+			t.Fatalf("no se pudo preparar la sesión: %v", err)
+		}
+		signed, err := service.IssueToken(secret, session)
+		if err != nil {
+			t.Fatalf("no se pudo firmar el token de preparación: %v", err)
+		}
+		return signed
+	}
+	revokedAt := now.Add(-time.Minute)
+	expiredToken := signedSession(now.Add(-9*time.Hour), now.Add(-time.Hour), nil)
+	closedToken := signedSession(now.Add(-time.Hour), now.Add(7*time.Hour), &revokedAt)
+
+	// snapshot lee todas las sesiones ordenadas por id para comparar el estado antes y después.
+	snapshot := func() []domain.Session {
+		t.Helper()
+		var sessions []domain.Session
+		if err := db.Order("id").Find(&sessions).Error; err != nil {
+			t.Fatalf("no se pudo leer sessions: %v", err)
+		}
+		return sessions
+	}
+	before := snapshot()
+
+	cases := []struct {
+		name          string
+		authorization string
+	}{
+		{"sin cabecera Authorization", ""},
+		{"texto que no es un JWT", "Bearer no-es-un-jwt"},
+		{"firma alterada", "Bearer " + token[:len(token)-2] + flipLastChars(token[len(token)-2:])},
+		{"esquema distinto de Bearer", "Basic " + token},
+		{"Bearer sin token", "Bearer "},
+		{"sesión vencida", "Bearer " + expiredToken},
+		{"sesión ya cerrada", "Bearer " + closedToken},
+	}
+	baseline := getProfile(t, router, profilePath, "")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := postLogout(t, router, tc.authorization)
+
+			requireErrorResponse(t, rec, http.StatusUnauthorized, sessionRequiredMessage)
+			if rec.Body.String() != baseline.Body.String() ||
+				rec.Header().Get("Content-Type") != baseline.Header().Get("Content-Type") {
+				t.Errorf("el rechazo (%q, %s) difiere del de sesión ausente (%q, %s)",
+					rec.Header().Get("Content-Type"), rec.Body.String(),
+					baseline.Header().Get("Content-Type"), baseline.Body.String())
+			}
+			for _, leak := range []string{ana.ID.String(), anaEmail, anaFullName} {
+				if strings.Contains(rec.Body.String(), leak) {
+					t.Errorf("el rechazo revela %q: %s", leak, rec.Body.String())
+				}
+			}
+		})
+	}
+
+	// Ningún intento cambió las sesiones ni registró eventos logout, y la sesión vigente de Ana
+	// sigue dando acceso.
+	after := snapshot()
+	if len(after) != len(before) {
+		t.Fatalf("hay %d sesiones, antes había %d", len(after), len(before))
+	}
+	for i := range before {
+		b, a := before[i], after[i]
+		sameRevoked := (b.RevokedAt == nil && a.RevokedAt == nil) ||
+			(b.RevokedAt != nil && a.RevokedAt != nil && b.RevokedAt.Equal(*a.RevokedAt))
+		if !sameRevoked || !b.ExpiresAt.Equal(a.ExpiresAt) {
+			t.Errorf("la sesión %s cambió: revoked_at %v -> %v, expires_at %s -> %s",
+				b.ID, b.RevokedAt, a.RevokedAt, b.ExpiresAt, a.ExpiresAt)
+		}
+	}
+	if n := countRows(t, db, &domain.AuthEvent{}, "event_type = ?", domain.EventLogout); n != 0 {
+		t.Errorf("se registraron %d eventos logout, se esperaba 0", n)
+	}
+	requireOwnProfile(t, getProfile(t, router, profilePath, "Bearer "+token), ana)
+}

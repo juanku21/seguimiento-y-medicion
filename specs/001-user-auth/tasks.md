@@ -561,7 +561,7 @@ calidad. Todas las tareas son **técnicas**.
 - [X] T075 [P] Crear `backend/Dockerfile` con una versión estable de la imagen base de Go, que
       ejecute `swag init` durante la construcción para que `backend/docs/` no haga falta versionado
       (research.md sección 10) — depende de T074
-- [ ] T076 [P] Crear `frontend/Dockerfile` con una versión estable de la imagen base de Node.js
+- [X] T076 [P] Crear `frontend/Dockerfile` con una versión estable de la imagen base de Node.js
       (Principio V)
 - [ ] T077 [P] Documentar y verificar los comandos de cobertura exigidos por el Principio II:
       `go test ./... -coverprofile=coverage.out` más `go tool cover` en el backend, y el script

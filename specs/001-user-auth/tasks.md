@@ -533,7 +533,7 @@ mismo token responde `401` en una función protegida.
 - [X] T071 [US5] Implementar `Logout` en `backend/internal/auth/service/auth_service.go`, revocando
       la sesión del `jti` con el que se hizo la petición, sin tocar `expires_at` (FR-018, FR-024) —
       depende de T070
-- [ ] T072 [US5] Implementar el manejador `logoutUser` en
+- [X] T072 [US5] Implementar el manejador `logoutUser` en
       `backend/internal/auth/delivery/handler.go` con anotaciones `swag` en español y registrarlo
       como ruta **protegida** `POST /api/v1/auth/logout` en
       `backend/internal/auth/delivery/routes.go`, devolviendo `204` y `401` — depende de T071

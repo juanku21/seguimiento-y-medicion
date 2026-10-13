@@ -11,12 +11,18 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/domain"
+	"github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/service"
 )
 
 // contextKeySub es la clave con la que el middleware de sesión deja en el contexto de gin el
 // identificador del titular de la sesión, tomado del claim sub del JWT, para que toda acción
 // protegida se le atribuya (FR-021, RN-09).
 const contextKeySub = "auth.sub"
+
+// contextKeyClaims es la clave con la que el middleware de sesión deja en el contexto de gin los
+// claims completos de la sesión verificada, para que el cierre de sesión revoque justo la fila de
+// su jti (FR-024, FR-026).
+const contextKeyClaims = "auth.claims"
 
 // msgSessionRequired es el texto del 401 de sesión inválida que fija la respuesta SesionInvalida
 // de contracts/openapi.yaml. Es el mismo para sesión ausente, vencida y adulterada (FR-015, FR-016).
@@ -50,6 +56,7 @@ func (h *Handler) requireSession(c *gin.Context) {
 	}
 
 	c.Set(contextKeySub, claims.UserID)
+	c.Set(contextKeyClaims, claims)
 	c.Next()
 }
 
@@ -63,4 +70,15 @@ func userIDFromContext(c *gin.Context) (uuid.UUID, bool) {
 	}
 	id, ok := value.(uuid.UUID)
 	return id, ok
+}
+
+// claimsFromContext devuelve los claims de la sesión que el middleware dejó en el contexto bajo
+// contextKeyClaims, y si estaban presentes, para que el cierre actúe sobre la sesión de la petición.
+func claimsFromContext(c *gin.Context) (service.TokenClaims, bool) {
+	value, exists := c.Get(contextKeyClaims)
+	if !exists {
+		return service.TokenClaims{}, false
+	}
+	claims, ok := value.(service.TokenClaims)
+	return claims, ok
 }

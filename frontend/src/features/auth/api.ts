@@ -1,4 +1,10 @@
-import { getJson, isRecord, postJson, type ApiResult } from "@/lib/api-client";
+import {
+  getJson,
+  isRecord,
+  postEmpty,
+  postJson,
+  type ApiResult,
+} from "@/lib/api-client";
 import type {
   LoginRequest,
   LoginResponse,
@@ -48,4 +54,11 @@ export function loginUser(
 // cliente HTTP descarta la sesión de la pestaña (FR-016).
 export function getOwnProfile(): Promise<ApiResult<UserProfile>> {
   return getJson("/api/v1/users/me", isUserProfile);
+}
+
+// Cierra la sesión de la pestaña con POST /api/v1/auth/logout. Solo envía el token propio en la
+// cabecera, sin identificadores de cuenta ni de otras sesiones, así que no afecta a otros
+// dispositivos (FR-017). Ante un 401 el cliente HTTP descarta la sesión de la pestaña (FR-016).
+export function logoutUser(): Promise<ApiResult<undefined>> {
+  return postEmpty("/api/v1/auth/logout");
 }

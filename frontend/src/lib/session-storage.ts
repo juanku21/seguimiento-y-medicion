@@ -60,6 +60,18 @@ export function rejectSession(): void {
   notifyListeners();
 }
 
+// Borra el token porque la persona cerró su sesión (US5) y avisa a los suscriptores. A diferencia de
+// rejectSession no deja la marca del rechazo: el cierre es voluntario y la guardia no debe mostrar
+// el aviso de volver a iniciar sesión. En el servidor no hace nada.
+export function clearSession(): void {
+  if (!hasSessionStorage()) {
+    return;
+  }
+  window.sessionStorage.removeItem(TOKEN_KEY);
+  window.sessionStorage.removeItem(REJECTED_KEY);
+  notifyListeners();
+}
+
 // Indica si la última sesión de la pestaña terminó por un rechazo de la API.
 export function wasSessionRejected(): boolean {
   if (!hasSessionStorage()) {

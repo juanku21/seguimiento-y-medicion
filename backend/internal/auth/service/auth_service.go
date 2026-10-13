@@ -160,6 +160,30 @@ func (s *AuthService) ValidateSession(ctx context.Context, token string) (TokenC
 	return claims, nil
 }
 
+// Logout cierra la sesión con la que se hizo la petición: revoca solo la fila del jti de los claims,
+// sin tocar expires_at, y registra el evento logout atribuido al titular del sub (FR-017, FR-018,
+// FR-024, FR-028). Recibe los claims que ValidateSession ya verificó en el middleware. El momento
+// del cierre es único para revoked_at y para el created_at del evento. Una sesión inexistente o ya
+// cerrada llega como domain.ErrInvalidSession y se devuelve tal cual, reconocible con errors.Is;
+// cualquier otro fallo del repositorio se propaga envuelto.
+func (s *AuthService) Logout(ctx context.Context, claims TokenClaims) error {
+	now := time.Now()
+	event := &domain.AuthEvent{
+		ID:        uuid.New(),
+		EventType: domain.EventLogout,
+		UserID:    &claims.UserID,
+		CreatedAt: now,
+	}
+	err := s.sessions.Revoke(ctx, claims.SessionID, now, event)
+	if errors.Is(err, domain.ErrInvalidSession) {
+		return domain.ErrInvalidSession
+	}
+	if err != nil {
+		return fmt.Errorf("cerrar sesión: %w", err)
+	}
+	return nil
+}
+
 // GetOwnProfile devuelve la cuenta del titular de la sesión para la consulta del propio perfil
 // (FR-022). Recibe el identificador del claim sub que el middleware de sesión dejó en el contexto,
 // nunca uno pedido por la persona, así que no hay forma de leer el perfil de otra cuenta (FR-023).

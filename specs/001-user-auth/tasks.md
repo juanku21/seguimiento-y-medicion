@@ -511,7 +511,7 @@ mismo token responde `401` en una función protegida.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T068 [US5] Pruebas de integración de la historia en
+- [X] T068 [US5] Pruebas de integración de la historia en
       `backend/internal/auth/delivery/handler_test.go`, una función por escenario precedida por
       `// Escenario: <nombre del escenario> (001/US5)`: `TestUS5_CierreExitoso` (`204`),
       `TestUS5_NuevoInicioTrasCierre` (crea una **fila nueva** en `sessions`),
@@ -519,25 +519,25 @@ mismo token responde `401` en una función protegida.
       `TestUS5_CierreNoAfectaOtrasSesiones` (dos dispositivos, FR-017) y `TestUS5_CierreSinSesion`
       (`401`, sin efecto ni información de ninguna cuenta). Se asserta la fila `logout` con
       `user_id` (FR-028, SC-009) — depende de T062
-- [ ] T069 [P] [US5] Pruebas de frontend en
+- [X] T069 [P] [US5] Pruebas de frontend en
       `frontend/src/features/auth/components/logout-button.test.tsx` con
       `describe("001/US5 - Cierre de sesión")` y un `it` por escenario, incluido que la interfaz
       vuelve al estado de visitante — depende de T012
 
 ### Implementación de la Historia 5
 
-- [ ] T070 [US5] Implementar `Revoke(ctx, id, at, event)` en
+- [X] T070 [US5] Implementar `Revoke(ctx, id, at, event)` en
       `backend/internal/auth/repository/session_repository.go`: `UPDATE sessions.revoked_at` +
       `INSERT auth_events(logout)` en **una sola transacción**, afectando **solo** a esa fila
       (FR-017, FR-026) — depende de T058
-- [ ] T071 [US5] Implementar `Logout` en `backend/internal/auth/service/auth_service.go`, revocando
+- [X] T071 [US5] Implementar `Logout` en `backend/internal/auth/service/auth_service.go`, revocando
       la sesión del `jti` con el que se hizo la petición, sin tocar `expires_at` (FR-018, FR-024) —
       depende de T070
-- [ ] T072 [US5] Implementar el manejador `logoutUser` en
+- [X] T072 [US5] Implementar el manejador `logoutUser` en
       `backend/internal/auth/delivery/handler.go` con anotaciones `swag` en español y registrarlo
       como ruta **protegida** `POST /api/v1/auth/logout` en
       `backend/internal/auth/delivery/routes.go`, devolviendo `204` y `401` — depende de T071
-- [ ] T073 [US5] Implementar la llamada de cierre en `frontend/src/features/auth/api.ts`, el
+- [X] T073 [US5] Implementar la llamada de cierre en `frontend/src/features/auth/api.ts`, el
       `LogoutButton` en `frontend/src/features/auth/components/logout-button.tsx` montado en
       `frontend/src/app/profile/page.tsx`, y la limpieza del token en
       `frontend/src/lib/session-storage.ts` con el estado de visitante en el proveedor de sesión —

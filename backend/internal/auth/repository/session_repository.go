@@ -13,8 +13,6 @@ import (
 )
 
 // SessionRepository implementa domain.SessionRepository sobre las tablas sessions y auth_events.
-// Create y FindByID están implementados; Revoke es una firma mínima que corresponde a la historia
-// US5.
 type SessionRepository struct {
 	db *gorm.DB
 }
@@ -55,7 +53,25 @@ func (r *SessionRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain
 	return &session, nil
 }
 
-// Revoke cierra la sesión y registra su evento logout. Firma mínima: la implementa US5.
+// Revoke cierra la sesión indicada y registra su evento logout en una sola transacción (research.md
+// sección 5; FR-026). El UPDATE filtra por id, así que solo toca esa fila y las demás sesiones de
+// la cuenta siguen vigentes (FR-017); además exige revoked_at nulo, para que una sesión ya cerrada
+// no cambie su momento de cierre ni sume un segundo evento. Si no se actualizó ninguna fila (id
+// inexistente o sesión ya cerrada) devuelve domain.ErrInvalidSession y revierte la transacción.
 func (r *SessionRepository) Revoke(ctx context.Context, id uuid.UUID, at time.Time, event *domain.AuthEvent) error {
-	return errors.New("not implemented")
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&domain.Session{}).
+			Where("id = ? AND revoked_at IS NULL", id).
+			Update("revoked_at", at)
+		if result.Error != nil {
+			return fmt.Errorf("revocar sesión: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return domain.ErrInvalidSession
+		}
+		if err := tx.Create(event).Error; err != nil {
+			return fmt.Errorf("insertar evento %s: %w", event.EventType, err)
+		}
+		return nil
+	})
 }

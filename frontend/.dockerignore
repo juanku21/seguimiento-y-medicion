@@ -1,0 +1,18 @@
+# Archivos excluidos del contexto de construcción de la imagen del frontend.
+
+# Variables de entorno: los secretos nunca entran en la imagen (Principio VI). La URL de la API
+# llega como argumento de construcción.
+.env*
+
+# Dependencias y artefactos que la imagen reconstruye con npm ci y next build.
+node_modules/
+.next/
+out/
+build/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Archivos de la propia imagen.
+Dockerfile
+.dockerignore

@@ -554,32 +554,32 @@ calidad. Todas las tareas son **técnicas**.
 
 **Rama**: `fase/001-polish`
 
-- [ ] T074 Generar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
+- [X] T074 Generar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
       `backend/docs/` coincida con [contracts/openapi.yaml](./contracts/openapi.yaml) en rutas,
       códigos de respuesta y esquemas (Principio VIII); corregir las anotaciones si difieren —
       depende de T072
-- [ ] T075 [P] Crear `backend/Dockerfile` con una versión estable de la imagen base de Go, que
+- [X] T075 [P] Crear `backend/Dockerfile` con una versión estable de la imagen base de Go, que
       ejecute `swag init` durante la construcción para que `backend/docs/` no haga falta versionado
       (research.md sección 10) — depende de T074
-- [ ] T076 [P] Crear `frontend/Dockerfile` con una versión estable de la imagen base de Node.js
+- [X] T076 [P] Crear `frontend/Dockerfile` con una versión estable de la imagen base de Node.js
       (Principio V)
-- [ ] T077 [P] Documentar y verificar los comandos de cobertura exigidos por el Principio II:
+- [X] T077 [P] Documentar y verificar los comandos de cobertura exigidos por el Principio II:
       `go test ./... -coverprofile=coverage.out` más `go tool cover` en el backend, y el script
       `test:coverage` de `frontend/package.json` en el frontend
-- [ ] T078 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
+- [X] T078 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
-- [ ] T079 Actualizar `README.md` de la raíz en español con la sección introductoria del proyecto y
+- [X] T079 Actualizar `README.md` de la raíz en español con la sección introductoria del proyecto y
       el paso a paso completo de ejecución, incluido el paso de `swag init` que un clon recién hecho
       necesita para compilar. Criterio de aceptación: alguien que no conoce el proyecto puede
       ejecutarlo siguiendo el documento (Principio VIII) — depende de T074
-- [ ] T080 Revisar las puertas de calidad en `.gitignore` y en los archivos de entorno: las
+- [X] T080 Revisar las puertas de calidad en `.gitignore` y en los archivos de entorno: las
       secciones `#Frontend` y `#Backend` excluyen `.env`, `node_modules/`, `.next/`,
       `backend/docs/`, `coverage.out` y `coverage.html`; cada `.env.example` está sincronizado con su
       `.env`; no hay secretos versionados; no existe ningún `AGENTS.md` (Principios VI y IX)
-- [ ] T081 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluidas la
+- [X] T081 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluidas la
       comprobación de `auth_events` en la base y la verificación de que las pruebas corrieron contra
       `smye_test` en el puerto 5433 y no contra desarrollo — depende de T079
-- [ ] T082 [P] Verificar la trazabilidad y las puertas de seguridad recorriendo
+- [X] T082 [P] Verificar la trazabilidad y las puertas de seguridad recorriendo
       `backend/internal/auth/` y `frontend/src/features/auth/`: que buscar `001/US1` a `001/US5` en
       el código de pruebas devuelva los **26** escenarios; que las **9** reglas RN-01 a RN-09 tengan
       prueba (**SC-008**); que **cada** endpoint protegido tenga su prueba de rechazo sin sesión —
@@ -614,6 +614,44 @@ plan y la constitución y lo que ya está implementado en las fases 1 y 2. Todas
 - [ ] T084 Corregir el comentario de `OpenDatabase` en
       `backend/internal/platform/testsupport/database.go`: sobra el primer "abre" y una línea supera
       el ancho del resto del archivo (Principio VIII) — depende de T024
+
+Las tareas T089 a T096 surgieron de una segunda pasada de `/speckit-converge`, después de la fase 8,
+y se hacen en `fase/001-polish`.
+
+- [ ] T089 **CRITICAL** Reescribir en español `frontend/README.md`, que es el generado por
+      create-next-app en inglés, o reemplazarlo por una remisión al `README.md` de la raíz, según
+      Constitución VIII (contradicts)
+- [ ] T090 [US1] Completar `TestUS1_RegistroNoEmiteSesion` en
+      `backend/internal/auth/delivery/handler_test.go` con la parte "entonces" del escenario: tras el
+      alta, `GET /api/v1/users/me` sin sesión responde `401`; actualizar el comentario, que todavía
+      dice que esa verificación se hará "cuando esas funciones existen", según US1/AC6 y FR-009
+      (partial). La prueba cubre comportamiento ya implementado, así que pasa desde el inicio: no hay
+      etapa RED que verificar
+- [ ] T091 Alinear la respuesta `500` de los cuatro endpoints entre las anotaciones `@Failure 500`
+      de `backend/internal/auth/delivery/handler.go` y
+      [contracts/openapi.yaml](./contracts/openapi.yaml), que no la declara; la decisión de agregarla
+      al contrato o quitarla de las anotaciones es del equipo, según Constitución VIII y
+      plan: contrato de la API (contradicts)
+- [ ] T092 Hacer que `npm run format:check` pase en una copia de trabajo de Windows con
+      `core.autocrlf=true`: hoy falla por los finales de línea CRLF frente al `endOfLine: lf` por
+      defecto de Prettier; resolverlo con `.gitattributes` o con la opción `endOfLine` en
+      `frontend/.prettierrc.json`, según Constitución VIII (partial)
+- [ ] T093 Excluir el reporte generado `coverage/` del análisis de Prettier (crear
+      `frontend/.prettierignore`) y de ESLint (`globalIgnores` de `frontend/eslint.config.mjs`), que
+      hoy lo revisan y dan 28 avisos de formato y una advertencia de lint, según Constitución VIII
+      (partial)
+- [ ] T094 Actualizar la versión de Go de 1.27.1 a 1.27.2 en `plan.md` (líneas 39, 81 y 321),
+      `research.md` (líneas 23, 37 y 535) y `quickstart.md` (línea 18, que además dice "Falta
+      instalar"), porque T078 subió `backend/go.mod` y `backend/Dockerfile` a 1.27.2, según
+      plan: stack y versiones (contradicts) — depende de T078
+- [ ] T095 Corregir la comprobación de aislamiento de `quickstart.md` §3: por socket local
+      `inet_server_port()` devuelve vacío; usar `-h 127.0.0.1` o `SELECT current_database()` y
+      aclarar que el puerto interno es 5432 y el del host 5433, según SC: aislamiento de pruebas y
+      Constitución V (partial)
+- [ ] T096 Revisar la ruta pública `/swagger/*any` de `backend/cmd/app/main.go` frente a RN-08, que
+      solo admite como públicos el registro y el inicio de sesión: documentarla como excepción
+      (documentación exigida por la Constitución VIII) o restringirla fuera de desarrollo, según
+      RN-08 (unrequested)
 
 **Checkpoint**: `go list -m github.com/golang-jwt/jwt/v5` responde `v5.3.1` y el comentario del
 ayudante de pruebas describe exactamente lo que hace la función.

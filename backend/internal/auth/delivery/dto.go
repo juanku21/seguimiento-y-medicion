@@ -46,7 +46,7 @@ type ValidationErrorResponse struct {
 	// Mensaje general del rechazo.
 	Error string `json:"error" validate:"required" example:"Hay campos inválidos en la solicitud."`
 	// Detalle de cada campo inválido; nunca está vacío.
-	Fields []FieldError `json:"fields" validate:"required" minItems:"1"`
+	Fields []FieldError `json:"fields" validate:"required,min=1"`
 }
 
 // LoginRequest es el cuerpo de POST /api/v1/auth/login (contracts/openapi.yaml). El correo se

@@ -615,6 +615,44 @@ plan y la constitución y lo que ya está implementado en las fases 1 y 2. Todas
       `backend/internal/platform/testsupport/database.go`: sobra el primer "abre" y una línea supera
       el ancho del resto del archivo (Principio VIII) — depende de T024
 
+Las tareas T089 a T096 surgieron de una segunda pasada de `/speckit-converge`, después de la fase 8,
+y se hacen en `fase/001-polish`.
+
+- [ ] T089 **CRITICAL** Reescribir en español `frontend/README.md`, que es el generado por
+      create-next-app en inglés, o reemplazarlo por una remisión al `README.md` de la raíz, según
+      Constitución VIII (contradicts)
+- [ ] T090 [US1] Completar `TestUS1_RegistroNoEmiteSesion` en
+      `backend/internal/auth/delivery/handler_test.go` con la parte "entonces" del escenario: tras el
+      alta, `GET /api/v1/users/me` sin sesión responde `401`; actualizar el comentario, que todavía
+      dice que esa verificación se hará "cuando esas funciones existen", según US1/AC6 y FR-009
+      (partial). La prueba cubre comportamiento ya implementado, así que pasa desde el inicio: no hay
+      etapa RED que verificar
+- [ ] T091 Alinear la respuesta `500` de los cuatro endpoints entre las anotaciones `@Failure 500`
+      de `backend/internal/auth/delivery/handler.go` y
+      [contracts/openapi.yaml](./contracts/openapi.yaml), que no la declara; la decisión de agregarla
+      al contrato o quitarla de las anotaciones es del equipo, según Constitución VIII y
+      plan: contrato de la API (contradicts)
+- [ ] T092 Hacer que `npm run format:check` pase en una copia de trabajo de Windows con
+      `core.autocrlf=true`: hoy falla por los finales de línea CRLF frente al `endOfLine: lf` por
+      defecto de Prettier; resolverlo con `.gitattributes` o con la opción `endOfLine` en
+      `frontend/.prettierrc.json`, según Constitución VIII (partial)
+- [ ] T093 Excluir el reporte generado `coverage/` del análisis de Prettier (crear
+      `frontend/.prettierignore`) y de ESLint (`globalIgnores` de `frontend/eslint.config.mjs`), que
+      hoy lo revisan y dan 28 avisos de formato y una advertencia de lint, según Constitución VIII
+      (partial)
+- [ ] T094 Actualizar la versión de Go de 1.27.1 a 1.27.2 en `plan.md` (líneas 39, 81 y 321),
+      `research.md` (líneas 23, 37 y 535) y `quickstart.md` (línea 18, que además dice "Falta
+      instalar"), porque T078 subió `backend/go.mod` y `backend/Dockerfile` a 1.27.2, según
+      plan: stack y versiones (contradicts) — depende de T078
+- [ ] T095 Corregir la comprobación de aislamiento de `quickstart.md` §3: por socket local
+      `inet_server_port()` devuelve vacío; usar `-h 127.0.0.1` o `SELECT current_database()` y
+      aclarar que el puerto interno es 5432 y el del host 5433, según SC: aislamiento de pruebas y
+      Constitución V (partial)
+- [ ] T096 Revisar la ruta pública `/swagger/*any` de `backend/cmd/app/main.go` frente a RN-08, que
+      solo admite como públicos el registro y el inicio de sesión: documentarla como excepción
+      (documentación exigida por la Constitución VIII) o restringirla fuera de desarrollo, según
+      RN-08 (unrequested)
+
 **Checkpoint**: `go list -m github.com/golang-jwt/jwt/v5` responde `v5.3.1` y el comentario del
 ayudante de pruebas describe exactamente lo que hace la función.
 

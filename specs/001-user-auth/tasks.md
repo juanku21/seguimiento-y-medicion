@@ -568,7 +568,7 @@ calidad. Todas las tareas son **técnicas**.
       `test:coverage` de `frontend/package.json` en el frontend
 - [X] T078 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
-- [ ] T079 Actualizar `README.md` de la raíz en español con la sección introductoria del proyecto y
+- [X] T079 Actualizar `README.md` de la raíz en español con la sección introductoria del proyecto y
       el paso a paso completo de ejecución, incluido el paso de `swag init` que un clon recién hecho
       necesita para compilar. Criterio de aceptación: alguien que no conoce el proyecto puede
       ejecutarlo siguiendo el documento (Principio VIII) — depende de T074

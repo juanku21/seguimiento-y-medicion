@@ -579,7 +579,7 @@ calidad. Todas las tareas son **técnicas**.
 - [X] T081 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluidas la
       comprobación de `auth_events` en la base y la verificación de que las pruebas corrieron contra
       `smye_test` en el puerto 5433 y no contra desarrollo — depende de T079
-- [ ] T082 [P] Verificar la trazabilidad y las puertas de seguridad recorriendo
+- [X] T082 [P] Verificar la trazabilidad y las puertas de seguridad recorriendo
       `backend/internal/auth/` y `frontend/src/features/auth/`: que buscar `001/US1` a `001/US5` en
       el código de pruebas devuelva los **26** escenarios; que las **9** reglas RN-01 a RN-09 tengan
       prueba (**SC-008**); que **cada** endpoint protegido tenga su prueba de rechazo sin sesión —

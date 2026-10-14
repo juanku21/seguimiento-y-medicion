@@ -572,7 +572,7 @@ calidad. Todas las tareas son **técnicas**.
       el paso a paso completo de ejecución, incluido el paso de `swag init` que un clon recién hecho
       necesita para compilar. Criterio de aceptación: alguien que no conoce el proyecto puede
       ejecutarlo siguiendo el documento (Principio VIII) — depende de T074
-- [ ] T080 Revisar las puertas de calidad en `.gitignore` y en los archivos de entorno: las
+- [X] T080 Revisar las puertas de calidad en `.gitignore` y en los archivos de entorno: las
       secciones `#Frontend` y `#Backend` excluyen `.env`, `node_modules/`, `.next/`,
       `backend/docs/`, `coverage.out` y `coverage.html`; cada `.env.example` está sincronizado con su
       `.env`; no hay secretos versionados; no existe ningún `AGENTS.md` (Principios VI y IX)

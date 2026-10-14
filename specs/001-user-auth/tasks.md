@@ -576,7 +576,7 @@ calidad. Todas las tareas son **técnicas**.
       secciones `#Frontend` y `#Backend` excluyen `.env`, `node_modules/`, `.next/`,
       `backend/docs/`, `coverage.out` y `coverage.html`; cada `.env.example` está sincronizado con su
       `.env`; no hay secretos versionados; no existe ningún `AGENTS.md` (Principios VI y IX)
-- [ ] T081 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluidas la
+- [X] T081 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluidas la
       comprobación de `auth_events` en la base y la verificación de que las pruebas corrieron contra
       `smye_test` en el puerto 5433 y no contra desarrollo — depende de T079
 - [ ] T082 [P] Verificar la trazabilidad y las puertas de seguridad recorriendo

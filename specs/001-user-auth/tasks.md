@@ -611,7 +611,7 @@ plan y la constitución y lo que ya está implementado en las fases 1 y 2. Todas
       en T023 al no haber todavía ningún import (research.md sección 1, T006). Se hace **antes de
       T040**, la primera tarea que importa el paquete, para que ese import tome la versión fijada y
       no la última publicada — depende de T023
-- [ ] T084 Corregir el comentario de `OpenDatabase` en
+- [X] T084 Corregir el comentario de `OpenDatabase` en
       `backend/internal/platform/testsupport/database.go`: sobra el primer "abre" y una línea supera
       el ancho del resto del archivo (Principio VIII) — depende de T024
 

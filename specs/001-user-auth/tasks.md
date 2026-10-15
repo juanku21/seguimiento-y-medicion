@@ -621,7 +621,7 @@ y se hacen en `fase/001-polish`.
 - [X] T089 **CRITICAL** Reescribir en español `frontend/README.md`, que es el generado por
       create-next-app en inglés, o reemplazarlo por una remisión al `README.md` de la raíz, según
       Constitución VIII (contradicts)
-- [ ] T090 [US1] Completar `TestUS1_RegistroNoEmiteSesion` en
+- [X] T090 [US1] Completar `TestUS1_RegistroNoEmiteSesion` en
       `backend/internal/auth/delivery/handler_test.go` con la parte "entonces" del escenario: tras el
       alta, `GET /api/v1/users/me` sin sesión responde `401`; actualizar el comentario, que todavía
       dice que esa verificación se hará "cuando esas funciones existen", según US1/AC6 y FR-009

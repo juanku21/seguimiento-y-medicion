@@ -310,8 +310,8 @@ func TestUS1_RegistroConcurrente(t *testing.T) {
 // Escenario: Registro no emite sesión (001/US1)
 // Tras un alta exitosa la persona queda sin sesión: la respuesta no trae token, vencimiento,
 // cookie ni cabecera de autorización, no se crea ninguna fila en sessions ni un evento
-// login_succeeded (FR-009). El acceso rechazado a una función protegida se verifica en US3/US4,
-// cuando esas funciones existen.
+// login_succeeded (FR-009). Además, pedir el perfil propio sin sesión justo después del alta se
+// rechaza con 401: el registro no deja la sesión iniciada.
 func TestUS1_RegistroNoEmiteSesion(t *testing.T) {
 	router, db := newTestRouter(t)
 
@@ -333,6 +333,9 @@ func TestUS1_RegistroNoEmiteSesion(t *testing.T) {
 	if n := countRows(t, db, &domain.AuthEvent{}, "event_type = ?", domain.EventLoginSucceeded); n != 0 {
 		t.Errorf("el registro dejó %d eventos login_succeeded, se esperaba 0", n)
 	}
+
+	// Sin iniciar sesión, la función protegida del perfil rechaza el acceso tras el alta.
+	requireErrorResponse(t, getProfile(t, router, profilePath, ""), http.StatusUnauthorized, sessionRequiredMessage)
 }
 
 // Escenario: Correo duplicado (001/US1)

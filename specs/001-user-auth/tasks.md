@@ -618,7 +618,7 @@ plan y la constitución y lo que ya está implementado en las fases 1 y 2. Todas
 Las tareas T089 a T096 surgieron de una segunda pasada de `/speckit-converge`, después de la fase 8,
 y se hacen en `fase/001-polish`.
 
-- [ ] T089 **CRITICAL** Reescribir en español `frontend/README.md`, que es el generado por
+- [X] T089 **CRITICAL** Reescribir en español `frontend/README.md`, que es el generado por
       create-next-app en inglés, o reemplazarlo por una remisión al `README.md` de la raíz, según
       Constitución VIII (contradicts)
 - [ ] T090 [US1] Completar `TestUS1_RegistroNoEmiteSesion` en

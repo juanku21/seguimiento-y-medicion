@@ -632,7 +632,7 @@ y se hacen en `fase/001-polish`.
       [contracts/openapi.yaml](./contracts/openapi.yaml), que no la declara; la decisión de agregarla
       al contrato o quitarla de las anotaciones es del equipo, según Constitución VIII y
       plan: contrato de la API (contradicts)
-- [ ] T092 Hacer que `npm run format:check` pase en una copia de trabajo de Windows con
+- [X] T092 Hacer que `npm run format:check` pase en una copia de trabajo de Windows con
       `core.autocrlf=true`: hoy falla por los finales de línea CRLF frente al `endOfLine: lf` por
       defecto de Prettier; resolverlo con `.gitattributes` o con la opción `endOfLine` en
       `frontend/.prettierrc.json`, según Constitución VIII (partial)

@@ -627,7 +627,7 @@ y se hacen en `fase/001-polish`.
       dice que esa verificación se hará "cuando esas funciones existen", según US1/AC6 y FR-009
       (partial). La prueba cubre comportamiento ya implementado, así que pasa desde el inicio: no hay
       etapa RED que verificar
-- [ ] T091 Alinear la respuesta `500` de los cuatro endpoints entre las anotaciones `@Failure 500`
+- [X] T091 Alinear la respuesta `500` de los cuatro endpoints entre las anotaciones `@Failure 500`
       de `backend/internal/auth/delivery/handler.go` y
       [contracts/openapi.yaml](./contracts/openapi.yaml), que no la declara; la decisión de agregarla
       al contrato o quitarla de las anotaciones es del equipo, según Constitución VIII y

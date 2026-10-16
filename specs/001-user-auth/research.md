@@ -20,7 +20,7 @@ y no es alcance añadido (Principio I): sin él no hay dónde ejecutar US1.
 
 | Prerrequisito | Estado verificado | Acción requerida |
 | --- | --- | --- |
-| Go | **No instalado** | Instalar Go 1.27.1 antes de la primera tarea de backend |
+| Go | **No instalado** | Instalar Go 1.27.2 antes de la primera tarea de backend |
 | Node.js | v24.21.0 | — |
 | npm | 11.4.2 | — |
 | Docker | 29.7.2 | — |
@@ -34,7 +34,7 @@ y no es alcance añadido (Principio I): sin él no hay dónde ejecutar US1.
 
 | Ámbito | Dependencia | Versión fijada |
 | --- | --- | --- |
-| Runtime backend | Go | `1.27.1` |
+| Runtime backend | Go | `1.27.2` |
 | Framework backend | github.com/gin-gonic/gin | `v1.12.0` |
 | ORM | gorm.io/gorm | `v1.31.2` |
 | Driver PostgreSQL | gorm.io/driver/postgres | `v1.6.3` |
@@ -532,7 +532,7 @@ lado, no repetidos en cada punto de uso.
 
 ### Puntos abiertos para el desarrollador (no bloquean el diseño)
 
-1. **Instalar Go 1.27.1** (prerrequisito bloqueante de la implementación).
+1. **Instalar Go 1.27.2** (prerrequisito bloqueante de la implementación).
 2. ~~**Confirmar el tratamiento del límite de 72** (sección 4)~~: resuelto el 2026-10-10; la spec
    se enmendó para exigir además como máximo 72 bytes en UTF-8.
 3. **Revisar el transporte del token** (sección 9) desde la óptica de seguridad.

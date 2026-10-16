@@ -36,7 +36,7 @@ Las decisiones y las alternativas descartadas están en [research.md](./research
 
 ## Contexto Técnico
 
-**Lenguaje y versión**: Go 1.27.1 (backend); TypeScript sobre Node.js 24.21.0 (frontend)
+**Lenguaje y versión**: Go 1.27.2 (backend); TypeScript sobre Node.js 24.21.0 (frontend)
 
 **Dependencias principales**: Gin v1.12.0, GORM v1.31.2 con driver `postgres` v1.6.3,
 `golang-jwt/jwt/v5` v5.3.1, `golang.org/x/crypto` v0.57.0 (bcrypt), `google/uuid` v1.6.0,
@@ -78,7 +78,7 @@ generado y organización en módulos.
 
 ### Puntos señalados al desarrollador (no bloquean el diseño)
 
-1. **Go no está instalado.** Hay que instalar Go 1.27.1 antes de la primera tarea de backend.
+1. **Go no está instalado.** Hay que instalar Go 1.27.2 antes de la primera tarea de backend.
 2. **Límite de 72 de la contraseña frente a bcrypt — resuelto el 2026-10-10.** bcrypt opera en
    bytes. El plan rechaza como entrada inválida toda contraseña de más de 72 bytes en UTF-8, para no
    violar el Principio VII con un error interno. El desarrollador confirmó la resolución y FR-006,
@@ -318,7 +318,7 @@ registro de eventos; SC-006 con `TestUS1_RegistroConcurrente`; SC-009 con las as
 El orden lo fija `/speckit-tasks`; esto es la dependencia entre bloques, no la lista de tareas.
 
 1. **Fase técnica de arranque** (sin prueba asociada: infraestructura y configuración).
-   Instalar Go 1.27.1. Crear `backend/postgres/` con el `docker-compose.yml` y los tres archivos de
+   Instalar Go 1.27.2. Crear `backend/postgres/` con el `docker-compose.yml` y los tres archivos de
    entorno; levantar los dos contenedores. Inicializar el módulo de Go con las dependencias fijadas.
    Crear el proyecto Next.js con `create-next-app --no-agents-md` y fijar `agentRules: false`.
    `.gitignore` con sus dos secciones.

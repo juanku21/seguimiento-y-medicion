@@ -15,7 +15,7 @@ diseño están en [research.md](./research.md), [data-model.md](./data-model.md)
 
 | Herramienta | Versión exigida | Estado en esta máquina (2026-10-05) |
 | --- | --- | --- |
-| Go | 1.27.1 | **Falta instalar** |
+| Go | 1.27.2 | Instalado (`go1.27.2`, verificado el 2026-10-15) |
 | Node.js | 24.x | v24.21.0 |
 | npm | 11.x | 11.4.2 |
 | Docker | 29.x | 29.7.2 |

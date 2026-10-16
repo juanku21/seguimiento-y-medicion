@@ -640,7 +640,7 @@ y se hacen en `fase/001-polish`.
       `frontend/.prettierignore`) y de ESLint (`globalIgnores` de `frontend/eslint.config.mjs`), que
       hoy lo revisan y dan 28 avisos de formato y una advertencia de lint, según Constitución VIII
       (partial)
-- [ ] T094 Actualizar la versión de Go de 1.27.1 a 1.27.2 en `plan.md` (líneas 39, 81 y 321),
+- [X] T094 Actualizar la versión de Go de 1.27.1 a 1.27.2 en `plan.md` (líneas 39, 81 y 321),
       `research.md` (líneas 23, 37 y 535) y `quickstart.md` (línea 18, que además dice "Falta
       instalar"), porque T078 subió `backend/go.mod` y `backend/Dockerfile` a 1.27.2, según
       plan: stack y versiones (contradicts) — depende de T078

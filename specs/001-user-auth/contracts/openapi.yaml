@@ -110,6 +110,8 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
               example:
                 error: El correo electrónico no está disponible.
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
 
   /api/v1/auth/login:
     post:
@@ -160,6 +162,8 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
               example:
                 error: Correo electrónico o contraseña incorrectos.
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
 
   /api/v1/auth/logout:
     post:
@@ -178,6 +182,8 @@ paths:
           description: Sesión cerrada. Las funciones protegidas vuelven a exigir inicio de sesión.
         '401':
           $ref: '#/components/responses/SesionInvalida'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
 
   /api/v1/users/me:
     get:
@@ -205,6 +211,8 @@ paths:
                 email: ana@example.com
         '401':
           $ref: '#/components/responses/SesionInvalida'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
 
 components:
   securitySchemes:
@@ -227,6 +235,17 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
           example:
             error: Se requiere iniciar sesión.
+
+    ErrorInterno:
+      description: |
+        Error interno sin detalles expuestos. La respuesta no revela la causa técnica del fallo
+        (Principio VII).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Ocurrió un error inesperado. Intentá de nuevo más tarde.
 
   schemas:
     RegisterRequest:
@@ -282,7 +301,7 @@ components:
       properties:
         token:
           type: string
-          description: JWT de la sesión emitida. Se envía en `Authorization: Bearer <token>`.
+          description: "JWT de la sesión emitida. Se envía en `Authorization: Bearer <token>`."
         expiresAt:
           type: string
           format: date-time

@@ -372,7 +372,7 @@ función protegida vuelve a exigir credenciales.
 | RN-05 | Las contraseñas no se almacenan, muestran ni registran en texto legible bajo ninguna circunstancia. |
 | RN-06 | El mensaje ante credenciales inválidas es genérico y no revela si el correo existe. |
 | RN-07 | Una sesión vencida o adulterada equivale a no tener sesión. |
-| RN-08 | Registro e inicio de sesión son las únicas funciones públicas; todo lo demás exige sesión válida. |
+| RN-08 | Registro e inicio de sesión son las únicas funciones públicas; todo lo demás exige sesión válida. Única excepción: la documentación Swagger de la API (`/swagger/*any`) es de acceso público, porque la Constitución (Principio VIII) exige documentar la API con Swagger; no es una función del producto ni expone datos de cuentas. |
 | RN-09 | Toda acción del sistema se atribuye a un usuario identificado. |
 
 ---

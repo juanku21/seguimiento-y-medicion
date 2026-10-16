@@ -17,10 +17,10 @@ import (
 // testDatabaseName es la única base sobre la que el ayudante acepta operar (Principio V).
 const testDatabaseName = "smye_test"
 
-// OpenDatabase prepara la base de test para un caso de integración: carga backend/.env.test, abre
+// OpenDatabase prepara la base de test para un caso de integración: carga backend/.env.test,
 // verifica que la base configurada sea smye_test, abre la conexión migrando el esquema y vacía las
-// tres tablas de la feature. Devuelve la conexión y la configuración cargada, y cierra el pool al terminar la prueba.
-// Ante cualquier fallo detiene la prueba con t.Fatalf sin tocar ninguna base.
+// tres tablas de la feature. Devuelve la conexión y la configuración cargada, y cierra el pool al
+// terminar la prueba. Ante cualquier fallo detiene la prueba con t.Fatalf sin tocar ninguna base.
 func OpenDatabase(t testing.TB) (*gorm.DB, config.Config) {
 	t.Helper()
 

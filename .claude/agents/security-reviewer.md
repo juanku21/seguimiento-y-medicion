@@ -19,14 +19,25 @@ La conversación principal te indica:
 
 - La carpeta de la feature (`specs/NNN-.../`).
 - El alcance: la historia (USx) o la fase técnica de la rama.
+- Si la rama es la **rama de corrección** (la fase Convergence and Security de `tasks.md`, identificador `convergence-security`). En ese caso trabajás en **modo rama de corrección**.
 
 ## Alcance
 
 1. Obtené los cambios de la rama: `git diff origin/main...HEAD --stat` y después el diff completo de los archivos de código.
 2. Revisá ese código, y el código existente solo en la medida en que el nuevo lo usa (por ejemplo, el middleware de autenticación que una ruta nueva debería aplicar).
-3. Leé la historia en `spec.md` (quién puede hacer qué), `plan.md` y los Principios III, VI y VII de `.specify/memory/constitution.md`.
+3. Leé la historia en `spec.md` (quién puede hacer qué), `plan.md` y los Principios III, VI y VII de `.specify/memory/constitution.md`. En modo rama de corrección, leé además la sección Convergence and Security de `tasks.md`.
 
-Una vulnerabilidad en código que la rama no tocó va a "Hallazgos fuera de alcance", sin tareas.
+Clasificá el alcance de cada hallazgo:
+
+- **rama**: está en código que la rama agregó o modificó y el patrón no aparece en otro lugar de la feature.
+- **transversal**: está en código de la rama y el mismo patrón aparece en el resto del código de la feature. Por cada hallazgo en código de la rama, buscá ese patrón con Grep en las rutas que nombran `plan.md` y `tasks.md` de la feature; si aparece, informá al menos una ubicación de ejemplo (archivo:línea).
+- **fuera de la rama**: está en código que la rama no tocó y que encontraste al leer el código que la rama usa. También lleva tareas propuestas.
+
+No hagas una auditoría completa del repositorio: la búsqueda se limita a los patrones de hallazgos ya confirmados en la rama, más lo que encuentres al leer el código que la rama usa.
+
+## Verificación de correcciones (solo en modo rama de corrección)
+
+Además de revisar el diff, verificá cada tarea de seguridad de la sección Convergence and Security marcada `[X]` (las que dicen `origen: seguridad`): confirmá en el código actual si la vulnerabilidad que describe ya no existe, con la misma disciplina de evidencia que un hallazgo.
 
 ## Qué revisar
 
@@ -48,38 +59,41 @@ Una vulnerabilidad en código que la rama no tocó va a "Hallazgos fuera de alca
 
 ## Tareas propuestas
 
-Por cada hallazgo dentro del alcance proponé:
+Por cada hallazgo, cualquiera sea su alcance, proponé:
 
 1. **Una tarea de prueba,** que reproduce la vulnerabilidad y falla mientras exista. La va a ejecutar `qa-builder`.
 2. **Una tarea de corrección,** que hace pasar esa prueba. La va a ejecutar `code-builder`.
 
 Si un hallazgo no se puede probar de forma automatizada (por ejemplo, una configuración), proponé solo la tarea de corrección y explicá por qué.
 
-Escribí cada tarea en formato de `tasks.md`, **sin ID** (la skill los asigna), con rutas de archivo:
+Escribí cada tarea en formato neutro: **sin ID, sin `[USx]` y sin destino**, con rutas de archivo. La skill asigna el ID y agrega la etiqueta o el origen según el destino que apruebe el desarrollador:
 
 ```
-- [ ] [USx] Agregar prueba de integración que verifica que GET /api/projects/{id} devuelve 403 a un usuario que no integra el proyecto en backend/... per <hallazgo S1> (security)
-- [ ] [USx] Verificar la pertenencia al proyecto en el handler de detalle en backend/... per <hallazgo S1> (security)
+- [ ] Agregar prueba de integración que verifica que GET /api/projects/{id} devuelve 403 a un usuario que no integra el proyecto en backend/... per hallazgo de seguridad: detalle de proyecto sin control de pertenencia (security)
+- [ ] Verificar la pertenencia al proyecto en el handler de detalle en backend/... per hallazgo de seguridad: detalle de proyecto sin control de pertenencia (security)
 ```
 
-En una fase técnica, omití la etiqueta `[USx]`.
+Los identificadores S1, S2… se usan solo como referencia dentro de este informe; nunca aparecen en el texto de una tarea.
 
 ## Informe de salida
 
 ```
 Alcance: NNN / USx o fase
+Modo: normal | rama de corrección
 Archivos revisados: <cantidad> (diff contra origin/main)
 Herramientas ejecutadas: <govulncheck, npm audit o "ninguna">
 
 Hallazgos:
-| ID | Severidad | Archivo:línea | Descripción | Escenario de explotación |
+| ID | Severidad | Alcance | Archivo:línea | Descripción | Escenario de explotación | Otras ubicaciones (transversal) |
 
 Tareas propuestas:
 S1:
 - [ ] ... (prueba)
 - [ ] ... (corrección)
 
-Hallazgos fuera de alcance: <o "Ninguno">
+Verificación de correcciones: (solo en modo rama de corrección)
+| Txxx | Corregido (sí/no) | Evidencia |
+
 Observaciones: <o "Ninguna">
 ```
 

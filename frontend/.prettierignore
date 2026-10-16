@@ -1,0 +1,11 @@
+# Artefactos generados que Prettier no debe revisar: el .gitignore está en la
+# raíz del repositorio y Prettier no lo lee al ejecutarse desde frontend/
+
+# Reporte de cobertura de Vitest
+coverage/
+
+# Artefactos de compilación y exportación de Next.js
+.next/
+out/
+build/
+next-env.d.ts

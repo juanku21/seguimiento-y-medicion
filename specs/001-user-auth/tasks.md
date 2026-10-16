@@ -636,7 +636,7 @@ y se hacen en `fase/001-polish`.
       `core.autocrlf=true`: hoy falla por los finales de línea CRLF frente al `endOfLine: lf` por
       defecto de Prettier; resolverlo con `.gitattributes` o con la opción `endOfLine` en
       `frontend/.prettierrc.json`, según Constitución VIII (partial)
-- [ ] T093 Excluir el reporte generado `coverage/` del análisis de Prettier (crear
+- [X] T093 Excluir el reporte generado `coverage/` del análisis de Prettier (crear
       `frontend/.prettierignore`) y de ESLint (`globalIgnores` de `frontend/eslint.config.mjs`), que
       hoy lo revisan y dan 28 avisos de formato y una advertencia de lint, según Constitución VIII
       (partial)

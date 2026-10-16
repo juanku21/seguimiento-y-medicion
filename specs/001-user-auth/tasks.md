@@ -648,7 +648,7 @@ y se hacen en `fase/001-polish`.
       `inet_server_port()` devuelve vacío; usar `-h 127.0.0.1` o `SELECT current_database()` y
       aclarar que el puerto interno es 5432 y el del host 5433, según SC: aislamiento de pruebas y
       Constitución V (partial)
-- [ ] T096 Revisar la ruta pública `/swagger/*any` de `backend/cmd/app/main.go` frente a RN-08, que
+- [X] T096 Revisar la ruta pública `/swagger/*any` de `backend/cmd/app/main.go` frente a RN-08, que
       solo admite como públicos el registro y el inicio de sesión: documentarla como excepción
       (documentación exigida por la Constitución VIII) o restringirla fuera de desarrollo, según
       RN-08 (unrequested)

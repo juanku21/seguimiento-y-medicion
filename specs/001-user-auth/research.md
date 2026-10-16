@@ -448,6 +448,9 @@ recién clonada hasta que se ejecuta `swag init`; se resuelve documentando ese p
 y ejecutándolo dentro del `Dockerfile`, de modo que el camino contenerizado no requiere pasos
 manuales.
 
+La ruta `/swagger/*any` es pública: es la excepción documentada a RN-08 (ver la tabla de reglas
+de `spec.md`).
+
 **Señalado al desarrollador**: la alternativa es versionar `backend/docs/`, que haría compilable el
 clon recién hecho a cambio de contradecir el Principio VI. Se eligió respetar el principio, que
 prevalece.

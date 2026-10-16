@@ -302,7 +302,7 @@ que cubren SC-008:
 | Hash y comparación bcrypt; ausencia de la contraseña en toda salida | RN-05 |
 | Mensaje genérico de credenciales inválidas | RN-06 |
 | Vigencia de la sesión: vencida, revocada, inexistente | RN-07 |
-| Clasificación de rutas públicas y protegidas | RN-08 |
+| Clasificación de rutas públicas y protegidas (la excepción de `/swagger/*any` se monta en `cmd/app/main.go`, fuera de `RegisterRoutes`) | RN-08 |
 | Atribución de la acción al titular de la sesión | RN-09 |
 
 Comparación con los criterios de éxito: SC-003 se verifica con `TestUS3_*` sobre cada endpoint

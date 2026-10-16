@@ -83,7 +83,9 @@ func run() error {
 	handler := delivery.NewHandler(auth)
 
 	// El router habilita CORS solo para el origen del frontend, publica Swagger y registra las
-	// rutas de la feature de autenticación.
+	// rutas de la feature de autenticación. La ruta de Swagger es pública sin sesión: es la excepción
+	// a RN-08 documentada en specs/001-user-auth/spec.md, porque el Principio VIII exige documentar
+	// la API con Swagger.
 	router := gin.Default()
 	router.Use(cors.New(cors.Config{
 		AllowOrigins: []string{cfg.CORSAllowedOrigin},

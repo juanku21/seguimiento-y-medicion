@@ -112,11 +112,16 @@ docker compose -p smye-test ps
 **Comprobación de aislamiento** — las pruebas nunca deben tocar la base de desarrollo:
 
 ```powershell
-docker exec smye-test-postgres-1 psql -U smye -d smye_test -c "SELECT current_database(), inet_server_port();"
+docker exec smye-test-postgres-1 psql -h 127.0.0.1 -U smye -d smye_test -c "SELECT current_database(), inet_server_port();"
 ```
 
-Debe responder `smye_test`. Si responde `smye_dev`, el entorno está mal configurado y hay que
-detenerse antes de ejecutar nada.
+Debe responder `smye_test` y `5432`. Si responde `smye_dev`, el entorno está mal configurado y
+hay que detenerse antes de ejecutar nada.
+
+El `-h 127.0.0.1` fuerza la conexión por TCP: sin él, `psql` entra por el socket local y
+`inet_server_port()` devuelve vacío. El `5432` es el puerto interno del contenedor; en el host,
+el contenedor de test está publicado en el `5433`, que es el que usan el backend y las pruebas
+(`docker compose -p smye-test ps` muestra `0.0.0.0:5433->5432/tcp`).
 
 ---
 

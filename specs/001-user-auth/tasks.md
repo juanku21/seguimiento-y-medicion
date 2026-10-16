@@ -644,7 +644,7 @@ y se hacen en `fase/001-polish`.
       `research.md` (líneas 23, 37 y 535) y `quickstart.md` (línea 18, que además dice "Falta
       instalar"), porque T078 subió `backend/go.mod` y `backend/Dockerfile` a 1.27.2, según
       plan: stack y versiones (contradicts) — depende de T078
-- [ ] T095 Corregir la comprobación de aislamiento de `quickstart.md` §3: por socket local
+- [X] T095 Corregir la comprobación de aislamiento de `quickstart.md` §3: por socket local
       `inet_server_port()` devuelve vacío; usar `-h 127.0.0.1` o `SELECT current_database()` y
       aclarar que el puerto interno es 5432 y el del host 5433, según SC: aislamiento de pruebas y
       Constitución V (partial)

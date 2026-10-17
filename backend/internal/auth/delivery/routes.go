@@ -12,7 +12,7 @@ func RegisterRoutes(router *gin.Engine, handler *Handler) *gin.RouterGroup {
 	api := router.Group("/api/v1")
 	api.POST("/auth/register", handler.registerUser)
 	api.POST("/auth/login", handler.loginUser)
-	protected := api.Group("", handler.requireSession)
+	protected := api.Group("", handler.RequireSession)
 	protected.POST("/auth/logout", handler.logoutUser)
 	protected.GET("/users/me", handler.getOwnProfile)
 	return protected

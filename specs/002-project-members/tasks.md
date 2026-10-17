@@ -171,7 +171,7 @@ son **técnicas**: declaran estructuras y contratos, sin lógica de negocio.
       nada. Si al llegar acá el ayudante estuviera en un archivo `*_test.go` de otro paquete,
       moverlo primero a esta ubicación: el contenido de un `_test.go` solo existe para su propio
       paquete y el módulo de proyectos no podría importarlo — depende de T014
-- [ ] T016 Crear el grupo de rutas `/api/v1/projects` en
+- [X] T016 Crear el grupo de rutas `/api/v1/projects` en
       `backend/internal/projects/delivery/routes.go`, **sin ninguna ruta pública** (FR-046), y
       componer el módulo en `backend/cmd/app/main.go` inyectando el middleware de sesión de la 001
       como `gin.HandlerFunc`, de modo que `projects/delivery` no importe el middleware sino solo el

@@ -31,13 +31,14 @@ const msgSessionRequired = "Se requiere iniciar sesión."
 // bearerPrefix es el esquema que debe tener la cabecera Authorization de una petición protegida.
 const bearerPrefix = "Bearer "
 
-// requireSession exige una sesión vigente antes de ejecutar la acción protegida (FR-015, FR-016,
+// RequireSession exige una sesión vigente antes de ejecutar la acción protegida (FR-015, FR-016,
 // FR-020). Toma el token de la cabecera Authorization con esquema Bearer y lo valida con el
 // servicio; si falta o es inválido, corta la cadena con el mismo 401 en todos los casos, sin
 // ejecutar la acción. Un fallo real del repositorio corta con 500 para no confundirlo con la falta
 // de sesión (Principio VII). Con la sesión vigente, deja el sub en el contexto para la atribución
-// (FR-021, RN-09).
-func (h *Handler) requireSession(c *gin.Context) {
+// (FR-021, RN-09). Se exporta para que cmd/app lo inyecte como gin.HandlerFunc en los grupos de
+// rutas de otros módulos, sin que estos importen el middleware (research.md de la 002, sección 10).
+func (h *Handler) RequireSession(c *gin.Context) {
 	token, ok := strings.CutPrefix(c.GetHeader("Authorization"), bearerPrefix)
 	if !ok || strings.TrimSpace(token) == "" {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, ErrorResponse{Error: msgSessionRequired})

@@ -259,7 +259,7 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
 - [X] T023 [US1] Implementar el cálculo de horas estimadas en
       `backend/internal/projects/service/estimation.go` en centésimas enteras, sin `float64` y sin
       divisiones intermedias (RN-08, FR-045)
-- [ ] T024 [US1] Implementar `Create(ctx, project, ownerMembership)` en
+- [X] T024 [US1] Implementar `Create(ctx, project, ownerMembership)` en
       `backend/internal/projects/repository/project_repository.go`: `INSERT projects` +
       `INSERT project_members` del propietario en **una sola transacción**, de modo que FR-010 ("sin
       crear el proyecto ni ninguna membresía") sea atómico por construcción, y traducir

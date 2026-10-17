@@ -211,7 +211,7 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
       `horas_en_centésimas = EstimatedStoryPoints × hours_per_story_point_hundredths`, todo en
       enteros y sin divisiones intermedias. Casos: `16 × 650 = 10400` centésimas (104,00 horas),
       `0` Story Points con cualquier factor da 0, y el factor mínimo `1` y máximo `4000` centésimas
-- [ ] T019 [US1] Pruebas de integración de la historia en
+- [X] T019 [US1] Pruebas de integración de la historia en
       `backend/internal/projects/delivery/handler_test.go`, una función por escenario de spec.md
       precedida por `// Escenario: <nombre del escenario> (002/US1)`:
       `TestUS1_CreacionExitosa` (`201` en `planned`, sin `actualEndDate`, con un solo integrante

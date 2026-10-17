@@ -39,6 +39,8 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/config"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/database"
 	projectsdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/delivery"
+	projectsrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/repository"
+	projectsservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/service"
 )
 
 // envFile es el archivo de variables de desarrollo, relativo al directorio backend/ desde el que
@@ -102,8 +104,14 @@ func run() error {
 
 	// El módulo de proyectos recibe el middleware de sesión de la feature de autenticación como
 	// gin.HandlerFunc, así todo su grupo de rutas exige sesión sin importar ese middleware
-	// (FR-046, research.md de la 002, sección 10).
-	projectsdelivery.RegisterRoutes(router, handler.RequireSession)
+	// (FR-046, research.md de la 002, sección 10). Sus manejadores se componen sobre el repositorio
+	// de proyectos y los puertos de backlog y de sprints.
+	projects := projectsservice.NewProjectService(
+		projectsrepository.NewProjectRepository(db),
+		projectsrepository.NewBacklogSummaryProvider(),
+		projectsrepository.NewSprintDirectory(),
+	)
+	projectsdelivery.RegisterRoutes(router, handler.RequireSession, projectsdelivery.NewHandler(projects))
 
 	// ReadHeaderTimeout acota el tiempo para recibir las cabeceras y evita conexiones colgadas.
 	server := &http.Server{

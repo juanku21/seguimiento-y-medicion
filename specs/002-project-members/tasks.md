@@ -104,7 +104,7 @@ son **técnicas**: declaran estructuras y contratos, sin lógica de negocio.
 
 **Rama**: `fase/002-foundational`
 
-- [ ] T006 [P] Declarar la entidad `Project` en `backend/internal/projects/domain/project.go` con los
+- [X] T006 [P] Declarar la entidad `Project` en `backend/internal/projects/domain/project.go` con los
       campos de data-model.md sección 1: `ID uuid` PK generado con `google/uuid`,
       `OwnerID uuid NOT NULL` con FK a `users.id` e indexada, `Name varchar(100) NOT NULL`,
       `NameNormalized varchar(100) NOT NULL` con **índice único compuesto con `owner_id`**,

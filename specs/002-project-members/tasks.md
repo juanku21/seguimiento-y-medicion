@@ -124,7 +124,7 @@ son **técnicas**: declaran estructuras y contratos, sin lógica de negocio.
       `in_progress` y `finished` en `backend/internal/projects/domain/status.go`, en inglés y como
       constantes de Go, **no** como `enum` de PostgreSQL (data-model.md sección 3). Las transiciones
       permitidas son regla de negocio y se implementan en US6, no acá
-- [ ] T009 [P] Declarar los errores de dominio en `backend/internal/projects/domain/errors.go`:
+- [X] T009 [P] Declarar los errores de dominio en `backend/internal/projects/domain/errors.go`:
       nombre de proyecto ya usado por el propietario (FR-004), proyecto inexistente o sin acceso
       (FR-049), falta de permiso de propietario (FR-050), proyecto finalizado de solo lectura
       (FR-018), usuario sin cuenta registrada (FR-021), ya es integrante (FR-022), no es integrante

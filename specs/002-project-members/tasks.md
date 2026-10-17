@@ -113,7 +113,7 @@ son **técnicas**: declaran estructuras y contratos, sin lógica de negocio.
       `HoursPerStoryPointHundredths integer NOT NULL` (**centésimas de hora, entre 1 y 4000**),
       `Status varchar(16) NOT NULL`, `CreatedAt` y `UpdatedAt` `timestamptz NOT NULL`. Sin campos de
       colección ni `Preload` hacia `project_members`
-- [ ] T007 [P] Declarar la entidad `ProjectMember` en
+- [X] T007 [P] Declarar la entidad `ProjectMember` en
       `backend/internal/projects/domain/project_member.go` con los campos de data-model.md
       sección 2: `ID uuid` PK, `ProjectID uuid NOT NULL` con FK a `projects.id` e **índice único
       compuesto con `user_id`**, `UserID uuid NOT NULL` con FK a `users.id` e indexada,

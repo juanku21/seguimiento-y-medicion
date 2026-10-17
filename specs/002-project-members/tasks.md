@@ -295,7 +295,7 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
       `frontend/src/types/project.ts` y las etiquetas en español de los tres estados en
       `frontend/src/utils/project-status.ts` (`planned` → Planificado, `in_progress` → En curso,
       `finished` → Finalizado). **Prohibido el tipo `any`** (Principio VIII) — depende de T001
-- [ ] T029 [US1] Implementar la llamada de creación en `frontend/src/features/projects/api.ts` sobre
+- [X] T029 [US1] Implementar la llamada de creación en `frontend/src/features/projects/api.ts` sobre
       el cliente `fetch` de la 001, y las reglas del formulario en
       `frontend/src/features/projects/validation.ts` con los límites 1, 100, 1000, 0,01 y 40 como
       constantes nombradas en un único lugar — depende de T028

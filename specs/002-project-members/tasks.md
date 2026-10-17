@@ -104,7 +104,7 @@ son **técnicas**: declaran estructuras y contratos, sin lógica de negocio.
 
 **Rama**: `fase/002-foundational`
 
-- [ ] T006 [P] Declarar la entidad `Project` en `backend/internal/projects/domain/project.go` con los
+- [X] T006 [P] Declarar la entidad `Project` en `backend/internal/projects/domain/project.go` con los
       campos de data-model.md sección 1: `ID uuid` PK generado con `google/uuid`,
       `OwnerID uuid NOT NULL` con FK a `users.id` e indexada, `Name varchar(100) NOT NULL`,
       `NameNormalized varchar(100) NOT NULL` con **índice único compuesto con `owner_id`**,
@@ -113,24 +113,24 @@ son **técnicas**: declaran estructuras y contratos, sin lógica de negocio.
       `HoursPerStoryPointHundredths integer NOT NULL` (**centésimas de hora, entre 1 y 4000**),
       `Status varchar(16) NOT NULL`, `CreatedAt` y `UpdatedAt` `timestamptz NOT NULL`. Sin campos de
       colección ni `Preload` hacia `project_members`
-- [ ] T007 [P] Declarar la entidad `ProjectMember` en
+- [X] T007 [P] Declarar la entidad `ProjectMember` en
       `backend/internal/projects/domain/project_member.go` con los campos de data-model.md
       sección 2: `ID uuid` PK, `ProjectID uuid NOT NULL` con FK a `projects.id` e **índice único
       compuesto con `user_id`**, `UserID uuid NOT NULL` con FK a `users.id` e indexada,
       `CreatedAt timestamptz NOT NULL` (**es la fecha de incorporación**) y
       `UpdatedAt timestamptz NOT NULL`. **Sin columna `is_owner` ni `joined_at`**: la propiedad es
       `projects.owner_id` y la fecha de incorporación es `created_at` (research.md sección 7)
-- [ ] T008 [P] Declarar el tipo `ProjectStatus` y sus tres constantes tipadas `planned`,
+- [X] T008 [P] Declarar el tipo `ProjectStatus` y sus tres constantes tipadas `planned`,
       `in_progress` y `finished` en `backend/internal/projects/domain/status.go`, en inglés y como
       constantes de Go, **no** como `enum` de PostgreSQL (data-model.md sección 3). Las transiciones
       permitidas son regla de negocio y se implementan en US6, no acá
-- [ ] T009 [P] Declarar los errores de dominio en `backend/internal/projects/domain/errors.go`:
+- [X] T009 [P] Declarar los errores de dominio en `backend/internal/projects/domain/errors.go`:
       nombre de proyecto ya usado por el propietario (FR-004), proyecto inexistente o sin acceso
       (FR-049), falta de permiso de propietario (FR-050), proyecto finalizado de solo lectura
       (FR-018), usuario sin cuenta registrada (FR-021), ya es integrante (FR-022), no es integrante
       (FR-026), el propietario no puede quitarse (FR-025), transición de estado inválida (FR-038) y
       sprint activo que impide finalizar (FR-041)
-- [ ] T010 Declarar en `backend/internal/projects/domain/repository.go` las dos interfaces con
+- [X] T010 Declarar en `backend/internal/projects/domain/repository.go` las dos interfaces con
       **exactamente** las ocho operaciones de data-model.md sección 7 —
       `ProjectRepository`: `Create(ctx, project, ownerMembership) error`,
       `FindByID(ctx, id) (*Project, error)`, `Update(ctx, project) error`,
@@ -140,30 +140,30 @@ son **técnicas**: declaran estructuras y contratos, sin lógica de negocio.
       `ListMembers(ctx, projectID) ([]MemberView, error)`; más los tipos de lectura
       `ProjectListItem` y `MemberView`. **Prohibido** declarar borrado de proyecto (RC-05), `List`
       global ni búsquedas por otros campos (Principio III) — depende de T006 y T007
-- [ ] T011 Declarar los tres puertos en `backend/internal/projects/domain/ports.go` con los tipos de
+- [X] T011 Declarar los tres puertos en `backend/internal/projects/domain/ports.go` con los tipos de
       data-model.md secciones 4 y 5: `UserDirectory.FindByEmail(ctx, normalizedEmail) (*UserRef, error)`
       con `UserRef` de **solo** identificador, nombre completo y correo (**ningún campo de
       contraseña**); `BacklogSummaryProvider.Summarize(ctx, projectID) (BacklogSummary, error)` con
       `CountsByState` como **mapa de estado a cantidad** (no un enumerado: el conjunto de estados lo
       define la spec 003) y `EstimatedStoryPoints`; y
       `SprintDirectory.FindActiveSprint(ctx, projectID) (*ActiveSprint, error)` con `ID` y `Name`
-- [ ] T012 [P] Implementar el puerto de backlog en
+- [X] T012 [P] Implementar el puerto de backlog en
       `backend/internal/projects/repository/backlog_summary.go` informando **backlog vacío**
       (`CountsByState` vacío y `EstimatedStoryPoints` en 0), con un comentario en español que
       indique que `specs/003-product-backlog` reemplazará el cuerpo de este archivo. No es un dato
       inventado: hoy ningún proyecto tiene historias, que es lo que FR-044 manda informar
       (research.md sección 9) — depende de T011
-- [ ] T013 [P] Implementar el puerto de sprints en
+- [X] T013 [P] Implementar el puerto de sprints en
       `backend/internal/projects/repository/sprint_directory.go` informando **ausencia de sprint
       activo** (devuelve nulo sin error), con un comentario en español que indique que
       `specs/004-sprint-management` reemplazará el cuerpo de este archivo. FR-043 exige que esa
       ausencia no sea un error — depende de T011
-- [ ] T014 Agregar `projects` y `project_members` al `AutoMigrate` de
+- [X] T014 Agregar `projects` y `project_members` al `AutoMigrate` de
       `backend/internal/platform/database/postgres.go`, de modo que los dos índices únicos
       compuestos —`(owner_id, name_normalized)` y `(project_id, user_id)`— queden creados por las
       etiquetas de GORM y no por un `CREATE INDEX` en crudo (research.md secciones 2 y 6) — depende
       de T006 y T007
-- [ ] T015 Extender el ayudante de pruebas de integración en
+- [X] T015 Extender el ayudante de pruebas de integración en
       `backend/internal/platform/testsupport/database.go` (lo crea la tarea T024 de la feature 001)
       para que vacíe también las dos tablas nuevas:
       `TRUNCATE users, sessions, auth_events, projects, project_members CASCADE`, manteniendo la
@@ -171,7 +171,7 @@ son **técnicas**: declaran estructuras y contratos, sin lógica de negocio.
       nada. Si al llegar acá el ayudante estuviera en un archivo `*_test.go` de otro paquete,
       moverlo primero a esta ubicación: el contenido de un `_test.go` solo existe para su propio
       paquete y el módulo de proyectos no podría importarlo — depende de T014
-- [ ] T016 Crear el grupo de rutas `/api/v1/projects` en
+- [X] T016 Crear el grupo de rutas `/api/v1/projects` en
       `backend/internal/projects/delivery/routes.go`, **sin ninguna ruta pública** (FR-046), y
       componer el módulo en `backend/cmd/app/main.go` inyectando el middleware de sesión de la 001
       como `gin.HandlerFunc`, de modo que `projects/delivery` no importe el middleware sino solo el

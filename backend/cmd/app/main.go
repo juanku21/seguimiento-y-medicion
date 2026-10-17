@@ -38,6 +38,7 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/service"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/config"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/database"
+	projectsdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/delivery"
 )
 
 // envFile es el archivo de variables de desarrollo, relativo al directorio backend/ desde el que
@@ -98,6 +99,11 @@ func run() error {
 	}))
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	delivery.RegisterRoutes(router, handler)
+
+	// El módulo de proyectos recibe el middleware de sesión de la feature de autenticación como
+	// gin.HandlerFunc, así todo su grupo de rutas exige sesión sin importar ese middleware
+	// (FR-046, research.md de la 002, sección 10).
+	projectsdelivery.RegisterRoutes(router, handler.RequireSession)
 
 	// ReadHeaderTimeout acota el tiempo para recibir las cabeceras y evita conexiones colgadas.
 	server := &http.Server{

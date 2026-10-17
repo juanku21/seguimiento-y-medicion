@@ -299,7 +299,7 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
       el cliente `fetch` de la 001, y las reglas del formulario en
       `frontend/src/features/projects/validation.ts` con los límites 1, 100, 1000, 0,01 y 40 como
       constantes nombradas en un único lugar — depende de T028
-- [ ] T030 [US1] Implementar el `ProjectForm` en
+- [X] T030 [US1] Implementar el `ProjectForm` en
       `frontend/src/features/projects/components/project-form.tsx`, con los mensajes en español y
       los límites visibles antes de enviar — depende de T029
 - [ ] T031 [US1] Crear la pantalla `frontend/src/app/projects/new/page.tsx`, protegida con la

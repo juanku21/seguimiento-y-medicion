@@ -230,7 +230,7 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
       borran los datos entre sí con el `TRUNCATE` cuando `go test ./...` los corre en paralelo. Se
       verifica con `go test -count=1 ./...` sin `-p 1`, que debe dejar solo los fallos RED
       esperados de la US1 — surge de T019, depende de T015
-- [ ] T020 [P] [US1] Prueba de integración de concurrencia en
+- [X] T020 [P] [US1] Prueba de integración de concurrencia en
       `backend/internal/projects/delivery/project_concurrency_test.go`: **10 solicitudes de creación
       simultáneas con el mismo nombre y el mismo propietario** dejan exactamente un proyecto y las
       nueve restantes reciben `409`, verificado contando filas agrupadas por

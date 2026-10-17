@@ -302,7 +302,7 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
 - [X] T030 [US1] Implementar el `ProjectForm` en
       `frontend/src/features/projects/components/project-form.tsx`, con los mensajes en español y
       los límites visibles antes de enviar — depende de T029
-- [ ] T031 [US1] Crear la pantalla `frontend/src/app/projects/new/page.tsx`, protegida con la
+- [X] T031 [US1] Crear la pantalla `frontend/src/app/projects/new/page.tsx`, protegida con la
       guardia de sesión de la 001 — depende de T030
 
 **Checkpoint**: US1 funciona y se prueba sola. El MVP está entregable.

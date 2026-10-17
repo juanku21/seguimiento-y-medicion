@@ -106,23 +106,25 @@ export function postJson<T>(
   );
 }
 
-// Envía una petición autenticada sin cuerpo con el token de la pestaña en la cabecera Authorization
-// (research.md, sección 9). Ante un 401 borra la sesión y deja la marca del rechazo, para que la
-// guardia lleve a /login con el aviso de volver a iniciar sesión (FR-016).
+// Envía una petición autenticada con el token de la pestaña en la cabecera Authorization
+// (research.md, sección 9); si recibe body, lo envía como JSON. Ante un 401 borra la sesión y deja
+// la marca del rechazo, para que la guardia lleve a /login con el aviso de volver a iniciar sesión
+// (FR-016).
 async function authorizedRequest<T>(
   path: string,
   method: "GET" | "POST",
   isData: (value: unknown) => value is T,
+  body?: unknown,
 ): Promise<ApiResult<T>> {
   const token = readToken();
-  const result = await request(
-    path,
-    {
-      method,
-      headers: token === null ? {} : { Authorization: `Bearer ${token}` },
-    },
-    isData,
-  );
+  const headers: Record<string, string> =
+    token === null ? {} : { Authorization: `Bearer ${token}` };
+  const init: RequestInit = { method, headers };
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+    init.body = JSON.stringify(body);
+  }
+  const result = await request(path, init, isData);
   if (!result.ok && result.error.status === 401) {
     rejectSession();
   }
@@ -146,4 +148,13 @@ function isEmpty(value: unknown): value is undefined {
 // respuesta exitosa no trae contenido.
 export function postEmpty(path: string): Promise<ApiResult<undefined>> {
   return authorizedRequest(path, "POST", isEmpty);
+}
+
+// Envía body como JSON con un POST autenticado a la ruta indicada de la API.
+export function postAuthorizedJson<T>(
+  path: string,
+  body: unknown,
+  isData: (value: unknown) => value is T,
+): Promise<ApiResult<T>> {
+  return authorizedRequest(path, "POST", isData, body);
 }

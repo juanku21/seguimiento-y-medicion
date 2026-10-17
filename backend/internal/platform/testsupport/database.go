@@ -4,9 +4,15 @@
 package testsupport
 
 import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"testing"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -17,10 +23,28 @@ import (
 // testDatabaseName es la única base sobre la que el ayudante acepta operar (Principio V).
 const testDatabaseName = "smye_test"
 
+// testLockKey es la clave del advisory lock que serializa a los procesos de prueba que usan
+// smye_test, y testLockTimeout es lo máximo que un proceso espera a que otro lo libere.
+const (
+	testLockKey     int64 = 2026_002_086
+	testLockTimeout       = 5 * time.Minute
+)
+
+// lockOnce garantiza que cada proceso de prueba tome el lock una sola vez; lockConn conserva la
+// conexión dedicada que lo sostiene hasta que el proceso termina, y lockErr guarda el resultado
+// para que todas las llamadas posteriores lo informen.
+var (
+	lockOnce sync.Once
+	lockConn *sql.Conn
+	lockErr  error
+)
+
 // OpenDatabase prepara la base de test para un caso de integración: carga backend/.env.test,
-// verifica que la base configurada sea smye_test, abre la conexión migrando el esquema y vacía las
-// tablas de autenticación y de proyectos. Devuelve la conexión y la configuración cargada, y cierra
-// el pool al terminar la prueba. Ante cualquier fallo detiene la prueba con t.Fatalf sin tocar ninguna base.
+// verifica que la base configurada sea smye_test, en la primera llamada del proceso toma el lock
+// que serializa el acceso de los paquetes de prueba a esa base, abre la conexión migrando el
+// esquema y vacía las tablas de autenticación y de proyectos. Devuelve la conexión y la
+// configuración cargada, y cierra el pool al terminar la prueba. Ante cualquier fallo detiene la
+// prueba con t.Fatalf sin tocar ninguna base.
 func OpenDatabase(t testing.TB) (*gorm.DB, config.Config) {
 	t.Helper()
 
@@ -35,6 +59,13 @@ func OpenDatabase(t testing.TB) (*gorm.DB, config.Config) {
 	}
 	if cfg.DBName != testDatabaseName {
 		t.Fatalf("DB_NAME es %q: las pruebas de integración solo corren contra %q", cfg.DBName, testDatabaseName)
+	}
+
+	// Antes de migrar y de vaciar tablas, el proceso toma el lock exclusivo de smye_test para que
+	// otro paquete de pruebas corriendo en paralelo no le borre los datos.
+	lockOnce.Do(func() { lockErr = acquireTestLock(cfg) })
+	if lockErr != nil {
+		t.Fatalf("no se pudo tomar el lock de la base de test: %v", lockErr)
 	}
 
 	// Se abre la conexión y se registra el cierre del pool al finalizar la prueba.
@@ -58,6 +89,29 @@ func OpenDatabase(t testing.TB) (*gorm.DB, config.Config) {
 		t.Fatalf("no se pudieron vaciar las tablas de test: %v", err)
 	}
 	return db, cfg
+}
+
+// acquireTestLock abre una conexión dedicada, fuera del pool de GORM, y toma en ella
+// pg_advisory_lock con la clave de test, esperando como máximo testLockTimeout. El lock no se
+// libera: PostgreSQL lo suelta al cerrarse la conexión cuando termina el proceso de prueba. Si algo
+// falla, cierra lo que haya abierto y devuelve el error.
+func acquireTestLock(cfg config.Config) error {
+	pool, err := sql.Open("pgx", database.DSN(cfg))
+	if err != nil {
+		return fmt.Errorf("no se pudo preparar la conexión del lock: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), testLockTimeout)
+	defer cancel()
+	conn, err := pool.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("no se pudo abrir la conexión del lock: %w", errors.Join(err, pool.Close()))
+	}
+	if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock($1)", testLockKey); err != nil {
+		lockFailure := fmt.Errorf("pg_advisory_lock falló o superó la espera máxima de %s: %w", testLockTimeout, err)
+		return errors.Join(lockFailure, conn.Close(), pool.Close())
+	}
+	lockConn = conn
+	return nil
 }
 
 // envTestPath ubica backend/.env.test a partir de la ruta de este archivo fuente, de modo que se

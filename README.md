@@ -280,6 +280,7 @@ El frontend queda en <http://localhost:3000> y lee `frontend/.env.local`. Para u
 | <http://localhost:3000/register> | Formulario de registro de cuenta |
 | <http://localhost:3000/login> | Formulario de inicio de sesión |
 | <http://localhost:3000/profile> | Perfil del usuario con sesión iniciada (sin sesión redirige a `/login`) |
+| <http://localhost:3000/projects/new> | Formulario de creación de proyecto (sin sesión redirige a `/login`) |
 | <http://localhost:8080/swagger/index.html> | Documentación interactiva de la API |
 
 Recorrido mínimo: crear una cuenta en `/register`, iniciar sesión en `/login`, ver el perfil en `/profile` y cerrar sesión desde ahí.

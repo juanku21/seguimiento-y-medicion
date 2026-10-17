@@ -197,7 +197,7 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T017 [P] [US1] Pruebas unitarias **obligatorias** de validación y normalización en
+- [X] T017 [P] [US1] Pruebas unitarias **obligatorias** de validación y normalización en
       `backend/internal/projects/delivery/validation_test.go`, cubriendo RN-04 a RN-07: nombre de
       **entre 1 y 100 runas tras `TrimSpace`**, con nombre ausente o compuesto solo por espacios
       rechazado (RN-04); nombre normalizado con `TrimSpace` + `ToLower` (RN-05); descripción
@@ -206,12 +206,12 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
       el factor leído como `json.Number` y validado **mayor que 0, menor o igual a 40 y con hasta 2
       decimales**, equivalente a `1 <= hundredths <= 4000`, rechazando `0`, negativos, `40.01` y
       `6.555` **sin redondear** (RN-07)
-- [ ] T018 [P] [US1] Pruebas unitarias **obligatorias** del cálculo de horas estimadas en
+- [X] T018 [P] [US1] Pruebas unitarias **obligatorias** del cálculo de horas estimadas en
       `backend/internal/projects/service/estimation_test.go`, cubriendo RN-08:
       `horas_en_centésimas = EstimatedStoryPoints × hours_per_story_point_hundredths`, todo en
       enteros y sin divisiones intermedias. Casos: `16 × 650 = 10400` centésimas (104,00 horas),
       `0` Story Points con cualquier factor da 0, y el factor mínimo `1` y máximo `4000` centésimas
-- [ ] T019 [US1] Pruebas de integración de la historia en
+- [X] T019 [US1] Pruebas de integración de la historia en
       `backend/internal/projects/delivery/handler_test.go`, una función por escenario de spec.md
       precedida por `// Escenario: <nombre del escenario> (002/US1)`:
       `TestUS1_CreacionExitosa` (`201` en `planned`, sin `actualEndDate`, con un solo integrante
@@ -221,66 +221,88 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
       `t.Run` para 0, negativo, 40,01 y 6,555), `TestUS1_FechaPrevistaAnterior`,
       `TestUS1_NombreRepetido` (`  portal de clientes  ` contra "Portal de Clientes" → `409`) y
       `TestUS1_SinSesion` (`401` y nada creado) — depende de T015 y T016
-- [ ] T020 [P] [US1] Prueba de integración de concurrencia en
+- [X] T086 [US1] Serializar el acceso de las pruebas de integración a `smye_test` en
+      `backend/internal/platform/testsupport/database.go`: la primera llamada a `OpenDatabase` de
+      cada proceso de prueba (con `sync.Once`) abre una conexión dedicada, fuera del pool de GORM, y
+      toma `pg_advisory_lock` con una clave constante y un tiempo máximo de espera, sin liberarlo:
+      PostgreSQL lo suelta al cerrarse la conexión cuando termina el proceso. Así los paquetes con
+      pruebas de integración (`auth/delivery`, `projects/delivery` y los que se agreguen) no se
+      borran los datos entre sí con el `TRUNCATE` cuando `go test ./...` los corre en paralelo. Se
+      verifica con `go test -count=1 ./...` sin `-p 1`, que debe dejar solo los fallos RED
+      esperados de la US1 — surge de T019, depende de T015
+- [X] T020 [P] [US1] Prueba de integración de concurrencia en
       `backend/internal/projects/delivery/project_concurrency_test.go`: **10 solicitudes de creación
       simultáneas con el mismo nombre y el mismo propietario** dejan exactamente un proyecto y las
       nueve restantes reciben `409`, verificado contando filas agrupadas por
       `(owner_id, name_normalized)` (FR-011, SC-007) — depende de T015 y T016
-- [ ] T021 [P] [US1] Pruebas de frontend en
+- [X] T021 [P] [US1] Pruebas de frontend en
       `frontend/src/features/projects/components/project-form.test.tsx` y
       `frontend/src/features/projects/validation.test.ts`, con
       `describe("002/US1 - Crear un proyecto")` y un `it` por escenario, incluido que el formulario
       **muestra antes de enviar** el máximo de 100 caracteres del nombre, los 1000 de la descripción
       y el rango del factor de 0,01 a 40 con hasta 2 decimales — depende de T001
+- [X] T087 [US1] Ampliar `TestUS1_CreacionExitosa` en
+      `backend/internal/projects/delivery/handler_test.go` para que exija que `owner.fullName` y
+      `members[0].fullName` sean el nombre con que se registró el propietario, y que
+      `members[0].email` sea su correo, porque quien consulta es el propietario (FR-030); y
+      ajustar `newProjectsTestEnv` a la nueva firma de `NewProjectService`, que recibe el
+      repositorio de integrantes — surge de T026, depende de T019
 
 ### Implementación de la Historia 1
 
-- [ ] T022 [US1] Implementar normalización y validación de entrada en
+- [X] T022 [US1] Implementar normalización y validación de entrada en
       `backend/internal/projects/delivery/validation.go`, con los valores límite 1, 100, 1000, 1 y
       4000 declarados como **constantes nombradas en un único lugar**, el factor recibido como
       `json.Number` para poder contar los decimales sobre el texto literal, y las fechas parseadas
       con el layout `2006-01-02` y su error manejado. La validación ocurre antes de la capa de
       servicio (Principio VII)
-- [ ] T023 [US1] Implementar el cálculo de horas estimadas en
+- [X] T023 [US1] Implementar el cálculo de horas estimadas en
       `backend/internal/projects/service/estimation.go` en centésimas enteras, sin `float64` y sin
       divisiones intermedias (RN-08, FR-045)
-- [ ] T024 [US1] Implementar `Create(ctx, project, ownerMembership)` en
+- [X] T024 [US1] Implementar `Create(ctx, project, ownerMembership)` en
       `backend/internal/projects/repository/project_repository.go`: `INSERT projects` +
       `INSERT project_members` del propietario en **una sola transacción**, de modo que FR-010 ("sin
       crear el proyecto ni ninguna membresía") sea atómico por construcción, y traducir
       `gorm.ErrDuplicatedKey` al error de nombre ya usado, sin "consultar y después insertar"
       (FR-007, FR-011, RN-01, SC-007) — depende de T022
-- [ ] T025 [US1] Declarar en `backend/internal/projects/delivery/dto.go` los esquemas de
+- [X] T025 [US1] Declarar en `backend/internal/projects/delivery/dto.go` los esquemas de
       contracts/openapi.yaml: `ProjectInput`, `ProjectDetail`, `OwnerRef`, `ProjectMemberView`,
       `BacklogSummary`, `ActiveSprintRef`, y reutilizar `ErrorResponse`, `FieldError` y
       `ValidationErrorResponse` de la 001. Los estados se serializan como `planned`,
       `in_progress` y `finished`; `hoursPerStoryPoint` y `estimatedHours` como **números con hasta 2
       decimales**, dividiendo las centésimas por 100 una sola vez al serializar (research.md
       sección 3)
-- [ ] T026 [US1] Implementar la creación en
+- [X] T026 [US1] Implementar la creación en
       `backend/internal/projects/service/project_service.go` (construye el `Project` con UUID, el
       nombre normalizado, el estado `planned` y `actual_end_date` nula, más la membresía del
       propietario) y el armado de la respuesta en
       `backend/internal/projects/service/project_view.go` usando los dos puertos y el cálculo de
       T023 — depende de T012, T013, T023 y T024
-- [ ] T027 [US1] Implementar el manejador `createProject` en
+- [X] T088 [US1] Adelantar `ListMembers(ctx, projectID)` de T048 en
+      `backend/internal/projects/repository/project_member_repository.go`, resolviendo nombre y
+      correo con **un solo `JOIN`** a `users` y **sin seleccionar `password_hash`** (research.md
+      sección 8), inyectar el repositorio de integrantes en `NewProjectService` y usarlo en
+      `buildView` en lugar de armar la lista a mano en `Create` — surge de T026, depende de T024 y
+      T087
+- [X] T027 [US1] Implementar el manejador `createProject` en
       `backend/internal/projects/delivery/handler.go` con anotaciones `swag` en español y
       registrarlo como `POST /api/v1/projects` en
       `backend/internal/projects/delivery/routes.go`, devolviendo `201` con `ProjectDetail`, `400`
       con `ValidationErrorResponse`, `401` y `409` con `ErrorResponse`
-      (`Ya existe un proyecto propio con ese nombre.`) — depende de T025 y T026
-- [ ] T028 [P] [US1] Declarar los tipos de petición y respuesta en
+      (`Ya existe un proyecto propio con ese nombre.`), y actualizar el `@description` general de la
+      API en `backend/cmd/app/main.go` para que incluya proyectos — depende de T025 y T026
+- [X] T028 [P] [US1] Declarar los tipos de petición y respuesta en
       `frontend/src/types/project.ts` y las etiquetas en español de los tres estados en
       `frontend/src/utils/project-status.ts` (`planned` → Planificado, `in_progress` → En curso,
       `finished` → Finalizado). **Prohibido el tipo `any`** (Principio VIII) — depende de T001
-- [ ] T029 [US1] Implementar la llamada de creación en `frontend/src/features/projects/api.ts` sobre
+- [X] T029 [US1] Implementar la llamada de creación en `frontend/src/features/projects/api.ts` sobre
       el cliente `fetch` de la 001, y las reglas del formulario en
       `frontend/src/features/projects/validation.ts` con los límites 1, 100, 1000, 0,01 y 40 como
       constantes nombradas en un único lugar — depende de T028
-- [ ] T030 [US1] Implementar el `ProjectForm` en
+- [X] T030 [US1] Implementar el `ProjectForm` en
       `frontend/src/features/projects/components/project-form.tsx`, con los mensajes en español y
       los límites visibles antes de enviar — depende de T029
-- [ ] T031 [US1] Crear la pantalla `frontend/src/app/projects/new/page.tsx`, protegida con la
+- [X] T031 [US1] Crear la pantalla `frontend/src/app/projects/new/page.tsx`, protegida con la
       guardia de sesión de la 001 — depende de T030
 
 **Checkpoint**: US1 funciona y se prueba sola. El MVP está entregable.
@@ -414,13 +436,12 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       `backend/internal/projects/repository/user_directory.go`, el **único** punto del módulo que
       lee la tabla `users`, enumerando explícitamente `users.id, users.full_name, users.email` y
       **sin seleccionar nunca `password_hash`** (research.md sección 8, FR-019, FR-020)
-- [ ] T048 [US3] Implementar `Create(ctx, member)`, `Delete(ctx, projectID, userID)` y
-      `ListMembers(ctx, projectID)` en
-      `backend/internal/projects/repository/project_member_repository.go`: el alta traduce
-      `gorm.ErrDuplicatedKey` al error de integrante duplicado; la baja es un **borrado físico** de
-      la fila, **sin** `gorm.DeletedAt`, que sería incompatible con el índice único y rompería la
-      nueva alta de FR-029; y la lista resuelve nombre y correo con **un solo `JOIN`** a `users`,
-      también sin seleccionar `password_hash` (research.md secciones 6 y 8) — depende de T035
+- [ ] T048 [US3] Implementar `Create(ctx, member)` y `Delete(ctx, projectID, userID)` en
+      `backend/internal/projects/repository/project_member_repository.go` (`ListMembers` ya está
+      implementado desde T088): el alta traduce `gorm.ErrDuplicatedKey` al error de integrante
+      duplicado; y la baja es un **borrado físico** de la fila, **sin** `gorm.DeletedAt`, que sería
+      incompatible con el índice único y rompería la nueva alta de FR-029 (research.md secciones 6
+      y 8) — depende de T035
 - [ ] T049 [US3] Implementar `RequireOwnership` en
       `backend/internal/projects/delivery/middleware.go` comparando el titular con
       `projects.owner_id` y devolviendo `403`, y aplicarlo al subgrupo de acciones de administración
@@ -501,8 +522,8 @@ de estado con los datos correctos, incluso sin backlog ni sprints. El escenario 
 - [ ] T058 [US4] Completar el armado de la vista de estado en
       `backend/internal/projects/service/project_view.go`: datos generales, propietario, factor,
       estado, las tres fechas, `readOnly` derivado de `status == finished`, la lista de integrantes
-      de T048, el sprint activo y el resumen del backlog de los dos puertos, y las horas estimadas
-      con el cálculo de T023 (FR-042 a FR-045) — depende de T012, T013, T023, T048 y T055
+      de T088, el sprint activo y el resumen del backlog de los dos puertos, y las horas estimadas
+      con el cálculo de T023 (FR-042 a FR-045) — depende de T012, T013, T023, T088 y T055
 - [ ] T059 [US4] Implementar el manejador `getProjectDetail` en
       `backend/internal/projects/delivery/handler.go` con anotaciones `swag` en español y
       registrarlo como `GET /api/v1/projects/{projectId}` en
@@ -722,9 +743,9 @@ se la necesita.
 - **US2 Ver mis proyectos (P1)**: necesita el repositorio de US1 (T024) para tener proyectos que
   listar, y **aporta** el middleware de membresía (T036) que usan US3 a US6.
 - **US3 Gestionar integrantes (P2)**: necesita el middleware de membresía de US2 (T036) y **aporta**
-  el middleware de propiedad (T049) y la lista de integrantes (T048) que usan US4 a US6.
-- **US4 Consultar el estado (P2)**: necesita la lista de integrantes de US3 (T048) y el cálculo de
-  horas de US1 (T023).
+  el middleware de propiedad (T049) que usan US4 a US6.
+- **US4 Consultar el estado (P2)**: necesita la lista de integrantes (T088) y el cálculo de horas
+  (T023), ambos de US1.
 - **US5 Modificar el proyecto (P3)**: necesita el middleware de propiedad de US3 (T049), la
   validación de US1 (T022) y el `ProjectDetail` de US4 (T059).
 - **US6 Avanzar el estado (P3)**: necesita el middleware de propiedad de US3 (T049), el `Update` de

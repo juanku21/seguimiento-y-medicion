@@ -75,7 +75,7 @@ las tareas son **técnicas**.
       `backend/.env.example` (versionado) y replicarla en `backend/.env` y `backend/.env.test`
       (**no versionados**), manteniendo `.env.example` sincronizado con sus claves (Principio VI) —
       depende de T001
-- [ ] T003 Leer y validar `APP_TIMEZONE` en `backend/internal/platform/config/config.go` con
+- [X] T003 Leer y validar `APP_TIMEZONE` en `backend/internal/platform/config/config.go` con
       `time.LoadLocation`, usando solo la biblioteca estándar: si la variable falta o no es una zona
       horaria válida, **la aplicación no arranca** y lo informa, igual que hace la 001 con
       `JWT_SECRET` (research.md sección 4) — depende de T002

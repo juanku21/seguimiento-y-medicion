@@ -130,7 +130,7 @@ son **técnicas**: declaran estructuras y contratos, sin lógica de negocio.
       (FR-018), usuario sin cuenta registrada (FR-021), ya es integrante (FR-022), no es integrante
       (FR-026), el propietario no puede quitarse (FR-025), transición de estado inválida (FR-038) y
       sprint activo que impide finalizar (FR-041)
-- [ ] T010 Declarar en `backend/internal/projects/domain/repository.go` las dos interfaces con
+- [X] T010 Declarar en `backend/internal/projects/domain/repository.go` las dos interfaces con
       **exactamente** las ocho operaciones de data-model.md sección 7 —
       `ProjectRepository`: `Create(ctx, project, ownerMembership) error`,
       `FindByID(ctx, id) (*Project, error)`, `Update(ctx, project) error`,

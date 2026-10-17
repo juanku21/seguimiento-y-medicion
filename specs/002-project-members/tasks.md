@@ -235,7 +235,7 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
       simultáneas con el mismo nombre y el mismo propietario** dejan exactamente un proyecto y las
       nueve restantes reciben `409`, verificado contando filas agrupadas por
       `(owner_id, name_normalized)` (FR-011, SC-007) — depende de T015 y T016
-- [ ] T021 [P] [US1] Pruebas de frontend en
+- [X] T021 [P] [US1] Pruebas de frontend en
       `frontend/src/features/projects/components/project-form.test.tsx` y
       `frontend/src/features/projects/validation.test.ts`, con
       `describe("002/US1 - Crear un proyecto")` y un `it` por escenario, incluido que el formulario

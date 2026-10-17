@@ -147,7 +147,7 @@ son **técnicas**: declaran estructuras y contratos, sin lógica de negocio.
       `CountsByState` como **mapa de estado a cantidad** (no un enumerado: el conjunto de estados lo
       define la spec 003) y `EstimatedStoryPoints`; y
       `SprintDirectory.FindActiveSprint(ctx, projectID) (*ActiveSprint, error)` con `ID` y `Name`
-- [ ] T012 [P] Implementar el puerto de backlog en
+- [X] T012 [P] Implementar el puerto de backlog en
       `backend/internal/projects/repository/backlog_summary.go` informando **backlog vacío**
       (`CountsByState` vacío y `EstimatedStoryPoints` en 0), con un comentario en español que
       indique que `specs/003-product-backlog` reemplazará el cuerpo de este archivo. No es un dato

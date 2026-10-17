@@ -83,7 +83,7 @@ las tareas son **técnicas**.
       de zonas horarias en el binario**, porque la imagen `alpine` del `Dockerfile` del backend no
       la trae y sin eso `time.LoadLocation` falla solo dentro del contenedor (research.md
       sección 4) — depende de T001
-- [ ] T005 [P] Exportar en `backend/internal/auth/delivery/middleware.go` el accesor del titular de
+- [X] T005 [P] Exportar en `backend/internal/auth/delivery/middleware.go` el accesor del titular de
       la sesión (algo como `CurrentUserID(c *gin.Context) (uuid.UUID, bool)`), para que el módulo de
       proyectos lo lea sin repetir el literal de la clave del contexto (research.md sección 10). Es
       el **único** cambio de esta feature sobre el código de la 001 fuera de la configuración —

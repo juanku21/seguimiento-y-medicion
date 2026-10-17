@@ -153,7 +153,7 @@ son **técnicas**: declaran estructuras y contratos, sin lógica de negocio.
       indique que `specs/003-product-backlog` reemplazará el cuerpo de este archivo. No es un dato
       inventado: hoy ningún proyecto tiene historias, que es lo que FR-044 manda informar
       (research.md sección 9) — depende de T011
-- [ ] T013 [P] Implementar el puerto de sprints en
+- [X] T013 [P] Implementar el puerto de sprints en
       `backend/internal/projects/repository/sprint_directory.go` informando **ausencia de sprint
       activo** (devuelve nulo sin error), con un comentario en español que indique que
       `specs/004-sprint-management` reemplazará el cuerpo de este archivo. FR-043 exige que esa

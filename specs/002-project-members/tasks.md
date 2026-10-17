@@ -241,6 +241,12 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
       `describe("002/US1 - Crear un proyecto")` y un `it` por escenario, incluido que el formulario
       **muestra antes de enviar** el máximo de 100 caracteres del nombre, los 1000 de la descripción
       y el rango del factor de 0,01 a 40 con hasta 2 decimales — depende de T001
+- [ ] T087 [US1] Ampliar `TestUS1_CreacionExitosa` en
+      `backend/internal/projects/delivery/handler_test.go` para que exija que `owner.fullName` y
+      `members[0].fullName` sean el nombre con que se registró el propietario, y que
+      `members[0].email` sea su correo, porque quien consulta es el propietario (FR-030); y
+      ajustar `newProjectsTestEnv` a la nueva firma de `NewProjectService`, que recibe el
+      repositorio de integrantes — surge de T026, depende de T019
 
 ### Implementación de la Historia 1
 
@@ -272,6 +278,12 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
       propietario) y el armado de la respuesta en
       `backend/internal/projects/service/project_view.go` usando los dos puertos y el cálculo de
       T023 — depende de T012, T013, T023 y T024
+- [ ] T088 [US1] Adelantar `ListMembers(ctx, projectID)` de T048 en
+      `backend/internal/projects/repository/project_member_repository.go`, resolviendo nombre y
+      correo con **un solo `JOIN`** a `users` y **sin seleccionar `password_hash`** (research.md
+      sección 8), inyectar el repositorio de integrantes en `NewProjectService` y usarlo en
+      `buildView` en lugar de armar la lista a mano en `Create` — surge de T026, depende de T024 y
+      T087
 - [ ] T027 [US1] Implementar el manejador `createProject` en
       `backend/internal/projects/delivery/handler.go` con anotaciones `swag` en español y
       registrarlo como `POST /api/v1/projects` en
@@ -423,13 +435,12 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       `backend/internal/projects/repository/user_directory.go`, el **único** punto del módulo que
       lee la tabla `users`, enumerando explícitamente `users.id, users.full_name, users.email` y
       **sin seleccionar nunca `password_hash`** (research.md sección 8, FR-019, FR-020)
-- [ ] T048 [US3] Implementar `Create(ctx, member)`, `Delete(ctx, projectID, userID)` y
-      `ListMembers(ctx, projectID)` en
-      `backend/internal/projects/repository/project_member_repository.go`: el alta traduce
-      `gorm.ErrDuplicatedKey` al error de integrante duplicado; la baja es un **borrado físico** de
-      la fila, **sin** `gorm.DeletedAt`, que sería incompatible con el índice único y rompería la
-      nueva alta de FR-029; y la lista resuelve nombre y correo con **un solo `JOIN`** a `users`,
-      también sin seleccionar `password_hash` (research.md secciones 6 y 8) — depende de T035
+- [ ] T048 [US3] Implementar `Create(ctx, member)` y `Delete(ctx, projectID, userID)` en
+      `backend/internal/projects/repository/project_member_repository.go` (`ListMembers` ya está
+      implementado desde T088): el alta traduce `gorm.ErrDuplicatedKey` al error de integrante
+      duplicado; y la baja es un **borrado físico** de la fila, **sin** `gorm.DeletedAt`, que sería
+      incompatible con el índice único y rompería la nueva alta de FR-029 (research.md secciones 6
+      y 8) — depende de T035
 - [ ] T049 [US3] Implementar `RequireOwnership` en
       `backend/internal/projects/delivery/middleware.go` comparando el titular con
       `projects.owner_id` y devolviendo `403`, y aplicarlo al subgrupo de acciones de administración
@@ -510,8 +521,8 @@ de estado con los datos correctos, incluso sin backlog ni sprints. El escenario 
 - [ ] T058 [US4] Completar el armado de la vista de estado en
       `backend/internal/projects/service/project_view.go`: datos generales, propietario, factor,
       estado, las tres fechas, `readOnly` derivado de `status == finished`, la lista de integrantes
-      de T048, el sprint activo y el resumen del backlog de los dos puertos, y las horas estimadas
-      con el cálculo de T023 (FR-042 a FR-045) — depende de T012, T013, T023, T048 y T055
+      de T088, el sprint activo y el resumen del backlog de los dos puertos, y las horas estimadas
+      con el cálculo de T023 (FR-042 a FR-045) — depende de T012, T013, T023, T088 y T055
 - [ ] T059 [US4] Implementar el manejador `getProjectDetail` en
       `backend/internal/projects/delivery/handler.go` con anotaciones `swag` en español y
       registrarlo como `GET /api/v1/projects/{projectId}` en
@@ -731,9 +742,9 @@ se la necesita.
 - **US2 Ver mis proyectos (P1)**: necesita el repositorio de US1 (T024) para tener proyectos que
   listar, y **aporta** el middleware de membresía (T036) que usan US3 a US6.
 - **US3 Gestionar integrantes (P2)**: necesita el middleware de membresía de US2 (T036) y **aporta**
-  el middleware de propiedad (T049) y la lista de integrantes (T048) que usan US4 a US6.
-- **US4 Consultar el estado (P2)**: necesita la lista de integrantes de US3 (T048) y el cálculo de
-  horas de US1 (T023).
+  el middleware de propiedad (T049) que usan US4 a US6.
+- **US4 Consultar el estado (P2)**: necesita la lista de integrantes (T088) y el cálculo de horas
+  (T023), ambos de US1.
 - **US5 Modificar el proyecto (P3)**: necesita el middleware de propiedad de US3 (T049), la
   validación de US1 (T022) y el `ProjectDetail` de US4 (T059).
 - **US6 Avanzar el estado (P3)**: necesita el middleware de propiedad de US3 (T049), el `Update` de

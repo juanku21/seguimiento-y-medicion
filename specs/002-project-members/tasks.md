@@ -291,7 +291,7 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
       con `ValidationErrorResponse`, `401` y `409` con `ErrorResponse`
       (`Ya existe un proyecto propio con ese nombre.`), y actualizar el `@description` general de la
       API en `backend/cmd/app/main.go` para que incluya proyectos — depende de T025 y T026
-- [ ] T028 [P] [US1] Declarar los tipos de petición y respuesta en
+- [X] T028 [P] [US1] Declarar los tipos de petición y respuesta en
       `frontend/src/types/project.ts` y las etiquetas en español de los tres estados en
       `frontend/src/utils/project-status.ts` (`planned` → Planificado, `in_progress` → En curso,
       `finished` → Finalizado). **Prohibido el tipo `any`** (Principio VIII) — depende de T001

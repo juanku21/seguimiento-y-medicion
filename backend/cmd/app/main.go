@@ -3,7 +3,8 @@
 //
 //	@title						Software Metrics & Estimation — API
 //	@version					1.0.0
-//	@description				API de autenticación y cuentas de usuario de Software Metrics & Estimation.
+//	@description				API de Software Metrics & Estimation: autenticación y cuentas de usuario, y gestión de
+//	@description				proyectos y de sus integrantes.
 //	@description				Las únicas operaciones públicas son el registro y el inicio de sesión; las demás exigen
 //	@description				la cabecera `Authorization: Bearer <token>`.
 //	@BasePath					/

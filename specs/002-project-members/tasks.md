@@ -284,12 +284,13 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
       sección 8), inyectar el repositorio de integrantes en `NewProjectService` y usarlo en
       `buildView` en lugar de armar la lista a mano en `Create` — surge de T026, depende de T024 y
       T087
-- [ ] T027 [US1] Implementar el manejador `createProject` en
+- [X] T027 [US1] Implementar el manejador `createProject` en
       `backend/internal/projects/delivery/handler.go` con anotaciones `swag` en español y
       registrarlo como `POST /api/v1/projects` en
       `backend/internal/projects/delivery/routes.go`, devolviendo `201` con `ProjectDetail`, `400`
       con `ValidationErrorResponse`, `401` y `409` con `ErrorResponse`
-      (`Ya existe un proyecto propio con ese nombre.`) — depende de T025 y T026
+      (`Ya existe un proyecto propio con ese nombre.`), y actualizar el `@description` general de la
+      API en `backend/cmd/app/main.go` para que incluya proyectos — depende de T025 y T026
 - [ ] T028 [P] [US1] Declarar los tipos de petición y respuesta en
       `frontend/src/types/project.ts` y las etiquetas en español de los tres estados en
       `frontend/src/utils/project-status.ts` (`planned` → Planificado, `in_progress` → En curso,

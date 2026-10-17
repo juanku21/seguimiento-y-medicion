@@ -32,6 +32,10 @@ var (
 		maxDescriptionLength)
 	errPlannedEndBeforeStart = errors.New(
 		"La fecha de finalización prevista no puede ser anterior a la fecha de inicio.")
+	errInvalidStartDate = errors.New(
+		"La fecha de inicio es obligatoria y debe tener el formato AAAA-MM-DD.")
+	errInvalidPlannedEndDate = errors.New(
+		"La fecha de finalización prevista es obligatoria y debe tener el formato AAAA-MM-DD.")
 	errInvalidHoursPerStoryPoint = fmt.Errorf(
 		"El factor de horas por Story Point debe ser mayor que 0 y menor o igual a %d, con hasta %d decimales.",
 		maxHoursPerStoryPointHundredths/100, maxHoursPerStoryPointDecimals)
@@ -76,6 +80,17 @@ func ValidateDescription(description *string) error {
 		return errInvalidDescription
 	}
 	return nil
+}
+
+// parseCalendarDate convierte una fecha de calendario sin hora con el layout YYYY-MM-DD
+// (research.md sección 4). Una fecha ausente o con otro formato devuelve invalid, el error del campo
+// que corresponde, para que la respuesta indique cuál corregir (FR-010).
+func parseCalendarDate(value string, invalid error) (time.Time, error) {
+	date, err := time.Parse(time.DateOnly, value)
+	if err != nil {
+		return time.Time{}, invalid
+	}
+	return date, nil
 }
 
 // ValidateDateOrder rechaza una fecha de finalización prevista anterior a la de inicio; iguales es

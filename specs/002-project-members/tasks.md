@@ -71,7 +71,7 @@ las tareas son **técnicas**.
       `POST /api/v1/auth/register` y
       `POST /api/v1/auth/login` respondan `201` y `200`. Si falta algo, detenerse y avisar al
       desarrollador
-- [ ] T002 [P] Agregar la clave `APP_TIMEZONE=America/Argentina/Buenos_Aires` a
+- [X] T002 [P] Agregar la clave `APP_TIMEZONE=America/Argentina/Buenos_Aires` a
       `backend/.env.example` (versionado) y replicarla en `backend/.env` y `backend/.env.test`
       (**no versionados**), manteniendo `.env.example` sincronizado con sus claves (Principio VI) —
       depende de T001

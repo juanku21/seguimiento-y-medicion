@@ -158,7 +158,7 @@ son **técnicas**: declaran estructuras y contratos, sin lógica de negocio.
       activo** (devuelve nulo sin error), con un comentario en español que indique que
       `specs/004-sprint-management` reemplazará el cuerpo de este archivo. FR-043 exige que esa
       ausencia no sea un error — depende de T011
-- [ ] T014 Agregar `projects` y `project_members` al `AutoMigrate` de
+- [X] T014 Agregar `projects` y `project_members` al `AutoMigrate` de
       `backend/internal/platform/database/postgres.go`, de modo que los dos índices únicos
       compuestos —`(owner_id, name_normalized)` y `(project_id, user_id)`— queden creados por las
       etiquetas de GORM y no por un `CREATE INDEX` en crudo (research.md secciones 2 y 6) — depende

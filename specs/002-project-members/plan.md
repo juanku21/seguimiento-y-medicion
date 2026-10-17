@@ -47,7 +47,7 @@ Las decisiones y las alternativas descartadas están en [research.md](./research
 
 ## Contexto Técnico
 
-**Lenguaje y versión**: Go 1.27.1 (backend); TypeScript sobre Node.js 24.21.0 (frontend)
+**Lenguaje y versión**: Go 1.27.2 (backend); TypeScript sobre Node.js 24.21.0 (frontend)
 
 **Dependencias principales**: sin cambios respecto de la feature 001 — Gin v1.12.0, GORM v1.31.2 con
 driver `postgres` v1.6.3, `google/uuid` v1.6.0, `gin-contrib/cors` v1.7.9, `swaggo/swag` v1.16.6 con

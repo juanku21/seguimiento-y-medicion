@@ -20,7 +20,7 @@ contenedores de PostgreSQL, la tabla `users` y el middleware de sesión de
 | Prerrequisito | Cómo verificarlo |
 | --- | --- |
 | `backend/` y `frontend/` existen | `ls backend frontend` |
-| Go 1.27.1 instalado | `go version` |
+| Go 1.27.2 disponible | `go version` ejecutado en `backend/` |
 | Contenedores de desarrollo y de test arriba | Sección 2 |
 | Endpoints de la 001 responden | `POST /api/v1/auth/register` y `POST /api/v1/auth/login` devuelven `201` y `200` |
 

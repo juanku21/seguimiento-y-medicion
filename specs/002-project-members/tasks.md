@@ -140,7 +140,7 @@ son **técnicas**: declaran estructuras y contratos, sin lógica de negocio.
       `ListMembers(ctx, projectID) ([]MemberView, error)`; más los tipos de lectura
       `ProjectListItem` y `MemberView`. **Prohibido** declarar borrado de proyecto (RC-05), `List`
       global ni búsquedas por otros campos (Principio III) — depende de T006 y T007
-- [ ] T011 Declarar los tres puertos en `backend/internal/projects/domain/ports.go` con los tipos de
+- [X] T011 Declarar los tres puertos en `backend/internal/projects/domain/ports.go` con los tipos de
       data-model.md secciones 4 y 5: `UserDirectory.FindByEmail(ctx, normalizedEmail) (*UserRef, error)`
       con `UserRef` de **solo** identificador, nombre completo y correo (**ningún campo de
       contraseña**); `BacklogSummaryProvider.Summarize(ctx, projectID) (BacklogSummary, error)` con

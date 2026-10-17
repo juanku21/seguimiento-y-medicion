@@ -265,7 +265,7 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
       crear el proyecto ni ninguna membresía") sea atómico por construcción, y traducir
       `gorm.ErrDuplicatedKey` al error de nombre ya usado, sin "consultar y después insertar"
       (FR-007, FR-011, RN-01, SC-007) — depende de T022
-- [ ] T025 [US1] Declarar en `backend/internal/projects/delivery/dto.go` los esquemas de
+- [X] T025 [US1] Declarar en `backend/internal/projects/delivery/dto.go` los esquemas de
       contracts/openapi.yaml: `ProjectInput`, `ProjectDetail`, `OwnerRef`, `ProjectMemberView`,
       `BacklogSummary`, `ActiveSprintRef`, y reutilizar `ErrorResponse`, `FieldError` y
       `ValidationErrorResponse` de la 001. Los estados se serializan como `planned`,

@@ -206,7 +206,7 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
       el factor leído como `json.Number` y validado **mayor que 0, menor o igual a 40 y con hasta 2
       decimales**, equivalente a `1 <= hundredths <= 4000`, rechazando `0`, negativos, `40.01` y
       `6.555` **sin redondear** (RN-07)
-- [ ] T018 [P] [US1] Pruebas unitarias **obligatorias** del cálculo de horas estimadas en
+- [X] T018 [P] [US1] Pruebas unitarias **obligatorias** del cálculo de horas estimadas en
       `backend/internal/projects/service/estimation_test.go`, cubriendo RN-08:
       `horas_en_centésimas = EstimatedStoryPoints × hours_per_story_point_hundredths`, todo en
       enteros y sin divisiones intermedias. Casos: `16 × 650 = 10400` centésimas (104,00 horas),

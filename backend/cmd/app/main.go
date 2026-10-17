@@ -23,6 +23,9 @@ import (
 	"net/http"
 	"os"
 	"time"
+	// time/tzdata embute la base de zonas horarias en el binario: la imagen alpine del backend no
+	// la trae y sin ella time.LoadLocation fallaría solo dentro del contenedor.
+	_ "time/tzdata"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"

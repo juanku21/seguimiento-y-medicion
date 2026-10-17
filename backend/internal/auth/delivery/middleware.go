@@ -60,16 +60,23 @@ func (h *Handler) requireSession(c *gin.Context) {
 	c.Next()
 }
 
-// userIDFromContext devuelve el identificador que el middleware de sesión dejó en el contexto bajo
-// contextKeySub, y si estaba presente, para que el manejador protegido le atribuya la acción a su
-// titular (FR-021, RN-09).
-func userIDFromContext(c *gin.Context) (uuid.UUID, bool) {
+// CurrentUserID devuelve el identificador del titular de la sesión que el middleware dejó en el
+// contexto bajo contextKeySub, y si estaba presente. Está exportado para que los manejadores
+// protegidos de otros módulos le atribuyan la acción a su titular sin repetir la clave del
+// contexto (FR-021, FR-051, RN-09).
+func CurrentUserID(c *gin.Context) (uuid.UUID, bool) {
 	value, exists := c.Get(contextKeySub)
 	if !exists {
 		return uuid.UUID{}, false
 	}
 	id, ok := value.(uuid.UUID)
 	return id, ok
+}
+
+// userIDFromContext es el nombre interno con el que el módulo de autenticación lee al titular de
+// la sesión; delega en CurrentUserID para que haya una sola implementación de la lectura.
+func userIDFromContext(c *gin.Context) (uuid.UUID, bool) {
+	return CurrentUserID(c)
 }
 
 // claimsFromContext devuelve los claims de la sesión que el middleware dejó en el contexto bajo

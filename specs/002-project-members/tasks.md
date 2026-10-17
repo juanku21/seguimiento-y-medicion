@@ -64,25 +64,26 @@ las tareas son **técnicas**.
 
 **Rama**: `fase/002-setup`
 
-- [ ] T001 **PUERTA OBLIGATORIA**: verificar que la feature 001 está implementada e integrada en
-      `main` antes de cualquier otra tarea — que existan `backend/` y `frontend/`, que `go version`
-      devuelva `1.27.1`, que los dos contenedores de `backend/postgres/docker-compose.yml` estén
-      arriba en los puertos 5432 y 5433, y que `POST /api/v1/auth/register` y
+- [X] T001 **PUERTA OBLIGATORIA**: verificar que la feature 001 está implementada e integrada en
+      `main` antes de cualquier otra tarea — que existan `backend/` y `frontend/`, que `go version`,
+      ejecutado en `backend/`, devuelva `1.27.2`, que los dos contenedores de
+      `backend/postgres/docker-compose.yml` estén arriba en los puertos 5432 y 5433, y que
+      `POST /api/v1/auth/register` y
       `POST /api/v1/auth/login` respondan `201` y `200`. Si falta algo, detenerse y avisar al
       desarrollador
-- [ ] T002 [P] Agregar la clave `APP_TIMEZONE=America/Argentina/Buenos_Aires` a
+- [X] T002 [P] Agregar la clave `APP_TIMEZONE=America/Argentina/Buenos_Aires` a
       `backend/.env.example` (versionado) y replicarla en `backend/.env` y `backend/.env.test`
       (**no versionados**), manteniendo `.env.example` sincronizado con sus claves (Principio VI) —
       depende de T001
-- [ ] T003 Leer y validar `APP_TIMEZONE` en `backend/internal/platform/config/config.go` con
+- [X] T003 Leer y validar `APP_TIMEZONE` en `backend/internal/platform/config/config.go` con
       `time.LoadLocation`, usando solo la biblioteca estándar: si la variable falta o no es una zona
       horaria válida, **la aplicación no arranca** y lo informa, igual que hace la 001 con
       `JWT_SECRET` (research.md sección 4) — depende de T002
-- [ ] T004 [P] Agregar `import _ "time/tzdata"` en `backend/cmd/app/main.go` para **embutir la base
+- [X] T004 [P] Agregar `import _ "time/tzdata"` en `backend/cmd/app/main.go` para **embutir la base
       de zonas horarias en el binario**, porque la imagen `alpine` del `Dockerfile` del backend no
       la trae y sin eso `time.LoadLocation` falla solo dentro del contenedor (research.md
       sección 4) — depende de T001
-- [ ] T005 [P] Exportar en `backend/internal/auth/delivery/middleware.go` el accesor del titular de
+- [X] T005 [P] Exportar en `backend/internal/auth/delivery/middleware.go` el accesor del titular de
       la sesión (algo como `CurrentUserID(c *gin.Context) (uuid.UUID, bool)`), para que el módulo de
       proyectos lo lea sin repetir el literal de la clave del contexto (research.md sección 10). Es
       el **único** cambio de esta feature sobre el código de la 001 fuera de la configuración —

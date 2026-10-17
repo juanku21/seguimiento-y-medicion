@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 // MinJWTSecretBytes es la longitud mínima del secreto de firma HS256 (research.md sección 2).
@@ -23,11 +24,14 @@ type Config struct {
 	JWTSecret         string
 	ServerPort        string
 	CORSAllowedOrigin string
+	// Location es la zona horaria única del sistema, cargada desde APP_TIMEZONE (research.md
+	// sección 4).
+	Location *time.Location
 }
 
 // Load lee cada variable del entorno del proceso y devuelve un error que enumera todas las que
-// faltan o están vacías, más el aviso de un JWT_SECRET demasiado corto, para que la aplicación no
-// arranque con una configuración incompleta.
+// faltan o están vacías, más el aviso de un JWT_SECRET demasiado corto o de un APP_TIMEZONE que no
+// es una zona horaria válida, para que la aplicación no arranque con una configuración incompleta.
 func Load() (Config, error) {
 	var missing []string
 	read := func(key string) string {
@@ -48,6 +52,7 @@ func Load() (Config, error) {
 		ServerPort:        read("SERVER_PORT"),
 		CORSAllowedOrigin: read("CORS_ALLOWED_ORIGIN"),
 	}
+	timezone := read("APP_TIMEZONE")
 
 	// Se acumulan los problemas para informarlos todos juntos en un solo arranque fallido.
 	var errs []error
@@ -56,6 +61,13 @@ func Load() (Config, error) {
 	}
 	if cfg.JWTSecret != "" && len(cfg.JWTSecret) < MinJWTSecretBytes {
 		errs = append(errs, fmt.Errorf("JWT_SECRET debe tener al menos %d bytes (tiene %d)", MinJWTSecretBytes, len(cfg.JWTSecret)))
+	}
+	if timezone != "" {
+		location, err := time.LoadLocation(timezone)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("APP_TIMEZONE %q no es una zona horaria válida: %w", timezone, err))
+		}
+		cfg.Location = location
 	}
 	if len(errs) > 0 {
 		return Config{}, fmt.Errorf("configuración inválida: %w", errors.Join(errs...))

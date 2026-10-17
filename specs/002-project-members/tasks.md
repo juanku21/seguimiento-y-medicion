@@ -221,6 +221,15 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
       `t.Run` para 0, negativo, 40,01 y 6,555), `TestUS1_FechaPrevistaAnterior`,
       `TestUS1_NombreRepetido` (`  portal de clientes  ` contra "Portal de Clientes" → `409`) y
       `TestUS1_SinSesion` (`401` y nada creado) — depende de T015 y T016
+- [ ] T086 [US1] Serializar el acceso de las pruebas de integración a `smye_test` en
+      `backend/internal/platform/testsupport/database.go`: la primera llamada a `OpenDatabase` de
+      cada proceso de prueba (con `sync.Once`) abre una conexión dedicada, fuera del pool de GORM, y
+      toma `pg_advisory_lock` con una clave constante y un tiempo máximo de espera, sin liberarlo:
+      PostgreSQL lo suelta al cerrarse la conexión cuando termina el proceso. Así los paquetes con
+      pruebas de integración (`auth/delivery`, `projects/delivery` y los que se agreguen) no se
+      borran los datos entre sí con el `TRUNCATE` cuando `go test ./...` los corre en paralelo. Se
+      verifica con `go test -count=1 ./...` sin `-p 1`, que debe dejar solo los fallos RED
+      esperados de la US1 — surge de T019, depende de T015
 - [ ] T020 [P] [US1] Prueba de integración de concurrencia en
       `backend/internal/projects/delivery/project_concurrency_test.go`: **10 solicitudes de creación
       simultáneas con el mismo nombre y el mismo propietario** dejan exactamente un proyecto y las

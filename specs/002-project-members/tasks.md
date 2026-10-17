@@ -197,7 +197,7 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T017 [P] [US1] Pruebas unitarias **obligatorias** de validación y normalización en
+- [X] T017 [P] [US1] Pruebas unitarias **obligatorias** de validación y normalización en
       `backend/internal/projects/delivery/validation_test.go`, cubriendo RN-04 a RN-07: nombre de
       **entre 1 y 100 runas tras `TrimSpace`**, con nombre ausente o compuesto solo por espacios
       rechazado (RN-04); nombre normalizado con `TrimSpace` + `ToLower` (RN-05); descripción

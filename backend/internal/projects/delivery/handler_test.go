@@ -57,11 +57,14 @@ type projectDetailBody struct {
 	HoursPerStoryPoint float64 `json:"hoursPerStoryPoint"`
 	ReadOnly           bool    `json:"readOnly"`
 	Owner              struct {
-		ID string `json:"id"`
+		ID       string `json:"id"`
+		FullName string `json:"fullName"`
 	} `json:"owner"`
 	Members []struct {
-		UserID  string `json:"userId"`
-		IsOwner bool   `json:"isOwner"`
+		UserID   string `json:"userId"`
+		FullName string `json:"fullName"`
+		Email    string `json:"email"`
+		IsOwner  bool   `json:"isOwner"`
 	} `json:"members"`
 	HasActiveSprint bool `json:"hasActiveSprint"`
 	ActiveSprint    *struct {
@@ -110,6 +113,7 @@ func newProjectsTestEnv(t *testing.T) projectsTestEnv {
 	)
 	projects := service.NewProjectService(
 		repository.NewProjectRepository(db),
+		repository.NewProjectMemberRepository(db),
 		repository.NewBacklogSummaryProvider(),
 		repository.NewSprintDirectory(),
 	)
@@ -273,9 +277,15 @@ func TestUS1_CreacionExitosa(t *testing.T) {
 	assert.InDelta(t, 6.5, got.HoursPerStoryPoint, 1e-9)
 	assert.False(t, got.ReadOnly)
 	assert.Equal(t, userID.String(), got.Owner.ID)
+	assert.Equal(t, "Ana Pérez", got.Owner.FullName, "el propietario se muestra con el nombre con que se registró")
 	if assert.Len(t, got.Members, 1, "el creador debe ser el único integrante") {
 		assert.Equal(t, userID.String(), got.Members[0].UserID)
 		assert.True(t, got.Members[0].IsOwner, "el único integrante debe estar marcado propietario")
+
+		// Quien consulta es el propietario, así que ve el nombre y también el correo del integrante
+		// (FR-030).
+		assert.Equal(t, "Ana Pérez", got.Members[0].FullName)
+		assert.Equal(t, "ana@example.com", got.Members[0].Email)
 	}
 	assert.False(t, got.HasActiveSprint)
 	assert.Nil(t, got.ActiveSprint)

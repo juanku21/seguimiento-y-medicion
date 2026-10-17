@@ -11,17 +11,19 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/domain"
 )
 
-// ProjectService reúne los casos de uso de los proyectos sobre el repositorio y los puertos de
-// backlog y de sprints del dominio.
+// ProjectService reúne los casos de uso de los proyectos sobre los repositorios de proyectos y de
+// integrantes y los puertos de backlog y de sprints del dominio.
 type ProjectService struct {
 	projects domain.ProjectRepository
+	members  domain.ProjectMemberRepository
 	backlog  domain.BacklogSummaryProvider
 	sprints  domain.SprintDirectory
 }
 
-// NewProjectService compone el servicio con el repositorio de proyectos y los dos puertos.
-func NewProjectService(projects domain.ProjectRepository, backlog domain.BacklogSummaryProvider, sprints domain.SprintDirectory) *ProjectService {
-	return &ProjectService{projects: projects, backlog: backlog, sprints: sprints}
+// NewProjectService compone el servicio con los repositorios de proyectos y de integrantes y los dos
+// puertos.
+func NewProjectService(projects domain.ProjectRepository, members domain.ProjectMemberRepository, backlog domain.BacklogSummaryProvider, sprints domain.SprintDirectory) *ProjectService {
+	return &ProjectService{projects: projects, members: members, backlog: backlog, sprints: sprints}
 }
 
 // CreateProjectInput son los datos de un proyecto nuevo ya validados y normalizados por delivery

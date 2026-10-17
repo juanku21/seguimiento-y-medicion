@@ -241,7 +241,7 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
       `describe("002/US1 - Crear un proyecto")` y un `it` por escenario, incluido que el formulario
       **muestra antes de enviar** el máximo de 100 caracteres del nombre, los 1000 de la descripción
       y el rango del factor de 0,01 a 40 con hasta 2 decimales — depende de T001
-- [ ] T087 [US1] Ampliar `TestUS1_CreacionExitosa` en
+- [X] T087 [US1] Ampliar `TestUS1_CreacionExitosa` en
       `backend/internal/projects/delivery/handler_test.go` para que exija que `owner.fullName` y
       `members[0].fullName` sean el nombre con que se registró el propietario, y que
       `members[0].email` sea su correo, porque quien consulta es el propietario (FR-030); y

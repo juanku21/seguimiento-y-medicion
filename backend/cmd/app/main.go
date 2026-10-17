@@ -108,6 +108,7 @@ func run() error {
 	// de proyectos y los puertos de backlog y de sprints.
 	projects := projectsservice.NewProjectService(
 		projectsrepository.NewProjectRepository(db),
+		projectsrepository.NewProjectMemberRepository(db),
 		projectsrepository.NewBacklogSummaryProvider(),
 		projectsrepository.NewSprintDirectory(),
 	)

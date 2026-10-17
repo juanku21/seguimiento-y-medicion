@@ -79,7 +79,7 @@ las tareas son **técnicas**.
       `time.LoadLocation`, usando solo la biblioteca estándar: si la variable falta o no es una zona
       horaria válida, **la aplicación no arranca** y lo informa, igual que hace la 001 con
       `JWT_SECRET` (research.md sección 4) — depende de T002
-- [ ] T004 [P] Agregar `import _ "time/tzdata"` en `backend/cmd/app/main.go` para **embutir la base
+- [X] T004 [P] Agregar `import _ "time/tzdata"` en `backend/cmd/app/main.go` para **embutir la base
       de zonas horarias en el binario**, porque la imagen `alpine` del `Dockerfile` del backend no
       la trae y sin eso `time.LoadLocation` falla solo dentro del contenedor (research.md
       sección 4) — depende de T001

@@ -250,7 +250,7 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
       `json.Number` para poder contar los decimales sobre el texto literal, y las fechas parseadas
       con el layout `2006-01-02` y su error manejado. La validación ocurre antes de la capa de
       servicio (Principio VII)
-- [ ] T023 [US1] Implementar el cálculo de horas estimadas en
+- [X] T023 [US1] Implementar el cálculo de horas estimadas en
       `backend/internal/projects/service/estimation.go` en centésimas enteras, sin `float64` y sin
       divisiones intermedias (RN-08, FR-045)
 - [ ] T024 [US1] Implementar `Create(ctx, project, ownerMembership)` en

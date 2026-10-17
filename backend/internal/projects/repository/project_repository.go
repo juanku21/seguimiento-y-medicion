@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -21,10 +22,25 @@ func NewProjectRepository(db *gorm.DB) *ProjectRepository {
 	return &ProjectRepository{db: db}
 }
 
-// Create persiste el proyecto y la membresía del propietario en una sola transacción (FR-007,
-// FR-010). Firma mínima de T019: la implementa T024.
+// Create persiste el proyecto y la membresía del propietario en una sola transacción, de modo que
+// si falla cualquiera de los dos INSERT no queda ni el proyecto ni la membresía (FR-007, FR-010,
+// RN-01). No se consulta antes de insertar: la unicidad del nombre por propietario la garantiza el
+// índice (owner_id, name_normalized), y su violación (gorm.ErrDuplicatedKey, gracias a
+// TranslateError) se traduce a ErrProjectNameTaken, también ante creaciones simultáneas (FR-011,
+// SC-007).
 func (r *ProjectRepository) Create(ctx context.Context, project *domain.Project, ownerMembership *domain.ProjectMember) error {
-	return errors.New("not implemented")
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(project).Error; err != nil {
+			if errors.Is(err, gorm.ErrDuplicatedKey) {
+				return domain.ErrProjectNameTaken
+			}
+			return fmt.Errorf("insertar proyecto: %w", err)
+		}
+		if err := tx.Create(ownerMembership).Error; err != nil {
+			return fmt.Errorf("insertar membresía del propietario: %w", err)
+		}
+		return nil
+	})
 }
 
 // FindByID devuelve el proyecto por su identificador. Firma mínima de T019.

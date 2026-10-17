@@ -244,7 +244,7 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
 
 ### Implementación de la Historia 1
 
-- [ ] T022 [US1] Implementar normalización y validación de entrada en
+- [X] T022 [US1] Implementar normalización y validación de entrada en
       `backend/internal/projects/delivery/validation.go`, con los valores límite 1, 100, 1000, 1 y
       4000 declarados como **constantes nombradas en un único lugar**, el factor recibido como
       `json.Number` para poder contar los decimales sobre el texto literal, y las fechas parseadas

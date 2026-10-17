@@ -272,7 +272,7 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
       `in_progress` y `finished`; `hoursPerStoryPoint` y `estimatedHours` como **números con hasta 2
       decimales**, dividiendo las centésimas por 100 una sola vez al serializar (research.md
       sección 3)
-- [ ] T026 [US1] Implementar la creación en
+- [X] T026 [US1] Implementar la creación en
       `backend/internal/projects/service/project_service.go` (construye el `Project` con UUID, el
       nombre normalizado, el estado `planned` y `actual_end_date` nula, más la membresía del
       propietario) y el armado de la respuesta en

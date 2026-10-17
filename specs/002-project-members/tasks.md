@@ -278,7 +278,7 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
       propietario) y el armado de la respuesta en
       `backend/internal/projects/service/project_view.go` usando los dos puertos y el cálculo de
       T023 — depende de T012, T013, T023 y T024
-- [ ] T088 [US1] Adelantar `ListMembers(ctx, projectID)` de T048 en
+- [X] T088 [US1] Adelantar `ListMembers(ctx, projectID)` de T048 en
       `backend/internal/projects/repository/project_member_repository.go`, resolviendo nombre y
       correo con **un solo `JOIN`** a `users` y **sin seleccionar `password_hash`** (research.md
       sección 8), inyectar el repositorio de integrantes en `NewProjectService` y usarlo en

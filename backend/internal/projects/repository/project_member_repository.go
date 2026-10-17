@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -37,7 +38,25 @@ func (r *ProjectMemberRepository) Delete(ctx context.Context, projectID, userID 
 	return errors.New("not implemented")
 }
 
-// ListMembers devuelve los integrantes del proyecto con su nombre y su correo. Firma mínima de T087.
+// ListMembers devuelve los integrantes del proyecto con su nombre y su correo, ordenados por fecha
+// de incorporación. Resuelve los datos de cada persona con un solo JOIN a users que enumera las
+// columnas y nunca selecciona password_hash (FR-030, research.md sección 8). IsOwner se deriva de
+// comparar al integrante con projects.owner_id mediante una subconsulta escalar y JoinedAt es el
+// created_at de la membresía (research.md sección 7). Un proyecto sin integrantes devuelve una
+// lista vacía, nunca nil.
 func (r *ProjectMemberRepository) ListMembers(ctx context.Context, projectID uuid.UUID) ([]domain.MemberView, error) {
-	return nil, errors.New("not implemented")
+	members := []domain.MemberView{}
+	err := r.db.WithContext(ctx).
+		Table("project_members").
+		Select(`users.id AS user_id, users.full_name, users.email,
+			project_members.user_id = (SELECT projects.owner_id FROM projects WHERE projects.id = project_members.project_id) AS is_owner,
+			project_members.created_at AS joined_at`).
+		Joins("JOIN users ON users.id = project_members.user_id").
+		Where("project_members.project_id = ?", projectID).
+		Order("project_members.created_at").
+		Scan(&members).Error
+	if err != nil {
+		return nil, fmt.Errorf("listar integrantes del proyecto: %w", err)
+	}
+	return members, nil
 }

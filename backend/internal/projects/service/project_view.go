@@ -22,10 +22,15 @@ type ProjectView struct {
 	ReadOnly                 bool
 }
 
-// buildView completa la vista del proyecto con el resumen del backlog y el sprint activo que
-// informan los dos puertos, y con las horas estimadas calculadas con el factor del proyecto
-// (FR-042 a FR-045). Un fallo de cualquiera de los puertos se propaga con su contexto.
-func (s *ProjectService) buildView(ctx context.Context, project *domain.Project, members []domain.MemberView) (*ProjectView, error) {
+// buildView completa la vista del proyecto con los integrantes que lista el repositorio de
+// integrantes, el resumen del backlog y el sprint activo que informan los dos puertos, y las horas
+// estimadas calculadas con el factor del proyecto (FR-030, FR-042 a FR-045). Un fallo del
+// repositorio o de cualquiera de los puertos se propaga con su contexto.
+func (s *ProjectService) buildView(ctx context.Context, project *domain.Project) (*ProjectView, error) {
+	members, err := s.members.ListMembers(ctx, project.ID)
+	if err != nil {
+		return nil, fmt.Errorf("listar integrantes del proyecto: %w", err)
+	}
 	backlog, err := s.backlog.Summarize(ctx, project.ID)
 	if err != nil {
 		return nil, fmt.Errorf("resumir backlog del proyecto: %w", err)

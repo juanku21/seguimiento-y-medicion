@@ -66,12 +66,5 @@ func (s *ProjectService) Create(ctx context.Context, ownerID uuid.UUID, input Cr
 		return nil, fmt.Errorf("crear proyecto: %w", err)
 	}
 
-	// El propietario es el único integrante del proyecto recién creado y su fecha de incorporación
-	// es la de la membresía, que GORM completó al insertarla.
-	members := []domain.MemberView{{
-		UserID:   ownerID,
-		IsOwner:  true,
-		JoinedAt: ownerMembership.CreatedAt,
-	}}
-	return s.buildView(ctx, project, members)
+	return s.buildView(ctx, project)
 }

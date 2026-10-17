@@ -21,7 +21,7 @@ import (
 // y no como códigos propios de PostgreSQL (research.md sección 3), y migra los modelos de las
 // features de autenticación y de proyectos. Lo usan cmd/app al arrancar y el ayudante de las pruebas de integración.
 func Open(cfg config.Config) (*gorm.DB, error) {
-	db, err := gorm.Open(postgres.Open(dsn(cfg)), &gorm.Config{TranslateError: true})
+	db, err := gorm.Open(postgres.Open(DSN(cfg)), &gorm.Config{TranslateError: true})
 	if err != nil {
 		return nil, fmt.Errorf("no se pudo conectar con PostgreSQL en %s:%s: %w", cfg.DBHost, cfg.DBPort, err)
 	}
@@ -47,9 +47,10 @@ func Open(cfg config.Config) (*gorm.DB, error) {
 	return db, nil
 }
 
-// dsn arma la URL de conexión con net/url para que una contraseña con caracteres especiales quede
-// escapada. El SSL se desactiva porque la base corre en un contenedor local de Docker Compose.
-func dsn(cfg config.Config) string {
+// DSN arma la URL de conexión con net/url para que una contraseña con caracteres especiales quede
+// escapada. El SSL se desactiva porque la base corre en un contenedor local de Docker Compose. Se
+// exporta para que el ayudante de pruebas abra su conexión dedicada al lock con la misma URL.
+func DSN(cfg config.Config) string {
 	u := url.URL{
 		Scheme:   "postgres",
 		User:     url.UserPassword(cfg.DBUser, cfg.DBPassword),

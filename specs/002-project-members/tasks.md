@@ -221,7 +221,7 @@ capitalización responde `409`, sin necesitar ninguna otra historia.
       `t.Run` para 0, negativo, 40,01 y 6,555), `TestUS1_FechaPrevistaAnterior`,
       `TestUS1_NombreRepetido` (`  portal de clientes  ` contra "Portal de Clientes" → `409`) y
       `TestUS1_SinSesion` (`401` y nada creado) — depende de T015 y T016
-- [ ] T086 [US1] Serializar el acceso de las pruebas de integración a `smye_test` en
+- [X] T086 [US1] Serializar el acceso de las pruebas de integración a `smye_test` en
       `backend/internal/platform/testsupport/database.go`: la primera llamada a `OpenDatabase` de
       cada proceso de prueba (con `sync.Once`) abre una conexión dedicada, fuera del pool de GORM, y
       toma `pg_advisory_lock` con una clave constante y un tiempo máximo de espera, sin liberarlo:

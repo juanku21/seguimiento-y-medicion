@@ -120,7 +120,7 @@ son **técnicas**: declaran estructuras y contratos, sin lógica de negocio.
       `CreatedAt timestamptz NOT NULL` (**es la fecha de incorporación**) y
       `UpdatedAt timestamptz NOT NULL`. **Sin columna `is_owner` ni `joined_at`**: la propiedad es
       `projects.owner_id` y la fecha de incorporación es `created_at` (research.md sección 7)
-- [ ] T008 [P] Declarar el tipo `ProjectStatus` y sus tres constantes tipadas `planned`,
+- [X] T008 [P] Declarar el tipo `ProjectStatus` y sus tres constantes tipadas `planned`,
       `in_progress` y `finished` en `backend/internal/projects/domain/status.go`, en inglés y como
       constantes de Go, **no** como `enum` de PostgreSQL (data-model.md sección 3). Las transiciones
       permitidas son regla de negocio y se implementan en US6, no acá

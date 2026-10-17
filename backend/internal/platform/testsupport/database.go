@@ -19,8 +19,8 @@ const testDatabaseName = "smye_test"
 
 // OpenDatabase prepara la base de test para un caso de integración: carga backend/.env.test,
 // verifica que la base configurada sea smye_test, abre la conexión migrando el esquema y vacía las
-// tres tablas de la feature. Devuelve la conexión y la configuración cargada, y cierra el pool al
-// terminar la prueba. Ante cualquier fallo detiene la prueba con t.Fatalf sin tocar ninguna base.
+// tablas de autenticación y de proyectos. Devuelve la conexión y la configuración cargada, y cierra
+// el pool al terminar la prueba. Ante cualquier fallo detiene la prueba con t.Fatalf sin tocar ninguna base.
 func OpenDatabase(t testing.TB) (*gorm.DB, config.Config) {
 	t.Helper()
 
@@ -52,8 +52,9 @@ func OpenDatabase(t testing.TB) (*gorm.DB, config.Config) {
 		}
 	})
 
-	// Se vacían las tres tablas para que cada caso empiece sin datos de los anteriores.
-	if err := db.Exec("TRUNCATE users, sessions, auth_events CASCADE").Error; err != nil {
+	// Se vacían las tablas de autenticación y de proyectos para que cada caso empiece sin datos de
+	// los anteriores.
+	if err := db.Exec("TRUNCATE users, sessions, auth_events, projects, project_members CASCADE").Error; err != nil {
 		t.Fatalf("no se pudieron vaciar las tablas de test: %v", err)
 	}
 	return db, cfg

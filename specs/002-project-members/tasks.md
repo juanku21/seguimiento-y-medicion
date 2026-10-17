@@ -163,7 +163,7 @@ son **técnicas**: declaran estructuras y contratos, sin lógica de negocio.
       compuestos —`(owner_id, name_normalized)` y `(project_id, user_id)`— queden creados por las
       etiquetas de GORM y no por un `CREATE INDEX` en crudo (research.md secciones 2 y 6) — depende
       de T006 y T007
-- [ ] T015 Extender el ayudante de pruebas de integración en
+- [X] T015 Extender el ayudante de pruebas de integración en
       `backend/internal/platform/testsupport/database.go` (lo crea la tarea T024 de la feature 001)
       para que vacíe también las dos tablas nuevas:
       `TRUNCATE users, sessions, auth_events, projects, project_members CASCADE`, manteniendo la

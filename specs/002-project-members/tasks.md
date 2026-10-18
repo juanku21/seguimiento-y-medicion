@@ -558,16 +558,19 @@ de estado con los datos correctos, incluso sin backlog ni sprints. El escenario 
 
 ### Implementación de la Historia 4
 
-- [ ] T058 [US4] Completar el armado de la vista de estado en
-      `backend/internal/projects/service/project_view.go`: datos generales, propietario, factor,
-      estado, las tres fechas, `readOnly` derivado de `status == finished`, la lista de integrantes
-      de T088, el sprint activo y el resumen del backlog de los dos puertos, y las horas estimadas
-      con el cálculo de T023 (FR-042 a FR-045) — depende de T012, T013, T023, T088 y T055
-- [ ] T059 [US4] Implementar el manejador `getProjectDetail` en
-      `backend/internal/projects/delivery/handler.go` con anotaciones `swag` en español y
-      registrarlo como `GET /api/v1/projects/{projectId}` en
-      `backend/internal/projects/delivery/routes.go`, accesible a **cualquier integrante** incluso
-      con el proyecto `finished`, con `200`, `401` y `404` (FR-048) — depende de T051 y T058
+- [ ] T058 [US4] Copiar `ActualEndDate` en `newProjectDetail`
+      (`backend/internal/projects/delivery/handler.go`) con formato `YYYY-MM-DD`, para que
+      `actualEndDate` deje de informarse siempre como `null`, y actualizar en el mismo cambio la
+      anotación `swag` que lo indica. Es el GREEN de `TestUS4_ProyectoFinalizado`. El resto del
+      armado de la vista (FR-042 a FR-045) ya está en `buildView`
+      (`backend/internal/projects/service/project_view.go`), implementado en T027 y T088, y lo
+      cubren T055 y T056 — depende de T056
+- [ ] T059 [US4] Verificar con las pruebas de T056 el manejador `getProjectDetail` en
+      `backend/internal/projects/delivery/handler.go` y su registro como
+      `GET /api/v1/projects/{projectId}` en `backend/internal/projects/delivery/routes.go`, que ya
+      fueron implementados antes de esta historia: accesible a **cualquier integrante** incluso con
+      el proyecto `finished`, con `200`, `401` y `404` (FR-048), y con anotaciones `swag` en
+      español — depende de T051 y T058
 - [ ] T060 [US4] Implementar la llamada de vista de estado en
       `frontend/src/features/projects/api.ts` y el `ProjectStatusCard` en
       `frontend/src/features/projects/components/project-status-card.tsx` — depende de T053
@@ -897,7 +900,7 @@ Cada historia añade valor sin romper las anteriores.
 - Las implementaciones de los dos puertos (T012 y T013) se reemplazan cuando lleguen
   `specs/003-product-backlog` y `specs/004-sprint-management`: conviene anotarlo al planificar esas
   features, porque es su punto de integración con esta.
-- **Verificaciones que esta feature no puede cerrar sola.** Tres requisitos se prueban acá con
+- **Verificaciones que esta feature no puede cerrar sola.** Cuatro requisitos se prueban acá con
   dobles o asertando que no se toca ninguna otra tabla, y su verificación de punta a punta queda
   para las features que producen esos datos. Hay que anotarlo al planificar la 003 y la 004:
 
@@ -906,6 +909,7 @@ Cada historia añade valor sin romper las anteriores.
   | FR-017, RN-15 — los sprints cerrados conservan su factor | T062: el cambio de factor no toca ninguna otra tabla | `specs/004-sprint-management`, en su instantánea de cierre |
   | RN-14, SC-011 — la baja de un integrante no pierde registros | T044: la baja toca solo `project_members` | `specs/006-effort-tracking`, `specs/005-planning-poker` y `specs/007-defect-tracking` |
   | FR-042, FR-045 — reparto real del backlog y horas | T055: dobles de los puertos con valores distintos de cero | `specs/003-product-backlog` |
+  | SC-003 — vista de estado sin N+1, a lo sumo 4 consultas | T056: cuenta solo las consultas de los repositorios del servicio (proyecto, integrantes, backlog y sprint), sin la sesión ni `RequireMembership`. Hoy los puertos de backlog y sprint son stubs sin consultas reales, así que la cuenta da 2 | `specs/003-product-backlog` y `specs/004-sprint-management`: volver a comprobar el límite de 4 con los puertos reales |
 
 - **Criterios de éxito no automatizables.** SC-001 (primer proyecto en menos de 2 minutos, 95 % al
   primer intento) y SC-002 (sumar un integrante en menos de 30 segundos y en no más de 3 pasos) son

@@ -112,7 +112,7 @@ export function postJson<T>(
 // (FR-016).
 async function authorizedRequest<T>(
   path: string,
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "DELETE",
   isData: (value: unknown) => value is T,
   body?: unknown,
 ): Promise<ApiResult<T>> {
@@ -139,7 +139,7 @@ export function getJson<T>(
   return authorizedRequest(path, "GET", isData);
 }
 
-// Reconoce una respuesta sin cuerpo, como el 204 del cierre de sesión.
+// Reconoce una respuesta sin cuerpo, como el 204 del cierre de sesión o de una baja.
 function isEmpty(value: unknown): value is undefined {
   return value === undefined;
 }
@@ -157,4 +157,10 @@ export function postAuthorizedJson<T>(
   isData: (value: unknown) => value is T,
 ): Promise<ApiResult<T>> {
   return authorizedRequest(path, "POST", isData, body);
+}
+
+// Envía un DELETE autenticado a la ruta indicada de la API, para las bajas cuya respuesta exitosa
+// (204) no trae contenido.
+export function deleteEmpty(path: string): Promise<ApiResult<undefined>> {
+  return authorizedRequest(path, "DELETE", isEmpty);
 }

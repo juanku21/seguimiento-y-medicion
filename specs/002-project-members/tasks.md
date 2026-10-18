@@ -501,7 +501,7 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       (research.md sección 12). Agregar `http.MethodDelete` a `AllowMethods` de CORS en
       `backend/cmd/app/main.go` para que la baja funcione desde el navegador — depende de T049,
       T050 y T051
-- [ ] T053 [US3] Implementar las llamadas de alta y baja de integrantes en
+- [X] T053 [US3] Implementar las llamadas de alta y baja de integrantes en
       `frontend/src/features/projects/api.ts` — depende de T040
 - [ ] T054 [US3] Implementar el `MemberList` en
       `frontend/src/features/projects/components/member-list.tsx` y el `AddMemberForm` en

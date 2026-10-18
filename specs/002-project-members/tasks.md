@@ -332,7 +332,7 @@ exista el endpoint de vista de estado (que es US4).
       un identificador inexistente reciben respuestas **byte a byte idénticas** (`404` con
       `El proyecto no existe.`); y el manejador protegido **no se ejecuta** en ninguno de los dos
       casos (FR-049, FR-020 de la 001 para el `401`, SC-005) — depende de T015
-- [ ] T033 [US2] Pruebas de integración de la historia en
+- [X] T033 [US2] Pruebas de integración de la historia en
       `backend/internal/projects/delivery/handler_test.go`, una función por escenario precedida por
       `// Escenario: <nombre del escenario> (002/US2)`: `TestUS2_ListadoCompleto` (propietario de dos
       e integrante de un tercero; cada elemento con nombre, estado, fechas, `memberCount` e

@@ -357,7 +357,7 @@ exista el endpoint de vista de estado (que es US4).
       y aplicarlo al grupo `/api/v1/projects/:projectId` en
       `backend/internal/projects/delivery/routes.go`. El estado Finalizado **no** se verifica acá:
       es regla de dominio y va en el servicio (FR-049, FR-018) — depende de T035
-- [ ] T037 [US2] Implementar `ListForMember(ctx, userID)` en
+- [X] T037 [US2] Implementar `ListForMember(ctx, userID)` en
       `backend/internal/projects/repository/project_repository.go` con **una sola consulta**: `JOIN`
       de `project_members` filtrado por el titular con `projects`, más una subconsulta de conteo de
       integrantes, ordenada por `start_date DESC, name_normalized ASC`. El filtro por membresía

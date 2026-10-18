@@ -410,7 +410,7 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T043 [P] [US3] Pruebas unitarias **obligatorias** de las reglas de negocio en
+- [X] T043 [P] [US3] Pruebas unitarias **obligatorias** de las reglas de negocio en
       `backend/internal/projects/service/member_service_test.go`, cubriendo RN-02, RN-05, RN-11,
       RN-12 y RN-13: el correo se normaliza con `TrimSpace` + `ToLower` antes de buscar la cuenta
       (RN-05); solo el propietario agrega y quita (RN-02); un proyecto `finished` rechaza las dos

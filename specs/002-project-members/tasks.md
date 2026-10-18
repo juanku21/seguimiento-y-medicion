@@ -379,6 +379,17 @@ exista el endpoint de vista de estado (que es US4).
       `frontend/src/utils/project-status.ts` y el estado vacío con su mensaje — depende de T040
 - [X] T042 [US2] Crear la pantalla `frontend/src/app/projects/page.tsx` y agregar el enlace al
       listado desde `frontend/src/app/profile/page.tsx` — depende de T041
+- [ ] T089 [US2] Escribir la prueba de integración en
+      `backend/internal/projects/delivery/routes_test.go` que monta un manejador de prueba sobre el
+      subgrupo `/api/v1/projects/:projectId` devuelto por `RegisterRoutes` y verifica que un
+      integrante pasa y que un no integrante y un identificador inexistente reciben el mismo `404`,
+      ajustando a la nueva firma las llamadas existentes a `RegisterRoutes` en las pruebas per
+      FR-049 (partial)
+- [ ] T090 [US2] Aplicar `RequireMembership` al subgrupo `/api/v1/projects/:projectId` en
+      `backend/internal/projects/delivery/routes.go`, haciendo que `RegisterRoutes` reciba el
+      `domain.ProjectMemberRepository` (compuesto en `backend/cmd/app/main.go`) y devuelva ese
+      subgrupo para que T049, T052 y T059 cuelguen de él sus rutas per plan: research.md sección 5
+      (partial)
 
 **Checkpoint**: US1 y US2 funcionan de forma independiente. El aislamiento entre proyectos está
 activo.

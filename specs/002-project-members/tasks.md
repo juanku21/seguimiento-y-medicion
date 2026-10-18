@@ -461,7 +461,7 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       duplicado; y la baja es un **borrado físico** de la fila, **sin** `gorm.DeletedAt`, que sería
       incompatible con el índice único y rompería la nueva alta de FR-029 (research.md secciones 6
       y 8) — depende de T035
-- [ ] T093 [US3] Adelantar de T065 `FindByID(ctx, id)` en
+- [X] T093 [US3] Adelantar de T065 `FindByID(ctx, id)` en
       `backend/internal/projects/repository/project_repository.go`, devolviendo
       `domain.ErrProjectNotFound` cuando el proyecto no existe (FR-049). Lo necesitan
       `RequireOwnership` (T049), el servicio de integrantes (T050) y la vista de detalle (T091);

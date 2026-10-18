@@ -43,9 +43,19 @@ func (r *ProjectRepository) Create(ctx context.Context, project *domain.Project,
 	})
 }
 
-// FindByID devuelve el proyecto por su identificador. Firma mínima de T019.
+// FindByID devuelve el proyecto por su identificador. Si no hay fila devuelve ErrProjectNotFound,
+// nunca gorm.ErrRecordNotFound ni (nil, nil), para que el proyecto inexistente se responda igual
+// que el proyecto ajeno (FR-049).
 func (r *ProjectRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
-	return nil, errors.New("not implemented")
+	var project domain.Project
+	err := r.db.WithContext(ctx).Where("id = ?", id).Take(&project).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, domain.ErrProjectNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("buscar el proyecto por identificador: %w", err)
+	}
+	return &project, nil
 }
 
 // Update modifica los datos y el estado del proyecto. Firma mínima de T019.

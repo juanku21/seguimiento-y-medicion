@@ -362,7 +362,7 @@ exista el endpoint de vista de estado (que es US4).
       de `project_members` filtrado por el titular con `projects`, más una subconsulta de conteo de
       integrantes, ordenada por `start_date DESC, name_normalized ASC`. El filtro por membresía
       cumple FR-033 por construcción y evita el N+1 (research.md sección 11) — depende de T024
-- [ ] T038 [US2] Implementar el listado en
+- [X] T038 [US2] Implementar el listado en
       `backend/internal/projects/service/project_service.go`, resolviendo `isOwner` por comparación
       con `projects.owner_id` y devolviendo el mensaje en español
       (`Todavía no participás en ningún proyecto.`) solo cuando la lista está vacía (FR-032,

@@ -529,14 +529,14 @@ de estado con los datos correctos, incluso sin backlog ni sprints. El escenario 
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T055 [P] [US4] Pruebas unitarias del armado de la vista de estado en
+- [X] T055 [P] [US4] Pruebas unitarias del armado de la vista de estado en
       `backend/internal/projects/service/project_view_test.go`, con **dobles de `testify`** de los
       puertos `BacklogSummaryProvider` y `SprintDirectory`: con 3, 5 y 8 Story Points estimados, una
       historia sin estimar y factor 6,5, el resultado es `estimatedStoryPoints: 16` y
       `estimatedHours: 104` (escenario US4-5, FR-045, RN-08); `hasActiveSprint` refleja lo que
       informa el puerto; y `countsByState` se traslada tal como llega, sin fijar el conjunto de
       estados — depende de T011
-- [ ] T056 [US4] Pruebas de integración de la historia en
+- [X] T056 [US4] Pruebas de integración de la historia en
       `backend/internal/projects/delivery/handler_test.go`, una función por escenario precedida por
       `// Escenario: <nombre del escenario> (002/US4)`: `TestUS4_EstadoCompleto` (todos los campos
       de FR-042 en **una** respuesta), `TestUS4_ProyectoFinalizado` (trae `actualEndDate` y
@@ -551,27 +551,30 @@ de estado con los datos correctos, incluso sin backlog ni sprints. El escenario 
       que ese número **no crece** al agregar integrantes al proyecto. Una aserción de tiempo de
       pared sería inestable en CI; lo que SC-003 exige del diseño es la ausencia de N+1 — depende
       de T044
-- [ ] T057 [P] [US4] Pruebas de frontend en
+- [X] T057 [P] [US4] Pruebas de frontend en
       `frontend/src/features/projects/components/project-status-card.test.tsx` con
       `describe("002/US4 - Consultar el estado del proyecto")` y un `it` por escenario, incluida la
       indicación explícita de que no hay sprint activo y los contadores en cero — depende de T021
 
 ### Implementación de la Historia 4
 
-- [ ] T058 [US4] Completar el armado de la vista de estado en
-      `backend/internal/projects/service/project_view.go`: datos generales, propietario, factor,
-      estado, las tres fechas, `readOnly` derivado de `status == finished`, la lista de integrantes
-      de T088, el sprint activo y el resumen del backlog de los dos puertos, y las horas estimadas
-      con el cálculo de T023 (FR-042 a FR-045) — depende de T012, T013, T023, T088 y T055
-- [ ] T059 [US4] Implementar el manejador `getProjectDetail` en
-      `backend/internal/projects/delivery/handler.go` con anotaciones `swag` en español y
-      registrarlo como `GET /api/v1/projects/{projectId}` en
-      `backend/internal/projects/delivery/routes.go`, accesible a **cualquier integrante** incluso
-      con el proyecto `finished`, con `200`, `401` y `404` (FR-048) — depende de T051 y T058
-- [ ] T060 [US4] Implementar la llamada de vista de estado en
+- [X] T058 [US4] Copiar `ActualEndDate` en `newProjectDetail`
+      (`backend/internal/projects/delivery/handler.go`) con formato `YYYY-MM-DD`, para que
+      `actualEndDate` deje de informarse siempre como `null`, y actualizar en el mismo cambio la
+      anotación `swag` que lo indica. Es el GREEN de `TestUS4_ProyectoFinalizado`. El resto del
+      armado de la vista (FR-042 a FR-045) ya está en `buildView`
+      (`backend/internal/projects/service/project_view.go`), implementado en T027 y T088, y lo
+      cubren T055 y T056 — depende de T056
+- [X] T059 [US4] Verificar con las pruebas de T056 el manejador `getProjectDetail` en
+      `backend/internal/projects/delivery/handler.go` y su registro como
+      `GET /api/v1/projects/{projectId}` en `backend/internal/projects/delivery/routes.go`, que ya
+      fueron implementados antes de esta historia: accesible a **cualquier integrante** incluso con
+      el proyecto `finished`, con `200`, `401` y `404` (FR-048), y con anotaciones `swag` en
+      español — depende de T051 y T058
+- [X] T060 [US4] Implementar la llamada de vista de estado en
       `frontend/src/features/projects/api.ts` y el `ProjectStatusCard` en
       `frontend/src/features/projects/components/project-status-card.tsx` — depende de T053
-- [ ] T061 [US4] Crear la pantalla `frontend/src/app/projects/[projectId]/page.tsx` montando el
+- [X] T061 [US4] Crear la pantalla `frontend/src/app/projects/[projectId]/page.tsx` montando el
       `ProjectStatusCard`, el `MemberList` y el `AddMemberForm` de US3, todo en **una sola
       pantalla** (SC-003) — depende de T054 y T060
 
@@ -732,7 +735,9 @@ calidad. Todas las tareas son **técnicas**.
 - [ ] T079 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
       `backend/docs/` coincida con [contracts/openapi.yaml](./contracts/openapi.yaml) en las seis
       rutas, sus códigos de respuesta y los catorce esquemas; corregir las anotaciones si difieren
-      (Principio VIII) — depende de T076
+      (Principio VIII). Criterio acordado: todos los endpoints declaran la respuesta `500` en el
+      contrato. Si falta en `contracts/openapi.yaml`, agregarla en los seis endpoints y regenerar
+      `backend/docs/` con `swag` para que coincidan — depende de T076
 - [ ] T080 [P] Actualizar `README.md` de la raíz en español documentando la variable `APP_TIMEZONE`
       y el paso a paso para usar la feature, manteniendo el criterio de aceptación de que alguien
       que no conoce el proyecto pueda ejecutarlo siguiendo el documento — depende de T003
@@ -767,6 +772,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
 
 - [ ] T094 Agregar prueba de integración que verifica que POST /api/v1/projects/{projectId}/members con un cuerpo de más de 1 MiB responde 413 o 400 sin llegar al servicio, y que lo mismo ocurre en POST /api/v1/projects y en los endpoints de registro e inicio de sesión, en backend/internal/projects/delivery/handler_test.go y backend/internal/auth/delivery/handler_test.go per hallazgo de seguridad: cuerpo de solicitud JSON sin límite de tamaño (security) — origen: seguridad, detectado en 002/US3
 - [ ] T095 Limitar el tamaño del cuerpo de las solicitudes con http.MaxBytesReader en un middleware global registrado en backend/cmd/app/main.go, y agregar ReadTimeout al http.Server, para que ShouldBindJSON nunca decodifique cuerpos sin tope per hallazgo de seguridad: cuerpo de solicitud JSON sin límite de tamaño (security) — origen: seguridad, detectado en 002/US3
+- [ ] T098 Actualizar specs/002-project-members/plan.md (estructura del backend, go.mod y go.sum) para registrar que github.com/stretchr/objx v0.5.3 se incorpora como dependencia indirecta de testify/mock, que exigen los dobles de T055 en backend/internal/projects/service/project_view_test.go, con su justificación frente al Principio IV per plan: go.mod sin cambios (contradicts) — origen: converge, detectado en hu/002-us4-consultar-el-estado
 
 ---
 
@@ -897,7 +903,7 @@ Cada historia añade valor sin romper las anteriores.
 - Las implementaciones de los dos puertos (T012 y T013) se reemplazan cuando lleguen
   `specs/003-product-backlog` y `specs/004-sprint-management`: conviene anotarlo al planificar esas
   features, porque es su punto de integración con esta.
-- **Verificaciones que esta feature no puede cerrar sola.** Tres requisitos se prueban acá con
+- **Verificaciones que esta feature no puede cerrar sola.** Cuatro requisitos se prueban acá con
   dobles o asertando que no se toca ninguna otra tabla, y su verificación de punta a punta queda
   para las features que producen esos datos. Hay que anotarlo al planificar la 003 y la 004:
 
@@ -906,9 +912,25 @@ Cada historia añade valor sin romper las anteriores.
   | FR-017, RN-15 — los sprints cerrados conservan su factor | T062: el cambio de factor no toca ninguna otra tabla | `specs/004-sprint-management`, en su instantánea de cierre |
   | RN-14, SC-011 — la baja de un integrante no pierde registros | T044: la baja toca solo `project_members` | `specs/006-effort-tracking`, `specs/005-planning-poker` y `specs/007-defect-tracking` |
   | FR-042, FR-045 — reparto real del backlog y horas | T055: dobles de los puertos con valores distintos de cero | `specs/003-product-backlog` |
+  | SC-003 — vista de estado sin N+1, a lo sumo 4 consultas | T056: cuenta solo las consultas de los repositorios del servicio (proyecto, integrantes, backlog y sprint), sin la sesión ni `RequireMembership`. Hoy los puertos de backlog y sprint son stubs sin consultas reales, así que la cuenta da 2 | `specs/003-product-backlog` y `specs/004-sprint-management`: volver a comprobar el límite de 4 con los puertos reales |
 
 - **Criterios de éxito no automatizables.** SC-001 (primer proyecto en menos de 2 minutos, 95 % al
   primer intento) y SC-002 (sumar un integrante en menos de 30 segundos y en no más de 3 pasos) son
   métricas de experiencia de uso: no tienen tarea asociada porque ninguna prueba automatizada puede
   hacerlas fallar. Se validan a mano siguiendo la sección "Flujo en la interfaz" de
   [quickstart.md](./quickstart.md), cuyos pasos 2 y 4 están escritos justamente para medirlos.
+- **Decisión: cómo sabe la pantalla de estado si quien consulta es el propietario.** La deducción
+  se hace en `isViewerOwner`, en `frontend/src/features/projects/components/project-overview.tsx`
+  (T061), que le pasa el resultado a `MemberList` como `viewerIsOwner`: quien consulta es el
+  propietario si los integrantes traen el campo `email` (FR-030: el backend solo lo envía al
+  propietario). Mejora pendiente: exponer `isOwner` en `ProjectDetail` (opción c), con prueba de
+  backend, DTO, Swagger y tipo/validador del frontend. Requiere editar `specs/002` con aprobación
+  humana. La deducción queda fijada por
+  `frontend/src/features/projects/components/project-overview.test.tsx`, que es **cobertura
+  adicional sin tarea asignada**: verifica que con correos se ofrecen el formulario de alta y el
+  botón Quitar, y que sin correos no se ofrece ninguno. Su `describe` no lleva el prefijo
+  `002/US4`, para no alterar el conteo de escenarios de T084.
+- **Pendientes detectados en T061, sin tarea asignada.**
+  - Falta un enlace desde el listado (`project-list.tsx`) hacia `/projects/<id>`: hoy a la pantalla
+    solo se llega escribiendo la URL.
+  - A la tabla de direcciones del `README.md` le falta la fila de `/projects`.

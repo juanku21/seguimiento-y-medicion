@@ -6,6 +6,7 @@ import {
   type ApiResult,
 } from "@/lib/api-client";
 import type {
+  BacklogSummary,
   ProjectDetail,
   ProjectInput,
   ProjectListItem,
@@ -13,8 +14,19 @@ import type {
   ProjectMemberView,
 } from "@/types/project";
 
-// Reconoce el estado completo del proyecto que devuelve la creación exitosa (201), sin confiar en
-// el cuerpo recibido.
+// Reconoce el resumen del backlog (BacklogSummary) con los contadores y los totales que muestra la
+// vista de estado.
+function isBacklogSummary(value: unknown): value is BacklogSummary {
+  return (
+    isRecord(value) &&
+    isRecord(value.countsByState) &&
+    typeof value.estimatedStoryPoints === "number" &&
+    typeof value.estimatedHours === "number"
+  );
+}
+
+// Reconoce el estado completo del proyecto que devuelven la creación exitosa (201) y la vista de
+// estado (200), sin confiar en el cuerpo recibido.
 function isProjectDetail(value: unknown): value is ProjectDetail {
   return (
     isRecord(value) &&
@@ -24,8 +36,11 @@ function isProjectDetail(value: unknown): value is ProjectDetail {
     typeof value.startDate === "string" &&
     typeof value.plannedEndDate === "string" &&
     typeof value.hoursPerStoryPoint === "number" &&
+    typeof value.readOnly === "boolean" &&
+    typeof value.hasActiveSprint === "boolean" &&
     isRecord(value.owner) &&
-    Array.isArray(value.members)
+    Array.isArray(value.members) &&
+    isBacklogSummary(value.backlog)
   );
 }
 
@@ -107,4 +122,13 @@ export function removeProjectMember(
   userId: string,
 ): Promise<ApiResult<undefined>> {
   return deleteEmpty(`/api/v1/projects/${projectId}/members/${userId}`);
+}
+
+// Pide el estado completo del proyecto con GET /api/v1/projects/{projectId}, usando la sesión de la
+// pestaña (FR-042). Un proyecto del que no se es integrante llega como 404 sin datos (FR-049); ante
+// un 401 el cliente HTTP descarta la sesión (FR-016).
+export function getProjectDetail(
+  projectId: string,
+): Promise<ApiResult<ProjectDetail>> {
+  return getJson(`/api/v1/projects/${projectId}`, isProjectDetail);
 }

@@ -410,13 +410,13 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T043 [P] [US3] Pruebas unitarias **obligatorias** de las reglas de negocio en
+- [X] T043 [P] [US3] Pruebas unitarias **obligatorias** de las reglas de negocio en
       `backend/internal/projects/service/member_service_test.go`, cubriendo RN-02, RN-05, RN-11,
       RN-12 y RN-13: el correo se normaliza con `TrimSpace` + `ToLower` antes de buscar la cuenta
       (RN-05); solo el propietario agrega y quita (RN-02); un proyecto `finished` rechaza las dos
       acciones (RN-11); el propietario no puede quitarse (RN-12); y un usuario no puede ser
       integrante dos veces del mismo proyecto (RN-13)
-- [ ] T044 [US3] Pruebas de integración de la historia en
+- [X] T044 [US3] Pruebas de integración de la historia en
       `backend/internal/projects/delivery/handler_test.go`, una función por escenario precedida por
       `// Escenario: <nombre del escenario> (002/US3)`: `TestUS3_AltaExitosa` (`201` y la persona ya
       consulta el proyecto y lo ve en su listado), `TestUS3_CorreoConEspaciosYMayusculas`
@@ -430,57 +430,85 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       cambia), `TestUS3_NoEsPropietario` (`403` y ningún efecto),
       `TestUS3_PropietarioNoPuedeQuitarse` (`409`) y `TestUS3_ProyectoFinalizado` (`409` en alta y
       en baja) — depende de T033
-- [ ] T045 [P] [US3] Prueba de integración de concurrencia en
+- [X] T045 [P] [US3] Prueba de integración de concurrencia en
       `backend/internal/projects/delivery/member_concurrency_test.go`: **10 altas simultáneas del
       mismo usuario en el mismo proyecto** registran una sola membresía y las nueve restantes
       reciben `409` (FR-023, SC-008) — depende de T015 y T016
-- [ ] T046 [P] [US3] Pruebas de frontend en
+- [X] T046 [P] [US3] Pruebas de frontend en
       `frontend/src/features/projects/components/member-list.test.tsx` y
       `frontend/src/features/projects/components/add-member-form.test.tsx` con
       `describe("002/US3 - Gestionar los integrantes del proyecto")` y un `it` por escenario,
       incluido que un integrante que no es propietario **no ve** los correos ni las acciones de
       administración — depende de T021
+- [X] T092 [US3] Escribir la prueba de integración en
+      `backend/internal/projects/delivery/routes_test.go` que monta un manejador de prueba sobre el
+      subgrupo de administración devuelto por `RegisterRoutes` y verifica que el propietario pasa,
+      que un integrante que no es propietario recibe `403` y que un no integrante recibe el mismo
+      `404` que hoy (el `403` nunca se evalúa antes que la membresía), ajustando a la nueva firma de
+      `RegisterRoutes`, que pasa a recibir también `domain.ProjectRepository`, la llamada existente
+      en `backend/internal/projects/delivery/handler_test.go` (FR-047, FR-050, SC-006) — surge de
+      T049, depende de T089
 
 ### Implementación de la Historia 3
 
-- [ ] T047 [US3] Implementar `FindByEmail(ctx, normalizedEmail)` en
+- [X] T047 [US3] Implementar `FindByEmail(ctx, normalizedEmail)` en
       `backend/internal/projects/repository/user_directory.go`, el **único** punto del módulo que
       lee la tabla `users`, enumerando explícitamente `users.id, users.full_name, users.email` y
       **sin seleccionar nunca `password_hash`** (research.md sección 8, FR-019, FR-020)
-- [ ] T048 [US3] Implementar `Create(ctx, member)` y `Delete(ctx, projectID, userID)` en
+- [X] T048 [US3] Implementar `Create(ctx, member)` y `Delete(ctx, projectID, userID)` en
       `backend/internal/projects/repository/project_member_repository.go` (`ListMembers` ya está
       implementado desde T088): el alta traduce `gorm.ErrDuplicatedKey` al error de integrante
       duplicado; y la baja es un **borrado físico** de la fila, **sin** `gorm.DeletedAt`, que sería
       incompatible con el índice único y rompería la nueva alta de FR-029 (research.md secciones 6
       y 8) — depende de T035
-- [ ] T049 [US3] Implementar `RequireOwnership` en
-      `backend/internal/projects/delivery/middleware.go` comparando el titular con
-      `projects.owner_id` y devolviendo `403`, y aplicarlo al subgrupo de acciones de administración
-      en `backend/internal/projects/delivery/routes.go`. Se encadena **después** de
-      `RequireMembership`, para que quien no es integrante nunca llegue a saber que el proyecto
-      existe (FR-047, FR-050, SC-006) — depende de T036
-- [ ] T050 [US3] Implementar el alta y la baja en
+- [X] T093 [US3] Adelantar de T065 `FindByID(ctx, id)` en
+      `backend/internal/projects/repository/project_repository.go`, devolviendo
+      `domain.ErrProjectNotFound` cuando el proyecto no existe (FR-049). Lo necesitan
+      `RequireOwnership` (T049), el servicio de integrantes (T050) y la vista de detalle (T091);
+      `Update` queda en T065 — surge de T049
+- [X] T049 [US3] Implementar `RequireOwnership(projects domain.ProjectRepository)` en
+      `backend/internal/projects/delivery/middleware.go`, que obtiene el proyecto con `FindByID`,
+      compara el titular con `owner_id` y devuelve `403`, y aplicarlo al subgrupo de acciones de
+      administración que `RegisterRoutes` crea en `backend/internal/projects/delivery/routes.go`,
+      pasándole el repositorio de proyectos también desde `backend/cmd/app/main.go`. Se encadena
+      **después** de `RequireMembership`, para que quien no es integrante nunca llegue a saber que
+      el proyecto existe (FR-047, FR-050, SC-006) — depende de T036, T092 y T093
+- [X] T050 [US3] Implementar el alta y la baja en
       `backend/internal/projects/service/member_service.go`: normaliza el correo, busca la cuenta,
       rechaza el proyecto `finished`, rechaza la baja del propietario y resuelve `isOwner` por
-      comparación con `projects.owner_id` (FR-019 a FR-029) — depende de T047 y T048
-- [ ] T051 [US3] Añadir `AddMemberRequest` a `backend/internal/projects/delivery/dto.go` y construir
+      comparación con `projects.owner_id` (FR-019 a FR-029) — depende de T047, T048 y T093
+- [X] T051 [US3] Añadir `AddMemberRequest` a `backend/internal/projects/delivery/dto.go` y construir
       `ProjectMemberView` **omitiendo el campo `email` cuando quien consulta no es el propietario**.
       La decisión de visibilidad vive en un solo lugar, la capa `delivery`, que es la única que sabe
       quién hizo la petición (FR-030) — depende de T025
-- [ ] T052 [US3] Implementar los manejadores `addProjectMember` y `removeProjectMember` en
+- [X] T091 [US3] Adelantar de T059 el registro de `GET /api/v1/projects/{projectId}`: agregar
+      `Get(ctx, projectID)` a `ProjectService` en `backend/internal/projects/service/project_service.go`
+      reutilizando `buildView`, implementar el manejador `getProjectDetail` en
+      `backend/internal/projects/delivery/handler.go` con anotaciones `swag` en español y
+      registrarlo en el subgrupo `/:projectId` de `backend/internal/projects/delivery/routes.go`
+      (`200`, `401`, `404`). La respuesta trae los datos generales y la lista de integrantes con el
+      correo filtrado según T051; los campos de estado (sprint activo, backlog, horas y `readOnly`)
+      los completan T058 y T059. Hace pasar `TestUS3_VisibilidadDelCorreo` y
+      `TestUS3_SoloElPropietarioComoIntegrante`, que consultan la lista por este endpoint
+      (research.md sección 12) — surge de T044, depende de T051, T088 y T093
+- [X] T052 [US3] Implementar los manejadores `addProjectMember` y `removeProjectMember` en
       `backend/internal/projects/delivery/handler.go` con anotaciones `swag` en español y
       registrarlos como `POST /api/v1/projects/{projectId}/members` (`201`, `400`, `401`, `403`,
       `404`, `409`, **`422`** para el correo sin cuenta) y
       `DELETE /api/v1/projects/{projectId}/members/{userId}` (`204`, `401`, `403`, `404`, `409`) en
       `backend/internal/projects/delivery/routes.go`. El `422` existe para que el `404` de esos
       endpoints signifique siempre y solo "el proyecto no existe o no sos integrante"
-      (research.md sección 12) — depende de T049, T050 y T051
-- [ ] T053 [US3] Implementar las llamadas de alta y baja de integrantes en
+      (research.md sección 12). Agregar `http.MethodDelete` a `AllowMethods` de CORS en
+      `backend/cmd/app/main.go` para que la baja funcione desde el navegador — depende de T049,
+      T050 y T051
+- [X] T053 [US3] Implementar las llamadas de alta y baja de integrantes en
       `frontend/src/features/projects/api.ts` — depende de T040
-- [ ] T054 [US3] Implementar el `MemberList` en
+- [X] T054 [US3] Implementar el `MemberList` en
       `frontend/src/features/projects/components/member-list.tsx` y el `AddMemberForm` en
       `frontend/src/features/projects/components/add-member-form.tsx`, mostrando el correo y las
       acciones de administración **solo** cuando quien consulta es el propietario — depende de T053
+- [X] T096 [US3] Agregar en `backend/internal/projects/delivery/handler_test.go` la prueba de integración `TestUS3_BajaDeQuienNoEsIntegrante`, precedida por `// Escenario: Baja de una persona que no es integrante (002/US3)`: el propietario quita a una cuenta registrada que no es integrante y recibe `404` con "La persona no forma parte del proyecto." sin cambios en `project_members`, y la misma respuesta ante un `userId` que no es UUID per FR-026 (partial)
+- [X] T097 [US3] Agregar en `backend/internal/projects/delivery/handler_test.go` la prueba de integración `TestUS3_SinSesion`, precedida por `// Escenario: Alta y baja sin sesión (002/US3)`, con subtests de alta y baja: sin sesión válida, `POST /api/v1/projects/{projectId}/members` y `DELETE /api/v1/projects/{projectId}/members/{userId}` responden `401` y la lista de integrantes no cambia per SC-004 (partial)
 
 **Checkpoint**: US1 a US3 funcionan de forma independiente. El proyecto ya es un espacio de equipo.
 
@@ -730,6 +758,15 @@ calidad. Todas las tareas son **técnicas**.
       comprobación de la zona horaria en `actual_end_date`, las pruebas de concurrencia y la
       verificación de que las pruebas corrieron contra `smye_test` en el puerto 5433 y no contra
       desarrollo — depende de T079, T080 y T084
+
+---
+
+## Phase 10: Convergence and Security
+
+Propósito: ajustes transversales detectados por /speckit-converge y /revisar-seguridad.
+
+- [ ] T094 Agregar prueba de integración que verifica que POST /api/v1/projects/{projectId}/members con un cuerpo de más de 1 MiB responde 413 o 400 sin llegar al servicio, y que lo mismo ocurre en POST /api/v1/projects y en los endpoints de registro e inicio de sesión, en backend/internal/projects/delivery/handler_test.go y backend/internal/auth/delivery/handler_test.go per hallazgo de seguridad: cuerpo de solicitud JSON sin límite de tamaño (security) — origen: seguridad, detectado en 002/US3
+- [ ] T095 Limitar el tamaño del cuerpo de las solicitudes con http.MaxBytesReader en un middleware global registrado en backend/cmd/app/main.go, y agregar ReadTimeout al http.Server, para que ShouldBindJSON nunca decodifique cuerpos sin tope per hallazgo de seguridad: cuerpo de solicitud JSON sin límite de tamaño (security) — origen: seguridad, detectado en 002/US3
 
 ---
 

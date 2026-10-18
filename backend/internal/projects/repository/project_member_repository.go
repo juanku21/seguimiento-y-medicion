@@ -12,8 +12,7 @@ import (
 )
 
 // ProjectMemberRepository implementa domain.ProjectMemberRepository con GORM sobre la tabla
-// project_members. Firma mínima de T087: ListMembers la implementa T088 y las demás operaciones las
-// historias que las usan.
+// project_members.
 type ProjectMemberRepository struct {
 	db *gorm.DB
 }
@@ -41,14 +40,35 @@ func (r *ProjectMemberRepository) FindByProjectAndUser(ctx context.Context, proj
 	return &member, nil
 }
 
-// Create da de alta la membresía recibida. Firma mínima de T087.
+// Create da de alta la membresía recibida. No se consulta antes de insertar: la unicidad la
+// garantiza el índice único (project_id, user_id), y su violación (gorm.ErrDuplicatedKey, gracias
+// a TranslateError) se traduce a ErrAlreadyMember, también ante altas simultáneas de la misma
+// persona (FR-022, research.md sección 6).
 func (r *ProjectMemberRepository) Create(ctx context.Context, member *domain.ProjectMember) error {
-	return errors.New("not implemented")
+	if err := r.db.WithContext(ctx).Create(member).Error; err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return domain.ErrAlreadyMember
+		}
+		return fmt.Errorf("insertar membresía: %w", err)
+	}
+	return nil
 }
 
-// Delete da de baja la membresía del usuario en el proyecto. Firma mínima de T087.
+// Delete da de baja la membresía del usuario en el proyecto con un borrado físico de la fila: el
+// modelo no usa gorm.DeletedAt, porque una fila borrada lógicamente seguiría ocupando el índice
+// único e impediría la nueva alta de la misma persona (FR-029, research.md secciones 6 y 8). Si el
+// DELETE no afecta ninguna fila, la persona no era integrante y se devuelve ErrNotMember (FR-026).
 func (r *ProjectMemberRepository) Delete(ctx context.Context, projectID, userID uuid.UUID) error {
-	return errors.New("not implemented")
+	result := r.db.WithContext(ctx).
+		Where("project_id = ? AND user_id = ?", projectID, userID).
+		Delete(&domain.ProjectMember{})
+	if result.Error != nil {
+		return fmt.Errorf("borrar membresía: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return domain.ErrNotMember
+	}
+	return nil
 }
 
 // ListMembers devuelve los integrantes del proyecto con su nombre y su correo, ordenados por fecha

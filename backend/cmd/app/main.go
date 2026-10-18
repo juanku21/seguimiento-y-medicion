@@ -96,7 +96,7 @@ func run() error {
 	router := gin.Default()
 	router.Use(cors.New(cors.Config{
 		AllowOrigins: []string{cfg.CORSAllowedOrigin},
-		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodOptions},
+		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodDelete, http.MethodOptions},
 		AllowHeaders: []string{"Origin", "Content-Type", "Authorization"},
 		MaxAge:       12 * time.Hour,
 	}))
@@ -105,17 +105,20 @@ func run() error {
 
 	// El módulo de proyectos recibe el middleware de sesión de la feature de autenticación como
 	// gin.HandlerFunc, así todo su grupo de rutas exige sesión sin importar ese middleware
-	// (FR-046, research.md de la 002, sección 10). Sus manejadores se componen sobre el repositorio
-	// de proyectos y los puertos de backlog y de sprints. La misma instancia del repositorio de
-	// integrantes sirve al servicio y a RequireMembership del subgrupo /:projectId.
+	// (FR-046, research.md de la 002, sección 10). Sus manejadores se componen sobre el servicio de
+	// proyectos, con el repositorio de proyectos y los puertos de backlog y de sprints, y sobre el
+	// servicio de integrantes, con el directorio de usuarios. Las mismas instancias de los
+	// repositorios sirven a los dos servicios y a RequireMembership del subgrupo /:projectId.
+	projectRepository := projectsrepository.NewProjectRepository(db)
 	projectMembers := projectsrepository.NewProjectMemberRepository(db)
 	projects := projectsservice.NewProjectService(
-		projectsrepository.NewProjectRepository(db),
+		projectRepository,
 		projectMembers,
 		projectsrepository.NewBacklogSummaryProvider(),
 		projectsrepository.NewSprintDirectory(),
 	)
-	projectsdelivery.RegisterRoutes(router, handler.RequireSession, projectsdelivery.NewHandler(projects), projectMembers)
+	members := projectsservice.NewMemberService(projectRepository, projectMembers, projectsrepository.NewUserDirectory(db))
+	projectsdelivery.RegisterRoutes(router, handler.RequireSession, projectsdelivery.NewHandler(projects, members), projectMembers, projectRepository)
 
 	// ReadHeaderTimeout acota el tiempo para recibir las cabeceras y evita conexiones colgadas.
 	server := &http.Server{

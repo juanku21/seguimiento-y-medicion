@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -93,16 +94,18 @@ type projectErrorBody struct {
 
 // projectsTestEnv reúne el router compuesto como en cmd/app, la base de test, el servicio de
 // autenticación con el que se crean las cuentas y las sesiones de cada escenario, y el subgrupo
-// /api/v1/projects/:projectId que devuelve RegisterRoutes.
+// /api/v1/projects/:projectId que devuelve RegisterRoutes junto con su subgrupo de administración.
 type projectsTestEnv struct {
 	router       *gin.Engine
 	db           *gorm.DB
 	auth         *authservice.AuthService
 	projectGroup *gin.RouterGroup
+	adminGroup   *gin.RouterGroup
 }
 
 // newProjectsTestEnv abre la base de test vacía y compone la cadena real de la 001 (para el
-// middleware de sesión) y del módulo de proyectos, igual que cmd/app, sin CORS ni Swagger.
+// middleware de sesión) y del módulo de proyectos, con el servicio de proyectos y el de integrantes,
+// igual que cmd/app, sin CORS ni Swagger.
 func newProjectsTestEnv(t *testing.T) projectsTestEnv {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -113,17 +116,20 @@ func newProjectsTestEnv(t *testing.T) projectsTestEnv {
 		authrepository.NewAuthEventRepository(db),
 		cfg.JWTSecret,
 	)
+	projectRepository := repository.NewProjectRepository(db)
+	projectMembers := repository.NewProjectMemberRepository(db)
 	projects := service.NewProjectService(
-		repository.NewProjectRepository(db),
-		repository.NewProjectMemberRepository(db),
+		projectRepository,
+		projectMembers,
 		repository.NewBacklogSummaryProvider(),
 		repository.NewSprintDirectory(),
 	)
+	members := service.NewMemberService(projectRepository, projectMembers, repository.NewUserDirectory(db))
 	router := gin.New()
 	authHandler := authdelivery.NewHandler(auth)
 	authdelivery.RegisterRoutes(router, authHandler)
-	projectGroup := RegisterRoutes(router, authHandler.RequireSession, NewHandler(projects), repository.NewProjectMemberRepository(db))
-	return projectsTestEnv{router: router, db: db, auth: auth, projectGroup: projectGroup}
+	projectGroup, adminGroup := RegisterRoutes(router, authHandler.RequireSession, NewHandler(projects, members), projectMembers, projectRepository)
+	return projectsTestEnv{router: router, db: db, auth: auth, projectGroup: projectGroup, adminGroup: adminGroup}
 }
 
 // signUp registra una cuenta con el servicio de la 001, inicia su sesión y devuelve el identificador
@@ -781,5 +787,557 @@ func TestUS2_SinSesion(t *testing.T) {
 			require.Equal(t, http.StatusUnauthorized, rec.Code, "cuerpo: %s", rec.Body.String())
 			assert.JSONEq(t, `{"error":"`+projectSessionMessage+`"}`, rec.Body.String())
 		})
+	}
+}
+
+// Textos exactos que fija el contrato para las respuestas de error del alta y la baja de
+// integrantes.
+const (
+	memberEmailNotRegisteredMessage = "No existe un usuario registrado con ese correo electrónico."
+	memberAlreadyMemberMessage      = "La persona ya forma parte del proyecto."
+	memberNotOwnerMessage           = "Solo el propietario del proyecto puede realizar esta acción."
+	memberOwnerCannotLeaveMessage   = "El propietario no puede quitarse del proyecto."
+	memberNotMemberMessage          = "La persona no forma parte del proyecto."
+	projectReadOnlyMessage          = "El proyecto está finalizado y es de solo lectura."
+)
+
+// memberViewBody refleja ProjectMemberView del contrato. Email es un puntero para distinguir el
+// campo ausente, que es como se oculta a quien no es propietario (FR-030).
+type memberViewBody struct {
+	UserID   string  `json:"userId"`
+	FullName string  `json:"fullName"`
+	Email    *string `json:"email"`
+	IsOwner  bool    `json:"isOwner"`
+	JoinedAt string  `json:"joinedAt"`
+}
+
+// membersPath es la ruta de alta de integrantes del proyecto según contracts/openapi.yaml.
+func membersPath(projectID uuid.UUID) string {
+	return projectsPath + "/" + projectID.String() + "/members"
+}
+
+// memberPath es la ruta de baja de un integrante concreto según contracts/openapi.yaml.
+func memberPath(projectID, userID uuid.UUID) string {
+	return membersPath(projectID) + "/" + userID.String()
+}
+
+// projectDetailPath es la ruta de la vista de estado del proyecto, la única vía por la que la API
+// expone la lista de integrantes (research.md sección 12).
+func projectDetailPath(projectID uuid.UUID) string {
+	return projectsPath + "/" + projectID.String()
+}
+
+// postMember envía el correo a POST /api/v1/projects/{projectId}/members con el token como Bearer.
+func (e projectsTestEnv) postMember(t *testing.T, token string, projectID uuid.UUID, email string) *httptest.ResponseRecorder {
+	t.Helper()
+	payload, err := json.Marshal(map[string]string{"email": email})
+	require.NoError(t, err, "no se pudo serializar la solicitud")
+	req := httptest.NewRequest(http.MethodPost, membersPath(projectID), bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, req)
+	return rec
+}
+
+// deleteMember envía DELETE /api/v1/projects/{projectId}/members/{userId} con el token como Bearer.
+func (e projectsTestEnv) deleteMember(t *testing.T, token string, projectID, userID uuid.UUID) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodDelete, memberPath(projectID, userID), nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, req)
+	return rec
+}
+
+// mountMembershipProbe monta en el router el manejador protegido de prueba de middleware_test.go
+// detrás del middleware de sesión y de RequireMembership, para comprobar si una persona puede
+// consultar el proyecto sin depender de la vista de estado de US4.
+func (e projectsTestEnv) mountMembershipProbe() {
+	probe := &membershipProbe{}
+	e.router.GET(membershipProbeRoute,
+		authdelivery.NewHandler(e.auth).RequireSession,
+		RequireMembership(repository.NewProjectMemberRepository(e.db)),
+		probe.handle,
+	)
+}
+
+// accessStatus devuelve el código con que responde el manejador protegido de prueba cuando la
+// persona del token consulta el proyecto: 200 si tiene acceso y 404 si no.
+func (e projectsTestEnv) accessStatus(t *testing.T, token string, projectID uuid.UUID) int {
+	t.Helper()
+	return e.get(t, token, "/api/v1/solo-prueba-membresia/"+projectID.String()).Code
+}
+
+// seedProjectInStatus siembra un proyecto del propietario en el estado indicado, con las
+// membresías del propietario y de los integrantes adicionales, y devuelve su identificador.
+func seedProjectInStatus(t *testing.T, db *gorm.DB, ownerID uuid.UUID, status domain.ProjectStatus, extraMembers ...uuid.UUID) uuid.UUID {
+	t.Helper()
+	return seedListedProject(t, db, ownerID, listedProjectSeed{
+		name: "Portal de Clientes", status: status,
+		startDate: "2026-10-01", plannedEndDate: "2026-12-20", extraMembers: extraMembers,
+	})
+}
+
+// requireErrorResponse exige el código indicado con un ErrorResponse cuyo mensaje sea el esperado.
+func requireErrorResponse(t *testing.T, rec *httptest.ResponseRecorder, status int, message string) {
+	t.Helper()
+	require.Equal(t, status, rec.Code, "cuerpo: %s", rec.Body.String())
+	var got projectErrorBody
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got), "el cuerpo no es JSON válido: %s", rec.Body.String())
+	assert.Equal(t, message, got.Error)
+}
+
+// requireCreatedMember exige un 201 cuyo cuerpo sea un ProjectMemberView y lo devuelve decodificado.
+func requireCreatedMember(t *testing.T, rec *httptest.ResponseRecorder) memberViewBody {
+	t.Helper()
+	require.Equal(t, http.StatusCreated, rec.Code, "cuerpo: %s", rec.Body.String())
+	var body memberViewBody
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "el cuerpo del 201 no es JSON válido: %s", rec.Body.String())
+	return body
+}
+
+// memberRowsOf devuelve las filas de project_members del proyecto ordenadas por usuario, para
+// comparar la lista de integrantes antes y después de una acción.
+func memberRowsOf(t *testing.T, db *gorm.DB, projectID uuid.UUID) []domain.ProjectMember {
+	t.Helper()
+	var rows []domain.ProjectMember
+	require.NoError(t, db.Where("project_id = ?", projectID).Order("user_id").Find(&rows).Error,
+		"no se pudieron leer las membresías del proyecto")
+	return rows
+}
+
+// requireMemberList exige un 200 de la vista de estado y devuelve su lista de integrantes como
+// objetos crudos, para poder comprobar que el campo email está ausente y no solo vacío.
+func requireMemberList(t *testing.T, rec *httptest.ResponseRecorder) []map[string]any {
+	t.Helper()
+	require.Equal(t, http.StatusOK, rec.Code, "cuerpo: %s", rec.Body.String())
+	var body struct {
+		Members []map[string]any `json:"members"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "el cuerpo del 200 no es JSON válido: %s", rec.Body.String())
+	return body.Members
+}
+
+// tableSnapshots toma, para cada tabla del esquema salvo project_members, la cantidad de filas y un
+// resumen md5 de su contenido completo. Comparar dos instantáneas detecta cualquier fila borrada,
+// agregada o modificada, incluida una referencia al autor puesta en nulo, en las tablas de hoy y en
+// las que agreguen las features siguientes (RN-14, SC-011).
+func tableSnapshots(t *testing.T, db *gorm.DB) map[string]string {
+	t.Helper()
+	var tables []string
+	require.NoError(t, db.Raw(`SELECT table_name FROM information_schema.tables
+		WHERE table_schema = current_schema() AND table_type = 'BASE TABLE' AND table_name <> 'project_members'
+		ORDER BY table_name`).Scan(&tables).Error, "no se pudieron listar las tablas")
+	snapshots := make(map[string]string, len(tables))
+	for _, table := range tables {
+		var snapshot string
+		query := fmt.Sprintf(`SELECT count(*) || ':' || coalesce(md5(string_agg(t::text, ',' ORDER BY t::text)), '') FROM %q t`, table)
+		require.NoError(t, db.Raw(query).Scan(&snapshot).Error, "no se pudo resumir la tabla %s", table)
+		snapshots[table] = snapshot
+	}
+	return snapshots
+}
+
+// Escenario: Alta exitosa (002/US3)
+// El propietario agrega a Bruno, registrado con bruno@example.com: la respuesta es 201 con la vista
+// del nuevo integrante, queda la membresía en la base y, desde ese momento, Bruno puede consultar el
+// proyecto y lo ve en su listado (FR-019, FR-028).
+func TestUS3_AltaExitosa(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	env.mountMembershipProbe()
+	ownerID, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress)
+
+	got := requireCreatedMember(t, env.postMember(t, ownerToken, projectID, "bruno@example.com"))
+
+	// La respuesta describe a Bruno; quien la recibe es el propietario, así que incluye el correo.
+	assert.Equal(t, brunoID.String(), got.UserID)
+	assert.Equal(t, "Bruno Gómez", got.FullName)
+	if assert.NotNil(t, got.Email, "el propietario debería ver el correo del nuevo integrante") {
+		assert.Equal(t, "bruno@example.com", *got.Email)
+	}
+	assert.False(t, got.IsOwner)
+	_, err := time.Parse(time.RFC3339, got.JoinedAt)
+	assert.NoError(t, err, "joinedAt = %q no es una fecha y hora RFC 3339", got.JoinedAt)
+	assert.Equal(t, int64(1), countMemberRows(t, env.db, "project_id = ? AND user_id = ?", projectID, brunoID))
+
+	// Bruno ya puede consultar el proyecto y lo ve en su listado, sin ser su propietario.
+	assert.Equal(t, http.StatusOK, env.accessStatus(t, brunoToken, projectID), "Bruno debería tener acceso al proyecto")
+	list := requireProjectList(t, env.get(t, brunoToken, projectsPath))
+	if assert.Len(t, list.Projects, 1, "Bruno debería ver el proyecto en su listado") {
+		assert.Equal(t, projectID.String(), list.Projects[0].ID)
+		assert.False(t, list.Projects[0].IsOwner)
+		assert.Equal(t, 2, list.Projects[0].MemberCount)
+	}
+}
+
+// Escenario: Correo con espacios y mayúsculas (002/US3)
+// El propietario escribe "  Bruno@Example.COM  " y el sistema encuentra la misma cuenta registrada
+// con bruno@example.com, porque el correo se compara sin espacios extremos y sin distinguir
+// mayúsculas (FR-020, RN-05).
+func TestUS3_CorreoConEspaciosYMayusculas(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, _ := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress)
+
+	got := requireCreatedMember(t, env.postMember(t, ownerToken, projectID, "  Bruno@Example.COM  "))
+
+	assert.Equal(t, brunoID.String(), got.UserID)
+	if assert.NotNil(t, got.Email) {
+		assert.Equal(t, "bruno@example.com", *got.Email, "el correo devuelto es el normalizado de la cuenta")
+	}
+	assert.Equal(t, int64(1), countMemberRows(t, env.db, "project_id = ? AND user_id = ?", projectID, brunoID))
+}
+
+// Escenario: Nueva alta tras una baja (002/US3)
+// Bruno fue quitado del proyecto y el propietario lo vuelve a agregar: recupera el acceso, con una
+// fecha de incorporación nueva, y sigue apareciendo una sola vez en la lista de integrantes (FR-029).
+// La baja previa se prepara borrando su membresía en la base, para aislar el escenario del endpoint
+// de baja.
+func TestUS3_NuevaAltaTrasBaja(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	env.mountMembershipProbe()
+	ownerID, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress, brunoID)
+	var previous domain.ProjectMember
+	require.NoError(t, env.db.Where("project_id = ? AND user_id = ?", projectID, brunoID).Take(&previous).Error)
+	require.NoError(t, env.db.Where("project_id = ? AND user_id = ?", projectID, brunoID).
+		Delete(&domain.ProjectMember{}).Error, "no se pudo quitar la membresía de prueba")
+	require.Equal(t, http.StatusNotFound, env.accessStatus(t, brunoToken, projectID), "precondición: Bruno no tiene acceso")
+
+	got := requireCreatedMember(t, env.postMember(t, ownerToken, projectID, "bruno@example.com"))
+
+	// Bruno recupera el acceso y figura una sola vez entre los dos integrantes del proyecto.
+	assert.Equal(t, brunoID.String(), got.UserID)
+	assert.Equal(t, http.StatusOK, env.accessStatus(t, brunoToken, projectID), "Bruno debería recuperar el acceso")
+	assert.Equal(t, int64(1), countMemberRows(t, env.db, "project_id = ? AND user_id = ?", projectID, brunoID))
+	assert.Equal(t, int64(2), countMemberRows(t, env.db, "project_id = ?", projectID))
+
+	// La nueva membresía es una fila nueva, con su propia fecha de incorporación.
+	var current domain.ProjectMember
+	require.NoError(t, env.db.Where("project_id = ? AND user_id = ?", projectID, brunoID).Take(&current).Error)
+	assert.NotEqual(t, previous.ID, current.ID, "la nueva alta debería ser una membresía nueva")
+	assert.True(t, current.CreatedAt.After(previous.CreatedAt), "la fecha de incorporación debería ser nueva")
+}
+
+// Escenario: Visibilidad del correo (002/US3)
+// En un proyecto con propietario y dos integrantes más, el propietario ve de cada persona su nombre,
+// su correo, la marca de propietario y la fecha de incorporación; cualquier otro integrante ve
+// exactamente los mismos datos salvo los correos, que no aparecen ni como campo vacío (FR-030). La
+// lista se consulta en la vista de estado, que es la única vía por la que la API la expone
+// (research.md sección 12).
+func TestUS3_VisibilidadDelCorreo(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	carlaID, carlaToken := env.signUp(t, "Carla Díaz", "carla@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress, brunoID, carlaID)
+
+	ownerView := requireMemberList(t, env.get(t, ownerToken, projectDetailPath(projectID)))
+
+	// El propietario ve a las tres personas con el correo de cada una.
+	wantEmails := map[string]string{
+		ownerID.String(): "ana@example.com",
+		brunoID.String(): "bruno@example.com",
+		carlaID.String(): "carla@example.com",
+	}
+	require.Len(t, ownerView, 3, "el propietario debería ver a los tres integrantes")
+	for _, m := range ownerView {
+		userID, _ := m["userId"].(string)
+		assert.Equal(t, wantEmails[userID], m["email"], "correo de %s", userID)
+	}
+
+	// Sin los correos, la vista del propietario es la que debe recibir cualquier otro integrante.
+	withoutEmails := make([]map[string]any, 0, len(ownerView))
+	for _, m := range ownerView {
+		copied := make(map[string]any, len(m))
+		for k, v := range m {
+			if k != "email" {
+				copied[k] = v
+			}
+		}
+		withoutEmails = append(withoutEmails, copied)
+	}
+
+	// Ningún integrante que no es propietario recibe el campo email, y el resto es idéntico.
+	viewers := []struct {
+		name  string
+		token string
+	}{{"Bruno", brunoToken}, {"Carla", carlaToken}}
+	for _, viewer := range viewers {
+		t.Run(viewer.name, func(t *testing.T) {
+			view := requireMemberList(t, env.get(t, viewer.token, projectDetailPath(projectID)))
+			for _, m := range view {
+				assert.NotContains(t, m, "email", "un integrante que no es propietario no debería recibir correos")
+			}
+			assert.Equal(t, withoutEmails, view, "salvo los correos, los datos deberían ser los mismos que ve el propietario")
+		})
+	}
+}
+
+// Escenario: Solo el propietario como integrante (002/US3)
+// En un proyecto recién creado, cuyo único integrante es su propietario, la lista de integrantes que
+// consulta el propietario no está vacía: lo contiene a él, marcado como propietario (RN-01).
+func TestUS3_SoloElPropietarioComoIntegrante(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	created := requireCreatedProject(t, env.postProject(t, ownerToken, validProjectInputBody()))
+	projectID, err := uuid.Parse(created.ID)
+	require.NoError(t, err)
+
+	members := requireMemberList(t, env.get(t, ownerToken, projectDetailPath(projectID)))
+
+	if assert.Len(t, members, 1, "la lista debería contener solo al propietario") {
+		assert.Equal(t, ownerID.String(), members[0]["userId"])
+		assert.Equal(t, "Ana Pérez", members[0]["fullName"])
+		assert.Equal(t, true, members[0]["isOwner"], "el único integrante debería estar marcado propietario")
+	}
+}
+
+// Escenario: La baja conserva el historial (002/US3)
+// Al quitar a Bruno, la respuesta es 204 y lo único que cambia en toda la base es su fila de
+// project_members: ninguna otra tabla pierde, agrega ni modifica filas, de modo que nada de lo que
+// registró se pierde ni queda sin autor, y su cuenta sigue con su nombre (FR-027, RN-14, SC-011). El
+// resumen abarca todas las tablas del esquema, así que alcanza también al esfuerzo, los votos y los
+// defectos cuando las features 005 a 007 creen sus tablas. Bruno pierde el acceso de inmediato
+// (FR-028) y los demás integrantes conservan el suyo.
+func TestUS3_BajaConservaElHistorial(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	env.mountMembershipProbe()
+	ownerID, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	carlaID, carlaToken := env.signUp(t, "Carla Díaz", "carla@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress, brunoID, carlaID)
+	before := tableSnapshots(t, env.db)
+	var remaining []domain.ProjectMember
+	for _, m := range memberRowsOf(t, env.db, projectID) {
+		if m.UserID != brunoID {
+			remaining = append(remaining, m)
+		}
+	}
+
+	rec := env.deleteMember(t, ownerToken, projectID, brunoID)
+
+	require.Equal(t, http.StatusNoContent, rec.Code, "cuerpo: %s", rec.Body.String())
+
+	// Solo desaparece la membresía de Bruno; las demás filas de project_members quedan intactas.
+	assert.Equal(t, remaining, memberRowsOf(t, env.db, projectID))
+
+	// Ninguna otra tabla cambia y la cuenta de Bruno conserva su nombre.
+	assert.Equal(t, before, tableSnapshots(t, env.db), "la baja no debería tocar ninguna tabla salvo project_members")
+	var fullName string
+	require.NoError(t, env.db.Raw("SELECT full_name FROM users WHERE id = ?", brunoID).Scan(&fullName).Error)
+	assert.Equal(t, "Bruno Gómez", fullName)
+
+	// Bruno pierde el acceso de inmediato; Carla y el propietario lo conservan.
+	assert.Equal(t, http.StatusNotFound, env.accessStatus(t, brunoToken, projectID), "Bruno debería perder el acceso")
+	assert.Equal(t, http.StatusOK, env.accessStatus(t, carlaToken, projectID))
+	assert.Equal(t, http.StatusOK, env.accessStatus(t, ownerToken, projectID))
+}
+
+// Escenario: Correo sin cuenta (002/US3)
+// El propietario intenta agregar nadie@example.com, que no corresponde a ninguna cuenta: la
+// respuesta es 422, y no 404, informando que no existe un usuario registrado con ese correo, y no se
+// crea ninguna membresía (FR-021, RC-03).
+func TestUS3_CorreoSinCuenta(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress)
+
+	rec := env.postMember(t, ownerToken, projectID, "nadie@example.com")
+
+	assert.NotEqual(t, http.StatusNotFound, rec.Code, "el 404 queda reservado para el proyecto inexistente")
+	requireErrorResponse(t, rec, http.StatusUnprocessableEntity, memberEmailNotRegisteredMessage)
+	assert.Equal(t, int64(1), countMemberRows(t, env.db, "project_id = ?", projectID))
+}
+
+// Escenario: Ya es integrante (002/US3)
+// Bruno ya es integrante y el propietario intenta agregarlo otra vez: la respuesta es 409 informando
+// que ya forma parte del proyecto, y la lista de integrantes no cambia (FR-022, RN-13).
+func TestUS3_YaEsIntegrante(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, _ := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress, brunoID)
+	before := memberRowsOf(t, env.db, projectID)
+
+	rec := env.postMember(t, ownerToken, projectID, "bruno@example.com")
+
+	requireErrorResponse(t, rec, http.StatusConflict, memberAlreadyMemberMessage)
+	assert.Equal(t, before, memberRowsOf(t, env.db, projectID), "la lista de integrantes no debería cambiar")
+}
+
+// Escenario: No es propietario (002/US3)
+// Bruno es integrante pero no propietario: su intento de agregar a Carla y su intento de quitar a
+// Daniel se rechazan con 403 por falta de permiso, y la lista de integrantes no cambia (FR-047,
+// FR-050, SC-006).
+func TestUS3_NoEsPropietario(t *testing.T) {
+	cases := []struct {
+		name string
+		act  func(t *testing.T, env projectsTestEnv, token string, projectID, danielID uuid.UUID) *httptest.ResponseRecorder
+	}{
+		{"alta", func(t *testing.T, env projectsTestEnv, token string, projectID, _ uuid.UUID) *httptest.ResponseRecorder {
+			return env.postMember(t, token, projectID, "carla@example.com")
+		}},
+		{"baja", func(t *testing.T, env projectsTestEnv, token string, projectID, danielID uuid.UUID) *httptest.ResponseRecorder {
+			return env.deleteMember(t, token, projectID, danielID)
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newProjectsTestEnv(t)
+			ownerID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+			brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+			env.signUp(t, "Carla Díaz", "carla@example.com")
+			danielID, _ := env.signUp(t, "Daniel Ruiz", "daniel@example.com")
+			projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress, brunoID, danielID)
+			before := memberRowsOf(t, env.db, projectID)
+
+			rec := tc.act(t, env, brunoToken, projectID, danielID)
+
+			requireErrorResponse(t, rec, http.StatusForbidden, memberNotOwnerMessage)
+			assert.Equal(t, before, memberRowsOf(t, env.db, projectID), "la acción no debería tener ningún efecto")
+		})
+	}
+}
+
+// Escenario: El propietario no puede quitarse (002/US3)
+// El propietario intenta quitarse a sí mismo: la respuesta es 409 indicando que el propietario no
+// puede quitarse del proyecto, y sigue siendo integrante (FR-025, RN-12).
+func TestUS3_PropietarioNoPuedeQuitarse(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, _ := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress, brunoID)
+	before := memberRowsOf(t, env.db, projectID)
+
+	rec := env.deleteMember(t, ownerToken, projectID, ownerID)
+
+	requireErrorResponse(t, rec, http.StatusConflict, memberOwnerCannotLeaveMessage)
+	assert.Equal(t, before, memberRowsOf(t, env.db, projectID), "el propietario debería seguir siendo integrante")
+}
+
+// Escenario: Proyecto finalizado (002/US3)
+// Sobre un proyecto en estado Finalizado, el propietario intenta agregar a Carla y quitar a Bruno:
+// las dos acciones se rechazan con 409 porque el proyecto es de solo lectura, y la lista de
+// integrantes no cambia (FR-018, RN-11).
+func TestUS3_ProyectoFinalizado(t *testing.T) {
+	cases := []struct {
+		name string
+		act  func(t *testing.T, env projectsTestEnv, token string, projectID, brunoID uuid.UUID) *httptest.ResponseRecorder
+	}{
+		{"alta", func(t *testing.T, env projectsTestEnv, token string, projectID, _ uuid.UUID) *httptest.ResponseRecorder {
+			return env.postMember(t, token, projectID, "carla@example.com")
+		}},
+		{"baja", func(t *testing.T, env projectsTestEnv, token string, projectID, brunoID uuid.UUID) *httptest.ResponseRecorder {
+			return env.deleteMember(t, token, projectID, brunoID)
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newProjectsTestEnv(t)
+			ownerID, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+			brunoID, _ := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+			env.signUp(t, "Carla Díaz", "carla@example.com")
+			projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusFinished, brunoID)
+			before := memberRowsOf(t, env.db, projectID)
+
+			rec := tc.act(t, env, ownerToken, projectID, brunoID)
+
+			requireErrorResponse(t, rec, http.StatusConflict, projectReadOnlyMessage)
+			assert.Equal(t, before, memberRowsOf(t, env.db, projectID), "la lista de integrantes no debería cambiar")
+		})
+	}
+}
+
+// Escenario: Baja de una persona que no es integrante (002/US3)
+// El propietario intenta quitar a una persona que no forma parte del proyecto: la respuesta es 404
+// informando que la persona no forma parte del proyecto, y la lista de integrantes no cambia
+// (FR-026). Se cubren una cuenta registrada que no es integrante y un userId que no es un UUID, que
+// recibe la misma respuesta.
+func TestUS3_BajaDeQuienNoEsIntegrante(t *testing.T) {
+	cases := []struct {
+		name string
+		act  func(t *testing.T, env projectsTestEnv, token string, projectID uuid.UUID) *httptest.ResponseRecorder
+	}{
+		{"cuenta registrada que no es integrante", func(t *testing.T, env projectsTestEnv, token string, projectID uuid.UUID) *httptest.ResponseRecorder {
+			carlaID, _ := env.signUp(t, "Carla Díaz", "carla@example.com")
+			return env.deleteMember(t, token, projectID, carlaID)
+		}},
+		{"userId que no es UUID", func(t *testing.T, env projectsTestEnv, token string, projectID uuid.UUID) *httptest.ResponseRecorder {
+			req := httptest.NewRequest(http.MethodDelete, membersPath(projectID)+"/no-es-un-uuid", nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+			rec := httptest.NewRecorder()
+			env.router.ServeHTTP(rec, req)
+			return rec
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newProjectsTestEnv(t)
+			ownerID, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+			brunoID, _ := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+			projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress, brunoID)
+			before := memberRowsOf(t, env.db, projectID)
+
+			rec := tc.act(t, env, ownerToken, projectID)
+
+			requireErrorResponse(t, rec, http.StatusNotFound, memberNotMemberMessage)
+			assert.Equal(t, before, memberRowsOf(t, env.db, projectID), "la lista de integrantes no debería cambiar")
+		})
+	}
+}
+
+// Escenario: Alta y baja sin sesión (002/US3)
+// Sin sesión válida (sin cabecera o con un token adulterado del propietario), el alta de Carla y la
+// baja de Bruno, que con la sesión del propietario se aceptarían, se rechazan con 401 pidiendo
+// iniciar sesión, y la lista de integrantes no cambia (FR-046, SC-004).
+func TestUS3_SinSesion(t *testing.T) {
+	actions := []struct {
+		name string
+		req  func(projectID, brunoID uuid.UUID) *http.Request
+	}{
+		{"alta", func(projectID, _ uuid.UUID) *http.Request {
+			req := httptest.NewRequest(http.MethodPost, membersPath(projectID), strings.NewReader(`{"email":"carla@example.com"}`))
+			req.Header.Set("Content-Type", "application/json")
+			return req
+		}},
+		{"baja", func(projectID, brunoID uuid.UUID) *http.Request {
+			return httptest.NewRequest(http.MethodDelete, memberPath(projectID, brunoID), nil)
+		}},
+	}
+	tokens := []struct {
+		name  string
+		token func(valid string) string
+	}{
+		{"sin cabecera Authorization", func(string) string { return "" }},
+		{"token adulterado", func(valid string) string { return valid + "x" }},
+	}
+	for _, action := range actions {
+		for _, tk := range tokens {
+			t.Run(action.name+"/"+tk.name, func(t *testing.T) {
+				env := newProjectsTestEnv(t)
+				ownerID, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+				brunoID, _ := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+				env.signUp(t, "Carla Díaz", "carla@example.com")
+				projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress, brunoID)
+				before := memberRowsOf(t, env.db, projectID)
+
+				// Arma la solicitud y agrega la cabecera Authorization solo si hay token
+				req := action.req(projectID, brunoID)
+				if token := tk.token(ownerToken); token != "" {
+					req.Header.Set("Authorization", "Bearer "+token)
+				}
+				rec := httptest.NewRecorder()
+				env.router.ServeHTTP(rec, req)
+
+				requireErrorResponse(t, rec, http.StatusUnauthorized, projectSessionMessage)
+				assert.Equal(t, before, memberRowsOf(t, env.db, projectID), "la lista de integrantes no debería cambiar")
+			})
+		}
 	}
 }

@@ -55,6 +55,40 @@ func RequireMembership(members domain.ProjectMemberRepository) gin.HandlerFunc {
 	}
 }
 
+// RequireOwnership exige que el titular de la sesión sea el propietario del proyecto de la ruta
+// (FR-047, FR-050). Se encadena después de RequireMembership y toma de su membresía el proyecto y el
+// titular, así que quien no es integrante nunca llega acá (SC-006). Un integrante que no es
+// propietario recibe 403; si el proyecto desapareció entre ambos middlewares se responde el mismo
+// 404 de RequireMembership, y cualquier otro error es 500 genérico, registrado en el log.
+func RequireOwnership(projects domain.ProjectRepository) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		member, ok := membershipFromContext(c)
+		if !ok {
+			slog.ErrorContext(c.Request.Context(), "RequireOwnership sin membresía en el contexto")
+			c.AbortWithStatusJSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: msgInternalError})
+			return
+		}
+
+		// Se lee el proyecto para comparar su propietario con el titular de la membresía.
+		project, err := projects.FindByID(c.Request.Context(), member.ProjectID)
+		if errors.Is(err, domain.ErrProjectNotFound) {
+			abortProjectNotFound(c)
+			return
+		}
+		if err != nil {
+			slog.ErrorContext(c.Request.Context(), "no se pudo verificar la propiedad del proyecto", "error", err)
+			c.AbortWithStatusJSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: msgInternalError})
+			return
+		}
+
+		if project.OwnerID != member.UserID {
+			c.AbortWithStatusJSON(http.StatusForbidden, authdelivery.ErrorResponse{Error: msgNotProjectOwner})
+			return
+		}
+		c.Next()
+	}
+}
+
 // abortProjectNotFound es la única salida 404 del middleware, para que el proyecto inexistente y el
 // ajeno produzcan respuestas byte a byte idénticas (FR-049, SC-005).
 func abortProjectNotFound(c *gin.Context) {

@@ -2,6 +2,7 @@ package delivery
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/domain"
 )
@@ -36,8 +37,17 @@ type OwnerRef struct {
 	FullName string `json:"fullName" validate:"required" example:"Ana Pérez"`
 }
 
+// AddMemberRequest es el cuerpo del alta de un integrante (contracts/openapi.yaml). Las etiquetas
+// validate y de longitud solo documentan el contrato en Swagger. El correo llega tal como lo
+// escribió la persona: el servicio lo normaliza con TrimSpace y ToLower antes de buscar la cuenta
+// (FR-020, RN-05), por eso acá no se recorta ni se rechaza por mayúsculas o espacios extremos.
+type AddMemberRequest struct {
+	// Correo electrónico de un usuario ya registrado (FR-019, RC-02).
+	Email string `json:"email" validate:"required" format:"email" maxLength:"254" example:"bruno@example.com"`
+}
+
 // ProjectMemberView es un integrante del proyecto (FR-030). El correo se omite del JSON cuando
-// quien consulta no es el propietario: quien arma este DTO lo deja vacío en ese caso, y una cuenta
+// quien consulta no es el propietario: newProjectMemberView lo deja vacío en ese caso, y una cuenta
 // siempre tiene correo, así que el valor vacío no se confunde con un dato real.
 type ProjectMemberView struct {
 	// Identificador de la cuenta del integrante.
@@ -135,6 +145,23 @@ type ProjectListResponse struct {
 	// Indicación en español cuando la lista está vacía, para que no se lea como un error (FR-034); es
 	// null cuando hay al menos un proyecto.
 	Message *string `json:"message" extensions:"x-nullable" example:"Todavía no participás en ningún proyecto."`
+}
+
+// newProjectMemberView arma ProjectMemberView a partir del integrante que lista el servicio y es el
+// único lugar que decide la visibilidad del correo (FR-030): solo se incluye cuando quien consulta
+// es el propietario del proyecto; para cualquier otro integrante queda vacío y omitempty lo quita
+// del JSON. La fecha de incorporación se serializa en UTC con formato RFC 3339.
+func newProjectMemberView(m domain.MemberView, viewerIsOwner bool) ProjectMemberView {
+	view := ProjectMemberView{
+		UserID:   m.UserID.String(),
+		FullName: m.FullName,
+		IsOwner:  m.IsOwner,
+		JoinedAt: m.JoinedAt.UTC().Format(time.RFC3339),
+	}
+	if viewerIsOwner {
+		view.Email = m.Email
+	}
+	return view
 }
 
 // hoursFromHundredths convierte un valor en centésimas de hora al número que expone la API. Es la

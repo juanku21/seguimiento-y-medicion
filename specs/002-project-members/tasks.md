@@ -377,7 +377,7 @@ exista el endpoint de vista de estado (que es US4).
 - [X] T041 [US2] Implementar el `ProjectList` en
       `frontend/src/features/projects/components/project-list.tsx`, con las etiquetas de estado de
       `frontend/src/utils/project-status.ts` y el estado vacío con su mensaje — depende de T040
-- [ ] T042 [US2] Crear la pantalla `frontend/src/app/projects/page.tsx` y agregar el enlace al
+- [X] T042 [US2] Crear la pantalla `frontend/src/app/projects/page.tsx` y agregar el enlace al
       listado desde `frontend/src/app/profile/page.tsx` — depende de T041
 
 **Checkpoint**: US1 y US2 funcionan de forma independiente. El aislamiento entre proyectos está

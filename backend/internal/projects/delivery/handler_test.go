@@ -94,12 +94,13 @@ type projectErrorBody struct {
 
 // projectsTestEnv reúne el router compuesto como en cmd/app, la base de test, el servicio de
 // autenticación con el que se crean las cuentas y las sesiones de cada escenario, y el subgrupo
-// /api/v1/projects/:projectId que devuelve RegisterRoutes.
+// /api/v1/projects/:projectId que devuelve RegisterRoutes junto con su subgrupo de administración.
 type projectsTestEnv struct {
 	router       *gin.Engine
 	db           *gorm.DB
 	auth         *authservice.AuthService
 	projectGroup *gin.RouterGroup
+	adminGroup   *gin.RouterGroup
 }
 
 // newProjectsTestEnv abre la base de test vacía y compone la cadena real de la 001 (para el
@@ -127,8 +128,8 @@ func newProjectsTestEnv(t *testing.T) projectsTestEnv {
 	router := gin.New()
 	authHandler := authdelivery.NewHandler(auth)
 	authdelivery.RegisterRoutes(router, authHandler)
-	projectGroup := RegisterRoutes(router, authHandler.RequireSession, NewHandler(projects, members), projectMembers)
-	return projectsTestEnv{router: router, db: db, auth: auth, projectGroup: projectGroup}
+	projectGroup, adminGroup := RegisterRoutes(router, authHandler.RequireSession, NewHandler(projects, members), projectMembers, projectRepository)
+	return projectsTestEnv{router: router, db: db, auth: auth, projectGroup: projectGroup, adminGroup: adminGroup}
 }
 
 // signUp registra una cuenta con el servicio de la 001, inicia su sesión y devuelve el identificador

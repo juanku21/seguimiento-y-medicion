@@ -440,7 +440,7 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       `describe("002/US3 - Gestionar los integrantes del proyecto")` y un `it` por escenario,
       incluido que un integrante que no es propietario **no ve** los correos ni las acciones de
       administración — depende de T021
-- [ ] T092 [US3] Escribir la prueba de integración en
+- [X] T092 [US3] Escribir la prueba de integración en
       `backend/internal/projects/delivery/routes_test.go` que monta un manejador de prueba sobre el
       subgrupo de administración devuelto por `RegisterRoutes` y verifica que el propietario pasa,
       que un integrante que no es propietario recibe `403` y que un no integrante recibe el mismo

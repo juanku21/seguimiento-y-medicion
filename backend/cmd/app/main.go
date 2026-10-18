@@ -118,7 +118,7 @@ func run() error {
 		projectsrepository.NewSprintDirectory(),
 	)
 	members := projectsservice.NewMemberService(projectRepository, projectMembers, projectsrepository.NewUserDirectory(db))
-	projectsdelivery.RegisterRoutes(router, handler.RequireSession, projectsdelivery.NewHandler(projects, members), projectMembers)
+	projectsdelivery.RegisterRoutes(router, handler.RequireSession, projectsdelivery.NewHandler(projects, members), projectMembers, projectRepository)
 
 	// ReadHeaderTimeout acota el tiempo para recibir las cabeceras y evita conexiones colgadas.
 	server := &http.Server{

@@ -503,7 +503,7 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       T050 y T051
 - [X] T053 [US3] Implementar las llamadas de alta y baja de integrantes en
       `frontend/src/features/projects/api.ts` — depende de T040
-- [ ] T054 [US3] Implementar el `MemberList` en
+- [X] T054 [US3] Implementar el `MemberList` en
       `frontend/src/features/projects/components/member-list.tsx` y el `AddMemberForm` en
       `frontend/src/features/projects/components/add-member-form.tsx`, mostrando el correo y las
       acciones de administración **solo** cuando quien consulta es el propietario — depende de T053

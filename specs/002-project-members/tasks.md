@@ -467,6 +467,16 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       `ProjectMemberView` **omitiendo el campo `email` cuando quien consulta no es el propietario**.
       La decisión de visibilidad vive en un solo lugar, la capa `delivery`, que es la única que sabe
       quién hizo la petición (FR-030) — depende de T025
+- [ ] T091 [US3] Adelantar de T059 el registro de `GET /api/v1/projects/{projectId}`: agregar
+      `Get(ctx, projectID)` a `ProjectService` en `backend/internal/projects/service/project_service.go`
+      reutilizando `buildView`, implementar el manejador `getProjectDetail` en
+      `backend/internal/projects/delivery/handler.go` con anotaciones `swag` en español y
+      registrarlo en el subgrupo `/:projectId` de `backend/internal/projects/delivery/routes.go`
+      (`200`, `401`, `404`). La respuesta trae los datos generales y la lista de integrantes con el
+      correo filtrado según T051; los campos de estado (sprint activo, backlog, horas y `readOnly`)
+      los completan T058 y T059. Hace pasar `TestUS3_VisibilidadDelCorreo` y
+      `TestUS3_SoloElPropietarioComoIntegrante`, que consultan la lista por este endpoint
+      (research.md sección 12) — surge de T044, depende de T051 y T088
 - [ ] T052 [US3] Implementar los manejadores `addProjectMember` y `removeProjectMember` en
       `backend/internal/projects/delivery/handler.go` con anotaciones `swag` en español y
       registrarlos como `POST /api/v1/projects/{projectId}/members` (`201`, `400`, `401`, `403`,
@@ -474,7 +484,9 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       `DELETE /api/v1/projects/{projectId}/members/{userId}` (`204`, `401`, `403`, `404`, `409`) en
       `backend/internal/projects/delivery/routes.go`. El `422` existe para que el `404` de esos
       endpoints signifique siempre y solo "el proyecto no existe o no sos integrante"
-      (research.md sección 12) — depende de T049, T050 y T051
+      (research.md sección 12). Agregar `http.MethodDelete` a `AllowMethods` de CORS en
+      `backend/cmd/app/main.go` para que la baja funcione desde el navegador — depende de T049,
+      T050 y T051
 - [ ] T053 [US3] Implementar las llamadas de alta y baja de integrantes en
       `frontend/src/features/projects/api.ts` — depende de T040
 - [ ] T054 [US3] Implementar el `MemberList` en

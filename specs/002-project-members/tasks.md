@@ -565,7 +565,7 @@ de estado con los datos correctos, incluso sin backlog ni sprints. El escenario 
       armado de la vista (FR-042 a FR-045) ya está en `buildView`
       (`backend/internal/projects/service/project_view.go`), implementado en T027 y T088, y lo
       cubren T055 y T056 — depende de T056
-- [ ] T059 [US4] Verificar con las pruebas de T056 el manejador `getProjectDetail` en
+- [X] T059 [US4] Verificar con las pruebas de T056 el manejador `getProjectDetail` en
       `backend/internal/projects/delivery/handler.go` y su registro como
       `GET /api/v1/projects/{projectId}` en `backend/internal/projects/delivery/routes.go`, que ya
       fueron implementados antes de esta historia: accesible a **cualquier integrante** incluso con
@@ -735,7 +735,9 @@ calidad. Todas las tareas son **técnicas**.
 - [ ] T079 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
       `backend/docs/` coincida con [contracts/openapi.yaml](./contracts/openapi.yaml) en las seis
       rutas, sus códigos de respuesta y los catorce esquemas; corregir las anotaciones si difieren
-      (Principio VIII) — depende de T076
+      (Principio VIII). Criterio acordado: todos los endpoints declaran la respuesta `500` en el
+      contrato. Si falta en `contracts/openapi.yaml`, agregarla en los seis endpoints y regenerar
+      `backend/docs/` con `swag` para que coincidan — depende de T076
 - [ ] T080 [P] Actualizar `README.md` de la raíz en español documentando la variable `APP_TIMEZONE`
       y el paso a paso para usar la feature, manteniendo el criterio de aceptación de que alguien
       que no conoce el proyecto pueda ejecutarlo siguiendo el documento — depende de T003

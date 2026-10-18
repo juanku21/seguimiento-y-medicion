@@ -536,7 +536,7 @@ de estado con los datos correctos, incluso sin backlog ni sprints. El escenario 
       `estimatedHours: 104` (escenario US4-5, FR-045, RN-08); `hasActiveSprint` refleja lo que
       informa el puerto; y `countsByState` se traslada tal como llega, sin fijar el conjunto de
       estados — depende de T011
-- [ ] T056 [US4] Pruebas de integración de la historia en
+- [X] T056 [US4] Pruebas de integración de la historia en
       `backend/internal/projects/delivery/handler_test.go`, una función por escenario precedida por
       `// Escenario: <nombre del escenario> (002/US4)`: `TestUS4_EstadoCompleto` (todos los campos
       de FR-042 en **una** respuesta), `TestUS4_ProyectoFinalizado` (trae `actualEndDate` y

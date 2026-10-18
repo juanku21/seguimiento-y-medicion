@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 
 	authdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/delivery"
 	authrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/repository"
@@ -1340,4 +1342,334 @@ func TestUS3_SinSesion(t *testing.T) {
 			})
 		}
 	}
+}
+
+// fixedBacklog es un doble del puerto BacklogSummaryProvider que informa siempre el mismo resumen,
+// para preparar el "Dado" de un backlog con historias sin depender de la spec 003.
+type fixedBacklog struct {
+	summary domain.BacklogSummary
+}
+
+// Summarize devuelve el resumen fijado, sin importar el proyecto.
+func (f fixedBacklog) Summarize(context.Context, uuid.UUID) (domain.BacklogSummary, error) {
+	return f.summary, nil
+}
+
+// fixedSprint es un doble del puerto SprintDirectory que informa siempre el mismo sprint activo,
+// para preparar el "Dado" de un sprint activo sin depender de la spec 004.
+type fixedSprint struct {
+	sprint *domain.ActiveSprint
+}
+
+// FindActiveSprint devuelve el sprint fijado, sin importar el proyecto.
+func (f fixedSprint) FindActiveSprint(context.Context, uuid.UUID) (*domain.ActiveSprint, error) {
+	return f.sprint, nil
+}
+
+// queryCounter es un Logger de GORM que no escribe nada y cuenta cada sentencia que GORM ejecuta.
+// GORM llama a Trace una vez por sentencia, sea cual sea el nivel de log.
+type queryCounter struct {
+	count atomic.Int64
+}
+
+// LogMode, Info, Warn y Error completan gormlogger.Interface sin registrar nada.
+func (q *queryCounter) LogMode(gormlogger.LogLevel) gormlogger.Interface { return q }
+func (q *queryCounter) Info(context.Context, string, ...any)             {}
+func (q *queryCounter) Warn(context.Context, string, ...any)             {}
+func (q *queryCounter) Error(context.Context, string, ...any)            {}
+
+// Trace suma una sentencia ejecutada.
+func (q *queryCounter) Trace(context.Context, time.Time, func() (string, int64), error) {
+	q.count.Add(1)
+}
+
+// newStatusTestEnv compone el router como newProjectsTestEnv, pero con los puertos del backlog y de
+// sprints recibidos en lugar de los adaptadores provisorios. Si recibe un contador, los
+// repositorios que usan los servicios trabajan sobre una sesión de GORM con ese Logger, mientras que
+// la sesión de la 001 y los middlewares de membresía y propiedad usan la conexión sin contar: así se
+// cuentan solo las consultas con que el servicio arma la vista de estado (SC-003).
+func newStatusTestEnv(t *testing.T, backlog domain.BacklogSummaryProvider, sprints domain.SprintDirectory, counter *queryCounter) projectsTestEnv {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	db, cfg := testsupport.OpenDatabase(t)
+	auth := authservice.NewAuthService(
+		authrepository.NewUserRepository(db),
+		authrepository.NewSessionRepository(db),
+		authrepository.NewAuthEventRepository(db),
+		cfg.JWTSecret,
+	)
+	serviceDB := db
+	if counter != nil {
+		serviceDB = db.Session(&gorm.Session{Logger: counter})
+	}
+	projectRepository := repository.NewProjectRepository(serviceDB)
+	projectMembers := repository.NewProjectMemberRepository(serviceDB)
+	projects := service.NewProjectService(projectRepository, projectMembers, backlog, sprints)
+	members := service.NewMemberService(projectRepository, projectMembers, repository.NewUserDirectory(serviceDB))
+	router := gin.New()
+	authHandler := authdelivery.NewHandler(auth)
+	authdelivery.RegisterRoutes(router, authHandler)
+	projectGroup, adminGroup := RegisterRoutes(router, authHandler.RequireSession, NewHandler(projects, members),
+		repository.NewProjectMemberRepository(db), repository.NewProjectRepository(db))
+	return projectsTestEnv{router: router, db: db, auth: auth, projectGroup: projectGroup, adminGroup: adminGroup}
+}
+
+// requireProjectDetail exige un 200 de la vista de estado y devuelve el cuerpo decodificado como
+// ProjectDetail y como objeto crudo, para distinguir un campo nulo de uno ausente.
+func requireProjectDetail(t *testing.T, rec *httptest.ResponseRecorder) (projectDetailBody, map[string]json.RawMessage) {
+	t.Helper()
+	require.Equal(t, http.StatusOK, rec.Code, "cuerpo: %s", rec.Body.String())
+	var body projectDetailBody
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "el cuerpo del 200 no es JSON válido: %s", rec.Body.String())
+	var raw map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &raw), "el cuerpo del 200 no es un objeto JSON: %s", rec.Body.String())
+	return body, raw
+}
+
+// setProjectStatus fija en la base el estado del proyecto, porque el cambio de estado por la API
+// pertenece a US6.
+func setProjectStatus(t *testing.T, db *gorm.DB, projectID string, status domain.ProjectStatus) {
+	t.Helper()
+	require.NoError(t, db.Model(&domain.Project{}).Where("id = ?", projectID).Update("status", status).Error,
+		"no se pudo fijar el estado del proyecto")
+}
+
+// Escenario: Estado completo (002/US4)
+// Un proyecto En curso con tres integrantes, un sprint activo y un backlog con historias en
+// distintos estados: un integrante que no es el propietario obtiene en una sola respuesta todos los
+// campos de FR-042, con el propietario identificado, el sprint activo, los contadores por estado y
+// los Story Points estimados con su equivalente en horas. El sprint y el backlog los informan dobles
+// de los puertos, porque las specs 003 y 004 todavía no existen.
+func TestUS4_EstadoCompleto(t *testing.T) {
+	sprintID := uuid.New()
+	env := newStatusTestEnv(t,
+		fixedBacklog{summary: domain.BacklogSummary{
+			CountsByState:        map[string]int{"to_do": 2, "in_progress": 1, "done": 1},
+			EstimatedStoryPoints: 16,
+		}},
+		fixedSprint{sprint: &domain.ActiveSprint{ID: sprintID, Name: "Sprint 4"}},
+		nil,
+	)
+	ownerID, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	carlaID, _ := env.signUp(t, "Carla Díaz", "carla@example.com")
+	created := requireCreatedProject(t, env.postProject(t, ownerToken, validProjectInputBody()))
+	projectID := uuid.MustParse(created.ID)
+	requireCreatedMember(t, env.postMember(t, ownerToken, projectID, "bruno@example.com"))
+	requireCreatedMember(t, env.postMember(t, ownerToken, projectID, "carla@example.com"))
+	setProjectStatus(t, env.db, created.ID, domain.ProjectStatusInProgress)
+
+	got, raw := requireProjectDetail(t, env.get(t, brunoToken, projectDetailPath(projectID)))
+
+	// Todos los campos de FR-042 llegan en la misma respuesta.
+	for _, key := range []string{"id", "name", "description", "status", "startDate", "plannedEndDate", "actualEndDate",
+		"hoursPerStoryPoint", "readOnly", "owner", "members", "hasActiveSprint", "activeSprint", "backlog"} {
+		assert.Contains(t, raw, key, "la vista de estado debería incluir %q", key)
+	}
+
+	// Datos generales, estado, fechas y factor.
+	assert.Equal(t, created.ID, got.ID)
+	assert.Equal(t, "Portal de Clientes", got.Name)
+	if assert.NotNil(t, got.Description) {
+		assert.Equal(t, "Rediseño del portal de autogestión.", *got.Description)
+	}
+	assert.Equal(t, "in_progress", got.Status)
+	assert.Equal(t, "2026-10-01", got.StartDate)
+	assert.Equal(t, "2026-12-20", got.PlannedEndDate)
+	assert.Nil(t, got.ActualEndDate, "un proyecto en curso no tiene fecha de finalización real")
+	assert.InDelta(t, 6.5, got.HoursPerStoryPoint, 0.0001)
+	assert.False(t, got.ReadOnly)
+
+	// Propietario e integrantes, con el propietario identificado.
+	assert.Equal(t, ownerID.String(), got.Owner.ID)
+	assert.Equal(t, "Ana Pérez", got.Owner.FullName)
+	owners := map[string]bool{}
+	for _, m := range got.Members {
+		owners[m.UserID] = m.IsOwner
+	}
+	assert.Equal(t, map[string]bool{ownerID.String(): true, brunoID.String(): false, carlaID.String(): false}, owners)
+
+	// Sprint activo y resumen del backlog con sus horas (16 × 6,5 = 104).
+	assert.True(t, got.HasActiveSprint)
+	assert.JSONEq(t, `{"id":"`+sprintID.String()+`","name":"Sprint 4"}`, string(raw["activeSprint"]))
+	assert.Equal(t, map[string]int{"to_do": 2, "in_progress": 1, "done": 1}, got.Backlog.CountsByState)
+	assert.Equal(t, 16, got.Backlog.EstimatedStoryPoints)
+	assert.InDelta(t, 104.0, got.Backlog.EstimatedHours, 0.0001)
+}
+
+// Escenario: Proyecto finalizado (002/US4)
+// Un integrante que no es el propietario consulta un proyecto Finalizado: además de los demás datos
+// recibe la fecha de finalización real y la indicación de solo lectura (FR-018, FR-039, FR-048). El
+// proyecto se siembra finalizado en la base, con su fecha real, porque la transición es de US6.
+func TestUS4_ProyectoFinalizado(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusFinished, brunoID)
+	actualEnd := time.Date(2026, 12, 18, 0, 0, 0, 0, time.UTC)
+	require.NoError(t, env.db.Model(&domain.Project{}).Where("id = ?", projectID).
+		Update("actual_end_date", actualEnd).Error, "no se pudo fijar la fecha de finalización real")
+
+	got, _ := requireProjectDetail(t, env.get(t, brunoToken, projectDetailPath(projectID)))
+
+	assert.Equal(t, "finished", got.Status)
+	assert.True(t, got.ReadOnly, "un proyecto finalizado debería indicarse de solo lectura")
+	if assert.NotNil(t, got.ActualEndDate, "un proyecto finalizado debería traer su fecha de finalización real") {
+		assert.Equal(t, "2026-12-18", *got.ActualEndDate)
+	}
+	assert.Equal(t, "Portal de Clientes", got.Name)
+	assert.Equal(t, "2026-10-01", got.StartDate)
+	assert.Equal(t, "2026-12-20", got.PlannedEndDate)
+	assert.Len(t, got.Members, 2)
+}
+
+// Escenario: Sin sprint activo (002/US4)
+// Un proyecto sin sprint activo responde 200, con hasActiveSprint en falso y activeSprint presente y
+// nulo: la ausencia se informa de forma explícita y no como un error (FR-043). Se usa el adaptador
+// provisorio de sprints, que es el que hoy compone cmd/app.
+func TestUS4_SinSprintActivo(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress, brunoID)
+
+	got, raw := requireProjectDetail(t, env.get(t, brunoToken, projectDetailPath(projectID)))
+
+	assert.False(t, got.HasActiveSprint)
+	if assert.Contains(t, raw, "activeSprint", "activeSprint debería estar presente aunque sea nulo") {
+		assert.JSONEq(t, `null`, string(raw["activeSprint"]))
+	}
+	assert.NotContains(t, raw, "error", "la falta de sprint activo no es un error")
+}
+
+// Escenario: Proyecto recién creado (002/US4)
+// El propietario de un proyecto recién creado por la API, sin backlog ni sprints, obtiene los datos
+// generales con los contadores por estado vacíos, los Story Points y las horas estimadas en cero y la
+// indicación de que no hay sprint activo (FR-043, FR-044).
+func TestUS4_ProyectoReciénCreado(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	created := requireCreatedProject(t, env.postProject(t, token, validProjectInputBody()))
+
+	got, raw := requireProjectDetail(t, env.get(t, token, projectDetailPath(uuid.MustParse(created.ID))))
+
+	assert.Equal(t, "Portal de Clientes", got.Name)
+	assert.Equal(t, "planned", got.Status)
+	assert.Equal(t, ownerID.String(), got.Owner.ID)
+	var backlog map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(raw["backlog"], &backlog), "backlog debería ser un objeto: %s", raw["backlog"])
+	assert.JSONEq(t, `{}`, string(backlog["countsByState"]), "countsByState debería ser un objeto vacío, no nulo")
+	assert.Equal(t, 0, got.Backlog.EstimatedStoryPoints)
+	assert.Zero(t, got.Backlog.EstimatedHours)
+	assert.False(t, got.HasActiveSprint)
+	assert.JSONEq(t, `null`, string(raw["activeSprint"]))
+}
+
+// Escenario: Horas estimadas (002/US4)
+// Con factor 6,5 y un backlog con historias estimadas en 3, 5 y 8 Story Points y una sin estimar, la
+// vista informa 16 Story Points y 104 horas: la historia sin estimar se cuenta por estado pero no
+// suma (FR-045, RN-08). La suma de Story Points la resuelve el puerto del backlog, así que el doble
+// informa 16 y la prueba verifica la conversión a horas con el factor del proyecto.
+func TestUS4_HorasEstimadas(t *testing.T) {
+	env := newStatusTestEnv(t,
+		fixedBacklog{summary: domain.BacklogSummary{
+			CountsByState:        map[string]int{"to_do": 4},
+			EstimatedStoryPoints: 3 + 5 + 8,
+		}},
+		repository.NewSprintDirectory(),
+		nil,
+	)
+	ownerID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress, brunoID)
+
+	got, _ := requireProjectDetail(t, env.get(t, brunoToken, projectDetailPath(projectID)))
+
+	assert.InDelta(t, 6.5, got.HoursPerStoryPoint, 0.0001)
+	assert.Equal(t, map[string]int{"to_do": 4}, got.Backlog.CountsByState)
+	assert.Equal(t, 16, got.Backlog.EstimatedStoryPoints)
+	assert.InDelta(t, 104.0, got.Backlog.EstimatedHours, 0.0001)
+}
+
+// Escenario: No integrante es inexistente (002/US4)
+// Quien no es integrante consulta el estado de un proyecto existente y recibe el mismo 404 que con
+// un identificador inexistente, byte a byte, sin ningún dato del proyecto, ni siquiera su nombre
+// (FR-049, SC-005).
+func TestUS4_NoIntegranteEsInexistente(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	_, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	_, outsiderToken := env.signUp(t, "Carla Díaz", "carla@example.com")
+	created := requireCreatedProject(t, env.postProject(t, ownerToken, validProjectInputBody()))
+
+	foreignRec := env.get(t, outsiderToken, projectDetailPath(uuid.MustParse(created.ID)))
+	missingRec := env.get(t, outsiderToken, projectDetailPath(uuid.New()))
+
+	requireErrorResponse(t, foreignRec, http.StatusNotFound, projectNotFoundMessage)
+	assert.Equal(t, missingRec.Code, foreignRec.Code, "los códigos de estado deberían ser idénticos")
+	assert.Equal(t, missingRec.Body.Bytes(), foreignRec.Body.Bytes(), "los cuerpos deberían ser idénticos byte a byte")
+	assert.NotContains(t, foreignRec.Body.String(), "Portal de Clientes", "la respuesta no debería revelar el nombre")
+	assert.NotContains(t, foreignRec.Body.String(), created.ID, "la respuesta no debería revelar el identificador")
+}
+
+// Escenario: Sin sesión (002/US4)
+// Sin sesión válida (sin cabecera o con un token adulterado del propietario), la consulta del estado
+// se rechaza con 401 pidiendo iniciar sesión (FR-046, SC-004).
+func TestUS4_SinSesion(t *testing.T) {
+	cases := []struct {
+		name  string
+		token func(valid string) string
+	}{
+		{"sin cabecera Authorization", func(string) string { return "" }},
+		{"token adulterado", func(valid string) string { return valid + "x" }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newProjectsTestEnv(t)
+			ownerID, valid := env.signUp(t, "Ana Pérez", "ana@example.com")
+			projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress)
+
+			rec := env.get(t, tc.token(valid), projectDetailPath(projectID))
+
+			requireErrorResponse(t, rec, http.StatusUnauthorized, projectSessionMessage)
+		})
+	}
+}
+
+// Escenario: Vista de estado sin N+1 (002/US4)
+// SC-003 pide la vista de estado en menos de 3 segundos; una aserción de tiempo de pared sería
+// inestable, así que se verifica lo que el diseño exige para cumplirlo: el servicio arma la vista en
+// a lo sumo 4 consultas (proyecto, integrantes con JOIN, resumen del backlog y sprint activo) y esa
+// cantidad no crece al agregar integrantes. Se cuentan solo las consultas de los repositorios del
+// servicio, sin la sesión de la 001 ni la verificación de membresía del middleware.
+func TestUS4_VistaDeEstadoSinNMasUno(t *testing.T) {
+	counter := &queryCounter{}
+	env := newStatusTestEnv(t, repository.NewBacklogSummaryProvider(), repository.NewSprintDirectory(), counter)
+	_, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	created := requireCreatedProject(t, env.postProject(t, ownerToken, validProjectInputBody()))
+	projectID := uuid.MustParse(created.ID)
+
+	// Cuenta las consultas de una única petición a la vista de estado.
+	queriesOfView := func(t *testing.T) int64 {
+		t.Helper()
+		counter.count.Store(0)
+		got, _ := requireProjectDetail(t, env.get(t, ownerToken, projectDetailPath(projectID)))
+		require.NotEmpty(t, got.Members)
+		return counter.count.Load()
+	}
+
+	// El contador tiene que registrar consultas: en cero, el Logger no estaría conectado y la
+	// aserción del límite pasaría sin verificar nada.
+	withOwnerOnly := queriesOfView(t)
+	t.Logf("consultas del servicio con un integrante: %d", withOwnerOnly)
+	require.Positive(t, withOwnerOnly, "el contador debería registrar las consultas de la vista")
+	assert.LessOrEqual(t, withOwnerOnly, int64(4), "la vista de estado debería resolverse en a lo sumo 4 consultas")
+
+	// Se suman cinco integrantes y la cantidad de consultas debe ser la misma.
+	for i := range 5 {
+		email := fmt.Sprintf("integrante%d@example.com", i)
+		env.signUp(t, fmt.Sprintf("Integrante %d", i), email)
+		requireCreatedMember(t, env.postMember(t, ownerToken, projectID, email))
+	}
+	withSixMembers := queriesOfView(t)
+	assert.Equal(t, withOwnerOnly, withSixMembers, "la cantidad de consultas no debería crecer con los integrantes")
 }

@@ -571,7 +571,7 @@ de estado con los datos correctos, incluso sin backlog ni sprints. El escenario 
       fueron implementados antes de esta historia: accesible a **cualquier integrante** incluso con
       el proyecto `finished`, con `200`, `401` y `404` (FR-048), y con anotaciones `swag` en
       español — depende de T051 y T058
-- [ ] T060 [US4] Implementar la llamada de vista de estado en
+- [X] T060 [US4] Implementar la llamada de vista de estado en
       `frontend/src/features/projects/api.ts` y el `ProjectStatusCard` en
       `frontend/src/features/projects/components/project-status-card.tsx` — depende de T053
 - [ ] T061 [US4] Crear la pantalla `frontend/src/app/projects/[projectId]/page.tsx` montando el

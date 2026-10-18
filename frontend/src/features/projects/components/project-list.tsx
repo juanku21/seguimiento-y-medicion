@@ -5,6 +5,7 @@ import { Alert } from "@/components/alert";
 import { listProjects } from "@/features/projects/api";
 import { useRequireSession } from "@/hooks/use-session";
 import type { ProjectListResponse } from "@/types/project";
+import { formatDate } from "@/utils/format-date";
 import { PROJECT_STATUS_LABELS } from "@/utils/project-status";
 
 // Estado de la consulta: todavía sin respuesta, el listado recibido o el mensaje de error.
@@ -12,13 +13,6 @@ type ListState =
   | { status: "loading" }
   | { status: "loaded"; data: ProjectListResponse }
   | { status: "error"; message: string };
-
-// Convierte una fecha AAAA-MM-DD en DD/MM/AAAA partiendo el texto, sin pasar por Date para que la
-// zona horaria no corra el día.
-function formatDate(isoDate: string): string {
-  const [year, month, day] = isoDate.split("-");
-  return `${day}/${month}/${year}`;
-}
 
 // Arma la cantidad de integrantes en singular o plural.
 function formatMemberCount(count: number): string {

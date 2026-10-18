@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { ProjectDetail } from "@/types/project";
+import { formatDate } from "@/utils/format-date";
 import { PROJECT_STATUS_LABELS } from "@/utils/project-status";
 
 // Propiedades de la tarjeta de estado: el estado completo del proyecto tal como lo devuelve la API.
@@ -9,13 +10,6 @@ export type ProjectStatusCardProps = {
 
 // Formato de números en español (coma decimal), para el factor y las horas estimadas.
 const numberFormat = new Intl.NumberFormat("es-AR");
-
-// Convierte una fecha AAAA-MM-DD en DD/MM/AAAA partiendo el texto, sin pasar por Date para que la
-// zona horaria no corra el día.
-function formatDate(isoDate: string): string {
-  const [year, month, day] = isoDate.split("-");
-  return `${day}/${month}/${year}`;
-}
 
 // Arma la cantidad de historias en singular o plural.
 function formatStoryCount(count: number): string {

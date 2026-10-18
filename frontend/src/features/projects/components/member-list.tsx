@@ -5,6 +5,7 @@ import { Alert } from "@/components/alert";
 import { removeProjectMember } from "@/features/projects/api";
 import { AddMemberForm } from "@/features/projects/components/add-member-form";
 import type { ProjectMemberView } from "@/types/project";
+import { formatDate } from "@/utils/format-date";
 
 // Propiedades de la lista de integrantes: el proyecto, los integrantes tal como los devuelve la API
 // y si quien consulta es el propietario, que es quien ve los correos y las acciones de
@@ -14,13 +15,6 @@ export type MemberListProps = {
   members: ProjectMemberView[];
   viewerIsOwner: boolean;
 };
-
-// Muestra la fecha de un instante ISO como DD/MM/AAAA partiendo el texto, sin pasar por Date para
-// que la zona horaria no corra el día.
-function formatJoinedAt(isoDateTime: string): string {
-  const [year, month, day] = isoDateTime.slice(0, 10).split("-");
-  return `${day}/${month}/${year}`;
-}
 
 // Lista de integrantes del proyecto (002/US3). Guarda los integrantes en su propio estado para
 // reflejar las altas y las bajas sin volver a consultar. Solo el propietario ve los correos, el
@@ -91,7 +85,7 @@ export function MemberList({
               <span className="text-sm text-zinc-600 dark:text-zinc-400">
                 Integrante desde:{" "}
                 <time dateTime={member.joinedAt}>
-                  {formatJoinedAt(member.joinedAt)}
+                  {formatDate(member.joinedAt)}
                 </time>
               </span>
             </div>

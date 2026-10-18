@@ -16,16 +16,21 @@ import (
 )
 
 // Mensajes de las respuestas de error del módulo de proyectos, en español y dirigidos a la persona.
-// Los textos del 400, del 401, del 403, del 404 y del 409 los fija contracts/openapi.yaml; el del 500 no expone
-// detalles internos, igual que en la 001.
+// Los textos del 400, del 401, del 403, del 404, del 409 y del 422 los fija contracts/openapi.yaml; el
+// del 500 no expone detalles internos, igual que en la 001.
 const (
-	msgInvalidFields    = "Hay campos inválidos en la solicitud."
-	msgInvalidBody      = "El cuerpo de la solicitud debe ser un JSON válido."
-	msgSessionRequired  = "Se requiere iniciar sesión."
-	msgProjectNameTaken = "Ya existe un proyecto propio con ese nombre."
-	msgProjectNotFound  = "El proyecto no existe."
-	msgNotProjectOwner  = "Solo el propietario del proyecto puede realizar esta acción."
-	msgInternalError    = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
+	msgInvalidFields     = "Hay campos inválidos en la solicitud."
+	msgInvalidBody       = "El cuerpo de la solicitud debe ser un JSON válido."
+	msgSessionRequired   = "Se requiere iniciar sesión."
+	msgProjectNameTaken  = "Ya existe un proyecto propio con ese nombre."
+	msgProjectNotFound   = "El proyecto no existe."
+	msgNotProjectOwner   = "Solo el propietario del proyecto puede realizar esta acción."
+	msgProjectReadOnly   = "El proyecto está finalizado y es de solo lectura."
+	msgUserNotRegistered = "No existe un usuario registrado con ese correo electrónico."
+	msgAlreadyMember     = "La persona ya forma parte del proyecto."
+	msgNotMember         = "La persona no forma parte del proyecto."
+	msgOwnerCannotLeave  = "El propietario no puede quitarse del proyecto."
+	msgInternalError     = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
 )
 
 // Handler agrupa los manejadores HTTP del módulo de proyectos sobre el servicio de proyectos y el
@@ -198,6 +203,158 @@ func (h *Handler) getProjectDetail(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, newProjectDetail(view, userID))
+}
+
+// addProjectMember godoc
+//
+//	@Summary		Agrega un integrante al proyecto
+//	@Description	Agrega como integrante a un usuario ya registrado, identificándolo por su correo
+//	@Description	electrónico (FR-019). No existe forma de sumar a alguien que todavía no tiene cuenta (RC-02).
+//	@Description	El correo se normaliza antes de buscar al usuario: se recortan los espacios extremos y se
+//	@Description	compara sin distinguir mayúsculas de minúsculas, igual que en la spec 001 (FR-020).
+//	@Description	Si el correo no corresponde a ninguna cuenta, la respuesta es 422 y no 404, para que el 404
+//	@Description	de este endpoint signifique siempre y solo "el proyecto no existe o no sos integrante"
+//	@Description	(FR-021, FR-049, RC-03). Si el usuario ya es integrante, la respuesta es 409 y la membresía
+//	@Description	no se duplica (FR-022); dos altas simultáneas del mismo usuario registran una sola
+//	@Description	membresía y la restante recibe 409 (FR-023, SC-008). Volver a agregar a alguien que había
+//	@Description	sido quitado le devuelve el acceso, con una fecha de incorporación nueva (FR-029).
+//	@Description	Solo el propietario, y solo mientras el proyecto no esté finished (FR-018, FR-047).
+//	@Tags			Integrantes
+//	@ID				addProjectMember
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			projectId	path		string								true	"Identificador del proyecto"	format(uuid)
+//	@Param			request		body		AddMemberRequest					true	"Correo del usuario registrado que se agrega"
+//	@Success		201			{object}	ProjectMemberView					"El usuario quedó integrante y desde ese momento puede consultar el proyecto."
+//	@Failure		400			{object}	delivery.ValidationErrorResponse	"Entrada inválida: indica qué campo corregir y por qué. Si el cuerpo no es un JSON válido o está vacío, la respuesta es ErrorResponse."
+//	@Failure		401			{object}	delivery.ErrorResponse				"Se requiere iniciar sesión (FR-046)."
+//	@Failure		403			{object}	delivery.ErrorResponse				"Solo el propietario del proyecto puede realizar esta acción (FR-047, FR-050)."
+//	@Failure		404			{object}	delivery.ErrorResponse				"El proyecto no existe o quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo (FR-049, SC-005)."
+//	@Failure		409			{object}	delivery.ErrorResponse				"El usuario ya forma parte del proyecto (FR-022, FR-023) o el proyecto está finished (FR-018, RN-11)."
+//	@Failure		422			{object}	delivery.ErrorResponse				"El correo no corresponde a ningún usuario registrado (FR-021, RC-03)."
+//	@Failure		500			{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."
+//	@Router			/api/v1/projects/{projectId}/members [post]
+func (h *Handler) addProjectMember(c *gin.Context) {
+	// La identidad sale solo de la sesión y el proyecto de la membresía que dejó RequireMembership;
+	// RequireOwnership ya rechazó a quien no es propietario.
+	actorID, ok := authdelivery.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, authdelivery.ErrorResponse{Error: msgSessionRequired})
+		return
+	}
+	member, ok := membershipFromContext(c)
+	if !ok {
+		slog.ErrorContext(c.Request.Context(), "addProjectMember sin membresía en el contexto")
+		c.JSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: msgInternalError})
+		return
+	}
+
+	// Se decodifica el cuerpo y se valida el formato del correo sobre el valor recortado, de modo
+	// que los espacios extremos y las mayúsculas no lo invalidan: el servicio lo normaliza (FR-020).
+	var req AddMemberRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, authdelivery.ErrorResponse{Error: msgInvalidBody})
+		return
+	}
+	if err := authdelivery.ValidateEmail(strings.TrimSpace(req.Email)); err != nil {
+		c.JSON(http.StatusBadRequest, authdelivery.ValidationErrorResponse{
+			Error:  msgInvalidFields,
+			Fields: []authdelivery.FieldError{{Field: "email", Message: err.Error()}},
+		})
+		return
+	}
+
+	// Se agrega el integrante y se traducen los errores del servicio a las respuestas del contrato;
+	// cualquier otro error es 500 genérico, registrado en el log.
+	view, err := h.members.AddMember(c.Request.Context(), member.ProjectID, actorID, req.Email)
+	if err != nil {
+		respondMemberError(c, err, "no se pudo agregar el integrante")
+		return
+	}
+
+	// Solo el propietario llega a esta ruta, así que la respuesta incluye el correo (FR-030).
+	c.JSON(http.StatusCreated, newProjectMemberView(*view, true))
+}
+
+// removeProjectMember godoc
+//
+//	@Summary		Quita un integrante del proyecto
+//	@Description	Quita la membresía de la persona indicada (FR-024). Solo le quita el acceso: el esfuerzo,
+//	@Description	los votos de estimación, los defectos y cualquier otro registro que haya generado se
+//	@Description	conservan y siguen mostrando su nombre (FR-027, RN-14, SC-011). La persona pierde el acceso
+//	@Description	de inmediato y el proyecto pasa a comportarse para ella como inexistente (FR-028).
+//	@Description	El propietario no puede quitarse a sí mismo: la respuesta es 409 (FR-025, RN-12).
+//	@Description	Si la persona no es integrante del proyecto, o su identificador no es un UUID válido, la
+//	@Description	respuesta es 404 (FR-026); el 404 del proyecto se evalúa antes.
+//	@Description	Solo el propietario, y solo mientras el proyecto no esté finished (FR-018, FR-047).
+//	@Tags			Integrantes
+//	@ID				removeProjectMember
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			projectId	path	string					true	"Identificador del proyecto"									format(uuid)
+//	@Param			userId		path	string					true	"Identificador del usuario cuya membresía se quita"	format(uuid)
+//	@Success		204			"La persona dejó de ser integrante. Lo que registró en el proyecto se conserva."
+//	@Failure		401			{object}	delivery.ErrorResponse	"Se requiere iniciar sesión (FR-046)."
+//	@Failure		403			{object}	delivery.ErrorResponse	"Solo el propietario del proyecto puede realizar esta acción (FR-047, FR-050)."
+//	@Failure		404			{object}	delivery.ErrorResponse	"El proyecto no existe o quien pide no es integrante (FR-049), o la persona indicada no forma parte del proyecto (FR-026)."
+//	@Failure		409			{object}	delivery.ErrorResponse	"El propietario intentó quitarse a sí mismo (FR-025, RN-12) o el proyecto está finished (FR-018, RN-11)."
+//	@Failure		500			{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/projects/{projectId}/members/{userId} [delete]
+func (h *Handler) removeProjectMember(c *gin.Context) {
+	// La identidad sale solo de la sesión y el proyecto de la membresía que dejó RequireMembership;
+	// RequireOwnership ya rechazó a quien no es propietario.
+	actorID, ok := authdelivery.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, authdelivery.ErrorResponse{Error: msgSessionRequired})
+		return
+	}
+	member, ok := membershipFromContext(c)
+	if !ok {
+		slog.ErrorContext(c.Request.Context(), "removeProjectMember sin membresía en el contexto")
+		c.JSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: msgInternalError})
+		return
+	}
+
+	// Un identificador que no es UUID no puede ser el de un integrante, así que se responde el 404
+	// de la persona que no forma parte del proyecto (FR-026).
+	userID, err := uuid.Parse(c.Param("userId"))
+	if err != nil {
+		c.JSON(http.StatusNotFound, authdelivery.ErrorResponse{Error: msgNotMember})
+		return
+	}
+
+	// Se quita la membresía y se traducen los errores del servicio a las respuestas del contrato.
+	if err := h.members.RemoveMember(c.Request.Context(), member.ProjectID, actorID, userID); err != nil {
+		respondMemberError(c, err, "no se pudo quitar el integrante")
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// respondMemberError traduce los errores del servicio de integrantes a la respuesta del contrato. El
+// proyecto desaparecido usa la misma salida 404 indistinguible del middleware (FR-049); cualquier
+// error no previsto es 500 genérico y se registra en el log con logMessage.
+func respondMemberError(c *gin.Context, err error, logMessage string) {
+	switch {
+	case errors.Is(err, domain.ErrProjectNotFound):
+		abortProjectNotFound(c)
+	case errors.Is(err, domain.ErrNotProjectOwner):
+		c.JSON(http.StatusForbidden, authdelivery.ErrorResponse{Error: msgNotProjectOwner})
+	case errors.Is(err, domain.ErrProjectReadOnly):
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgProjectReadOnly})
+	case errors.Is(err, domain.ErrAlreadyMember):
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgAlreadyMember})
+	case errors.Is(err, domain.ErrOwnerCannotLeave):
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgOwnerCannotLeave})
+	case errors.Is(err, domain.ErrUserNotRegistered):
+		c.JSON(http.StatusUnprocessableEntity, authdelivery.ErrorResponse{Error: msgUserNotRegistered})
+	case errors.Is(err, domain.ErrNotMember):
+		c.JSON(http.StatusNotFound, authdelivery.ErrorResponse{Error: msgNotMember})
+	default:
+		slog.ErrorContext(c.Request.Context(), logMessage, "error", err)
+		c.JSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: msgInternalError})
+	}
 }
 
 // newProjectListResponse arma ProjectListResponse a partir del listado del servicio, con las fechas

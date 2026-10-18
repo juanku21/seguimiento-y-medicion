@@ -491,7 +491,7 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       los completan T058 y T059. Hace pasar `TestUS3_VisibilidadDelCorreo` y
       `TestUS3_SoloElPropietarioComoIntegrante`, que consultan la lista por este endpoint
       (research.md sección 12) — surge de T044, depende de T051, T088 y T093
-- [ ] T052 [US3] Implementar los manejadores `addProjectMember` y `removeProjectMember` en
+- [X] T052 [US3] Implementar los manejadores `addProjectMember` y `removeProjectMember` en
       `backend/internal/projects/delivery/handler.go` con anotaciones `swag` en español y
       registrarlos como `POST /api/v1/projects/{projectId}/members` (`201`, `400`, `401`, `403`,
       `404`, `409`, **`422`** para el correo sin cuenta) y

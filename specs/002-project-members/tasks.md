@@ -348,7 +348,7 @@ exista el endpoint de vista de estado (que es US4).
 
 ### Implementación de la Historia 2
 
-- [ ] T035 [US2] Implementar `FindByProjectAndUser(ctx, projectID, userID)` en
+- [X] T035 [US2] Implementar `FindByProjectAndUser(ctx, projectID, userID)` en
       `backend/internal/projects/repository/project_member_repository.go`: **una sola consulta** que
       resuelve a la vez si el proyecto existe y si quien pide es integrante (research.md sección 5)
 - [ ] T036 [US2] Implementar `RequireMembership` en

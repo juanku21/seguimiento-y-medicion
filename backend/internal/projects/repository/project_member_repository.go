@@ -23,9 +23,22 @@ func NewProjectMemberRepository(db *gorm.DB) *ProjectMemberRepository {
 	return &ProjectMemberRepository{db: db}
 }
 
-// FindByProjectAndUser devuelve la membresía del usuario en el proyecto. Firma mínima de T087.
+// FindByProjectAndUser devuelve la membresía del usuario en el proyecto con una sola consulta sobre
+// project_members. Como project_id es clave foránea hacia projects, que exista la fila prueba a la
+// vez que el proyecto existe y que el usuario es integrante; si no hay fila, el proyecto inexistente
+// y el ajeno se reportan igual con ErrProjectNotFound (FR-049, research.md sección 5).
 func (r *ProjectMemberRepository) FindByProjectAndUser(ctx context.Context, projectID, userID uuid.UUID) (*domain.ProjectMember, error) {
-	return nil, errors.New("not implemented")
+	var member domain.ProjectMember
+	err := r.db.WithContext(ctx).
+		Where("project_id = ? AND user_id = ?", projectID, userID).
+		Take(&member).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, domain.ErrProjectNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("buscar la membresía del usuario en el proyecto: %w", err)
+	}
+	return &member, nil
 }
 
 // Create da de alta la membresía recibida. Firma mínima de T087.

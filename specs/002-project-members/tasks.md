@@ -430,7 +430,7 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       cambia), `TestUS3_NoEsPropietario` (`403` y ningún efecto),
       `TestUS3_PropietarioNoPuedeQuitarse` (`409`) y `TestUS3_ProyectoFinalizado` (`409` en alta y
       en baja) — depende de T033
-- [ ] T045 [P] [US3] Prueba de integración de concurrencia en
+- [X] T045 [P] [US3] Prueba de integración de concurrencia en
       `backend/internal/projects/delivery/member_concurrency_test.go`: **10 altas simultáneas del
       mismo usuario en el mismo proyecto** registran una sola membresía y las nueve restantes
       reciben `409` (FR-023, SC-008) — depende de T015 y T016

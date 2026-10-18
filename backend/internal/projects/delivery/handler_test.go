@@ -797,6 +797,7 @@ const (
 	memberAlreadyMemberMessage      = "La persona ya forma parte del proyecto."
 	memberNotOwnerMessage           = "Solo el propietario del proyecto puede realizar esta acción."
 	memberOwnerCannotLeaveMessage   = "El propietario no puede quitarse del proyecto."
+	memberNotMemberMessage          = "La persona no forma parte del proyecto."
 	projectReadOnlyMessage          = "El proyecto está finalizado y es de solo lectura."
 )
 
@@ -1248,6 +1249,44 @@ func TestUS3_ProyectoFinalizado(t *testing.T) {
 			rec := tc.act(t, env, ownerToken, projectID, brunoID)
 
 			requireErrorResponse(t, rec, http.StatusConflict, projectReadOnlyMessage)
+			assert.Equal(t, before, memberRowsOf(t, env.db, projectID), "la lista de integrantes no debería cambiar")
+		})
+	}
+}
+
+// Escenario: Baja de una persona que no es integrante (002/US3)
+// El propietario intenta quitar a una persona que no forma parte del proyecto: la respuesta es 404
+// informando que la persona no forma parte del proyecto, y la lista de integrantes no cambia
+// (FR-026). Se cubren una cuenta registrada que no es integrante y un userId que no es un UUID, que
+// recibe la misma respuesta.
+func TestUS3_BajaDeQuienNoEsIntegrante(t *testing.T) {
+	cases := []struct {
+		name string
+		act  func(t *testing.T, env projectsTestEnv, token string, projectID uuid.UUID) *httptest.ResponseRecorder
+	}{
+		{"cuenta registrada que no es integrante", func(t *testing.T, env projectsTestEnv, token string, projectID uuid.UUID) *httptest.ResponseRecorder {
+			carlaID, _ := env.signUp(t, "Carla Díaz", "carla@example.com")
+			return env.deleteMember(t, token, projectID, carlaID)
+		}},
+		{"userId que no es UUID", func(t *testing.T, env projectsTestEnv, token string, projectID uuid.UUID) *httptest.ResponseRecorder {
+			req := httptest.NewRequest(http.MethodDelete, membersPath(projectID)+"/no-es-un-uuid", nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+			rec := httptest.NewRecorder()
+			env.router.ServeHTTP(rec, req)
+			return rec
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newProjectsTestEnv(t)
+			ownerID, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+			brunoID, _ := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+			projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress, brunoID)
+			before := memberRowsOf(t, env.db, projectID)
+
+			rec := tc.act(t, env, ownerToken, projectID)
+
+			requireErrorResponse(t, rec, http.StatusNotFound, memberNotMemberMessage)
 			assert.Equal(t, before, memberRowsOf(t, env.db, projectID), "la lista de integrantes no debería cambiar")
 		})
 	}

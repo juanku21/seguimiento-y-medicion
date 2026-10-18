@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	authdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/delivery"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/domain"
@@ -104,7 +105,7 @@ func (h *Handler) createProject(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, newProjectDetail(view))
+	c.JSON(http.StatusCreated, newProjectDetail(view, ownerID))
 }
 
 // listProjects godoc
@@ -196,27 +197,23 @@ func buildCreateProjectInput(req ProjectInput) (service.CreateProjectInput, []au
 	}, fields
 }
 
-// newProjectDetail arma ProjectDetail a partir de la vista del servicio. Las fechas se serializan
-// como YYYY-MM-DD y las horas se dividen por 100 una sola vez (research.md secciones 3 y 4). Quien
-// recibe la vista de la creación es el propietario, así que el correo de cada integrante se incluye
-// (FR-030); el nombre del propietario se toma del integrante marcado como tal. Un proyecto recién
-// creado no tiene fecha de finalización real, por eso ActualEndDate queda nula (FR-008).
-func newProjectDetail(view *service.ProjectView) ProjectDetail {
+// newProjectDetail arma ProjectDetail a partir de la vista del servicio para quien consulta,
+// identificado por viewerID. Las fechas se serializan como YYYY-MM-DD y las horas se dividen por 100
+// una sola vez (research.md secciones 3 y 4). Cada integrante se arma con newProjectMemberView, que
+// incluye el correo solo si quien consulta es el propietario (FR-030); el nombre del propietario se
+// toma del integrante marcado como tal. Un proyecto recién creado no tiene fecha de finalización
+// real, por eso ActualEndDate queda nula (FR-008).
+func newProjectDetail(view *service.ProjectView, viewerID uuid.UUID) ProjectDetail {
 	project := view.Project
 
+	viewerIsOwner := viewerID == project.OwnerID
 	owner := OwnerRef{ID: project.OwnerID.String()}
 	members := make([]ProjectMemberView, 0, len(view.Members))
 	for _, m := range view.Members {
 		if m.IsOwner {
 			owner.FullName = m.FullName
 		}
-		members = append(members, ProjectMemberView{
-			UserID:   m.UserID.String(),
-			FullName: m.FullName,
-			Email:    m.Email,
-			IsOwner:  m.IsOwner,
-			JoinedAt: m.JoinedAt.UTC().Format(time.RFC3339),
-		})
+		members = append(members, newProjectMemberView(m, viewerIsOwner))
 	}
 
 	// El sprint activo lo informa el puerto de sprints; su ausencia se indica también con

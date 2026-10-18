@@ -477,7 +477,7 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       `backend/internal/projects/service/member_service.go`: normaliza el correo, busca la cuenta,
       rechaza el proyecto `finished`, rechaza la baja del propietario y resuelve `isOwner` por
       comparación con `projects.owner_id` (FR-019 a FR-029) — depende de T047, T048 y T093
-- [ ] T051 [US3] Añadir `AddMemberRequest` a `backend/internal/projects/delivery/dto.go` y construir
+- [X] T051 [US3] Añadir `AddMemberRequest` a `backend/internal/projects/delivery/dto.go` y construir
       `ProjectMemberView` **omitiendo el campo `email` cuando quien consulta no es el propietario**.
       La decisión de visibilidad vive en un solo lugar, la capa `delivery`, que es la única que sabe
       quién hizo la petición (FR-030) — depende de T025

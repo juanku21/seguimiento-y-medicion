@@ -374,7 +374,7 @@ exista el endpoint de vista de estado (que es US4).
       depende de T038
 - [X] T040 [US2] Implementar la llamada de listado en `frontend/src/features/projects/api.ts` —
       depende de T028
-- [ ] T041 [US2] Implementar el `ProjectList` en
+- [X] T041 [US2] Implementar el `ProjectList` en
       `frontend/src/features/projects/components/project-list.tsx`, con las etiquetas de estado de
       `frontend/src/utils/project-status.ts` y el estado vacío con su mensaje — depende de T040
 - [ ] T042 [US2] Crear la pantalla `frontend/src/app/projects/page.tsx` y agregar el enlace al

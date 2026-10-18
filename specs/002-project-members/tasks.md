@@ -466,7 +466,7 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       `domain.ErrProjectNotFound` cuando el proyecto no existe (FR-049). Lo necesitan
       `RequireOwnership` (T049), el servicio de integrantes (T050) y la vista de detalle (T091);
       `Update` queda en T065 — surge de T049
-- [ ] T049 [US3] Implementar `RequireOwnership(projects domain.ProjectRepository)` en
+- [X] T049 [US3] Implementar `RequireOwnership(projects domain.ProjectRepository)` en
       `backend/internal/projects/delivery/middleware.go`, que obtiene el proyecto con `FindByID`,
       compara el titular con `owner_id` y devuelve `403`, y aplicarlo al subgrupo de acciones de
       administración que `RegisterRoutes` crea en `backend/internal/projects/delivery/routes.go`,

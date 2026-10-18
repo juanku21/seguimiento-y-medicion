@@ -13,13 +13,13 @@ import (
 // el listado de proyectos en la raíz del grupo y devuelve dos subgrupos de
 // /api/v1/projects/:projectId: el del proyecto, protegido por RequireMembership sobre el repositorio
 // de integrantes recibido (FR-049, research.md sección 5), y el de administración, que cuelga de él
-// para las acciones reservadas al propietario (FR-047, FR-050). Firma mínima de T092: el
-// subgrupo de administración todavía no aplica RequireOwnership sobre el repositorio de proyectos
-// (T049).
+// y agrega RequireOwnership sobre el repositorio de proyectos para las acciones reservadas al
+// propietario (FR-047, FR-050). Al encadenarse después de RequireMembership, quien no es integrante
+// recibe el 404 antes de que se evalúe el 403 (SC-006).
 func RegisterRoutes(router *gin.Engine, requireSession gin.HandlerFunc, handler *Handler, members domain.ProjectMemberRepository, projects domain.ProjectRepository) (projectGroup, adminGroup *gin.RouterGroup) {
 	group := router.Group("/api/v1/projects", requireSession)
 	group.POST("", handler.createProject)
 	group.GET("", handler.listProjects)
 	projectGroup = group.Group("/:projectId", RequireMembership(members))
-	return projectGroup, projectGroup.Group("")
+	return projectGroup, projectGroup.Group("", RequireOwnership(projects))
 }

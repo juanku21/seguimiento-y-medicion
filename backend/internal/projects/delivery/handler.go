@@ -15,7 +15,7 @@ import (
 )
 
 // Mensajes de las respuestas de error del módulo de proyectos, en español y dirigidos a la persona.
-// Los textos del 400, del 401, del 404 y del 409 los fija contracts/openapi.yaml; el del 500 no expone
+// Los textos del 400, del 401, del 403, del 404 y del 409 los fija contracts/openapi.yaml; el del 500 no expone
 // detalles internos, igual que en la 001.
 const (
 	msgInvalidFields    = "Hay campos inválidos en la solicitud."
@@ -23,6 +23,7 @@ const (
 	msgSessionRequired  = "Se requiere iniciar sesión."
 	msgProjectNameTaken = "Ya existe un proyecto propio con ese nombre."
 	msgProjectNotFound  = "El proyecto no existe."
+	msgNotProjectOwner  = "Solo el propietario del proyecto puede realizar esta acción."
 	msgInternalError    = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
 )
 

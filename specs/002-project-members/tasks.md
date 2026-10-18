@@ -372,7 +372,7 @@ exista el endpoint de vista de estado (que es US4).
       `swag` en español en `backend/internal/projects/delivery/handler.go` y la ruta
       `GET /api/v1/projects` en `backend/internal/projects/delivery/routes.go`, con `200` y `401` —
       depende de T038
-- [ ] T040 [US2] Implementar la llamada de listado en `frontend/src/features/projects/api.ts` —
+- [X] T040 [US2] Implementar la llamada de listado en `frontend/src/features/projects/api.ts` —
       depende de T028
 - [ ] T041 [US2] Implementar el `ProjectList` en
       `frontend/src/features/projects/components/project-list.tsx`, con las etiquetas de estado de

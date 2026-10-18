@@ -416,7 +416,7 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       (RN-05); solo el propietario agrega y quita (RN-02); un proyecto `finished` rechaza las dos
       acciones (RN-11); el propietario no puede quitarse (RN-12); y un usuario no puede ser
       integrante dos veces del mismo proyecto (RN-13)
-- [ ] T044 [US3] Pruebas de integración de la historia en
+- [X] T044 [US3] Pruebas de integración de la historia en
       `backend/internal/projects/delivery/handler_test.go`, una función por escenario precedida por
       `// Escenario: <nombre del escenario> (002/US3)`: `TestUS3_AltaExitosa` (`201` y la persona ya
       consulta el proyecto y lo ve en su listado), `TestUS3_CorreoConEspaciosYMayusculas`

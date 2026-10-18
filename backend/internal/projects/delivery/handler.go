@@ -26,14 +26,17 @@ const (
 	msgInternalError    = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
 )
 
-// Handler agrupa los manejadores HTTP del módulo de proyectos sobre el servicio.
+// Handler agrupa los manejadores HTTP del módulo de proyectos sobre el servicio de proyectos y el
+// de integrantes.
 type Handler struct {
 	projects *service.ProjectService
+	members  *service.MemberService
 }
 
-// NewHandler crea el conjunto de manejadores con el servicio de proyectos recibido.
-func NewHandler(projects *service.ProjectService) *Handler {
-	return &Handler{projects: projects}
+// NewHandler crea el conjunto de manejadores con el servicio de proyectos y el de integrantes
+// recibidos.
+func NewHandler(projects *service.ProjectService, members *service.MemberService) *Handler {
+	return &Handler{projects: projects, members: members}
 }
 
 // createProject godoc

@@ -106,14 +106,16 @@ func run() error {
 	// El módulo de proyectos recibe el middleware de sesión de la feature de autenticación como
 	// gin.HandlerFunc, así todo su grupo de rutas exige sesión sin importar ese middleware
 	// (FR-046, research.md de la 002, sección 10). Sus manejadores se componen sobre el repositorio
-	// de proyectos y los puertos de backlog y de sprints.
+	// de proyectos y los puertos de backlog y de sprints. La misma instancia del repositorio de
+	// integrantes sirve al servicio y a RequireMembership del subgrupo /:projectId.
+	projectMembers := projectsrepository.NewProjectMemberRepository(db)
 	projects := projectsservice.NewProjectService(
 		projectsrepository.NewProjectRepository(db),
-		projectsrepository.NewProjectMemberRepository(db),
+		projectMembers,
 		projectsrepository.NewBacklogSummaryProvider(),
 		projectsrepository.NewSprintDirectory(),
 	)
-	projectsdelivery.RegisterRoutes(router, handler.RequireSession, projectsdelivery.NewHandler(projects), projectsrepository.NewProjectMemberRepository(db))
+	projectsdelivery.RegisterRoutes(router, handler.RequireSession, projectsdelivery.NewHandler(projects), projectMembers)
 
 	// ReadHeaderTimeout acota el tiempo para recibir las cabeceras y evita conexiones colgadas.
 	server := &http.Server{

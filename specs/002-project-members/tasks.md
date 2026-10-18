@@ -385,7 +385,7 @@ exista el endpoint de vista de estado (que es US4).
       integrante pasa y que un no integrante y un identificador inexistente reciben el mismo `404`,
       ajustando a la nueva firma las llamadas existentes a `RegisterRoutes` en las pruebas per
       FR-049 (partial)
-- [ ] T090 [US2] Aplicar `RequireMembership` al subgrupo `/api/v1/projects/:projectId` en
+- [X] T090 [US2] Aplicar `RequireMembership` al subgrupo `/api/v1/projects/:projectId` en
       `backend/internal/projects/delivery/routes.go`, haciendo que `RegisterRoutes` reciba el
       `domain.ProjectMemberRepository` (compuesto en `backend/cmd/app/main.go`) y devuelva ese
       subgrupo para que T049, T052 y T059 cuelguen de él sus rutas per plan: research.md sección 5

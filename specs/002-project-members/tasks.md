@@ -574,7 +574,7 @@ de estado con los datos correctos, incluso sin backlog ni sprints. El escenario 
 - [X] T060 [US4] Implementar la llamada de vista de estado en
       `frontend/src/features/projects/api.ts` y el `ProjectStatusCard` en
       `frontend/src/features/projects/components/project-status-card.tsx` — depende de T053
-- [ ] T061 [US4] Crear la pantalla `frontend/src/app/projects/[projectId]/page.tsx` montando el
+- [X] T061 [US4] Crear la pantalla `frontend/src/app/projects/[projectId]/page.tsx` montando el
       `ProjectStatusCard`, el `MemberList` y el `AddMemberForm` de US3, todo en **una sola
       pantalla** (SC-003) — depende de T054 y T060
 
@@ -918,3 +918,18 @@ Cada historia añade valor sin romper las anteriores.
   métricas de experiencia de uso: no tienen tarea asociada porque ninguna prueba automatizada puede
   hacerlas fallar. Se validan a mano siguiendo la sección "Flujo en la interfaz" de
   [quickstart.md](./quickstart.md), cuyos pasos 2 y 4 están escritos justamente para medirlos.
+- **Decisión: cómo sabe la pantalla de estado si quien consulta es el propietario.** La deducción
+  se hace en `isViewerOwner`, en `frontend/src/features/projects/components/project-overview.tsx`
+  (T061), que le pasa el resultado a `MemberList` como `viewerIsOwner`: quien consulta es el
+  propietario si los integrantes traen el campo `email` (FR-030: el backend solo lo envía al
+  propietario). Mejora pendiente: exponer `isOwner` en `ProjectDetail` (opción c), con prueba de
+  backend, DTO, Swagger y tipo/validador del frontend. Requiere editar `specs/002` con aprobación
+  humana. La deducción queda fijada por
+  `frontend/src/features/projects/components/project-overview.test.tsx`, que es **cobertura
+  adicional sin tarea asignada**: verifica que con correos se ofrecen el formulario de alta y el
+  botón Quitar, y que sin correos no se ofrece ninguno. Su `describe` no lleva el prefijo
+  `002/US4`, para no alterar el conteo de escenarios de T084.
+- **Pendientes detectados en T061, sin tarea asignada.**
+  - Falta un enlace desde el listado (`project-list.tsx`) hacia `/projects/<id>`: hoy a la pantalla
+    solo se llega escribiendo la URL.
+  - A la tabla de direcciones del `README.md` le falta la fila de `/projects`.

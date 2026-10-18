@@ -1291,3 +1291,53 @@ func TestUS3_BajaDeQuienNoEsIntegrante(t *testing.T) {
 		})
 	}
 }
+
+// Escenario: Alta y baja sin sesión (002/US3)
+// Sin sesión válida (sin cabecera o con un token adulterado del propietario), el alta de Carla y la
+// baja de Bruno, que con la sesión del propietario se aceptarían, se rechazan con 401 pidiendo
+// iniciar sesión, y la lista de integrantes no cambia (FR-046, SC-004).
+func TestUS3_SinSesion(t *testing.T) {
+	actions := []struct {
+		name string
+		req  func(projectID, brunoID uuid.UUID) *http.Request
+	}{
+		{"alta", func(projectID, _ uuid.UUID) *http.Request {
+			req := httptest.NewRequest(http.MethodPost, membersPath(projectID), strings.NewReader(`{"email":"carla@example.com"}`))
+			req.Header.Set("Content-Type", "application/json")
+			return req
+		}},
+		{"baja", func(projectID, brunoID uuid.UUID) *http.Request {
+			return httptest.NewRequest(http.MethodDelete, memberPath(projectID, brunoID), nil)
+		}},
+	}
+	tokens := []struct {
+		name  string
+		token func(valid string) string
+	}{
+		{"sin cabecera Authorization", func(string) string { return "" }},
+		{"token adulterado", func(valid string) string { return valid + "x" }},
+	}
+	for _, action := range actions {
+		for _, tk := range tokens {
+			t.Run(action.name+"/"+tk.name, func(t *testing.T) {
+				env := newProjectsTestEnv(t)
+				ownerID, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+				brunoID, _ := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+				env.signUp(t, "Carla Díaz", "carla@example.com")
+				projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress, brunoID)
+				before := memberRowsOf(t, env.db, projectID)
+
+				// Arma la solicitud y agrega la cabecera Authorization solo si hay token
+				req := action.req(projectID, brunoID)
+				if token := tk.token(ownerToken); token != "" {
+					req.Header.Set("Authorization", "Bearer "+token)
+				}
+				rec := httptest.NewRecorder()
+				env.router.ServeHTTP(rec, req)
+
+				requireErrorResponse(t, rec, http.StatusUnauthorized, projectSessionMessage)
+				assert.Equal(t, before, memberRowsOf(t, env.db, projectID), "la lista de integrantes no debería cambiar")
+			})
+		}
+	}
+}

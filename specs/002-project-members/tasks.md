@@ -508,7 +508,7 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       `frontend/src/features/projects/components/add-member-form.tsx`, mostrando el correo y las
       acciones de administración **solo** cuando quien consulta es el propietario — depende de T053
 - [X] T096 [US3] Agregar en `backend/internal/projects/delivery/handler_test.go` la prueba de integración `TestUS3_BajaDeQuienNoEsIntegrante`, precedida por `// Escenario: Baja de una persona que no es integrante (002/US3)`: el propietario quita a una cuenta registrada que no es integrante y recibe `404` con "La persona no forma parte del proyecto." sin cambios en `project_members`, y la misma respuesta ante un `userId` que no es UUID per FR-026 (partial)
-- [ ] T097 [US3] Agregar en `backend/internal/projects/delivery/handler_test.go` la prueba de integración `TestUS3_SinSesion`, precedida por `// Escenario: Alta y baja sin sesión (002/US3)`, con subtests de alta y baja: sin sesión válida, `POST /api/v1/projects/{projectId}/members` y `DELETE /api/v1/projects/{projectId}/members/{userId}` responden `401` y la lista de integrantes no cambia per SC-004 (partial)
+- [X] T097 [US3] Agregar en `backend/internal/projects/delivery/handler_test.go` la prueba de integración `TestUS3_SinSesion`, precedida por `// Escenario: Alta y baja sin sesión (002/US3)`, con subtests de alta y baja: sin sesión válida, `POST /api/v1/projects/{projectId}/members` y `DELETE /api/v1/projects/{projectId}/members/{userId}` responden `401` y la lista de integrantes no cambia per SC-004 (partial)
 
 **Checkpoint**: US1 a US3 funcionan de forma independiente. El proyecto ya es un espacio de equipo.
 

@@ -69,6 +69,19 @@ func (s *ProjectService) Create(ctx context.Context, ownerID uuid.UUID, input Cr
 	return s.buildView(ctx, project)
 }
 
+// Get devuelve la vista de estado del proyecto indicado (FR-042). La membresía de quien consulta ya
+// la verificó delivery antes de llegar acá (FR-049), así que el servicio solo lee el proyecto y arma
+// su vista con buildView. Un proyecto que ya no existe llega como ErrProjectNotFound y se propaga
+// envuelto para que delivery lo reconozca con errors.Is.
+func (s *ProjectService) Get(ctx context.Context, projectID uuid.UUID) (*ProjectView, error) {
+	project, err := s.projects.FindByID(ctx, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("buscar proyecto: %w", err)
+	}
+
+	return s.buildView(ctx, project)
+}
+
 // emptyProjectListMessage es la indicación en español que acompaña al listado vacío, para que la
 // ausencia de proyectos no se lea como un error (FR-034).
 const emptyProjectListMessage = "Todavía no participás en ningún proyecto."

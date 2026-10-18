@@ -145,6 +145,61 @@ func (h *Handler) listProjects(c *gin.Context) {
 	c.JSON(http.StatusOK, newProjectListResponse(list))
 }
 
+// getProjectDetail godoc
+//
+//	@Summary		Devuelve el estado completo del proyecto
+//	@Description	Devuelve, en una sola respuesta, los datos generales del proyecto, su propietario, el factor
+//	@Description	de horas por Story Point, el estado, las fechas, la lista de integrantes, el sprint activo
+//	@Description	cuando exista y el resumen del backlog con su equivalente en horas (FR-042). Accesible a
+//	@Description	cualquier integrante, incluso si el proyecto está finished (FR-048).
+//	@Description	Cuando el proyecto no tiene sprint activo, activeSprint es null y hasActiveSprint es false:
+//	@Description	es una situación normal, no un error (FR-043). Sin historias en el backlog, los contadores
+//	@Description	por estado, el total de Story Points y las horas estimadas son cero (FR-044).
+//	@Description	El correo electrónico de los integrantes se incluye únicamente cuando quien consulta es el
+//	@Description	propietario (FR-030). Por ahora actualEndDate se informa siempre como null.
+//	@Tags			Proyectos
+//	@ID				getProjectDetail
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			projectId	path		string					true	"Identificador del proyecto"	format(uuid)
+//	@Success		200			{object}	ProjectDetail			"Estado completo del proyecto."
+//	@Failure		401			{object}	delivery.ErrorResponse	"Se requiere iniciar sesión (FR-046)."
+//	@Failure		404			{object}	delivery.ErrorResponse	"El proyecto no existe o quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo (FR-049, SC-005)."
+//	@Failure		500			{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/projects/{projectId} [get]
+func (h *Handler) getProjectDetail(c *gin.Context) {
+	// La identidad sale solo de la sesión verificada por el middleware; sin ella se responde el 401
+	// del contrato. El proyecto sale de la membresía que dejó RequireMembership, que ya descartó al
+	// no integrante y al identificador inexistente o mal formado con el 404 (FR-049).
+	userID, ok := authdelivery.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, authdelivery.ErrorResponse{Error: msgSessionRequired})
+		return
+	}
+	member, ok := membershipFromContext(c)
+	if !ok {
+		slog.ErrorContext(c.Request.Context(), "getProjectDetail sin membresía en el contexto")
+		c.JSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: msgInternalError})
+		return
+	}
+
+	// Se arma la vista del proyecto. Si desapareció después de verificar la membresía se responde el
+	// mismo 404 indistinguible del middleware; cualquier otro error es 500 genérico, registrado en el
+	// log.
+	view, err := h.projects.Get(c.Request.Context(), member.ProjectID)
+	if errors.Is(err, domain.ErrProjectNotFound) {
+		abortProjectNotFound(c)
+		return
+	}
+	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "no se pudo obtener el proyecto", "error", err)
+		c.JSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: msgInternalError})
+		return
+	}
+
+	c.JSON(http.StatusOK, newProjectDetail(view, userID))
+}
+
 // newProjectListResponse arma ProjectListResponse a partir del listado del servicio, con las fechas
 // como YYYY-MM-DD. La lista se inicializa vacía para que se serialice como [] y nunca como null.
 func newProjectListResponse(list *service.ProjectList) ProjectListResponse {

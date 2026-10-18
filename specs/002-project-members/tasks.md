@@ -481,7 +481,7 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       `ProjectMemberView` **omitiendo el campo `email` cuando quien consulta no es el propietario**.
       La decisión de visibilidad vive en un solo lugar, la capa `delivery`, que es la única que sabe
       quién hizo la petición (FR-030) — depende de T025
-- [ ] T091 [US3] Adelantar de T059 el registro de `GET /api/v1/projects/{projectId}`: agregar
+- [X] T091 [US3] Adelantar de T059 el registro de `GET /api/v1/projects/{projectId}`: agregar
       `Get(ctx, projectID)` a `ProjectService` en `backend/internal/projects/service/project_service.go`
       reutilizando `buildView`, implementar el manejador `getProjectDetail` en
       `backend/internal/projects/delivery/handler.go` con anotaciones `swag` en español y

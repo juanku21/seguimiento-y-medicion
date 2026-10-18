@@ -53,7 +53,25 @@ func (r *ProjectRepository) Update(ctx context.Context, project *domain.Project)
 	return errors.New("not implemented")
 }
 
-// ListForMember devuelve los proyectos de los que el usuario es integrante. Firma mínima de T019.
+// ListForMember devuelve los proyectos de los que el usuario es integrante con una sola consulta:
+// une project_members, filtrada por el usuario, con projects, y cuenta los integrantes de cada
+// proyecto con una subconsulta escalar para evitar el N+1 (research.md sección 11). Como el filtro
+// es la membresía del usuario, un proyecto ajeno no puede aparecer (FR-033). IsOwner compara
+// projects.owner_id con el usuario y el orden es fecha de inicio descendente y, a igual fecha,
+// nombre normalizado ascendente (FR-035). Sin proyectos devuelve una lista vacía, nunca nil.
 func (r *ProjectRepository) ListForMember(ctx context.Context, userID uuid.UUID) ([]domain.ProjectListItem, error) {
-	return nil, errors.New("not implemented")
+	items := []domain.ProjectListItem{}
+	err := r.db.WithContext(ctx).
+		Table("project_members").
+		Select(`projects.id, projects.name, projects.status, projects.start_date, projects.planned_end_date,
+			(SELECT COUNT(*) FROM project_members AS pm WHERE pm.project_id = projects.id) AS member_count,
+			projects.owner_id = ? AS is_owner`, userID).
+		Joins("JOIN projects ON projects.id = project_members.project_id").
+		Where("project_members.user_id = ?", userID).
+		Order("projects.start_date DESC, projects.name_normalized ASC").
+		Scan(&items).Error
+	if err != nil {
+		return nil, fmt.Errorf("listar proyectos del integrante: %w", err)
+	}
+	return items, nil
 }

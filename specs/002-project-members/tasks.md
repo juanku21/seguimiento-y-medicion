@@ -326,13 +326,13 @@ exista el endpoint de vista de estado (que es US4).
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T032 [P] [US2] Pruebas unitarias **obligatorias** del middleware de membresía en
+- [X] T032 [P] [US2] Pruebas unitarias **obligatorias** del middleware de membresía en
       `backend/internal/projects/delivery/middleware_test.go`, montándolo con `httptest` sobre un
       manejador protegido de prueba y cubriendo RN-03: un integrante pasa; quien no es integrante y
       un identificador inexistente reciben respuestas **byte a byte idénticas** (`404` con
       `El proyecto no existe.`); y el manejador protegido **no se ejecuta** en ninguno de los dos
       casos (FR-049, FR-020 de la 001 para el `401`, SC-005) — depende de T015
-- [ ] T033 [US2] Pruebas de integración de la historia en
+- [X] T033 [US2] Pruebas de integración de la historia en
       `backend/internal/projects/delivery/handler_test.go`, una función por escenario precedida por
       `// Escenario: <nombre del escenario> (002/US2)`: `TestUS2_ListadoCompleto` (propietario de dos
       e integrante de un tercero; cada elemento con nombre, estado, fechas, `memberCount` e
@@ -341,44 +341,55 @@ exista el endpoint de vista de estado (que es US4).
       (`memberCount: 1`), `TestUS2_ProyectoAjenoEsInexistente` y `TestUS2_SinSesion`. Se asserta
       además el orden **fecha de inicio descendente y, a igual fecha, nombre ascendente** (FR-035) —
       depende de T019
-- [ ] T034 [P] [US2] Pruebas de frontend en
+- [X] T034 [P] [US2] Pruebas de frontend en
       `frontend/src/features/projects/components/project-list.test.tsx` con
       `describe("002/US2 - Ver mis proyectos y quedar aislado de los ajenos")` y un `it` por
       escenario, incluido el estado vacío con su mensaje — depende de T021
 
 ### Implementación de la Historia 2
 
-- [ ] T035 [US2] Implementar `FindByProjectAndUser(ctx, projectID, userID)` en
+- [X] T035 [US2] Implementar `FindByProjectAndUser(ctx, projectID, userID)` en
       `backend/internal/projects/repository/project_member_repository.go`: **una sola consulta** que
       resuelve a la vez si el proyecto existe y si quien pide es integrante (research.md sección 5)
-- [ ] T036 [US2] Implementar `RequireMembership` en
+- [X] T036 [US2] Implementar `RequireMembership` en
       `backend/internal/projects/delivery/middleware.go` con **una única salida `404`** para
       proyecto inexistente y para no integrante, dejando el proyecto y la membresía en el contexto,
       y aplicarlo al grupo `/api/v1/projects/:projectId` en
       `backend/internal/projects/delivery/routes.go`. El estado Finalizado **no** se verifica acá:
       es regla de dominio y va en el servicio (FR-049, FR-018) — depende de T035
-- [ ] T037 [US2] Implementar `ListForMember(ctx, userID)` en
+- [X] T037 [US2] Implementar `ListForMember(ctx, userID)` en
       `backend/internal/projects/repository/project_repository.go` con **una sola consulta**: `JOIN`
       de `project_members` filtrado por el titular con `projects`, más una subconsulta de conteo de
       integrantes, ordenada por `start_date DESC, name_normalized ASC`. El filtro por membresía
       cumple FR-033 por construcción y evita el N+1 (research.md sección 11) — depende de T024
-- [ ] T038 [US2] Implementar el listado en
+- [X] T038 [US2] Implementar el listado en
       `backend/internal/projects/service/project_service.go`, resolviendo `isOwner` por comparación
       con `projects.owner_id` y devolviendo el mensaje en español
       (`Todavía no participás en ningún proyecto.`) solo cuando la lista está vacía (FR-032,
       FR-034) — depende de T037
-- [ ] T039 [US2] Añadir `ProjectListItem` y `ProjectListResponse` a
+- [X] T039 [US2] Añadir `ProjectListItem` y `ProjectListResponse` a
       `backend/internal/projects/delivery/dto.go`, el manejador `listProjects` con anotaciones
       `swag` en español en `backend/internal/projects/delivery/handler.go` y la ruta
       `GET /api/v1/projects` en `backend/internal/projects/delivery/routes.go`, con `200` y `401` —
       depende de T038
-- [ ] T040 [US2] Implementar la llamada de listado en `frontend/src/features/projects/api.ts` —
+- [X] T040 [US2] Implementar la llamada de listado en `frontend/src/features/projects/api.ts` —
       depende de T028
-- [ ] T041 [US2] Implementar el `ProjectList` en
+- [X] T041 [US2] Implementar el `ProjectList` en
       `frontend/src/features/projects/components/project-list.tsx`, con las etiquetas de estado de
       `frontend/src/utils/project-status.ts` y el estado vacío con su mensaje — depende de T040
-- [ ] T042 [US2] Crear la pantalla `frontend/src/app/projects/page.tsx` y agregar el enlace al
+- [X] T042 [US2] Crear la pantalla `frontend/src/app/projects/page.tsx` y agregar el enlace al
       listado desde `frontend/src/app/profile/page.tsx` — depende de T041
+- [X] T089 [US2] Escribir la prueba de integración en
+      `backend/internal/projects/delivery/routes_test.go` que monta un manejador de prueba sobre el
+      subgrupo `/api/v1/projects/:projectId` devuelto por `RegisterRoutes` y verifica que un
+      integrante pasa y que un no integrante y un identificador inexistente reciben el mismo `404`,
+      ajustando a la nueva firma las llamadas existentes a `RegisterRoutes` en las pruebas per
+      FR-049 (partial)
+- [X] T090 [US2] Aplicar `RequireMembership` al subgrupo `/api/v1/projects/:projectId` en
+      `backend/internal/projects/delivery/routes.go`, haciendo que `RegisterRoutes` reciba el
+      `domain.ProjectMemberRepository` (compuesto en `backend/cmd/app/main.go`) y devuelva ese
+      subgrupo para que T049, T052 y T059 cuelguen de él sus rutas per plan: research.md sección 5
+      (partial)
 
 **Checkpoint**: US1 y US2 funcionan de forma independiente. El aislamiento entre proyectos está
 activo.

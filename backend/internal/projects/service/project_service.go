@@ -68,3 +68,34 @@ func (s *ProjectService) Create(ctx context.Context, ownerID uuid.UUID, input Cr
 
 	return s.buildView(ctx, project)
 }
+
+// emptyProjectListMessage es la indicación en español que acompaña al listado vacío, para que la
+// ausencia de proyectos no se lea como un error (FR-034).
+const emptyProjectListMessage = "Todavía no participás en ningún proyecto."
+
+// ProjectList es el listado de proyectos que el servicio entrega a delivery para armar
+// ProjectListResponse (FR-032). Projects nunca es nil y Message solo existe cuando la lista está
+// vacía (FR-034).
+type ProjectList struct {
+	Projects []domain.ProjectListItem
+	Message  *string
+}
+
+// List devuelve los proyectos de los que el usuario es integrante (FR-031 a FR-035). El filtro por
+// membresía, el conteo de integrantes, la marca de propietario (comparación con projects.owner_id)
+// y el orden los resuelve ListForMember en una sola consulta; el servicio solo agrega la indicación
+// de lista vacía. Un fallo del repositorio se propaga con su contexto.
+func (s *ProjectService) List(ctx context.Context, userID uuid.UUID) (*ProjectList, error) {
+	items, err := s.projects.ListForMember(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("listar proyectos: %w", err)
+	}
+
+	list := &ProjectList{Projects: items}
+	if len(items) == 0 {
+		message := emptyProjectListMessage
+		list.Projects = []domain.ProjectListItem{}
+		list.Message = &message
+	}
+	return list, nil
+}

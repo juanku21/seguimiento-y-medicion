@@ -15,13 +15,14 @@ import (
 )
 
 // Mensajes de las respuestas de error del módulo de proyectos, en español y dirigidos a la persona.
-// Los textos del 400, del 401 y del 409 los fija contracts/openapi.yaml; el del 500 no expone
+// Los textos del 400, del 401, del 404 y del 409 los fija contracts/openapi.yaml; el del 500 no expone
 // detalles internos, igual que en la 001.
 const (
 	msgInvalidFields    = "Hay campos inválidos en la solicitud."
 	msgInvalidBody      = "El cuerpo de la solicitud debe ser un JSON válido."
 	msgSessionRequired  = "Se requiere iniciar sesión."
 	msgProjectNameTaken = "Ya existe un proyecto propio con ese nombre."
+	msgProjectNotFound  = "El proyecto no existe."
 	msgInternalError    = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
 )
 
@@ -100,6 +101,61 @@ func (h *Handler) createProject(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, newProjectDetail(view))
+}
+
+// listProjects godoc
+//
+//	@Summary		Lista los proyectos de los que quien consulta es integrante
+//	@Description	Devuelve los proyectos de los que el titular de la sesión es integrante, incluidos los
+//	@Description	propios (FR-031). Ningún proyecto ajeno aparece (FR-033). El orden es estable y
+//	@Description	predecible: fecha de inicio descendente y, a igual fecha, nombre ascendente (FR-035).
+//	@Description	Cuando la persona no participa en ningún proyecto, la respuesta es 200 con una lista
+//	@Description	vacía y una indicación clara, no un error (FR-034). No ofrece búsqueda, filtrado ni
+//	@Description	paginación.
+//	@Tags			Proyectos
+//	@ID				listProjects
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	ProjectListResponse		"Listado de proyectos del titular de la sesión."
+//	@Failure		401	{object}	delivery.ErrorResponse	"Se requiere iniciar sesión (FR-046)."
+//	@Failure		500	{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/projects [get]
+func (h *Handler) listProjects(c *gin.Context) {
+	// La identidad sale solo de la sesión verificada por el middleware; sin ella se responde el 401
+	// del contrato.
+	userID, ok := authdelivery.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, authdelivery.ErrorResponse{Error: msgSessionRequired})
+		return
+	}
+
+	// Se obtiene el listado del servicio; cualquier error es 500 genérico, registrado en el log.
+	list, err := h.projects.List(c.Request.Context(), userID)
+	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "no se pudo listar los proyectos", "error", err)
+		c.JSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: msgInternalError})
+		return
+	}
+
+	c.JSON(http.StatusOK, newProjectListResponse(list))
+}
+
+// newProjectListResponse arma ProjectListResponse a partir del listado del servicio, con las fechas
+// como YYYY-MM-DD. La lista se inicializa vacía para que se serialice como [] y nunca como null.
+func newProjectListResponse(list *service.ProjectList) ProjectListResponse {
+	items := make([]ProjectListItem, 0, len(list.Projects))
+	for _, p := range list.Projects {
+		items = append(items, ProjectListItem{
+			ID:             p.ID.String(),
+			Name:           p.Name,
+			Status:         p.Status,
+			StartDate:      p.StartDate.Format(time.DateOnly),
+			PlannedEndDate: p.PlannedEndDate.Format(time.DateOnly),
+			MemberCount:    p.MemberCount,
+			IsOwner:        p.IsOwner,
+		})
+	}
+	return ProjectListResponse{Projects: items, Message: list.Message}
 }
 
 // buildCreateProjectInput aplica las reglas de cada campo de ProjectInput y, si todos son válidos,

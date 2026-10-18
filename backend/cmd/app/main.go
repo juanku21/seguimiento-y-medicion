@@ -113,7 +113,7 @@ func run() error {
 		projectsrepository.NewBacklogSummaryProvider(),
 		projectsrepository.NewSprintDirectory(),
 	)
-	projectsdelivery.RegisterRoutes(router, handler.RequireSession, projectsdelivery.NewHandler(projects))
+	projectsdelivery.RegisterRoutes(router, handler.RequireSession, projectsdelivery.NewHandler(projects), projectsrepository.NewProjectMemberRepository(db))
 
 	// ReadHeaderTimeout acota el tiempo para recibir las cabeceras y evita conexiones colgadas.
 	server := &http.Server{

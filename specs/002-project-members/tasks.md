@@ -379,7 +379,7 @@ exista el endpoint de vista de estado (que es US4).
       `frontend/src/utils/project-status.ts` y el estado vacío con su mensaje — depende de T040
 - [X] T042 [US2] Crear la pantalla `frontend/src/app/projects/page.tsx` y agregar el enlace al
       listado desde `frontend/src/app/profile/page.tsx` — depende de T041
-- [ ] T089 [US2] Escribir la prueba de integración en
+- [X] T089 [US2] Escribir la prueba de integración en
       `backend/internal/projects/delivery/routes_test.go` que monta un manejador de prueba sobre el
       subgrupo `/api/v1/projects/:projectId` devuelto por `RegisterRoutes` y verifica que un
       integrante pasa y que un no integrante y un identificador inexistente reciben el mismo `404`,

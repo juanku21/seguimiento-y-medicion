@@ -447,7 +447,7 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       `backend/internal/projects/repository/user_directory.go`, el **único** punto del módulo que
       lee la tabla `users`, enumerando explícitamente `users.id, users.full_name, users.email` y
       **sin seleccionar nunca `password_hash`** (research.md sección 8, FR-019, FR-020)
-- [ ] T048 [US3] Implementar `Create(ctx, member)` y `Delete(ctx, projectID, userID)` en
+- [X] T048 [US3] Implementar `Create(ctx, member)` y `Delete(ctx, projectID, userID)` en
       `backend/internal/projects/repository/project_member_repository.go` (`ListMembers` ya está
       implementado desde T088): el alta traduce `gorm.ErrDuplicatedKey` al error de integrante
       duplicado; y la baja es un **borrado físico** de la fila, **sin** `gorm.DeletedAt`, que sería

@@ -443,7 +443,7 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
 
 ### Implementación de la Historia 3
 
-- [ ] T047 [US3] Implementar `FindByEmail(ctx, normalizedEmail)` en
+- [X] T047 [US3] Implementar `FindByEmail(ctx, normalizedEmail)` en
       `backend/internal/projects/repository/user_directory.go`, el **único** punto del módulo que
       lee la tabla `users`, enumerando explícitamente `users.id, users.full_name, users.email` y
       **sin seleccionar nunca `password_hash`** (research.md sección 8, FR-019, FR-020)

@@ -367,7 +367,7 @@ exista el endpoint de vista de estado (que es US4).
       con `projects.owner_id` y devolviendo el mensaje en español
       (`Todavía no participás en ningún proyecto.`) solo cuando la lista está vacía (FR-032,
       FR-034) — depende de T037
-- [ ] T039 [US2] Añadir `ProjectListItem` y `ProjectListResponse` a
+- [X] T039 [US2] Añadir `ProjectListItem` y `ProjectListResponse` a
       `backend/internal/projects/delivery/dto.go`, el manejador `listProjects` con anotaciones
       `swag` en español en `backend/internal/projects/delivery/handler.go` y la ruta
       `GET /api/v1/projects` en `backend/internal/projects/delivery/routes.go`, con `200` y `401` —

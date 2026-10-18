@@ -107,6 +107,36 @@ type ProjectDetail struct {
 	Backlog BacklogSummary `json:"backlog" validate:"required"`
 }
 
+// ProjectListItem es un elemento del listado de proyectos propios (FR-032). Las fechas van como
+// texto YYYY-MM-DD (research.md sección 4).
+type ProjectListItem struct {
+	// Identificador del proyecto.
+	ID string `json:"id" validate:"required" format:"uuid" example:"9b2f1c0a-5d3e-4a71-8c62-0f4e7a1b9d35"`
+	// Nombre del proyecto.
+	Name string `json:"name" validate:"required" example:"Portal de Clientes"`
+	// Estado del proyecto en su ciclo de vida (FR-036).
+	Status domain.ProjectStatus `json:"status" validate:"required" enums:"planned,in_progress,finished" example:"in_progress"`
+	// Fecha de inicio (YYYY-MM-DD).
+	StartDate string `json:"startDate" validate:"required" format:"date" example:"2026-10-01"`
+	// Fecha de finalización prevista (YYYY-MM-DD).
+	PlannedEndDate string `json:"plannedEndDate" validate:"required" format:"date" example:"2026-12-20"`
+	// Cantidad de integrantes del proyecto. Siempre 1 o más (FR-007, RN-01).
+	MemberCount int `json:"memberCount" validate:"required" minimum:"1" example:"3"`
+	// Si quien consulta es el propietario del proyecto.
+	IsOwner bool `json:"isOwner" validate:"required" example:"true"`
+}
+
+// ProjectListResponse es la respuesta del listado de proyectos (FR-031 a FR-035). Projects se
+// serializa siempre como lista, vacía si no hay proyectos, y Message es null cuando hay al menos uno.
+type ProjectListResponse struct {
+	// Proyectos de los que quien consulta es integrante, ordenados por fecha de inicio descendente y,
+	// a igual fecha, nombre ascendente (FR-035).
+	Projects []ProjectListItem `json:"projects" validate:"required"`
+	// Indicación en español cuando la lista está vacía, para que no se lea como un error (FR-034); es
+	// null cuando hay al menos un proyecto.
+	Message *string `json:"message" extensions:"x-nullable" example:"Todavía no participás en ningún proyecto."`
+}
+
 // hoursFromHundredths convierte un valor en centésimas de hora al número que expone la API. Es la
 // única división por 100 de todo el cálculo y ocurre al serializar (research.md sección 3): el
 // cociente de dos enteros exactos es el double más cercano al valor de 2 decimales, y encoding/json

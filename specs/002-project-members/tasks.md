@@ -351,7 +351,7 @@ exista el endpoint de vista de estado (que es US4).
 - [X] T035 [US2] Implementar `FindByProjectAndUser(ctx, projectID, userID)` en
       `backend/internal/projects/repository/project_member_repository.go`: **una sola consulta** que
       resuelve a la vez si el proyecto existe y si quien pide es integrante (research.md sección 5)
-- [ ] T036 [US2] Implementar `RequireMembership` en
+- [X] T036 [US2] Implementar `RequireMembership` en
       `backend/internal/projects/delivery/middleware.go` con **una única salida `404`** para
       proyecto inexistente y para no integrante, dejando el proyecto y la membresía en el contexto,
       y aplicarlo al grupo `/api/v1/projects/:projectId` en

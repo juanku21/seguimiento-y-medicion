@@ -15,13 +15,14 @@ import (
 )
 
 // Mensajes de las respuestas de error del módulo de proyectos, en español y dirigidos a la persona.
-// Los textos del 400, del 401 y del 409 los fija contracts/openapi.yaml; el del 500 no expone
+// Los textos del 400, del 401, del 404 y del 409 los fija contracts/openapi.yaml; el del 500 no expone
 // detalles internos, igual que en la 001.
 const (
 	msgInvalidFields    = "Hay campos inválidos en la solicitud."
 	msgInvalidBody      = "El cuerpo de la solicitud debe ser un JSON válido."
 	msgSessionRequired  = "Se requiere iniciar sesión."
 	msgProjectNameTaken = "Ya existe un proyecto propio con ese nombre."
+	msgProjectNotFound  = "El proyecto no existe."
 	msgInternalError    = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
 )
 

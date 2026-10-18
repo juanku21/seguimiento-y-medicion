@@ -326,7 +326,7 @@ exista el endpoint de vista de estado (que es US4).
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T032 [P] [US2] Pruebas unitarias **obligatorias** del middleware de membresía en
+- [X] T032 [P] [US2] Pruebas unitarias **obligatorias** del middleware de membresía en
       `backend/internal/projects/delivery/middleware_test.go`, montándolo con `httptest` sobre un
       manejador protegido de prueba y cubriendo RN-03: un integrante pasa; quien no es integrante y
       un identificador inexistente reciben respuestas **byte a byte idénticas** (`404` con

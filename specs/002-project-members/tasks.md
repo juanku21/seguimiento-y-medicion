@@ -434,7 +434,7 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       `backend/internal/projects/delivery/member_concurrency_test.go`: **10 altas simultáneas del
       mismo usuario en el mismo proyecto** registran una sola membresía y las nueve restantes
       reciben `409` (FR-023, SC-008) — depende de T015 y T016
-- [ ] T046 [P] [US3] Pruebas de frontend en
+- [X] T046 [P] [US3] Pruebas de frontend en
       `frontend/src/features/projects/components/member-list.test.tsx` y
       `frontend/src/features/projects/components/add-member-form.test.tsx` con
       `describe("002/US3 - Gestionar los integrantes del proyecto")` y un `it` por escenario,

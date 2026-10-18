@@ -341,7 +341,7 @@ exista el endpoint de vista de estado (que es US4).
       (`memberCount: 1`), `TestUS2_ProyectoAjenoEsInexistente` y `TestUS2_SinSesion`. Se asserta
       además el orden **fecha de inicio descendente y, a igual fecha, nombre ascendente** (FR-035) —
       depende de T019
-- [ ] T034 [P] [US2] Pruebas de frontend en
+- [X] T034 [P] [US2] Pruebas de frontend en
       `frontend/src/features/projects/components/project-list.test.tsx` con
       `describe("002/US2 - Ver mis proyectos y quedar aislado de los ajenos")` y un `it` por
       escenario, incluido el estado vacío con su mensaje — depende de T021

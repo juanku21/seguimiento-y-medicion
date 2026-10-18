@@ -57,3 +57,20 @@ export type ProjectDetail = {
   activeSprint?: ActiveSprintRef | null;
   backlog: BacklogSummary;
 };
+
+// Elemento del listado de proyectos de quien consulta (ProjectListItem, FR-032).
+export type ProjectListItem = {
+  id: string;
+  name: string;
+  status: ProjectStatus;
+  startDate: string;
+  plannedEndDate: string;
+  memberCount: number;
+  isOwner: boolean;
+};
+
+// Respuesta de GET /api/v1/projects; message solo llega cuando la lista está vacía (FR-034).
+export type ProjectListResponse = {
+  projects: ProjectListItem[];
+  message?: string | null;
+};

@@ -551,7 +551,7 @@ de estado con los datos correctos, incluso sin backlog ni sprints. El escenario 
       que ese número **no crece** al agregar integrantes al proyecto. Una aserción de tiempo de
       pared sería inestable en CI; lo que SC-003 exige del diseño es la ausencia de N+1 — depende
       de T044
-- [ ] T057 [P] [US4] Pruebas de frontend en
+- [X] T057 [P] [US4] Pruebas de frontend en
       `frontend/src/features/projects/components/project-status-card.test.tsx` con
       `describe("002/US4 - Consultar el estado del proyecto")` y un `it` por escenario, incluida la
       indicación explícita de que no hay sprint activo y los contadores en cero — depende de T021

@@ -108,3 +108,12 @@ export function removeProjectMember(
 ): Promise<ApiResult<undefined>> {
   return deleteEmpty(`/api/v1/projects/${projectId}/members/${userId}`);
 }
+
+// Pide el estado completo del proyecto con GET /api/v1/projects/{projectId} (FR-042). Firma mínima
+// de la tarea de pruebas T057; la implementación es T060.
+export function getProjectDetail(
+  projectId: string,
+): Promise<ApiResult<ProjectDetail>> {
+  void projectId;
+  throw new Error("not implemented");
+}

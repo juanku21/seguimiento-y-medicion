@@ -161,7 +161,8 @@ func (h *Handler) listProjects(c *gin.Context) {
 //	@Description	es una situación normal, no un error (FR-043). Sin historias en el backlog, los contadores
 //	@Description	por estado, el total de Story Points y las horas estimadas son cero (FR-044).
 //	@Description	El correo electrónico de los integrantes se incluye únicamente cuando quien consulta es el
-//	@Description	propietario (FR-030). Por ahora actualEndDate se informa siempre como null.
+//	@Description	propietario (FR-030). actualEndDate trae la fecha de finalización real (YYYY-MM-DD) cuando
+//	@Description	el proyecto está finished y es null en cualquier otro estado (FR-039, FR-040).
 //	@Tags			Proyectos
 //	@ID				getProjectDetail
 //	@Produce		json
@@ -413,8 +414,8 @@ func buildCreateProjectInput(req ProjectInput) (service.CreateProjectInput, []au
 // identificado por viewerID. Las fechas se serializan como YYYY-MM-DD y las horas se dividen por 100
 // una sola vez (research.md secciones 3 y 4). Cada integrante se arma con newProjectMemberView, que
 // incluye el correo solo si quien consulta es el propietario (FR-030); el nombre del propietario se
-// toma del integrante marcado como tal. Un proyecto recién creado no tiene fecha de finalización
-// real, por eso ActualEndDate queda nula (FR-008).
+// toma del integrante marcado como tal. ActualEndDate solo existe cuando el proyecto está finalizado
+// y queda nula en cualquier otro estado (FR-008, FR-039).
 func newProjectDetail(view *service.ProjectView, viewerID uuid.UUID) ProjectDetail {
 	project := view.Project
 
@@ -435,6 +436,14 @@ func newProjectDetail(view *service.ProjectView, viewerID uuid.UUID) ProjectDeta
 		activeSprint = &ActiveSprintRef{ID: view.ActiveSprint.ID.String(), Name: view.ActiveSprint.Name}
 	}
 
+	// La fecha de finalización real se copia con el mismo formato que las demás fechas y se omite
+	// (null) cuando el proyecto todavía no terminó (FR-039, FR-040).
+	var actualEndDate *string
+	if project.ActualEndDate != nil {
+		formatted := project.ActualEndDate.Format(time.DateOnly)
+		actualEndDate = &formatted
+	}
+
 	return ProjectDetail{
 		ID:                 project.ID.String(),
 		Name:               project.Name,
@@ -442,6 +451,7 @@ func newProjectDetail(view *service.ProjectView, viewerID uuid.UUID) ProjectDeta
 		Status:             project.Status,
 		StartDate:          project.StartDate.Format(time.DateOnly),
 		PlannedEndDate:     project.PlannedEndDate.Format(time.DateOnly),
+		ActualEndDate:      actualEndDate,
 		HoursPerStoryPoint: hoursFromHundredths(project.HoursPerStoryPointHundredths),
 		ReadOnly:           view.ReadOnly,
 		Owner:              owner,

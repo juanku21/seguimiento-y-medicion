@@ -558,7 +558,7 @@ de estado con los datos correctos, incluso sin backlog ni sprints. El escenario 
 
 ### Implementación de la Historia 4
 
-- [ ] T058 [US4] Copiar `ActualEndDate` en `newProjectDetail`
+- [X] T058 [US4] Copiar `ActualEndDate` en `newProjectDetail`
       (`backend/internal/projects/delivery/handler.go`) con formato `YYYY-MM-DD`, para que
       `actualEndDate` deje de informarse siempre como `null`, y actualizar en el mismo cambio la
       anotación `swag` que lo indica. Es el GREEN de `TestUS4_ProyectoFinalizado`. El resto del

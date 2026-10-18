@@ -440,6 +440,14 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       `describe("002/US3 - Gestionar los integrantes del proyecto")` y un `it` por escenario,
       incluido que un integrante que no es propietario **no ve** los correos ni las acciones de
       administración — depende de T021
+- [ ] T092 [US3] Escribir la prueba de integración en
+      `backend/internal/projects/delivery/routes_test.go` que monta un manejador de prueba sobre el
+      subgrupo de administración devuelto por `RegisterRoutes` y verifica que el propietario pasa,
+      que un integrante que no es propietario recibe `403` y que un no integrante recibe el mismo
+      `404` que hoy (el `403` nunca se evalúa antes que la membresía), ajustando a la nueva firma de
+      `RegisterRoutes`, que pasa a recibir también `domain.ProjectRepository`, la llamada existente
+      en `backend/internal/projects/delivery/handler_test.go` (FR-047, FR-050, SC-006) — surge de
+      T049, depende de T089
 
 ### Implementación de la Historia 3
 
@@ -453,16 +461,22 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       duplicado; y la baja es un **borrado físico** de la fila, **sin** `gorm.DeletedAt`, que sería
       incompatible con el índice único y rompería la nueva alta de FR-029 (research.md secciones 6
       y 8) — depende de T035
-- [ ] T049 [US3] Implementar `RequireOwnership` en
-      `backend/internal/projects/delivery/middleware.go` comparando el titular con
-      `projects.owner_id` y devolviendo `403`, y aplicarlo al subgrupo de acciones de administración
-      en `backend/internal/projects/delivery/routes.go`. Se encadena **después** de
-      `RequireMembership`, para que quien no es integrante nunca llegue a saber que el proyecto
-      existe (FR-047, FR-050, SC-006) — depende de T036
+- [ ] T093 [US3] Adelantar de T065 `FindByID(ctx, id)` en
+      `backend/internal/projects/repository/project_repository.go`, devolviendo
+      `domain.ErrProjectNotFound` cuando el proyecto no existe (FR-049). Lo necesitan
+      `RequireOwnership` (T049), el servicio de integrantes (T050) y la vista de detalle (T091);
+      `Update` queda en T065 — surge de T049
+- [ ] T049 [US3] Implementar `RequireOwnership(projects domain.ProjectRepository)` en
+      `backend/internal/projects/delivery/middleware.go`, que obtiene el proyecto con `FindByID`,
+      compara el titular con `owner_id` y devuelve `403`, y aplicarlo al subgrupo de acciones de
+      administración que `RegisterRoutes` crea en `backend/internal/projects/delivery/routes.go`,
+      pasándole el repositorio de proyectos también desde `backend/cmd/app/main.go`. Se encadena
+      **después** de `RequireMembership`, para que quien no es integrante nunca llegue a saber que
+      el proyecto existe (FR-047, FR-050, SC-006) — depende de T036, T092 y T093
 - [ ] T050 [US3] Implementar el alta y la baja en
       `backend/internal/projects/service/member_service.go`: normaliza el correo, busca la cuenta,
       rechaza el proyecto `finished`, rechaza la baja del propietario y resuelve `isOwner` por
-      comparación con `projects.owner_id` (FR-019 a FR-029) — depende de T047 y T048
+      comparación con `projects.owner_id` (FR-019 a FR-029) — depende de T047, T048 y T093
 - [ ] T051 [US3] Añadir `AddMemberRequest` a `backend/internal/projects/delivery/dto.go` y construir
       `ProjectMemberView` **omitiendo el campo `email` cuando quien consulta no es el propietario**.
       La decisión de visibilidad vive en un solo lugar, la capa `delivery`, que es la única que sabe
@@ -476,7 +490,7 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       correo filtrado según T051; los campos de estado (sprint activo, backlog, horas y `readOnly`)
       los completan T058 y T059. Hace pasar `TestUS3_VisibilidadDelCorreo` y
       `TestUS3_SoloElPropietarioComoIntegrante`, que consultan la lista por este endpoint
-      (research.md sección 12) — surge de T044, depende de T051 y T088
+      (research.md sección 12) — surge de T044, depende de T051, T088 y T093
 - [ ] T052 [US3] Implementar los manejadores `addProjectMember` y `removeProjectMember` en
       `backend/internal/projects/delivery/handler.go` con anotaciones `swag` en español y
       registrarlos como `POST /api/v1/projects/{projectId}/members` (`201`, `400`, `401`, `403`,

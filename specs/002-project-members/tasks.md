@@ -529,7 +529,7 @@ de estado con los datos correctos, incluso sin backlog ni sprints. El escenario 
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T055 [P] [US4] Pruebas unitarias del armado de la vista de estado en
+- [X] T055 [P] [US4] Pruebas unitarias del armado de la vista de estado en
       `backend/internal/projects/service/project_view_test.go`, con **dobles de `testify`** de los
       puertos `BacklogSummaryProvider` y `SprintDirectory`: con 3, 5 y 8 Story Points estimados, una
       historia sin estimar y factor 6,5, el resultado es `estimatedStoryPoints: 16` y

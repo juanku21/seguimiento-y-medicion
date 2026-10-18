@@ -759,6 +759,15 @@ calidad. Todas las tareas son **técnicas**.
 
 ---
 
+## Phase 10: Convergence and Security
+
+Propósito: ajustes transversales detectados por /speckit-converge y /revisar-seguridad.
+
+- [ ] T094 Agregar prueba de integración que verifica que POST /api/v1/projects/{projectId}/members con un cuerpo de más de 1 MiB responde 413 o 400 sin llegar al servicio, y que lo mismo ocurre en POST /api/v1/projects y en los endpoints de registro e inicio de sesión, en backend/internal/projects/delivery/handler_test.go y backend/internal/auth/delivery/handler_test.go per hallazgo de seguridad: cuerpo de solicitud JSON sin límite de tamaño (security) — origen: seguridad, detectado en 002/US3
+- [ ] T095 Limitar el tamaño del cuerpo de las solicitudes con http.MaxBytesReader en un middleware global registrado en backend/cmd/app/main.go, y agregar ReadTimeout al http.Server, para que ShouldBindJSON nunca decodifique cuerpos sin tope per hallazgo de seguridad: cuerpo de solicitud JSON sin límite de tamaño (security) — origen: seguridad, detectado en 002/US3
+
+---
+
 ## Dependencias y Orden de Ejecución
 
 ### Dependencias entre fases

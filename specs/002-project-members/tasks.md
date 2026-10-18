@@ -473,7 +473,7 @@ persona pasa a ver el proyecto, el propietario la quita y deja de verlo.
       pasándole el repositorio de proyectos también desde `backend/cmd/app/main.go`. Se encadena
       **después** de `RequireMembership`, para que quien no es integrante nunca llegue a saber que
       el proyecto existe (FR-047, FR-050, SC-006) — depende de T036, T092 y T093
-- [ ] T050 [US3] Implementar el alta y la baja en
+- [X] T050 [US3] Implementar el alta y la baja en
       `backend/internal/projects/service/member_service.go`: normaliza el correo, busca la cuenta,
       rechaza el proyecto `finished`, rechaza la baja del propietario y resuelve `isOwner` por
       comparación con `projects.owner_id` (FR-019 a FR-029) — depende de T047, T048 y T093

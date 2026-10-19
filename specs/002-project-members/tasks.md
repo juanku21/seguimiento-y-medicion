@@ -695,7 +695,7 @@ sprint activo se prueba con un doble del puerto `SprintDirectory`.
 
 ### Implementación de la Historia 6
 
-- [ ] T074 [US6] Implementar las transiciones permitidas en
+- [X] T074 [US6] Implementar las transiciones permitidas en
       `backend/internal/projects/domain/status.go`: **únicamente** `planned → in_progress` e
       `in_progress → finished`; cualquier otra combinación se rechaza con el error de transición
       inválida, indicando la transición permitida (FR-037, FR-038) — depende de T008 y T070

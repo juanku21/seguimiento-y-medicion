@@ -626,7 +626,7 @@ la vista de estado refleja los nuevos valores y que `status` y `actualEndDate` q
       `description`, `start_date`, `planned_end_date` y `hours_per_story_point_hundredths` en **una
       sola sentencia**, sin tocar `status` ni `actual_end_date` (FR-012, FR-015, FR-016) — depende
       de T037
-- [ ] T066 [US5] Implementar la modificación en
+- [X] T066 [US5] Implementar la modificación en
       `backend/internal/projects/service/project_service.go`, reutilizando **la misma validación**
       que la creación (FR-013) y rechazando el proyecto `finished` antes de tocar nada (FR-018,
       RN-11) — depende de T022, T062 y T065

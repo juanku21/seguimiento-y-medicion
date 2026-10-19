@@ -39,6 +39,18 @@ type CreateProjectInput struct {
 	HoursPerStoryPointHundredths int
 }
 
+// applyTo copia los cinco datos editables sobre el proyecto (FR-012), para que la creación y la
+// modificación compartan en un solo lugar qué datos aporta la entrada (FR-013). No toca identidad,
+// propietario, estado ni fecha de finalización real (FR-016).
+func (in CreateProjectInput) applyTo(project *domain.Project) {
+	project.Name = in.Name
+	project.NameNormalized = in.NameNormalized
+	project.Description = in.Description
+	project.StartDate = in.StartDate
+	project.PlannedEndDate = in.PlannedEndDate
+	project.HoursPerStoryPointHundredths = in.HoursPerStoryPointHundredths
+}
+
 // Create crea el proyecto del propietario en estado planned y sin fecha de finalización real, junto
 // con la membresía que lo deja como primer integrante (FR-007, FR-008, RN-01), y devuelve su vista.
 // Los dos registros se persisten en una sola transacción del repositorio (FR-010); un nombre ya
@@ -46,17 +58,12 @@ type CreateProjectInput struct {
 // delivery lo reconozca con errors.Is (FR-004, FR-011).
 func (s *ProjectService) Create(ctx context.Context, ownerID uuid.UUID, input CreateProjectInput) (*ProjectView, error) {
 	project := &domain.Project{
-		ID:                           uuid.New(),
-		OwnerID:                      ownerID,
-		Name:                         input.Name,
-		NameNormalized:               input.NameNormalized,
-		Description:                  input.Description,
-		StartDate:                    input.StartDate,
-		PlannedEndDate:               input.PlannedEndDate,
-		ActualEndDate:                nil,
-		HoursPerStoryPointHundredths: input.HoursPerStoryPointHundredths,
-		Status:                       domain.ProjectStatusPlanned,
+		ID:            uuid.New(),
+		OwnerID:       ownerID,
+		ActualEndDate: nil,
+		Status:        domain.ProjectStatusPlanned,
 	}
+	input.applyTo(project)
 	ownerMembership := &domain.ProjectMember{
 		ID:        uuid.New(),
 		ProjectID: project.ID,
@@ -105,12 +112,7 @@ func (s *ProjectService) Update(ctx context.Context, projectID uuid.UUID, input 
 
 	// Se copia el proyecto antes de aplicar los cambios para no alterar el leído si el UPDATE falla.
 	updated := *project
-	updated.Name = input.Name
-	updated.NameNormalized = input.NameNormalized
-	updated.Description = input.Description
-	updated.StartDate = input.StartDate
-	updated.PlannedEndDate = input.PlannedEndDate
-	updated.HoursPerStoryPointHundredths = input.HoursPerStoryPointHundredths
+	input.applyTo(&updated)
 	if err := s.projects.Update(ctx, &updated); err != nil {
 		return nil, fmt.Errorf("modificar proyecto: %w", err)
 	}

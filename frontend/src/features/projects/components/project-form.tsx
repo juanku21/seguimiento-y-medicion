@@ -90,9 +90,15 @@ function toFieldErrors(fields: FieldError[]): FieldErrors {
   return errors;
 }
 
+// Propiedades del formulario: con project, el formulario edita ese proyecto (US5); sin él, crea
+// uno nuevo (US1).
+type ProjectFormProps = {
+  project?: ProjectDetail;
+};
+
 // Formulario de creación de proyecto (US1). Valida antes de enviar y, al crearse el proyecto,
 // confirma su nombre y su estado sin redirigir. Ante un 401 el cliente HTTP descarta la sesión.
-export function ProjectForm() {
+export function ProjectForm(_props: ProjectFormProps = {}) {
   const [values, setValues] = useState<FormValues>(EMPTY_VALUES);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [generalError, setGeneralError] = useState<string | null>(null);

@@ -613,7 +613,7 @@ la vista de estado refleja los nuevos valores y que `status` y `actualEndDate` q
       para nombre vacío, fecha prevista anterior, factor fuera de rango y factor con más de dos
       decimales), `TestUS5_NoEsPropietario` (`403`) y `TestUS5_ProyectoFinalizado` (`409`) — depende
       de T056
-- [ ] T064 [P] [US5] Pruebas de frontend en
+- [X] T064 [P] [US5] Pruebas de frontend en
       `frontend/src/features/projects/components/project-form.test.tsx` con
       `describe("002/US5 - Modificar los datos del proyecto")` y un `it` por escenario, sobre el
       mismo `ProjectForm` en modo edición — depende de T021

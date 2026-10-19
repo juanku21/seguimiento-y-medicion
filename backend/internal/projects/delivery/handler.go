@@ -33,6 +33,31 @@ const (
 	msgInternalError     = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
 )
 
+// Mensajes del cambio de estado (contracts/openapi.yaml). El 409 de transición inválida se
+// diferencia en delivery a partir del estado actual y el destino: salto de planned a finished,
+// retroceso o permanencia en el mismo estado, este último con la etiqueta en español del estado.
+const (
+	msgInvalidStatus      = "El estado destino debe ser planned, in_progress o finished."
+	msgStatusSkip         = "El proyecto debe pasar primero a En curso antes de finalizarse."
+	msgStatusBackward     = "Los estados del proyecto solo avanzan: no se puede volver a un estado anterior."
+	msgStatusSamePrefix   = "El proyecto ya está "
+	msgStatusActiveSprint = "No se puede finalizar el proyecto mientras tenga un sprint activo. Cerralo primero."
+)
+
+// statusLabels son las etiquetas en español de los estados que pueden recibir una transición al
+// mismo estado; finished no figura porque se rechaza antes como solo lectura (FR-018).
+var statusLabels = map[domain.ProjectStatus]string{
+	domain.ProjectStatusPlanned:    "Planificado",
+	domain.ProjectStatusInProgress: "En curso",
+}
+
+// validStatuses son los tres estados destino que admite el contrato; cualquier otro valor es 400.
+var validStatuses = map[domain.ProjectStatus]bool{
+	domain.ProjectStatusPlanned:    true,
+	domain.ProjectStatusInProgress: true,
+	domain.ProjectStatusFinished:   true,
+}
+
 // Handler agrupa los manejadores HTTP del módulo de proyectos sobre el servicio de proyectos, el
 // de integrantes y el de cambio de estado.
 type Handler struct {
@@ -252,6 +277,113 @@ func (h *Handler) updateProject(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, newProjectDetail(view, userID))
+}
+
+// changeProjectStatus godoc
+//
+//	@Summary		Avanza el estado del proyecto
+//	@Description	Hace avanzar el proyecto al estado destino. Las únicas transiciones admitidas son
+//	@Description	planned -> in_progress e in_progress -> finished (FR-037). Cualquier otra transición se
+//	@Description	rechaza con 409, incluidos el retroceso a un estado anterior, el salto de planned a
+//	@Description	finished y la transición al estado actual, cada uno con su propio mensaje (FR-038, SC-009).
+//	@Description	planned -> in_progress no exige ninguna condición sobre el backlog ni sobre los sprints
+//	@Description	(FR-041). in_progress -> finished se rechaza mientras el proyecto tenga un sprint activo:
+//	@Description	primero hay que cerrarlo (FR-041, RN-16). Al aceptarse, se registra la fecha de
+//	@Description	finalización real con la fecha del cambio en la zona horaria única del sistema,
+//	@Description	independientemente de la zona del dispositivo de quien finaliza (FR-039); esa fecha después
+//	@Description	no se puede editar ni borrar por ninguna vía (FR-040, RN-10). Un proyecto finished es de
+//	@Description	solo lectura y rechaza todo cambio de estado (FR-018).
+//	@Description	Solo el propietario (FR-047).
+//	@Tags			Proyectos
+//	@ID				changeProjectStatus
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			projectId	path		string								true	"Identificador del proyecto"	format(uuid)
+//	@Param			request		body		StatusChangeRequest					true	"Estado destino del proyecto"
+//	@Success		200			{object}	ProjectDetail						"Estado actualizado. Al pasar a finished incluye actualEndDate."
+//	@Failure		400			{object}	delivery.ValidationErrorResponse	"El estado destino no es uno de los tres valores admitidos. Si el cuerpo no es un JSON válido o está vacío, la respuesta es ErrorResponse."
+//	@Failure		401			{object}	delivery.ErrorResponse				"Se requiere iniciar sesión (FR-046)."
+//	@Failure		403			{object}	delivery.ErrorResponse				"Solo el propietario del proyecto puede realizar esta acción (FR-047, FR-050)."
+//	@Failure		404			{object}	delivery.ErrorResponse				"El proyecto no existe o quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo (FR-049, SC-005)."
+//	@Failure		409			{object}	delivery.ErrorResponse				"Salto de estado, retroceso o transición al estado actual (FR-038), finalización con un sprint activo (FR-041, RN-16) o proyecto finished y de solo lectura (FR-018)."
+//	@Failure		500			{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."
+//	@Router			/api/v1/projects/{projectId}/status [patch]
+func (h *Handler) changeProjectStatus(c *gin.Context) {
+	// La identidad sale solo de la sesión y el proyecto de la membresía que dejó RequireMembership;
+	// RequireOwnership ya rechazó a quien no es propietario.
+	userID, ok := authdelivery.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, authdelivery.ErrorResponse{Error: msgSessionRequired})
+		return
+	}
+	member, ok := membershipFromContext(c)
+	if !ok {
+		slog.ErrorContext(c.Request.Context(), "changeProjectStatus sin membresía en el contexto")
+		c.JSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: msgInternalError})
+		return
+	}
+
+	// Se decodifica el cuerpo y se rechaza con 400 cualquier estado destino fuera de los tres
+	// valores del contrato, antes de llegar al servicio (Principio VII).
+	var req StatusChangeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, authdelivery.ErrorResponse{Error: msgInvalidBody})
+		return
+	}
+	if !validStatuses[req.Status] {
+		c.JSON(http.StatusBadRequest, authdelivery.ValidationErrorResponse{
+			Error:  msgInvalidFields,
+			Fields: []authdelivery.FieldError{{Field: "status", Message: msgInvalidStatus}},
+		})
+		return
+	}
+
+	// Se cambia el estado y se traducen los errores propios de la transición; el resto (solo
+	// lectura, proyecto inexistente, error interno) se traduce igual que en las demás acciones.
+	ctx := c.Request.Context()
+	_, err := h.status.ChangeStatus(ctx, member.ProjectID, req.Status)
+	switch {
+	case errors.Is(err, domain.ErrInvalidStatusTransition):
+		h.respondInvalidTransition(c, member.ProjectID, req.Status)
+		return
+	case errors.Is(err, domain.ErrActiveSprintBlocksFinish):
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgStatusActiveSprint})
+		return
+	case err != nil:
+		respondServiceError(c, err, "no se pudo cambiar el estado del proyecto")
+		return
+	}
+
+	// La respuesta es el estado completo del proyecto ya actualizado, igual que la vista de estado.
+	view, err := h.projects.Get(ctx, member.ProjectID)
+	if err != nil {
+		respondServiceError(c, err, "no se pudo obtener el proyecto tras cambiar su estado")
+		return
+	}
+	c.JSON(http.StatusOK, newProjectDetail(view, userID))
+}
+
+// respondInvalidTransition responde el 409 de una transición rechazada con el mensaje que
+// corresponde según el estado actual del proyecto: el mismo estado, el salto de planned a finished o
+// el retroceso (FR-038). El estado actual se lee de nuevo porque el servicio solo informa que la
+// transición no está permitida.
+func (h *Handler) respondInvalidTransition(c *gin.Context, projectID uuid.UUID, to domain.ProjectStatus) {
+	view, err := h.projects.Get(c.Request.Context(), projectID)
+	if err != nil {
+		respondServiceError(c, err, "no se pudo obtener el estado actual del proyecto")
+		return
+	}
+
+	from := view.Project.Status
+	message := msgStatusBackward
+	switch {
+	case from == to:
+		message = msgStatusSamePrefix + statusLabels[from] + "."
+	case from == domain.ProjectStatusPlanned && to == domain.ProjectStatusFinished:
+		message = msgStatusSkip
+	}
+	c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: message})
 }
 
 // addProjectMember godoc

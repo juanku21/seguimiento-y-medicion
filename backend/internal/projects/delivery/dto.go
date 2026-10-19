@@ -46,6 +46,14 @@ type AddMemberRequest struct {
 	Email string `json:"email" validate:"required" format:"email" maxLength:"254" example:"bruno@example.com"`
 }
 
+// StatusChangeRequest es el cuerpo del cambio de estado del proyecto (contracts/openapi.yaml). La
+// etiqueta enums solo documenta el contrato en Swagger: el manejador rechaza con 400 cualquier valor
+// fuera de los tres estados antes de llegar al servicio.
+type StatusChangeRequest struct {
+	// Estado destino del proyecto (FR-036, FR-037).
+	Status domain.ProjectStatus `json:"status" validate:"required" enums:"planned,in_progress,finished" example:"in_progress"`
+}
+
 // ProjectMemberView es un integrante del proyecto (FR-030). El correo se omite del JSON cuando
 // quien consulta no es el propietario: newProjectMemberView lo deja vacío en ese caso, y una cuenta
 // siempre tiene correo, así que el valor vacío no se confunde con un dato real.

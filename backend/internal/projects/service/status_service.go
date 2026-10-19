@@ -62,7 +62,7 @@ func (s *StatusService) ChangeStatus(ctx context.Context, projectID uuid.UUID, t
 	}
 
 	project.Status = to
-	if err := s.projects.Update(ctx, project); err != nil {
+	if err := s.projects.UpdateStatus(ctx, project); err != nil {
 		return nil, fmt.Errorf("guardar cambio de estado: %w", err)
 	}
 	return project, nil

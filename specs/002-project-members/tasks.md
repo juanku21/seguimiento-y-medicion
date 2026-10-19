@@ -709,7 +709,7 @@ sprint activo se prueba con un doble del puerto `SprintDirectory`.
       `backend/internal/projects/service/status_service_test.go`: el doble del repositorio
       registra las llamadas a `UpdateStatus`, y las pruebas exigen que `ChangeStatus` guarde
       únicamente con `UpdateStatus` y nunca con `Update` (FR-016, FR-039, FR-040) — depende de T071
-- [ ] T075b [US6] Agregar `UpdateStatus(ctx, project) error` a `domain.ProjectRepository` en
+- [X] T075b [US6] Agregar `UpdateStatus(ctx, project) error` a `domain.ProjectRepository` en
       `backend/internal/projects/domain/repository.go` e implementarlo en
       `backend/internal/projects/repository/project_repository.go`, escribiendo solo `status`,
       `actual_end_date` y `updated_at`; `StatusService.ChangeStatus` lo usa en lugar de `Update`,

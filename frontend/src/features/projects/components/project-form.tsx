@@ -126,8 +126,9 @@ export function ProjectForm({ project }: ProjectFormProps = {}) {
     setValues((current) => ({ ...current, [field]: value }));
   }
 
-  // Envía la creación o la modificación según el modo. La referencia descarta un segundo envío mientras el primero sigue en curso,
-  // aun antes de que el botón deshabilitado llegue a renderizarse.
+  // Envía la creación o la modificación según el modo. La referencia descarta un segundo envío
+  // mientras el primero sigue en curso, aun antes de que el botón deshabilitado llegue a
+  // renderizarse.
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submittingRef.current) {

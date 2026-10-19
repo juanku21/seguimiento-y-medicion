@@ -636,7 +636,7 @@ la vista de estado refleja los nuevos valores y que `status` y `actualEndDate` q
       `backend/internal/projects/delivery/routes.go`, devolviendo `200` con `ProjectDetail`, `400`,
       `401`, `403`, `404` y `409`. El campo `actualEndDate` que llegue en el cuerpo se **ignora**
       (FR-040) — depende de T059 y T066
-- [ ] T068 [US5] Implementar la llamada de modificación en
+- [X] T068 [US5] Implementar la llamada de modificación en
       `frontend/src/features/projects/api.ts` y el modo edición del `ProjectForm` en
       `frontend/src/features/projects/components/project-form.tsx` — depende de T060
 - [ ] T069 [US5] Crear la pantalla `frontend/src/app/projects/[projectId]/edit/page.tsx`, accesible

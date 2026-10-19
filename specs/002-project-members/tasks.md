@@ -705,6 +705,15 @@ sprint activo se prueba con un doble del puerto `SprintDirectory`.
       RN-16), y al entrar en `finished` fija `actual_end_date` con la fecha de calendario del momento
       del cambio **en la zona horaria de `APP_TIMEZONE`** (FR-039). Ninguna operación modifica una
       `actual_end_date` ya registrada (FR-040, RN-10) — depende de T013, T065, T071 y T074
+- [X] T075a [US6] Pruebas unitarias **obligatorias** del guardado del cambio de estado en
+      `backend/internal/projects/service/status_service_test.go`: el doble del repositorio
+      registra las llamadas a `UpdateStatus`, y las pruebas exigen que `ChangeStatus` guarde
+      únicamente con `UpdateStatus` y nunca con `Update` (FR-016, FR-039, FR-040) — depende de T071
+- [ ] T075b [US6] Agregar `UpdateStatus(ctx, project) error` a `domain.ProjectRepository` en
+      `backend/internal/projects/domain/repository.go` e implementarlo en
+      `backend/internal/projects/repository/project_repository.go`, escribiendo solo `status`,
+      `actual_end_date` y `updated_at`; `StatusService.ChangeStatus` lo usa en lugar de `Update`,
+      que sigue sin tocar esas columnas (FR-016) — depende de T075 y T075a
 - [ ] T076 [US6] Implementar el manejador `changeProjectStatus` en
       `backend/internal/projects/delivery/handler.go` con anotaciones `swag` en español y
       registrarlo como `PATCH /api/v1/projects/{projectId}/status` en el subgrupo de administración

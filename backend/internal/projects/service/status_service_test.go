@@ -24,11 +24,14 @@ import (
 // errStatusOpNotUsed señala una operación que el cambio de estado no debería invocar.
 var errStatusOpNotUsed = errors.New("operación no usada por el cambio de estado")
 
-// statusFakeProjects guarda proyectos en memoria y registra cada proyecto que recibe Update, para
-// verificar qué intentó escribir el servicio y qué quedó guardado.
+// statusFakeProjects guarda proyectos en memoria y registra por separado lo que recibe Update y lo
+// que recibe UpdateStatus, para verificar que el cambio de estado se guarda solo con UpdateStatus:
+// Update limita la escritura a los datos editables y nunca persiste status ni actual_end_date
+// (FR-016), así que guardar el cambio con Update lo perdería (FR-039, FR-040).
 type statusFakeProjects struct {
-	byID     map[uuid.UUID]domain.Project
-	received []domain.Project
+	byID          map[uuid.UUID]domain.Project
+	updated       []domain.Project
+	statusUpdated []domain.Project
 }
 
 func (r *statusFakeProjects) Create(context.Context, *domain.Project, *domain.ProjectMember) error {
@@ -43,10 +46,37 @@ func (r *statusFakeProjects) FindByID(_ context.Context, id uuid.UUID) (*domain.
 	return &project, nil
 }
 
+// Update solo registra la llamada y no guarda nada, como el repositorio real, que no escribe status
+// ni actual_end_date.
 func (r *statusFakeProjects) Update(_ context.Context, project *domain.Project) error {
-	r.received = append(r.received, *project)
+	r.updated = append(r.updated, *project)
+	return nil
+}
+
+// UpdateStatus registra la llamada y guarda el proyecto recibido.
+func (r *statusFakeProjects) UpdateStatus(_ context.Context, project *domain.Project) error {
+	r.statusUpdated = append(r.statusUpdated, *project)
 	r.byID[project.ID] = *project
 	return nil
+}
+
+// assertSavedOnlyWithUpdateStatus verifica que el cambio aceptado se guardó con una sola llamada a
+// UpdateStatus, con el estado y la fecha real del proyecto devuelto, y que Update nunca se llamó.
+func assertSavedOnlyWithUpdateStatus(t *testing.T, projects *statusFakeProjects, project *domain.Project) {
+	t.Helper()
+	assert.Empty(t, projects.updated, "el cambio de estado no debe guardarse con Update")
+	require.Len(t, projects.statusUpdated, 1, "el cambio de estado debe guardarse con UpdateStatus")
+	saved := projects.statusUpdated[0]
+	assert.Equal(t, project.ID, saved.ID)
+	assert.Equal(t, project.Status, saved.Status)
+	assert.Equal(t, project.ActualEndDate, saved.ActualEndDate)
+}
+
+// assertNothingSaved verifica que un cambio rechazado no llamó a Update ni a UpdateStatus.
+func assertNothingSaved(t *testing.T, projects *statusFakeProjects) {
+	t.Helper()
+	assert.Empty(t, projects.updated, "no debe llamarse a Update")
+	assert.Empty(t, projects.statusUpdated, "no debe llamarse a UpdateStatus")
 }
 
 func (r *statusFakeProjects) ListForMember(context.Context, uuid.UUID) ([]domain.ProjectListItem, error) {
@@ -142,6 +172,7 @@ func TestUS6_ReglaFechaRealEnZonaDelSistema(t *testing.T) {
 			assert.Equal(t, domain.ProjectStatusFinished, project.Status)
 			require.NotNil(t, project.ActualEndDate)
 			assert.Equal(t, tc.expected, project.ActualEndDate.Format("2006-01-02"))
+			assertSavedOnlyWithUpdateStatus(t, fx.projects, project)
 
 			// SC-010: lo guardado queda finalizado y con la misma fecha real.
 			stored := fx.projects.byID[fx.project.ID]
@@ -164,7 +195,7 @@ func TestUS6_ReglaFinalizarConSprintActivo(t *testing.T) {
 
 	assert.ErrorIs(t, err, domain.ErrActiveSprintBlocksFinish)
 	assert.Nil(t, project)
-	assert.Empty(t, fx.projects.received, "no debe escribirse el proyecto")
+	assertNothingSaved(t, fx.projects)
 	fx.sprints.AssertCalled(t, "FindActiveSprint", mock.Anything, fx.project.ID)
 
 	// El proyecto guardado sigue en curso y sin fecha de finalización real.
@@ -187,6 +218,7 @@ func TestUS6_ReglaArranqueSinCondiciones(t *testing.T) {
 	require.NotNil(t, project)
 	assert.Equal(t, domain.ProjectStatusInProgress, project.Status)
 	assert.Nil(t, project.ActualEndDate)
+	assertSavedOnlyWithUpdateStatus(t, fx.projects, project)
 
 	// Lo guardado queda en curso y sin fecha real.
 	stored := fx.projects.byID[fx.project.ID]
@@ -216,7 +248,7 @@ func TestUS6_ReglaFinalizadoEsSoloLectura(t *testing.T) {
 
 			assert.ErrorIs(t, err, domain.ErrProjectReadOnly)
 			assert.Nil(t, project)
-			assert.Empty(t, fx.projects.received, "no debe escribirse el proyecto")
+			assertNothingSaved(t, fx.projects)
 
 			// El proyecto guardado sigue finalizado y con la misma fecha real.
 			stored := fx.projects.byID[fx.project.ID]

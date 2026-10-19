@@ -86,6 +86,12 @@ func (r *ProjectRepository) Update(ctx context.Context, project *domain.Project)
 	return nil
 }
 
+// UpdateStatus guarda el cambio de estado del proyecto escribiendo solo status, actual_end_date y
+// updated_at (FR-016, FR-039, FR-040). Firma mínima de T075a: la implementación es de T075b.
+func (r *ProjectRepository) UpdateStatus(ctx context.Context, project *domain.Project) error {
+	return errors.New("not implemented")
+}
+
 // ListForMember devuelve los proyectos de los que el usuario es integrante con una sola consulta:
 // une project_members, filtrada por el usuario, con projects, y cuenta los integrantes de cada
 // proyecto con una subconsulta escalar para evitar el N+1 (research.md sección 11). Como el filtro

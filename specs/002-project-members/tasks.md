@@ -667,7 +667,7 @@ sprint activo se prueba con un doble del puerto `SprintDirectory`.
       **seis** restantes se rechazan — `planned → planned`, `planned → finished`,
       `in_progress → planned`, `in_progress → in_progress`, `finished → planned` y
       `finished → in_progress`
-- [ ] T071 [P] [US6] Pruebas unitarias **obligatorias** de la finalización en
+- [X] T071 [P] [US6] Pruebas unitarias **obligatorias** de la finalización en
       `backend/internal/projects/service/status_service_test.go`, con un doble de `testify` del
       puerto `SprintDirectory`, cubriendo RN-10, RN-11 y RN-16: la fecha de finalización real se
       deriva de `time.Now().In(systemLocation)` y es la **fecha de calendario en la zona del

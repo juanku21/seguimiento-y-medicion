@@ -661,7 +661,7 @@ sprint activo se prueba con un doble del puerto `SprintDirectory`.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T070 [P] [US6] Pruebas unitarias **obligatorias** de la máquina de estados en
+- [X] T070 [P] [US6] Pruebas unitarias **obligatorias** de la máquina de estados en
       `backend/internal/projects/domain/status_test.go`, cubriendo RN-09 y SC-009: las **dos**
       transiciones válidas (`planned → in_progress` e `in_progress → finished`) se aceptan y las
       **seis** restantes se rechazan — `planned → planned`, `planned → finished`,

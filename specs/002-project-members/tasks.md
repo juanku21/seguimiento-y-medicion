@@ -676,7 +676,7 @@ sprint activo se prueba con un doble del puerto `SprintDirectory`.
       **sin** fecha real; y un proyecto `finished` rechaza todo cambio de estado sin alterar la
       fecha ya registrada (**SC-010**: todo proyecto finalizado tiene fecha real y ninguna cambia
       después de registrarse) — depende de T003 y T011
-- [ ] T072 [US6] Pruebas de integración de la historia en
+- [X] T072 [US6] Pruebas de integración de la historia en
       `backend/internal/projects/delivery/handler_test.go`, una función por escenario precedida por
       `// Escenario: <nombre del escenario> (002/US6)`: `TestUS6_RecorridoCompleto` (las dos
       transiciones y la fecha real registrada), `TestUS6_FinalizacionAnticipada` (fecha real

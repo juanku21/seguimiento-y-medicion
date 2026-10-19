@@ -97,17 +97,20 @@ type projectErrorBody struct {
 // projectsTestEnv reúne el router compuesto como en cmd/app, la base de test, el servicio de
 // autenticación con el que se crean las cuentas y las sesiones de cada escenario, y el subgrupo
 // /api/v1/projects/:projectId que devuelve RegisterRoutes junto con su subgrupo de administración.
+// location es la zona horaria del sistema cargada de .env.test, con la que las pruebas de US6
+// calculan la fecha de finalización real esperada.
 type projectsTestEnv struct {
 	router       *gin.Engine
 	db           *gorm.DB
 	auth         *authservice.AuthService
 	projectGroup *gin.RouterGroup
 	adminGroup   *gin.RouterGroup
+	location     *time.Location
 }
 
 // newProjectsTestEnv abre la base de test vacía y compone la cadena real de la 001 (para el
-// middleware de sesión) y del módulo de proyectos, con el servicio de proyectos y el de integrantes,
-// igual que cmd/app, sin CORS ni Swagger.
+// middleware de sesión) y del módulo de proyectos, con el servicio de proyectos, el de integrantes y
+// el de cambio de estado, igual que cmd/app, sin CORS ni Swagger.
 func newProjectsTestEnv(t *testing.T) projectsTestEnv {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -127,11 +130,12 @@ func newProjectsTestEnv(t *testing.T) projectsTestEnv {
 		repository.NewSprintDirectory(),
 	)
 	members := service.NewMemberService(projectRepository, projectMembers, repository.NewUserDirectory(db))
+	status := service.NewStatusService(projectRepository, repository.NewSprintDirectory(), cfg.Location, time.Now)
 	router := gin.New()
 	authHandler := authdelivery.NewHandler(auth)
 	authdelivery.RegisterRoutes(router, authHandler)
-	projectGroup, adminGroup := RegisterRoutes(router, authHandler.RequireSession, NewHandler(projects, members), projectMembers, projectRepository)
-	return projectsTestEnv{router: router, db: db, auth: auth, projectGroup: projectGroup, adminGroup: adminGroup}
+	projectGroup, adminGroup := RegisterRoutes(router, authHandler.RequireSession, NewHandler(projects, members, status), projectMembers, projectRepository)
+	return projectsTestEnv{router: router, db: db, auth: auth, projectGroup: projectGroup, adminGroup: adminGroup, location: cfg.Location}
 }
 
 // signUp registra una cuenta con el servicio de la 001, inicia su sesión y devuelve el identificador
@@ -1384,7 +1388,8 @@ func (q *queryCounter) Trace(context.Context, time.Time, func() (string, int64),
 }
 
 // newStatusTestEnv compone el router como newProjectsTestEnv, pero con los puertos del backlog y de
-// sprints recibidos en lugar de los adaptadores provisorios. Si recibe un contador, los
+// sprints recibidos en lugar de los adaptadores provisorios; el servicio de cambio de estado usa el
+// mismo puerto de sprints, para preparar el sprint activo de US6. Si recibe un contador, los
 // repositorios que usan los servicios trabajan sobre una sesión de GORM con ese Logger, mientras que
 // la sesión de la 001 y los middlewares de membresía y propiedad usan la conexión sin contar: así se
 // cuentan solo las consultas con que el servicio arma la vista de estado (SC-003).
@@ -1406,12 +1411,13 @@ func newStatusTestEnv(t *testing.T, backlog domain.BacklogSummaryProvider, sprin
 	projectMembers := repository.NewProjectMemberRepository(serviceDB)
 	projects := service.NewProjectService(projectRepository, projectMembers, backlog, sprints)
 	members := service.NewMemberService(projectRepository, projectMembers, repository.NewUserDirectory(serviceDB))
+	status := service.NewStatusService(projectRepository, sprints, cfg.Location, time.Now)
 	router := gin.New()
 	authHandler := authdelivery.NewHandler(auth)
 	authdelivery.RegisterRoutes(router, authHandler)
-	projectGroup, adminGroup := RegisterRoutes(router, authHandler.RequireSession, NewHandler(projects, members),
+	projectGroup, adminGroup := RegisterRoutes(router, authHandler.RequireSession, NewHandler(projects, members, status),
 		repository.NewProjectMemberRepository(db), repository.NewProjectRepository(db))
-	return projectsTestEnv{router: router, db: db, auth: auth, projectGroup: projectGroup, adminGroup: adminGroup}
+	return projectsTestEnv{router: router, db: db, auth: auth, projectGroup: projectGroup, adminGroup: adminGroup, location: cfg.Location}
 }
 
 // requireProjectDetail exige un 200 de la vista de estado y devuelve el cuerpo decodificado como
@@ -1943,4 +1949,370 @@ func TestUS5_ProyectoFinalizado(t *testing.T) {
 
 	requireErrorResponse(t, rec, http.StatusConflict, projectReadOnlyMessage)
 	assert.Equal(t, before, findStoredProject(t, env.db, projectID.String()), "el proyecto no debería cambiar")
+}
+
+// Textos exactos que fija el contrato para cada 409 del cambio de estado: salto de planned a
+// finished, retroceso, transición al estado actual y finalización con un sprint activo. El de solo
+// lectura es projectReadOnlyMessage, compartido con las demás acciones de administración.
+const (
+	statusSkipMessage         = "El proyecto debe pasar primero a En curso antes de finalizarse."
+	statusBackwardMessage     = "Los estados del proyecto solo avanzan: no se puede volver a un estado anterior."
+	statusSameMessage         = "El proyecto ya está En curso."
+	statusActiveSprintMessage = "No se puede finalizar el proyecto mientras tenga un sprint activo. Cerralo primero."
+)
+
+// projectStatusPath es la ruta del cambio de estado del proyecto según contracts/openapi.yaml.
+func projectStatusPath(projectID uuid.UUID) string {
+	return projectDetailPath(projectID) + "/status"
+}
+
+// patchStatus envía el estado destino a PATCH /api/v1/projects/{projectId}/status con el token como
+// Bearer, con el cuerpo StatusChangeRequest del contrato.
+func (e projectsTestEnv) patchStatus(t *testing.T, token string, projectID uuid.UUID, status domain.ProjectStatus) *httptest.ResponseRecorder {
+	t.Helper()
+	payload, err := json.Marshal(map[string]string{"status": string(status)})
+	require.NoError(t, err, "no se pudo serializar la solicitud")
+	req := httptest.NewRequest(http.MethodPatch, projectStatusPath(projectID), bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, req)
+	return rec
+}
+
+// dayInSystemZone devuelve la fecha de calendario (AAAA-MM-DD) que resulta de desplazar en days días
+// el momento actual en la zona horaria del sistema, la misma con que el servicio fija la fecha de
+// finalización real (FR-039).
+func (e projectsTestEnv) dayInSystemZone(days int) string {
+	return time.Now().In(e.location).AddDate(0, 0, days).Format(time.DateOnly)
+}
+
+// requireStatusChanged exige un 200 cuyo cuerpo sea el ProjectDetail del proyecto con el estado
+// destino, y lo devuelve decodificado.
+func requireStatusChanged(t *testing.T, rec *httptest.ResponseRecorder, want domain.ProjectStatus) projectDetailBody {
+	t.Helper()
+	require.Equal(t, http.StatusOK, rec.Code, "cuerpo: %s", rec.Body.String())
+	var body projectDetailBody
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "el cuerpo del 200 no es JSON válido: %s", rec.Body.String())
+	require.Equal(t, string(want), body.Status, "el proyecto debería quedar en el estado destino")
+	return body
+}
+
+// requireDateOfChange exige que la fecha de finalización real exista y sea la fecha del cambio en
+// la zona del sistema. Se aceptan las fechas de antes y de después de la solicitud para que la
+// prueba no falle si el cambio ocurre justo a la medianoche.
+func requireDateOfChange(t *testing.T, got *string, before, after string) {
+	t.Helper()
+	require.NotNil(t, got, "la fecha de finalización real debería quedar registrada")
+	assert.Contains(t, []string{before, after}, *got, "la fecha real debería ser la del cambio en la zona del sistema")
+}
+
+// storedActualEndDate devuelve la fecha de finalización real guardada en projects como AAAA-MM-DD,
+// o nil si la columna es nula.
+func storedActualEndDate(t *testing.T, db *gorm.DB, projectID uuid.UUID) *string {
+	t.Helper()
+	stored := findStoredProject(t, db, projectID.String())
+	if stored.ActualEndDate == nil {
+		return nil
+	}
+	date := stored.ActualEndDate.Format(time.DateOnly)
+	return &date
+}
+
+// seedFinishedProject siembra un proyecto Finalizado del propietario, con su fecha de finalización
+// real ya registrada y los integrantes adicionales, porque el "Dado" no debe pasar por la transición
+// que se está probando.
+func seedFinishedProject(t *testing.T, db *gorm.DB, ownerID uuid.UUID, actualEndDate string, extraMembers ...uuid.UUID) uuid.UUID {
+	t.Helper()
+	projectID := seedProjectInStatus(t, db, ownerID, domain.ProjectStatusFinished, extraMembers...)
+	actualEnd, err := time.Parse(time.DateOnly, actualEndDate)
+	require.NoError(t, err, "fecha de finalización real de prueba inválida")
+	require.NoError(t, db.Model(&domain.Project{}).Where("id = ?", projectID).
+		Update("actual_end_date", actualEnd).Error, "no se pudo fijar la fecha de finalización real")
+	return projectID
+}
+
+// Escenario: Recorrido completo (002/US6)
+// El propietario pasa un proyecto Planificado a En curso y después a Finalizado: ambas transiciones
+// responden 200 con el ProjectDetail actualizado; En curso todavía no tiene fecha real, y al
+// finalizar queda registrada, en la respuesta, en la base y en la vista de estado, la fecha del
+// cambio en la zona del sistema, con el proyecto de solo lectura (FR-037, FR-039, FR-018).
+func TestUS6_RecorridoCompleto(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := seedListedProject(t, env.db, ownerID, listedProjectSeed{
+		name: "Portal de Clientes", status: domain.ProjectStatusPlanned,
+		startDate: env.dayInSystemZone(-10), plannedEndDate: env.dayInSystemZone(60),
+	})
+
+	// Primera transición: planned → in_progress, sin fecha real.
+	started := requireStatusChanged(t, env.patchStatus(t, token, projectID, domain.ProjectStatusInProgress), domain.ProjectStatusInProgress)
+	assert.Equal(t, projectID.String(), started.ID)
+	assert.Nil(t, started.ActualEndDate, "un proyecto En curso no tiene fecha de finalización real")
+	assert.False(t, started.ReadOnly)
+	assert.Equal(t, domain.ProjectStatusInProgress, findStoredProject(t, env.db, projectID.String()).Status)
+	assert.Nil(t, storedActualEndDate(t, env.db, projectID))
+
+	// Segunda transición: in_progress → finished, con la fecha del cambio registrada.
+	before := env.dayInSystemZone(0)
+	finished := requireStatusChanged(t, env.patchStatus(t, token, projectID, domain.ProjectStatusFinished), domain.ProjectStatusFinished)
+	after := env.dayInSystemZone(0)
+	requireDateOfChange(t, finished.ActualEndDate, before, after)
+	assert.True(t, finished.ReadOnly, "un proyecto finalizado debería indicarse de solo lectura")
+	assert.Equal(t, domain.ProjectStatusFinished, findStoredProject(t, env.db, projectID.String()).Status)
+	requireDateOfChange(t, storedActualEndDate(t, env.db, projectID), before, after)
+
+	// La vista de estado muestra la misma fecha real que la respuesta del cambio.
+	view, _ := requireProjectDetail(t, env.get(t, token, projectDetailPath(projectID)))
+	assert.Equal(t, "finished", view.Status)
+	assert.Equal(t, finished.ActualEndDate, view.ActualEndDate)
+}
+
+// Escenario: Finalización anticipada (002/US6)
+// El propietario finaliza un proyecto En curso cuya fecha prevista todavía no llegó: la transición
+// se acepta con 200 y la fecha real queda anterior a la prevista, sin que eso sea un error; la fecha
+// prevista no cambia (FR-039).
+func TestUS6_FinalizacionAnticipada(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	plannedEnd := env.dayInSystemZone(30)
+	projectID := seedListedProject(t, env.db, ownerID, listedProjectSeed{
+		name: "Portal de Clientes", status: domain.ProjectStatusInProgress,
+		startDate: env.dayInSystemZone(-30), plannedEndDate: plannedEnd,
+	})
+
+	before := env.dayInSystemZone(0)
+	got := requireStatusChanged(t, env.patchStatus(t, token, projectID, domain.ProjectStatusFinished), domain.ProjectStatusFinished)
+	after := env.dayInSystemZone(0)
+
+	requireDateOfChange(t, got.ActualEndDate, before, after)
+	assert.Less(t, *got.ActualEndDate, got.PlannedEndDate, "la fecha real debería quedar anterior a la prevista")
+	assert.Equal(t, plannedEnd, got.PlannedEndDate, "la fecha prevista no debería cambiar")
+	requireDateOfChange(t, storedActualEndDate(t, env.db, projectID), before, after)
+}
+
+// Escenario: Finalizado solo se consulta (002/US6)
+// Sobre un proyecto Finalizado, un integrante que no es el propietario lo consulta completo, con la
+// fecha real y la indicación de solo lectura, mientras que ninguna acción de administración del
+// propietario se admite: el cambio de estado, la modificación y el alta y la baja de integrantes se
+// rechazan con 409 de solo lectura y el proyecto no cambia (FR-018, FR-048).
+func TestUS6_FinalizadoSoloSeConsulta(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	env.signUp(t, "Carla Ruiz", "carla@example.com")
+	projectID := seedFinishedProject(t, env.db, ownerID, "2026-12-18", brunoID)
+
+	// Un integrante consulta el proyecto completo.
+	view, _ := requireProjectDetail(t, env.get(t, brunoToken, projectDetailPath(projectID)))
+	assert.Equal(t, "finished", view.Status)
+	assert.True(t, view.ReadOnly)
+	if assert.NotNil(t, view.ActualEndDate) {
+		assert.Equal(t, "2026-12-18", *view.ActualEndDate)
+	}
+	assert.Len(t, view.Members, 2)
+
+	// Ninguna acción de administración del propietario se admite.
+	actions := []struct {
+		name string
+		send func(t *testing.T) *httptest.ResponseRecorder
+	}{
+		{"cambio de estado", func(t *testing.T) *httptest.ResponseRecorder {
+			return env.patchStatus(t, ownerToken, projectID, domain.ProjectStatusInProgress)
+		}},
+		{"modificación", func(t *testing.T) *httptest.ResponseRecorder {
+			return env.putProject(t, ownerToken, projectID, updatedProjectInputBody())
+		}},
+		{"alta de integrante", func(t *testing.T) *httptest.ResponseRecorder {
+			return env.postMember(t, ownerToken, projectID, "carla@example.com")
+		}},
+		{"baja de integrante", func(t *testing.T) *httptest.ResponseRecorder {
+			return env.deleteMember(t, ownerToken, projectID, brunoID)
+		}},
+	}
+	for _, action := range actions {
+		t.Run(action.name, func(t *testing.T) {
+			before := findStoredProject(t, env.db, projectID.String())
+			membersBefore := memberRowsOf(t, env.db, projectID)
+
+			requireErrorResponse(t, action.send(t), http.StatusConflict, projectReadOnlyMessage)
+			assert.Equal(t, before, findStoredProject(t, env.db, projectID.String()), "el proyecto no debería cambiar")
+			assert.Equal(t, membersBefore, memberRowsOf(t, env.db, projectID), "los integrantes no deberían cambiar")
+		})
+	}
+}
+
+// Escenario: Finaliza el mismo día que empezó (002/US6)
+// El propietario finaliza un proyecto que comenzó hoy: la transición se acepta con 200 y la fecha
+// de finalización real es igual a la fecha de inicio (caso límite de FR-039).
+func TestUS6_FinalizaElMismoDiaQueEmpezo(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	today := env.dayInSystemZone(0)
+	projectID := seedListedProject(t, env.db, ownerID, listedProjectSeed{
+		name: "Portal de Clientes", status: domain.ProjectStatusInProgress,
+		startDate: today, plannedEndDate: env.dayInSystemZone(30),
+	})
+
+	got := requireStatusChanged(t, env.patchStatus(t, token, projectID, domain.ProjectStatusFinished), domain.ProjectStatusFinished)
+
+	require.NotNil(t, got.ActualEndDate, "la fecha de finalización real debería quedar registrada")
+	assert.Equal(t, got.StartDate, *got.ActualEndDate, "la fecha real debería ser igual a la de inicio")
+	assert.Equal(t, today, got.StartDate)
+	if stored := storedActualEndDate(t, env.db, projectID); assert.NotNil(t, stored) {
+		assert.Equal(t, today, *stored)
+	}
+}
+
+// Escenario: Arranque sin condiciones (002/US6)
+// El propietario pasa a En curso un proyecto Planificado que ya tiene un sprint activo o un backlog
+// cargado: la transición se acepta con 200 sin exigir ninguna condición sobre el backlog ni sobre
+// los sprints, y el proyecto queda En curso sin fecha real (FR-041). El sprint y el backlog se
+// preparan con dobles de los puertos.
+func TestUS6_ArranqueSinCondiciones(t *testing.T) {
+	cases := []struct {
+		name    string
+		backlog domain.BacklogSummaryProvider
+		sprints domain.SprintDirectory
+	}{
+		{
+			name:    "con sprint activo",
+			backlog: repository.NewBacklogSummaryProvider(),
+			sprints: fixedSprint{sprint: &domain.ActiveSprint{ID: uuid.New(), Name: "Sprint 1"}},
+		},
+		{
+			name: "con backlog cargado",
+			backlog: fixedBacklog{summary: domain.BacklogSummary{
+				CountsByState:        map[string]int{"to_do": 3, "in_progress": 1},
+				EstimatedStoryPoints: 13,
+			}},
+			sprints: repository.NewSprintDirectory(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newStatusTestEnv(t, tc.backlog, tc.sprints, nil)
+			ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+			projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusPlanned)
+
+			got := requireStatusChanged(t, env.patchStatus(t, token, projectID, domain.ProjectStatusInProgress), domain.ProjectStatusInProgress)
+
+			assert.Nil(t, got.ActualEndDate, "arrancar el proyecto no registra fecha real")
+			assert.Equal(t, domain.ProjectStatusInProgress, findStoredProject(t, env.db, projectID.String()).Status)
+			assert.Nil(t, storedActualEndDate(t, env.db, projectID))
+		})
+	}
+}
+
+// Escenario: Retroceso rechazado (002/US6)
+// El propietario intenta devolver a Planificado un proyecto En curso: la transición se rechaza con
+// 409 indicando que los estados solo avanzan, y el proyecto queda exactamente como estaba (FR-038).
+func TestUS6_RetrocesoRechazado(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress)
+	before := findStoredProject(t, env.db, projectID.String())
+
+	rec := env.patchStatus(t, token, projectID, domain.ProjectStatusPlanned)
+
+	requireErrorResponse(t, rec, http.StatusConflict, statusBackwardMessage)
+	assert.Equal(t, before, findStoredProject(t, env.db, projectID.String()), "el proyecto no debería cambiar")
+}
+
+// Escenario: Salto de estado rechazado (002/US6)
+// El propietario intenta pasar un proyecto Planificado directamente a Finalizado: la transición se
+// rechaza con 409 indicando que primero debe pasar por En curso, y el proyecto sigue Planificado sin
+// fecha real (FR-038).
+func TestUS6_SaltoDeEstadoRechazado(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusPlanned)
+	before := findStoredProject(t, env.db, projectID.String())
+
+	rec := env.patchStatus(t, token, projectID, domain.ProjectStatusFinished)
+
+	requireErrorResponse(t, rec, http.StatusConflict, statusSkipMessage)
+	assert.Equal(t, before, findStoredProject(t, env.db, projectID.String()), "el proyecto no debería cambiar")
+	assert.Nil(t, storedActualEndDate(t, env.db, projectID))
+}
+
+// Escenario: Mismo estado rechazado (002/US6)
+// El propietario intenta pasar a En curso un proyecto que ya está En curso: la transición se
+// rechaza con 409 por inválida y nada cambia (FR-038, SC-009).
+func TestUS6_MismoEstadoRechazado(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress)
+	before := findStoredProject(t, env.db, projectID.String())
+
+	rec := env.patchStatus(t, token, projectID, domain.ProjectStatusInProgress)
+
+	requireErrorResponse(t, rec, http.StatusConflict, statusSameMessage)
+	assert.Equal(t, before, findStoredProject(t, env.db, projectID.String()), "el proyecto no debería cambiar")
+}
+
+// Escenario: Finalizado es solo lectura (002/US6)
+// El propietario intenta cambiar el estado de un proyecto Finalizado hacia cualquiera de los tres
+// estados: la acción se rechaza con 409 de solo lectura y la fecha de finalización real ya
+// registrada no se altera (FR-018, FR-040, RN-10, SC-010).
+func TestUS6_FinalizadoEsSoloLectura(t *testing.T) {
+	targets := []domain.ProjectStatus{
+		domain.ProjectStatusPlanned,
+		domain.ProjectStatusInProgress,
+		domain.ProjectStatusFinished,
+	}
+	for _, target := range targets {
+		t.Run("hacia "+string(target), func(t *testing.T) {
+			env := newProjectsTestEnv(t)
+			ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+			projectID := seedFinishedProject(t, env.db, ownerID, "2026-12-18")
+			before := findStoredProject(t, env.db, projectID.String())
+
+			rec := env.patchStatus(t, token, projectID, target)
+
+			requireErrorResponse(t, rec, http.StatusConflict, projectReadOnlyMessage)
+			assert.Equal(t, before, findStoredProject(t, env.db, projectID.String()), "el proyecto no debería cambiar")
+			if stored := storedActualEndDate(t, env.db, projectID); assert.NotNil(t, stored) {
+				assert.Equal(t, "2026-12-18", *stored, "la fecha de finalización real no debería alterarse")
+			}
+		})
+	}
+}
+
+// Escenario: No es propietario (002/US6)
+// Un integrante que no es el propietario intenta pasar a En curso un proyecto Planificado: la acción
+// se rechaza con 403 por falta de permiso, aunque la transición sería válida, y el proyecto no
+// cambia (FR-047).
+func TestUS6_NoEsPropietario(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusPlanned, brunoID)
+	before := findStoredProject(t, env.db, projectID.String())
+
+	rec := env.patchStatus(t, brunoToken, projectID, domain.ProjectStatusInProgress)
+
+	requireErrorResponse(t, rec, http.StatusForbidden, memberNotOwnerMessage)
+	assert.Equal(t, before, findStoredProject(t, env.db, projectID.String()), "el proyecto no debería cambiar")
+}
+
+// Escenario: Finalizar con sprint activo (002/US6)
+// El propietario intenta finalizar un proyecto En curso que tiene un sprint activo: la transición
+// se rechaza con 409 indicando que primero debe cerrar el sprint, y el proyecto sigue En curso sin
+// fecha de finalización real (FR-041, RN-16). El sprint activo se prepara con un doble del puerto
+// SprintDirectory.
+func TestUS6_FinalizarConSprintActivo(t *testing.T) {
+	sprints := fixedSprint{sprint: &domain.ActiveSprint{ID: uuid.New(), Name: "Sprint 4"}}
+	env := newStatusTestEnv(t, repository.NewBacklogSummaryProvider(), sprints, nil)
+	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress)
+	before := findStoredProject(t, env.db, projectID.String())
+
+	rec := env.patchStatus(t, token, projectID, domain.ProjectStatusFinished)
+
+	requireErrorResponse(t, rec, http.StatusConflict, statusActiveSprintMessage)
+	stored := findStoredProject(t, env.db, projectID.String())
+	assert.Equal(t, before, stored, "el proyecto no debería cambiar")
+	assert.Equal(t, domain.ProjectStatusInProgress, stored.Status, "el proyecto debería seguir En curso")
+	assert.Nil(t, stored.ActualEndDate, "no debería registrarse fecha de finalización real")
 }

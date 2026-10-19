@@ -107,8 +107,9 @@ func run() error {
 	// gin.HandlerFunc, así todo su grupo de rutas exige sesión sin importar ese middleware
 	// (FR-046, research.md de la 002, sección 10). Sus manejadores se componen sobre el servicio de
 	// proyectos, con el repositorio de proyectos y los puertos de backlog y de sprints, y sobre el
-	// servicio de integrantes, con el directorio de usuarios. Las mismas instancias de los
-	// repositorios sirven a los dos servicios y a RequireMembership del subgrupo /:projectId.
+	// servicio de integrantes, con el directorio de usuarios, y el de cambio de estado, con el
+	// puerto de sprints, la zona horaria del sistema y el reloj. Las mismas instancias de los
+	// repositorios sirven a los servicios y a RequireMembership del subgrupo /:projectId.
 	projectRepository := projectsrepository.NewProjectRepository(db)
 	projectMembers := projectsrepository.NewProjectMemberRepository(db)
 	projects := projectsservice.NewProjectService(
@@ -118,7 +119,8 @@ func run() error {
 		projectsrepository.NewSprintDirectory(),
 	)
 	members := projectsservice.NewMemberService(projectRepository, projectMembers, projectsrepository.NewUserDirectory(db))
-	projectsdelivery.RegisterRoutes(router, handler.RequireSession, projectsdelivery.NewHandler(projects, members), projectMembers, projectRepository)
+	status := projectsservice.NewStatusService(projectRepository, projectsrepository.NewSprintDirectory(), cfg.Location, time.Now)
+	projectsdelivery.RegisterRoutes(router, handler.RequireSession, projectsdelivery.NewHandler(projects, members, status), projectMembers, projectRepository)
 
 	// ReadHeaderTimeout acota el tiempo para recibir las cabeceras y evita conexiones colgadas.
 	server := &http.Server{

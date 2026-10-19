@@ -62,6 +62,10 @@ func (r *viewFakeProjects) Update(context.Context, *domain.Project) error {
 	return errMemberOpNotUsed
 }
 
+func (r *viewFakeProjects) UpdateStatus(context.Context, *domain.Project) error {
+	return errMemberOpNotUsed
+}
+
 func (r *viewFakeProjects) ListForMember(context.Context, uuid.UUID) ([]domain.ProjectListItem, error) {
 	return nil, errMemberOpNotUsed
 }

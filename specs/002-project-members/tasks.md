@@ -661,13 +661,13 @@ sprint activo se prueba con un doble del puerto `SprintDirectory`.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T070 [P] [US6] Pruebas unitarias **obligatorias** de la máquina de estados en
+- [X] T070 [P] [US6] Pruebas unitarias **obligatorias** de la máquina de estados en
       `backend/internal/projects/domain/status_test.go`, cubriendo RN-09 y SC-009: las **dos**
       transiciones válidas (`planned → in_progress` e `in_progress → finished`) se aceptan y las
       **seis** restantes se rechazan — `planned → planned`, `planned → finished`,
       `in_progress → planned`, `in_progress → in_progress`, `finished → planned` y
       `finished → in_progress`
-- [ ] T071 [P] [US6] Pruebas unitarias **obligatorias** de la finalización en
+- [X] T071 [P] [US6] Pruebas unitarias **obligatorias** de la finalización en
       `backend/internal/projects/service/status_service_test.go`, con un doble de `testify` del
       puerto `SprintDirectory`, cubriendo RN-10, RN-11 y RN-16: la fecha de finalización real se
       deriva de `time.Now().In(systemLocation)` y es la **fecha de calendario en la zona del
@@ -676,7 +676,7 @@ sprint activo se prueba con un doble del puerto `SprintDirectory`.
       **sin** fecha real; y un proyecto `finished` rechaza todo cambio de estado sin alterar la
       fecha ya registrada (**SC-010**: todo proyecto finalizado tiene fecha real y ninguna cambia
       después de registrarse) — depende de T003 y T011
-- [ ] T072 [US6] Pruebas de integración de la historia en
+- [X] T072 [US6] Pruebas de integración de la historia en
       `backend/internal/projects/delivery/handler_test.go`, una función por escenario precedida por
       `// Escenario: <nombre del escenario> (002/US6)`: `TestUS6_RecorridoCompleto` (las dos
       transiciones y la fecha real registrada), `TestUS6_FinalizacionAnticipada` (fecha real
@@ -687,7 +687,7 @@ sprint activo se prueba con un doble del puerto `SprintDirectory`.
       `TestUS6_MismoEstadoRechazado`, `TestUS6_FinalizadoEsSoloLectura`, `TestUS6_NoEsPropietario`
       (`403`) y `TestUS6_FinalizarConSprintActivo` (`409` y el proyecto sigue `in_progress`) —
       depende de T063
-- [ ] T073 [P] [US6] Pruebas de frontend en
+- [X] T073 [P] [US6] Pruebas de frontend en
       `frontend/src/features/projects/components/status-actions.test.tsx` con
       `describe("002/US6 - Avanzar el estado del proyecto")` y un `it` por escenario, incluido que
       con el proyecto Finalizado la interfaz **oculta** las acciones de administración — depende
@@ -695,28 +695,37 @@ sprint activo se prueba con un doble del puerto `SprintDirectory`.
 
 ### Implementación de la Historia 6
 
-- [ ] T074 [US6] Implementar las transiciones permitidas en
+- [X] T074 [US6] Implementar las transiciones permitidas en
       `backend/internal/projects/domain/status.go`: **únicamente** `planned → in_progress` e
       `in_progress → finished`; cualquier otra combinación se rechaza con el error de transición
       inválida, indicando la transición permitida (FR-037, FR-038) — depende de T008 y T070
-- [ ] T075 [US6] Implementar el cambio de estado en
+- [X] T075 [US6] Implementar el cambio de estado en
       `backend/internal/projects/service/status_service.go`: valida la transición con T074, consulta
       `SprintDirectory.FindActiveSprint` antes de finalizar y rechaza si hay uno activo (FR-041,
       RN-16), y al entrar en `finished` fija `actual_end_date` con la fecha de calendario del momento
       del cambio **en la zona horaria de `APP_TIMEZONE`** (FR-039). Ninguna operación modifica una
       `actual_end_date` ya registrada (FR-040, RN-10) — depende de T013, T065, T071 y T074
-- [ ] T076 [US6] Implementar el manejador `changeProjectStatus` en
+- [X] T075a [US6] Pruebas unitarias **obligatorias** del guardado del cambio de estado en
+      `backend/internal/projects/service/status_service_test.go`: el doble del repositorio
+      registra las llamadas a `UpdateStatus`, y las pruebas exigen que `ChangeStatus` guarde
+      únicamente con `UpdateStatus` y nunca con `Update` (FR-016, FR-039, FR-040) — depende de T071
+- [X] T075b [US6] Agregar `UpdateStatus(ctx, project) error` a `domain.ProjectRepository` en
+      `backend/internal/projects/domain/repository.go` e implementarlo en
+      `backend/internal/projects/repository/project_repository.go`, escribiendo solo `status`,
+      `actual_end_date` y `updated_at`; `StatusService.ChangeStatus` lo usa en lugar de `Update`,
+      que sigue sin tocar esas columnas (FR-016) — depende de T075 y T075a
+- [X] T076 [US6] Implementar el manejador `changeProjectStatus` en
       `backend/internal/projects/delivery/handler.go` con anotaciones `swag` en español y
       registrarlo como `PATCH /api/v1/projects/{projectId}/status` en el subgrupo de administración
       de `backend/internal/projects/delivery/routes.go`, con `StatusChangeRequest` en
       `backend/internal/projects/delivery/dto.go` y las respuestas `200`, `400` (estado destino
       fuera de los tres valores), `401`, `403`, `404` y `409` con mensajes distintos para salto,
       retroceso, mismo estado, sprint activo y solo lectura — depende de T067 y T075
-- [ ] T077 [US6] Implementar la llamada de cambio de estado en
+- [X] T077 [US6] Implementar la llamada de cambio de estado en
       `frontend/src/features/projects/api.ts` y el `StatusActions` en
       `frontend/src/features/projects/components/status-actions.tsx`, que ofrece **solo** la
       transición disponible según el estado actual — depende de T068
-- [ ] T078 [US6] Montar el `StatusActions` en
+- [X] T078 [US6] Montar el `StatusActions` en
       `frontend/src/app/projects/[projectId]/page.tsx` y ocultar todas las acciones de
       administración cuando `readOnly` es `true`, mostrando en su lugar la fecha de finalización
       real (FR-018, escenario US4-2) — depende de T061 y T077

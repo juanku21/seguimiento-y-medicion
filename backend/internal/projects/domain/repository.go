@@ -38,7 +38,8 @@ type MemberView struct {
 // sección 7; Principio III). Create recibe la membresía del propietario para persistir el proyecto
 // y esa membresía en una sola transacción, sin exponer la transacción al servicio (FR-007, FR-010).
 // FindByID resuelve la vista de estado y las acciones de administración, Update modifica los datos
-// y el estado, y ListForMember devuelve los proyectos de los que el usuario es integrante. No se
+// editables, UpdateStatus guarda solo el estado y la fecha de finalización real (FR-016, FR-039,
+// FR-040), y ListForMember devuelve los proyectos de los que el usuario es integrante. No se
 // declaran borrado de proyecto (RC-05), listado global ni búsquedas por otros campos. Cada
 // operación devuelve el error de negocio y nunca gorm.ErrRecordNotFound ni (nil, nil): si el
 // proyecto no existe, FindByID devuelve ErrProjectNotFound (FR-049); Create y Update traducen
@@ -48,6 +49,7 @@ type ProjectRepository interface {
 	Create(ctx context.Context, project *Project, ownerMembership *ProjectMember) error
 	FindByID(ctx context.Context, id uuid.UUID) (*Project, error)
 	Update(ctx context.Context, project *Project) error
+	UpdateStatus(ctx context.Context, project *Project) error
 	ListForMember(ctx context.Context, userID uuid.UUID) ([]ProjectListItem, error)
 }
 

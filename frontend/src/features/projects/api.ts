@@ -2,6 +2,7 @@ import {
   deleteEmpty,
   getJson,
   isRecord,
+  patchAuthorizedJson,
   postAuthorizedJson,
   putAuthorizedJson,
   type ApiResult,
@@ -13,6 +14,7 @@ import type {
   ProjectListItem,
   ProjectListResponse,
   ProjectMemberView,
+  ProjectStatus,
 } from "@/types/project";
 
 // Reconoce el resumen del backlog (BacklogSummary) con los contadores y los totales que muestra la
@@ -147,4 +149,19 @@ export function getProjectDetail(
   projectId: string,
 ): Promise<ApiResult<ProjectDetail>> {
   return getJson(`/api/v1/projects/${projectId}`, isProjectDetail);
+}
+
+// Hace avanzar el proyecto al estado indicado con PATCH /api/v1/projects/{projectId}/status, usando
+// la sesión de la pestaña (002/US6). Las reglas de la máquina de estados las resuelve el backend
+// (FR-037 a FR-040): sus rechazos (400, 403, 404, 409) llegan con el mensaje recibido y ante un 401
+// el cliente HTTP descarta la sesión (FR-016).
+export function changeProjectStatus(
+  projectId: string,
+  status: ProjectStatus,
+): Promise<ApiResult<ProjectDetail>> {
+  return patchAuthorizedJson(
+    `/api/v1/projects/${projectId}/status`,
+    { status },
+    isProjectDetail,
+  );
 }

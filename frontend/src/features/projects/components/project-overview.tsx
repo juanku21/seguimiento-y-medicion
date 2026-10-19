@@ -5,6 +5,7 @@ import { Alert } from "@/components/alert";
 import { getProjectDetail } from "@/features/projects/api";
 import { MemberList } from "@/features/projects/components/member-list";
 import { ProjectStatusCard } from "@/features/projects/components/project-status-card";
+import { StatusActions } from "@/features/projects/components/status-actions";
 import { useRequireSession } from "@/hooks/use-session";
 import type { ProjectDetail } from "@/types/project";
 
@@ -29,8 +30,8 @@ export function isViewerOwner(project: ProjectDetail): boolean {
 }
 
 // Vista del proyecto en una sola pantalla (002/US4, SC-003): pide el estado una sola vez y reparte
-// la respuesta entre la tarjeta de estado y la lista de integrantes, que para el propietario ya
-// incluye el formulario de alta (002/US3). El 404 llega con el mensaje del backend, que no revela
+// la respuesta entre la tarjeta de estado, las acciones de cambio de estado (002/US6) y la lista de
+// integrantes, que para el propietario ya incluye el formulario de alta (002/US3). El 404 llega con el mensaje del backend, que no revela
 // si el proyecto existe (FR-049); ante un 401 el cliente HTTP borra el token y la guardia lleva a
 // /login (FR-016).
 export function ProjectOverview({ projectId }: ProjectOverviewProps) {
@@ -70,11 +71,23 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
     );
   }
 
-  // Estado y equipo del proyecto, ambos a partir de la misma respuesta.
+  // Estado y equipo del proyecto, ambos a partir de la misma respuesta. Solo el propietario ve
+  // las acciones de administración, y ninguna se ofrece si el proyecto es de solo lectura: en ese
+  // caso la tarjeta muestra la fecha de finalización real (FR-018, US4-2). El proyecto que devuelve
+  // un cambio de estado reemplaza al vigente (002/US6).
   const { project } = state;
+  const viewerIsOwner = isViewerOwner(project);
   return (
     <div className="flex flex-col gap-8">
       <ProjectStatusCard project={project} />
+      {viewerIsOwner && !project.readOnly && (
+        <StatusActions
+          project={project}
+          onStatusChange={(updated) =>
+            setState({ status: "loaded", project: updated })
+          }
+        />
+      )}
       <section
         aria-labelledby="members-heading"
         className="flex flex-col gap-4"
@@ -85,7 +98,8 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
         <MemberList
           projectId={project.id}
           members={project.members}
-          viewerIsOwner={isViewerOwner(project)}
+          viewerIsOwner={viewerIsOwner}
+          readOnly={project.readOnly}
         />
       </section>
     </div>

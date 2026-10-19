@@ -86,6 +86,21 @@ func (r *ProjectRepository) Update(ctx context.Context, project *domain.Project)
 	return nil
 }
 
+// UpdateStatus guarda el cambio de estado del proyecto escribiendo solo status, actual_end_date y
+// updated_at (FR-016, FR-039, FR-040), en una sola sentencia UPDATE filtrada por la clave primaria.
+// Select limita la sentencia a esas columnas, así que los datos editables nunca se tocan, y además
+// escribe los valores cero, como una fecha real que sigue en nil.
+func (r *ProjectRepository) UpdateStatus(ctx context.Context, project *domain.Project) error {
+	err := r.db.WithContext(ctx).
+		Model(project).
+		Select("status", "actual_end_date", "updated_at").
+		Updates(project).Error
+	if err != nil {
+		return fmt.Errorf("actualizar el estado del proyecto: %w", err)
+	}
+	return nil
+}
+
 // ListForMember devuelve los proyectos de los que el usuario es integrante con una sola consulta:
 // une project_members, filtrada por el usuario, con projects, y cuenta los integrantes de cada
 // proyecto con una subconsulta escalar para evitar el N+1 (research.md sección 11). Como el filtro

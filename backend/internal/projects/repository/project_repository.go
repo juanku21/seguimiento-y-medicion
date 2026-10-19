@@ -58,9 +58,32 @@ func (r *ProjectRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain
 	return &project, nil
 }
 
-// Update modifica los datos y el estado del proyecto. Firma mínima de T019.
+// Update modifica los datos editables del proyecto en una sola sentencia UPDATE filtrada por su
+// clave primaria, de modo que no hay cambios parciales (FR-012, FR-015). Select limita la sentencia a
+// esas columnas y a updated_at, así que status y actual_end_date nunca se tocan (FR-016), y además
+// escribe los valores cero, como una descripción que pasa a nil. No se consulta antes de escribir: la
+// unicidad del nombre la garantiza el índice (owner_id, name_normalized), que no se viola si el
+// proyecto conserva su propio nombre (FR-014), y su violación se traduce a ErrProjectNameTaken.
 func (r *ProjectRepository) Update(ctx context.Context, project *domain.Project) error {
-	return errors.New("not implemented")
+	err := r.db.WithContext(ctx).
+		Model(project).
+		Select(
+			"name",
+			"name_normalized",
+			"description",
+			"start_date",
+			"planned_end_date",
+			"hours_per_story_point_hundredths",
+			"updated_at",
+		).
+		Updates(project).Error
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return domain.ErrProjectNameTaken
+	}
+	if err != nil {
+		return fmt.Errorf("actualizar el proyecto: %w", err)
+	}
+	return nil
 }
 
 // ListForMember devuelve los proyectos de los que el usuario es integrante con una sola consulta:

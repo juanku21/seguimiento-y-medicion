@@ -3,7 +3,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -88,10 +87,35 @@ func (s *ProjectService) Get(ctx context.Context, projectID uuid.UUID) (*Project
 // CreateProjectInput.
 type UpdateProjectInput = CreateProjectInput
 
-// Update modifica los datos del proyecto indicado y devuelve su vista (FR-012 a FR-018). Firma
-// mínima de T062: la implementa T066.
+// Update modifica los cinco datos editables del proyecto indicado y devuelve su vista (FR-012 a
+// FR-018). La propiedad ya la verificó delivery y la entrada llega validada con las mismas reglas
+// que la creación (FR-013). Un proyecto finalizado se rechaza con ErrProjectReadOnly antes de
+// escribir (FR-018, RN-11). El estado, la fecha de finalización real, la identidad y el propietario
+// no se tocan (FR-016), y solo se escribe el proyecto, así que los sprints cerrados conservan su
+// factor (FR-017, RN-15). Un nombre usado por otro proyecto del propietario llega del repositorio
+// como ErrProjectNameTaken sin cambios parciales y se propaga envuelto (FR-014, FR-015).
 func (s *ProjectService) Update(ctx context.Context, projectID uuid.UUID, input UpdateProjectInput) (*ProjectView, error) {
-	return nil, errors.New("not implemented")
+	project, err := s.projects.FindByID(ctx, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("buscar proyecto: %w", err)
+	}
+	if project.Status == domain.ProjectStatusFinished {
+		return nil, domain.ErrProjectReadOnly
+	}
+
+	// Se copia el proyecto antes de aplicar los cambios para no alterar el leído si el UPDATE falla.
+	updated := *project
+	updated.Name = input.Name
+	updated.NameNormalized = input.NameNormalized
+	updated.Description = input.Description
+	updated.StartDate = input.StartDate
+	updated.PlannedEndDate = input.PlannedEndDate
+	updated.HoursPerStoryPointHundredths = input.HoursPerStoryPointHundredths
+	if err := s.projects.Update(ctx, &updated); err != nil {
+		return nil, fmt.Errorf("modificar proyecto: %w", err)
+	}
+
+	return s.buildView(ctx, &updated)
 }
 
 // emptyProjectListMessage es la indicación en español que acompaña al listado vacío, para que la

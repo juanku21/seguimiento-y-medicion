@@ -20,9 +20,10 @@ export type MemberListProps = {
 
 // Lista de integrantes del proyecto (002/US3). Guarda los integrantes en su propio estado para
 // reflejar las altas y las bajas sin volver a consultar. Solo el propietario ve los correos, el
-// formulario de alta y la acción de quitar en las filas de los demás (FR-025, FR-030); quien no es
-// propietario solo ve la lista. Las restricciones de dominio, como el proyecto finalizado, las
-// resuelve el backend y su mensaje se muestra tal cual llega.
+// formulario de alta y la acción de quitar en las filas de los demás (FR-025, FR-030), y estas dos
+// acciones se ocultan si el proyecto es de solo lectura (FR-018); quien no es propietario solo ve
+// la lista. Las demás restricciones de dominio las resuelve el backend y su mensaje se muestra tal
+// cual llega.
 export function MemberList({
   projectId,
   members,

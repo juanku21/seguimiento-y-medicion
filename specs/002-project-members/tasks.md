@@ -725,7 +725,7 @@ sprint activo se prueba con un doble del puerto `SprintDirectory`.
       `frontend/src/features/projects/api.ts` y el `StatusActions` en
       `frontend/src/features/projects/components/status-actions.tsx`, que ofrece **solo** la
       transición disponible según el estado actual — depende de T068
-- [ ] T078 [US6] Montar el `StatusActions` en
+- [X] T078 [US6] Montar el `StatusActions` en
       `frontend/src/app/projects/[projectId]/page.tsx` y ocultar todas las acciones de
       administración cuando `readOnly` es `true`, mostrando en su lugar la fecha de finalización
       real (FR-018, escenario US4-2) — depende de T061 y T077

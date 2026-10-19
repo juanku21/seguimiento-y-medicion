@@ -30,8 +30,8 @@ export function isViewerOwner(project: ProjectDetail): boolean {
 }
 
 // Vista del proyecto en una sola pantalla (002/US4, SC-003): pide el estado una sola vez y reparte
-// la respuesta entre la tarjeta de estado y la lista de integrantes, que para el propietario ya
-// incluye el formulario de alta (002/US3). El 404 llega con el mensaje del backend, que no revela
+// la respuesta entre la tarjeta de estado, las acciones de cambio de estado (002/US6) y la lista de
+// integrantes, que para el propietario ya incluye el formulario de alta (002/US3). El 404 llega con el mensaje del backend, que no revela
 // si el proyecto existe (FR-049); ante un 401 el cliente HTTP borra el token y la guardia lleva a
 // /login (FR-016).
 export function ProjectOverview({ projectId }: ProjectOverviewProps) {

@@ -1673,3 +1673,274 @@ func TestUS4_VistaDeEstadoSinNMasUno(t *testing.T) {
 	withSixMembers := queriesOfView(t)
 	assert.Equal(t, withOwnerOnly, withSixMembers, "la cantidad de consultas no debería crecer con los integrantes")
 }
+
+// putProject envía el cuerpo a PUT /api/v1/projects/{projectId} con el token recibido como Bearer.
+func (e projectsTestEnv) putProject(t *testing.T, token string, projectID uuid.UUID, body map[string]any) *httptest.ResponseRecorder {
+	t.Helper()
+	payload, err := json.Marshal(body)
+	require.NoError(t, err, "no se pudo serializar la solicitud")
+	req := httptest.NewRequest(http.MethodPut, projectDetailPath(projectID), bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, req)
+	return rec
+}
+
+// updatedProjectInputBody devuelve un conjunto completo de valores nuevos y válidos para el proyecto
+// sembrado con seedProjectInStatus; cada prueba modifica solo el campo que le interesa.
+func updatedProjectInputBody() map[string]any {
+	return map[string]any{
+		"name":               "Portal de Clientes v2",
+		"description":        "Rediseño del portal de autogestión, fase 2.",
+		"startDate":          "2026-10-05",
+		"plannedEndDate":     "2027-02-28",
+		"hoursPerStoryPoint": json.Number("8"),
+	}
+}
+
+// requireUpdatedProject exige un 200 cuyo cuerpo sea un ProjectDetail y lo devuelve decodificado.
+func requireUpdatedProject(t *testing.T, rec *httptest.ResponseRecorder) projectDetailBody {
+	t.Helper()
+	require.Equal(t, http.StatusOK, rec.Code, "cuerpo: %s", rec.Body.String())
+	var body projectDetailBody
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "el cuerpo del 200 no es JSON válido: %s", rec.Body.String())
+	return body
+}
+
+// Escenario: Modificación exitosa (002/US5)
+// El propietario de un proyecto Planificado cambia nombre, descripción, fechas y factor por valores
+// válidos: la respuesta es 200 con el proyecto actualizado, la base y la vista de estado reflejan los
+// nuevos valores, y el estado y la fecha de finalización real no cambian (FR-012, FR-016). El cuerpo
+// trae además un actualEndDate, que se ignora porque esa fecha no se edita por ninguna vía (FR-040).
+func TestUS5_ModificacionExitosa(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusPlanned)
+	body := updatedProjectInputBody()
+	body["actualEndDate"] = "2026-11-30"
+
+	got := requireUpdatedProject(t, env.putProject(t, token, projectID, body))
+
+	// La respuesta trae los valores nuevos con el estado y la fecha real intactos.
+	assert.Equal(t, projectID.String(), got.ID)
+	assert.Equal(t, "Portal de Clientes v2", got.Name)
+	if assert.NotNil(t, got.Description) {
+		assert.Equal(t, "Rediseño del portal de autogestión, fase 2.", *got.Description)
+	}
+	assert.Equal(t, "2026-10-05", got.StartDate)
+	assert.Equal(t, "2027-02-28", got.PlannedEndDate)
+	assert.InDelta(t, 8.0, got.HoursPerStoryPoint, 1e-9)
+	assert.Equal(t, "planned", got.Status)
+	assert.Nil(t, got.ActualEndDate, "la fecha de finalización real no debería cambiar")
+	assert.Equal(t, ownerID.String(), got.Owner.ID)
+
+	// La base guarda los valores nuevos, con el nombre normalizado recalculado.
+	stored := findStoredProject(t, env.db, projectID.String())
+	assert.Equal(t, "Portal de Clientes v2", stored.Name)
+	assert.Equal(t, "portal de clientes v2", stored.NameNormalized)
+	assert.Equal(t, "2026-10-05", stored.StartDate.Format(time.DateOnly))
+	assert.Equal(t, "2027-02-28", stored.PlannedEndDate.Format(time.DateOnly))
+	assert.Equal(t, 800, stored.HoursPerStoryPointHundredths)
+	assert.Equal(t, domain.ProjectStatusPlanned, stored.Status)
+	assert.Nil(t, stored.ActualEndDate)
+
+	// La vista de estado refleja los nuevos valores.
+	view, _ := requireProjectDetail(t, env.get(t, token, projectDetailPath(projectID)))
+	assert.Equal(t, "Portal de Clientes v2", view.Name)
+	assert.Equal(t, "2027-02-28", view.PlannedEndDate)
+	assert.InDelta(t, 8.0, view.HoursPerStoryPoint, 1e-9)
+}
+
+// Escenario: Proyecto en curso se modifica (002/US5)
+// Sobre un proyecto En curso, el propietario corre la fecha de finalización prevista a una fecha
+// posterior: el cambio se acepta porque solo el estado Finalizado bloquea las modificaciones, y el
+// proyecto sigue En curso (FR-016, FR-018).
+func TestUS5_ProyectoEnCursoSeModifica(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress)
+	body := validProjectInputBody()
+	body["plannedEndDate"] = "2027-01-31"
+
+	got := requireUpdatedProject(t, env.putProject(t, token, projectID, body))
+
+	assert.Equal(t, "2027-01-31", got.PlannedEndDate)
+	assert.Equal(t, "in_progress", got.Status)
+	assert.Nil(t, got.ActualEndDate)
+	stored := findStoredProject(t, env.db, projectID.String())
+	assert.Equal(t, "2027-01-31", stored.PlannedEndDate.Format(time.DateOnly))
+	assert.Equal(t, domain.ProjectStatusInProgress, stored.Status)
+}
+
+// Escenario: Mismo nombre que ya tenía (002/US5)
+// El propietario renombra el proyecto con el mismo nombre que ya tenía, tal cual o con otra
+// capitalización y espacios extremos: el cambio se acepta porque la unicidad del nombre excluye al
+// propio proyecto (FR-014), y el resto de los datos se actualiza.
+func TestUS5_MismoNombreQueYaTenia(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    string
+		wantName string
+	}{
+		{"idéntico", "Portal de Clientes", "Portal de Clientes"},
+		{"otra capitalización y espacios", "  PORTAL de clientes  ", "PORTAL de clientes"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newProjectsTestEnv(t)
+			ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+			projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusPlanned)
+			body := updatedProjectInputBody()
+			body["name"] = tc.input
+
+			got := requireUpdatedProject(t, env.putProject(t, token, projectID, body))
+
+			assert.Equal(t, tc.wantName, got.Name)
+			assert.Equal(t, "2027-02-28", got.PlannedEndDate, "el resto de los datos debería actualizarse")
+			assert.Equal(t, int64(1), countProjectRows(t, env.db, "owner_id = ?", ownerID))
+		})
+	}
+}
+
+// Escenario: Cambio de factor con sprints cerrados (002/US5)
+// El propietario de un proyecto En curso cambia el factor de 6 a 8: el proyecto pasa a 8 y ninguna
+// otra tabla cambia, de modo que los sprints cerrados conservan el factor vigente al cerrarse y sus
+// métricas no se recalculan (FR-017, RN-15). Las tablas de sprints las agrega la spec 004; la
+// instantánea de todas las tablas salvo projects y project_members las incluirá cuando existan.
+func TestUS5_CambioDeFactorConSprintsCerrados(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress)
+	require.NoError(t, env.db.Model(&domain.Project{}).Where("id = ?", projectID).
+		Update("hours_per_story_point_hundredths", 600).Error, "no se pudo fijar el factor 6")
+	membersBefore := memberRowsOf(t, env.db, projectID)
+	before := tableSnapshots(t, env.db)
+	delete(before, "projects")
+	body := validProjectInputBody()
+	body["hoursPerStoryPoint"] = json.Number("8")
+
+	got := requireUpdatedProject(t, env.putProject(t, token, projectID, body))
+
+	assert.InDelta(t, 8.0, got.HoursPerStoryPoint, 1e-9)
+	assert.Equal(t, 800, findStoredProject(t, env.db, projectID.String()).HoursPerStoryPointHundredths)
+	after := tableSnapshots(t, env.db)
+	delete(after, "projects")
+	assert.Equal(t, before, after, "el cambio del factor no debería tocar ninguna otra tabla")
+	assert.Equal(t, membersBefore, memberRowsOf(t, env.db, projectID), "las membresías no deberían cambiar")
+}
+
+// Escenario: Límites del factor (002/US5)
+// El propietario cambia el factor al mínimo (0,01) y al máximo (40) admitidos: ambos cambios se
+// aceptan y se guardan como 1 y 4000 centésimas (FR-006, FR-013, RN-07).
+func TestUS5_LimitesDelFactor(t *testing.T) {
+	cases := []struct {
+		name       string
+		factor     json.Number
+		want       float64
+		hundredths int
+	}{
+		{"mínimo 0,01", "0.01", 0.01, 1},
+		{"máximo 40", "40", 40, 4000},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newProjectsTestEnv(t)
+			ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+			projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusPlanned)
+			body := validProjectInputBody()
+			body["hoursPerStoryPoint"] = tc.factor
+
+			got := requireUpdatedProject(t, env.putProject(t, token, projectID, body))
+
+			assert.InDelta(t, tc.want, got.HoursPerStoryPoint, 1e-9)
+			assert.Equal(t, tc.hundredths, findStoredProject(t, env.db, projectID.String()).HoursPerStoryPointHundredths)
+		})
+	}
+}
+
+// Escenario: Nombre de otro proyecto propio (002/US5)
+// El propietario tiene "Portal de Clientes" y "Backoffice" e intenta renombrar el segundo como
+// "  portal de clientes  ": la modificación se rechaza con 409 por nombre repetido y el proyecto
+// queda exactamente como estaba, sin aplicar tampoco los demás cambios (FR-004, FR-014, FR-015).
+func TestUS5_NombreDeOtroProyectoPropio(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusPlanned)
+	projectID := seedListedProject(t, env.db, ownerID, listedProjectSeed{
+		name: "Backoffice", status: domain.ProjectStatusPlanned,
+		startDate: "2026-10-01", plannedEndDate: "2026-12-20",
+	})
+	before := findStoredProject(t, env.db, projectID.String())
+	body := updatedProjectInputBody()
+	body["name"] = "  portal de clientes  "
+
+	rec := env.putProject(t, token, projectID, body)
+
+	requireErrorResponse(t, rec, http.StatusConflict, projectNameTakenMessage)
+	assert.Equal(t, before, findStoredProject(t, env.db, projectID.String()), "el proyecto debería quedar como estaba")
+}
+
+// Escenario: Entrada inválida sin cambio parcial (002/US5)
+// El propietario envía un nombre vacío, una fecha prevista anterior a la de inicio, un factor fuera
+// de rango o un factor con más de dos decimales, junto con otros campos válidos y distintos de los
+// actuales: la modificación se rechaza con 400 indicando el campo y el motivo, y no se aplica ningún
+// cambio, ni siquiera el de los campos válidos (FR-013, FR-015).
+func TestUS5_EntradaInvalidaSinCambioParcial(t *testing.T) {
+	cases := []struct {
+		name  string
+		field string
+		value any
+		parts []string
+	}{
+		{"nombre vacío", "name", "   ", nil},
+		{"fecha prevista anterior", "plannedEndDate", "2026-09-30", []string{"anterior"}},
+		{"factor fuera de rango", "hoursPerStoryPoint", json.Number("40.01"), []string{"40"}},
+		{"factor con más de dos decimales", "hoursPerStoryPoint", json.Number("6.555"), []string{"2 decimales"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newProjectsTestEnv(t)
+			ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+			projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusPlanned)
+			before := findStoredProject(t, env.db, projectID.String())
+			body := updatedProjectInputBody()
+			body["startDate"] = "2026-10-01"
+			body[tc.field] = tc.value
+
+			requireFieldRejected(t, env.putProject(t, token, projectID, body), tc.field, tc.parts...)
+			assert.Equal(t, before, findStoredProject(t, env.db, projectID.String()), "no debería aplicarse ningún cambio parcial")
+		})
+	}
+}
+
+// Escenario: No es propietario (002/US5)
+// Un integrante que no es el propietario intenta modificar el proyecto: la acción se rechaza con 403
+// por falta de permiso y el proyecto no cambia (FR-047).
+func TestUS5_NoEsPropietario(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress, brunoID)
+	before := findStoredProject(t, env.db, projectID.String())
+
+	rec := env.putProject(t, brunoToken, projectID, updatedProjectInputBody())
+
+	requireErrorResponse(t, rec, http.StatusForbidden, memberNotOwnerMessage)
+	assert.Equal(t, before, findStoredProject(t, env.db, projectID.String()), "el proyecto no debería cambiar")
+}
+
+// Escenario: Proyecto finalizado (002/US5)
+// El propietario de un proyecto Finalizado intenta modificar sus datos: la acción se rechaza con 409
+// porque el proyecto es de solo lectura, y nada cambia (FR-018, RN-11).
+func TestUS5_ProyectoFinalizado(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusFinished)
+	before := findStoredProject(t, env.db, projectID.String())
+
+	rec := env.putProject(t, token, projectID, updatedProjectInputBody())
+
+	requireErrorResponse(t, rec, http.StatusConflict, projectReadOnlyMessage)
+	assert.Equal(t, before, findStoredProject(t, env.db, projectID.String()), "el proyecto no debería cambiar")
+}

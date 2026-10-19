@@ -39,6 +39,18 @@ type CreateProjectInput struct {
 	HoursPerStoryPointHundredths int
 }
 
+// applyTo copia los cinco datos editables sobre el proyecto (FR-012), para que la creación y la
+// modificación compartan en un solo lugar qué datos aporta la entrada (FR-013). No toca identidad,
+// propietario, estado ni fecha de finalización real (FR-016).
+func (in CreateProjectInput) applyTo(project *domain.Project) {
+	project.Name = in.Name
+	project.NameNormalized = in.NameNormalized
+	project.Description = in.Description
+	project.StartDate = in.StartDate
+	project.PlannedEndDate = in.PlannedEndDate
+	project.HoursPerStoryPointHundredths = in.HoursPerStoryPointHundredths
+}
+
 // Create crea el proyecto del propietario en estado planned y sin fecha de finalización real, junto
 // con la membresía que lo deja como primer integrante (FR-007, FR-008, RN-01), y devuelve su vista.
 // Los dos registros se persisten en una sola transacción del repositorio (FR-010); un nombre ya
@@ -46,17 +58,12 @@ type CreateProjectInput struct {
 // delivery lo reconozca con errors.Is (FR-004, FR-011).
 func (s *ProjectService) Create(ctx context.Context, ownerID uuid.UUID, input CreateProjectInput) (*ProjectView, error) {
 	project := &domain.Project{
-		ID:                           uuid.New(),
-		OwnerID:                      ownerID,
-		Name:                         input.Name,
-		NameNormalized:               input.NameNormalized,
-		Description:                  input.Description,
-		StartDate:                    input.StartDate,
-		PlannedEndDate:               input.PlannedEndDate,
-		ActualEndDate:                nil,
-		HoursPerStoryPointHundredths: input.HoursPerStoryPointHundredths,
-		Status:                       domain.ProjectStatusPlanned,
+		ID:            uuid.New(),
+		OwnerID:       ownerID,
+		ActualEndDate: nil,
+		Status:        domain.ProjectStatusPlanned,
 	}
+	input.applyTo(project)
 	ownerMembership := &domain.ProjectMember{
 		ID:        uuid.New(),
 		ProjectID: project.ID,
@@ -80,6 +87,37 @@ func (s *ProjectService) Get(ctx context.Context, projectID uuid.UUID) (*Project
 	}
 
 	return s.buildView(ctx, project)
+}
+
+// UpdateProjectInput son los cinco datos editables del proyecto, ya validados y normalizados por
+// delivery con la misma validación que la creación (FR-012, FR-013); por eso comparte la forma de
+// CreateProjectInput.
+type UpdateProjectInput = CreateProjectInput
+
+// Update modifica los cinco datos editables del proyecto indicado y devuelve su vista (FR-012 a
+// FR-018). La propiedad ya la verificó delivery y la entrada llega validada con las mismas reglas
+// que la creación (FR-013). Un proyecto finalizado se rechaza con ErrProjectReadOnly antes de
+// escribir (FR-018, RN-11). El estado, la fecha de finalización real, la identidad y el propietario
+// no se tocan (FR-016), y solo se escribe el proyecto, así que los sprints cerrados conservan su
+// factor (FR-017, RN-15). Un nombre usado por otro proyecto del propietario llega del repositorio
+// como ErrProjectNameTaken sin cambios parciales y se propaga envuelto (FR-014, FR-015).
+func (s *ProjectService) Update(ctx context.Context, projectID uuid.UUID, input UpdateProjectInput) (*ProjectView, error) {
+	project, err := s.projects.FindByID(ctx, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("buscar proyecto: %w", err)
+	}
+	if project.Status == domain.ProjectStatusFinished {
+		return nil, domain.ErrProjectReadOnly
+	}
+
+	// Se copia el proyecto antes de aplicar los cambios para no alterar el leído si el UPDATE falla.
+	updated := *project
+	input.applyTo(&updated)
+	if err := s.projects.Update(ctx, &updated); err != nil {
+		return nil, fmt.Errorf("modificar proyecto: %w", err)
+	}
+
+	return s.buildView(ctx, &updated)
 }
 
 // emptyProjectListMessage es la indicación en español que acompaña al listado vacío, para que la

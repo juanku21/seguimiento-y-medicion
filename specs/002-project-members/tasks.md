@@ -597,13 +597,13 @@ la vista de estado refleja los nuevos valores y que `status` y `actualEndDate` q
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T062 [P] [US5] Pruebas unitarias **obligatorias** de las reglas de la modificación en
+- [X] T062 [P] [US5] Pruebas unitarias **obligatorias** de las reglas de la modificación en
       `backend/internal/projects/service/project_service_test.go`, cubriendo FR-014, FR-015, FR-016
       y RN-15: la unicidad del nombre **excluye al propio proyecto**, así que renombrarlo con el
       mismo nombre que ya tenía se acepta; un rechazo no aplica **ningún cambio parcial**; la
       modificación **no altera** `status` ni `actual_end_date`; y el cambio del factor **no toca
       ninguna otra tabla**, de modo que los sprints cerrados conserven el suyo
-- [ ] T063 [US5] Pruebas de integración de la historia en
+- [X] T063 [US5] Pruebas de integración de la historia en
       `backend/internal/projects/delivery/handler_test.go`, una función por escenario precedida por
       `// Escenario: <nombre del escenario> (002/US5)`: `TestUS5_ModificacionExitosa`,
       `TestUS5_ProyectoEnCursoSeModifica` (solo `finished` bloquea),
@@ -613,33 +613,33 @@ la vista de estado refleja los nuevos valores y que `status` y `actualEndDate` q
       para nombre vacío, fecha prevista anterior, factor fuera de rango y factor con más de dos
       decimales), `TestUS5_NoEsPropietario` (`403`) y `TestUS5_ProyectoFinalizado` (`409`) — depende
       de T056
-- [ ] T064 [P] [US5] Pruebas de frontend en
+- [X] T064 [P] [US5] Pruebas de frontend en
       `frontend/src/features/projects/components/project-form.test.tsx` con
       `describe("002/US5 - Modificar los datos del proyecto")` y un `it` por escenario, sobre el
       mismo `ProjectForm` en modo edición — depende de T021
 
 ### Implementación de la Historia 5
 
-- [ ] T065 [US5] Implementar `FindByID(ctx, id)` y `Update(ctx, project)` en
+- [X] T065 [US5] Implementar `FindByID(ctx, id)` y `Update(ctx, project)` en
       `backend/internal/projects/repository/project_repository.go`, traduciendo
       `gorm.ErrDuplicatedKey` al error de nombre ya usado y actualizando `name`, `name_normalized`,
       `description`, `start_date`, `planned_end_date` y `hours_per_story_point_hundredths` en **una
       sola sentencia**, sin tocar `status` ni `actual_end_date` (FR-012, FR-015, FR-016) — depende
       de T037
-- [ ] T066 [US5] Implementar la modificación en
+- [X] T066 [US5] Implementar la modificación en
       `backend/internal/projects/service/project_service.go`, reutilizando **la misma validación**
       que la creación (FR-013) y rechazando el proyecto `finished` antes de tocar nada (FR-018,
       RN-11) — depende de T022, T062 y T065
-- [ ] T067 [US5] Implementar el manejador `updateProject` en
+- [X] T067 [US5] Implementar el manejador `updateProject` en
       `backend/internal/projects/delivery/handler.go` con anotaciones `swag` en español y
       registrarlo como `PUT /api/v1/projects/{projectId}` en el subgrupo de administración de
       `backend/internal/projects/delivery/routes.go`, devolviendo `200` con `ProjectDetail`, `400`,
       `401`, `403`, `404` y `409`. El campo `actualEndDate` que llegue en el cuerpo se **ignora**
       (FR-040) — depende de T059 y T066
-- [ ] T068 [US5] Implementar la llamada de modificación en
+- [X] T068 [US5] Implementar la llamada de modificación en
       `frontend/src/features/projects/api.ts` y el modo edición del `ProjectForm` en
       `frontend/src/features/projects/components/project-form.tsx` — depende de T060
-- [ ] T069 [US5] Crear la pantalla `frontend/src/app/projects/[projectId]/edit/page.tsx`, accesible
+- [X] T069 [US5] Crear la pantalla `frontend/src/app/projects/[projectId]/edit/page.tsx`, accesible
       solo al propietario — depende de T068
 
 **Checkpoint**: US1 a US5 funcionan de forma independiente.

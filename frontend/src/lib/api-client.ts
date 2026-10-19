@@ -112,7 +112,7 @@ export function postJson<T>(
 // (FR-016).
 async function authorizedRequest<T>(
   path: string,
-  method: "GET" | "POST" | "DELETE",
+  method: "GET" | "POST" | "PUT" | "DELETE",
   isData: (value: unknown) => value is T,
   body?: unknown,
 ): Promise<ApiResult<T>> {
@@ -157,6 +157,16 @@ export function postAuthorizedJson<T>(
   isData: (value: unknown) => value is T,
 ): Promise<ApiResult<T>> {
   return authorizedRequest(path, "POST", isData, body);
+}
+
+// Envía body como JSON con un PUT autenticado a la ruta indicada de la API, para las
+// modificaciones que reemplazan los datos editables de un recurso.
+export function putAuthorizedJson<T>(
+  path: string,
+  body: unknown,
+  isData: (value: unknown) => value is T,
+): Promise<ApiResult<T>> {
+  return authorizedRequest(path, "PUT", isData, body);
 }
 
 // Envía un DELETE autenticado a la ruta indicada de la API, para las bajas cuya respuesta exitosa

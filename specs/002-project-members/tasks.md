@@ -597,7 +597,7 @@ la vista de estado refleja los nuevos valores y que `status` y `actualEndDate` q
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T062 [P] [US5] Pruebas unitarias **obligatorias** de las reglas de la modificación en
+- [X] T062 [P] [US5] Pruebas unitarias **obligatorias** de las reglas de la modificación en
       `backend/internal/projects/service/project_service_test.go`, cubriendo FR-014, FR-015, FR-016
       y RN-15: la unicidad del nombre **excluye al propio proyecto**, así que renombrarlo con el
       mismo nombre que ya tenía se acepta; un rechazo no aplica **ningún cambio parcial**; la

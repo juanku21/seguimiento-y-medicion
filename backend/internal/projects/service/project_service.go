@@ -3,6 +3,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -80,6 +81,17 @@ func (s *ProjectService) Get(ctx context.Context, projectID uuid.UUID) (*Project
 	}
 
 	return s.buildView(ctx, project)
+}
+
+// UpdateProjectInput son los cinco datos editables del proyecto, ya validados y normalizados por
+// delivery con la misma validación que la creación (FR-012, FR-013); por eso comparte la forma de
+// CreateProjectInput.
+type UpdateProjectInput = CreateProjectInput
+
+// Update modifica los datos del proyecto indicado y devuelve su vista (FR-012 a FR-018). Firma
+// mínima de T062: la implementa T066.
+func (s *ProjectService) Update(ctx context.Context, projectID uuid.UUID, input UpdateProjectInput) (*ProjectView, error) {
+	return nil, errors.New("not implemented")
 }
 
 // emptyProjectListMessage es la indicación en español que acompaña al listado vacío, para que la

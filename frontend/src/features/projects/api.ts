@@ -3,6 +3,7 @@ import {
   getJson,
   isRecord,
   postAuthorizedJson,
+  putAuthorizedJson,
   type ApiResult,
 } from "@/lib/api-client";
 import type {
@@ -90,6 +91,21 @@ export function createProject(
   input: ProjectInput,
 ): Promise<ApiResult<ProjectDetail>> {
   return postAuthorizedJson("/api/v1/projects", input, isProjectDetail);
+}
+
+// Modifica los datos editables del proyecto con PUT /api/v1/projects/{projectId}, usando la sesión
+// de la pestaña. Se envían solo los cinco campos de ProjectInput: el estado y la fecha de
+// finalización real no son editables (FR-012, FR-016); los rechazos (400, 403, 404, 409) llegan con
+// el mensaje del backend y ante un 401 el cliente HTTP descarta la sesión.
+export function updateProject(
+  projectId: string,
+  input: ProjectInput,
+): Promise<ApiResult<ProjectDetail>> {
+  return putAuthorizedJson(
+    `/api/v1/projects/${projectId}`,
+    input,
+    isProjectDetail,
+  );
 }
 
 // Lista los proyectos de los que participa quien consulta con GET /api/v1/projects, usando la

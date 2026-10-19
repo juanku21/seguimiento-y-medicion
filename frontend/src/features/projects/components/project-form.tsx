@@ -5,7 +5,7 @@ import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
 import { Input } from "@/components/input";
 import { Textarea } from "@/components/textarea";
-import { createProject } from "@/features/projects/api";
+import { createProject, updateProject } from "@/features/projects/api";
 import {
   MAX_DESCRIPTION_LENGTH,
   MAX_HOURS_PER_STORY_POINT,
@@ -78,6 +78,18 @@ function validate(values: FormValues): FieldErrors {
   return errors;
 }
 
+// Convierte el proyecto vigente en los valores iniciales del formulario de edición; la descripción
+// ausente se muestra vacía y el factor se pasa a texto.
+function toFormValues(project: ProjectDetail): FormValues {
+  return {
+    name: project.name,
+    description: project.description ?? "",
+    startDate: project.startDate,
+    plannedEndDate: project.plannedEndDate,
+    hoursPerStoryPoint: String(project.hoursPerStoryPoint),
+  };
+}
+
 // Ubica junto a cada campo el detalle que informa el backend, descartando los que no son del
 // formulario.
 function toFieldErrors(fields: FieldError[]): FieldErrors {
@@ -96,16 +108,17 @@ type ProjectFormProps = {
   project?: ProjectDetail;
 };
 
-// Formulario de creación de proyecto (US1). Valida antes de enviar y, al crearse el proyecto,
-// confirma su nombre y su estado sin redirigir. Ante un 401 el cliente HTTP descarta la sesión.
-export function ProjectForm(_props: ProjectFormProps = {}) {
-  const [values, setValues] = useState<FormValues>(EMPTY_VALUES);
+// Formulario de creación (US1) y de modificación (US5) de proyecto. Valida antes de enviar y, al
+// guardarse, confirma el nombre y el estado devueltos sin redirigir. Ante un 401 el cliente HTTP
+// descarta la sesión.
+export function ProjectForm({ project }: ProjectFormProps = {}) {
+  const [values, setValues] = useState<FormValues>(() =>
+    project ? toFormValues(project) : EMPTY_VALUES,
+  );
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [createdProject, setCreatedProject] = useState<ProjectDetail | null>(
-    null,
-  );
+  const [savedProject, setSavedProject] = useState<ProjectDetail | null>(null);
   const submittingRef = useRef(false);
 
   // Actualiza un campo del formulario a partir de lo que se escribió.
@@ -113,7 +126,7 @@ export function ProjectForm(_props: ProjectFormProps = {}) {
     setValues((current) => ({ ...current, [field]: value }));
   }
 
-  // Envía la creación. La referencia descarta un segundo envío mientras el primero sigue en curso,
+  // Envía la creación o la modificación según el modo. La referencia descarta un segundo envío mientras el primero sigue en curso,
   // aun antes de que el botón deshabilitado llegue a renderizarse.
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -130,15 +143,18 @@ export function ProjectForm(_props: ProjectFormProps = {}) {
 
     submittingRef.current = true;
     setIsSubmitting(true);
-    const result = await createProject({
+    const input = {
       ...values,
       hoursPerStoryPoint: Number(values.hoursPerStoryPoint),
-    });
+    };
+    const result = project
+      ? await updateProject(project.id, input)
+      : await createProject(input);
     submittingRef.current = false;
     setIsSubmitting(false);
 
     if (result.ok) {
-      setCreatedProject(result.data);
+      setSavedProject(result.data);
       return;
     }
 
@@ -148,15 +164,17 @@ export function ProjectForm(_props: ProjectFormProps = {}) {
     setGeneralError(result.error.message);
   }
 
-  // Confirmación de la creación: la pantalla de estado del proyecto todavía no existe, así que se
-  // muestran su nombre y su estado en el lugar del formulario.
-  if (createdProject) {
+  // Confirmación de la creación o de la modificación: se muestran el nombre y el estado devueltos
+  // por el backend en el lugar del formulario.
+  if (savedProject) {
     return (
       <Alert variant="success">
-        <p className="font-medium">Proyecto creado</p>
+        <p className="font-medium">
+          {project ? "Proyecto actualizado" : "Proyecto creado"}
+        </p>
         <p>
-          {createdProject.name} · Estado:{" "}
-          {PROJECT_STATUS_LABELS[createdProject.status]}
+          {savedProject.name} · Estado:{" "}
+          {PROJECT_STATUS_LABELS[savedProject.status]}
         </p>
       </Alert>
     );
@@ -211,7 +229,7 @@ export function ProjectForm(_props: ProjectFormProps = {}) {
         error={fieldErrors.hoursPerStoryPoint}
       />
       <Button type="submit" disabled={isSubmitting}>
-        Crear proyecto
+        {project ? "Guardar cambios" : "Crear proyecto"}
       </Button>
     </form>
   );

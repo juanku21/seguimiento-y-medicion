@@ -112,7 +112,7 @@ export function postJson<T>(
 // (FR-016).
 async function authorizedRequest<T>(
   path: string,
-  method: "GET" | "POST" | "PUT" | "DELETE",
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   isData: (value: unknown) => value is T,
   body?: unknown,
 ): Promise<ApiResult<T>> {
@@ -167,6 +167,16 @@ export function putAuthorizedJson<T>(
   isData: (value: unknown) => value is T,
 ): Promise<ApiResult<T>> {
   return authorizedRequest(path, "PUT", isData, body);
+}
+
+// Envía body como JSON con un PATCH autenticado a la ruta indicada de la API, para los cambios
+// parciales de un recurso, como el avance de estado del proyecto.
+export function patchAuthorizedJson<T>(
+  path: string,
+  body: unknown,
+  isData: (value: unknown) => value is T,
+): Promise<ApiResult<T>> {
+  return authorizedRequest(path, "PATCH", isData, body);
 }
 
 // Envía un DELETE autenticado a la ruta indicada de la API, para las bajas cuya respuesta exitosa

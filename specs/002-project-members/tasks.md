@@ -721,7 +721,7 @@ sprint activo se prueba con un doble del puerto `SprintDirectory`.
       `backend/internal/projects/delivery/dto.go` y las respuestas `200`, `400` (estado destino
       fuera de los tres valores), `401`, `403`, `404` y `409` con mensajes distintos para salto,
       retroceso, mismo estado, sprint activo y solo lectura — depende de T067 y T075
-- [ ] T077 [US6] Implementar la llamada de cambio de estado en
+- [X] T077 [US6] Implementar la llamada de cambio de estado en
       `frontend/src/features/projects/api.ts` y el `StatusActions` en
       `frontend/src/features/projects/components/status-actions.tsx`, que ofrece **solo** la
       transición disponible según el estado actual — depende de T068

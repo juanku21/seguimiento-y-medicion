@@ -2,6 +2,7 @@ import {
   deleteEmpty,
   getJson,
   isRecord,
+  patchAuthorizedJson,
   postAuthorizedJson,
   putAuthorizedJson,
   type ApiResult,
@@ -151,10 +152,16 @@ export function getProjectDetail(
 }
 
 // Hace avanzar el proyecto al estado indicado con PATCH /api/v1/projects/{projectId}/status, usando
-// la sesión de la pestaña (002/US6). Firma mínima de T073: la implementación corresponde a T077.
+// la sesión de la pestaña (002/US6). Las reglas de la máquina de estados las resuelve el backend
+// (FR-037 a FR-040): sus rechazos (400, 403, 404, 409) llegan con el mensaje recibido y ante un 401
+// el cliente HTTP descarta la sesión (FR-016).
 export function changeProjectStatus(
   projectId: string,
   status: ProjectStatus,
 ): Promise<ApiResult<ProjectDetail>> {
-  throw new Error("not implemented");
+  return patchAuthorizedJson(
+    `/api/v1/projects/${projectId}/status`,
+    { status },
+    isProjectDetail,
+  );
 }

@@ -699,7 +699,7 @@ sprint activo se prueba con un doble del puerto `SprintDirectory`.
       `backend/internal/projects/domain/status.go`: **únicamente** `planned → in_progress` e
       `in_progress → finished`; cualquier otra combinación se rechaza con el error de transición
       inválida, indicando la transición permitida (FR-037, FR-038) — depende de T008 y T070
-- [ ] T075 [US6] Implementar el cambio de estado en
+- [X] T075 [US6] Implementar el cambio de estado en
       `backend/internal/projects/service/status_service.go`: valida la transición con T074, consulta
       `SprintDirectory.FindActiveSprint` antes de finalizar y rechaza si hay uno activo (FR-041,
       RN-16), y al entrar en `finished` fija `actual_end_date` con la fecha de calendario del momento

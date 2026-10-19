@@ -24,7 +24,7 @@ type OverviewState =
 // consulta, pero el backend incluye los correos de los integrantes solo cuando consulta el
 // propietario (FR-030), y el propietario siempre es integrante, así que su respuesta trae al menos
 // un correo. Solo decide qué acciones se ofrecen: los permisos los vuelve a validar el backend.
-function isViewerOwner(project: ProjectDetail): boolean {
+export function isViewerOwner(project: ProjectDetail): boolean {
   return project.members.some((member) => member.email !== undefined);
 }
 

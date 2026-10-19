@@ -639,7 +639,7 @@ la vista de estado refleja los nuevos valores y que `status` y `actualEndDate` q
 - [X] T068 [US5] Implementar la llamada de modificación en
       `frontend/src/features/projects/api.ts` y el modo edición del `ProjectForm` en
       `frontend/src/features/projects/components/project-form.tsx` — depende de T060
-- [ ] T069 [US5] Crear la pantalla `frontend/src/app/projects/[projectId]/edit/page.tsx`, accesible
+- [X] T069 [US5] Crear la pantalla `frontend/src/app/projects/[projectId]/edit/page.tsx`, accesible
       solo al propietario — depende de T068
 
 **Checkpoint**: US1 a US5 funcionan de forma independiente.

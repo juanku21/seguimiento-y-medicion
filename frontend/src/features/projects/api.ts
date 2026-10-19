@@ -13,6 +13,7 @@ import type {
   ProjectListItem,
   ProjectListResponse,
   ProjectMemberView,
+  ProjectStatus,
 } from "@/types/project";
 
 // Reconoce el resumen del backlog (BacklogSummary) con los contadores y los totales que muestra la
@@ -147,4 +148,13 @@ export function getProjectDetail(
   projectId: string,
 ): Promise<ApiResult<ProjectDetail>> {
   return getJson(`/api/v1/projects/${projectId}`, isProjectDetail);
+}
+
+// Hace avanzar el proyecto al estado indicado con PATCH /api/v1/projects/{projectId}/status, usando
+// la sesión de la pestaña (002/US6). Firma mínima de T073: la implementación corresponde a T077.
+export function changeProjectStatus(
+  projectId: string,
+  status: ProjectStatus,
+): Promise<ApiResult<ProjectDetail>> {
+  throw new Error("not implemented");
 }

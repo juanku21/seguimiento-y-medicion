@@ -687,7 +687,7 @@ sprint activo se prueba con un doble del puerto `SprintDirectory`.
       `TestUS6_MismoEstadoRechazado`, `TestUS6_FinalizadoEsSoloLectura`, `TestUS6_NoEsPropietario`
       (`403`) y `TestUS6_FinalizarConSprintActivo` (`409` y el proyecto sigue `in_progress`) —
       depende de T063
-- [ ] T073 [P] [US6] Pruebas de frontend en
+- [X] T073 [P] [US6] Pruebas de frontend en
       `frontend/src/features/projects/components/status-actions.test.tsx` con
       `describe("002/US6 - Avanzar el estado del proyecto")` y un `it` por escenario, incluido que
       con el proyecto Finalizado la interfaz **oculta** las acciones de administración — depende

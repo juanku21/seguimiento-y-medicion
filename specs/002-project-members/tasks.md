@@ -620,7 +620,7 @@ la vista de estado refleja los nuevos valores y que `status` y `actualEndDate` q
 
 ### Implementación de la Historia 5
 
-- [ ] T065 [US5] Implementar `FindByID(ctx, id)` y `Update(ctx, project)` en
+- [X] T065 [US5] Implementar `FindByID(ctx, id)` y `Update(ctx, project)` en
       `backend/internal/projects/repository/project_repository.go`, traduciendo
       `gorm.ErrDuplicatedKey` al error de nombre ya usado y actualizando `name`, `name_normalized`,
       `description`, `start_date`, `planned_end_date` y `hours_per_story_point_hundredths` en **una

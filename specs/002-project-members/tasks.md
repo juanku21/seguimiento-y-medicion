@@ -714,7 +714,7 @@ sprint activo se prueba con un doble del puerto `SprintDirectory`.
       `backend/internal/projects/repository/project_repository.go`, escribiendo solo `status`,
       `actual_end_date` y `updated_at`; `StatusService.ChangeStatus` lo usa en lugar de `Update`,
       que sigue sin tocar esas columnas (FR-016) — depende de T075 y T075a
-- [ ] T076 [US6] Implementar el manejador `changeProjectStatus` en
+- [X] T076 [US6] Implementar el manejador `changeProjectStatus` en
       `backend/internal/projects/delivery/handler.go` con anotaciones `swag` en español y
       registrarlo como `PATCH /api/v1/projects/{projectId}/status` en el subgrupo de administración
       de `backend/internal/projects/delivery/routes.go`, con `StatusChangeRequest` en

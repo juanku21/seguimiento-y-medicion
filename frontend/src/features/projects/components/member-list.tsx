@@ -9,11 +9,13 @@ import { formatDate } from "@/utils/format-date";
 
 // Propiedades de la lista de integrantes: el proyecto, los integrantes tal como los devuelve la API
 // y si quien consulta es el propietario, que es quien ve los correos y las acciones de
-// administración (FR-030).
+// administración (FR-030). Con readOnly el proyecto está finalizado: el propietario sigue viendo los
+// correos, pero no se ofrecen el alta ni la baja (FR-018).
 export type MemberListProps = {
   projectId: string;
   members: ProjectMemberView[];
   viewerIsOwner: boolean;
+  readOnly?: boolean;
 };
 
 // Lista de integrantes del proyecto (002/US3). Guarda los integrantes en su propio estado para
@@ -25,11 +27,13 @@ export function MemberList({
   projectId,
   members,
   viewerIsOwner,
+  readOnly = false,
 }: MemberListProps) {
   const [currentMembers, setCurrentMembers] =
     useState<ProjectMemberView[]>(members);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [removingUserId, setRemovingUserId] = useState<string | null>(null);
+  const canManage = viewerIsOwner && !readOnly;
 
   // Incorpora al integrante agregado reemplazando cualquier fila previa de la misma persona, para
   // que nadie aparezca dos veces (FR-029).
@@ -89,7 +93,7 @@ export function MemberList({
                 </time>
               </span>
             </div>
-            {viewerIsOwner && !member.isOwner && (
+            {canManage && !member.isOwner && (
               <button
                 type="button"
                 onClick={() => handleRemove(member.userId)}
@@ -102,7 +106,7 @@ export function MemberList({
           </li>
         ))}
       </ul>
-      {viewerIsOwner && (
+      {canManage && (
         <AddMemberForm projectId={projectId} onAdded={handleAdded} />
       )}
     </div>

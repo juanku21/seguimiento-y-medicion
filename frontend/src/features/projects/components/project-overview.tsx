@@ -5,6 +5,7 @@ import { Alert } from "@/components/alert";
 import { getProjectDetail } from "@/features/projects/api";
 import { MemberList } from "@/features/projects/components/member-list";
 import { ProjectStatusCard } from "@/features/projects/components/project-status-card";
+import { StatusActions } from "@/features/projects/components/status-actions";
 import { useRequireSession } from "@/hooks/use-session";
 import type { ProjectDetail } from "@/types/project";
 
@@ -70,11 +71,23 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
     );
   }
 
-  // Estado y equipo del proyecto, ambos a partir de la misma respuesta.
+  // Estado y equipo del proyecto, ambos a partir de la misma respuesta. Solo el propietario ve
+  // las acciones de administración, y ninguna se ofrece si el proyecto es de solo lectura: en ese
+  // caso la tarjeta muestra la fecha de finalización real (FR-018, US4-2). El proyecto que devuelve
+  // un cambio de estado reemplaza al vigente (002/US6).
   const { project } = state;
+  const viewerIsOwner = isViewerOwner(project);
   return (
     <div className="flex flex-col gap-8">
       <ProjectStatusCard project={project} />
+      {viewerIsOwner && !project.readOnly && (
+        <StatusActions
+          project={project}
+          onStatusChange={(updated) =>
+            setState({ status: "loaded", project: updated })
+          }
+        />
+      )}
       <section
         aria-labelledby="members-heading"
         className="flex flex-col gap-4"
@@ -85,7 +98,8 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
         <MemberList
           projectId={project.id}
           members={project.members}
-          viewerIsOwner={isViewerOwner(project)}
+          viewerIsOwner={viewerIsOwner}
+          readOnly={project.readOnly}
         />
       </section>
     </div>

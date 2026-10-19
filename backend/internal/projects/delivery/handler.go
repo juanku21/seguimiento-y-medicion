@@ -81,19 +81,10 @@ func (h *Handler) createProject(c *gin.Context) {
 		return
 	}
 
-	// Se decodifica el cuerpo sin reglas de binding: un cuerpo vacío o mal formado es 400 con
-	// ErrorResponse, y las reglas de cada campo las aplica validation.go.
-	var req ProjectInput
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, authdelivery.ErrorResponse{Error: msgInvalidBody})
-		return
-	}
-
-	// Se validan y normalizan los campos antes de llegar al servicio (Principio VII); ante cualquier
-	// campo inválido se responde 400 con su detalle y no se crea nada (FR-010).
-	input, fields := buildCreateProjectInput(req)
-	if len(fields) > 0 {
-		c.JSON(http.StatusBadRequest, authdelivery.ValidationErrorResponse{Error: msgInvalidFields, Fields: fields})
+	// Se decodifica y valida el cuerpo antes de llegar al servicio; ante cualquier error ya se
+	// respondió el 400 y no se crea nada (FR-010).
+	input, ok := bindProjectInput(c)
+	if !ok {
 		return
 	}
 
@@ -204,6 +195,74 @@ func (h *Handler) getProjectDetail(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, newProjectDetail(view, userID))
+}
+
+// updateProject godoc
+//
+//	@Summary		Modifica los datos del proyecto
+//	@Description	Reemplaza nombre, descripción, fecha de inicio, fecha de finalización prevista y factor de
+//	@Description	horas por Story Point con el conjunto completo de valores enviado (FR-012). Se aplican
+//	@Description	exactamente las mismas validaciones que en la creación (FR-013). La modificación es
+//	@Description	atómica: si algún dato es inválido, ningún cambio se aplica (FR-015). No altera el estado
+//	@Description	del proyecto ni su fecha de finalización real; si el cuerpo trae actualEndDate, se ignora
+//	@Description	(FR-016, FR-040). Al validar la unicidad del nombre se excluye al propio proyecto, así que
+//	@Description	renombrarlo con el mismo nombre que ya tenía se acepta (FR-014). Un cambio del factor rige
+//	@Description	para el proyecto y para los sprints que se cierren en adelante; los sprints ya cerrados
+//	@Description	conservan el factor vigente al momento de su cierre (FR-017, RN-15).
+//	@Description	Solo el propietario, y solo mientras el proyecto no esté finished (FR-018, FR-047).
+//	@Tags			Proyectos
+//	@ID				updateProject
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			projectId	path		string								true	"Identificador del proyecto"	format(uuid)
+//	@Param			request		body		ProjectInput						true	"Conjunto completo de los datos editables del proyecto"
+//	@Success		200			{object}	ProjectDetail						"Proyecto actualizado. El estado y la fecha de finalización real no cambiaron."
+//	@Failure		400			{object}	delivery.ValidationErrorResponse	"Entrada inválida, sin aplicar ningún cambio. Indica qué campo corregir y por qué (FR-013, FR-015). Si el cuerpo no es un JSON válido o está vacío, la respuesta es ErrorResponse."
+//	@Failure		401			{object}	delivery.ErrorResponse				"Se requiere iniciar sesión (FR-046)."
+//	@Failure		403			{object}	delivery.ErrorResponse				"Solo el propietario del proyecto puede realizar esta acción (FR-047, FR-050)."
+//	@Failure		404			{object}	delivery.ErrorResponse				"El proyecto no existe o quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo (FR-049, SC-005)."
+//	@Failure		409			{object}	delivery.ErrorResponse				"Ya existe otro proyecto propio con ese nombre (FR-004, FR-014) o el proyecto está finished y es de solo lectura (FR-018, RN-11)."
+//	@Failure		500			{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."
+//	@Router			/api/v1/projects/{projectId} [put]
+func (h *Handler) updateProject(c *gin.Context) {
+	// La identidad sale solo de la sesión y el proyecto de la membresía que dejó RequireMembership;
+	// RequireOwnership ya rechazó a quien no es propietario.
+	userID, ok := authdelivery.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, authdelivery.ErrorResponse{Error: msgSessionRequired})
+		return
+	}
+	member, ok := membershipFromContext(c)
+	if !ok {
+		slog.ErrorContext(c.Request.Context(), "updateProject sin membresía en el contexto")
+		c.JSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: msgInternalError})
+		return
+	}
+
+	// Se decodifica y valida el cuerpo con las mismas reglas que la creación (FR-013); ProjectInput
+	// no tiene actualEndDate, así que esa fecha se descarta al decodificar (FR-040).
+	input, ok := bindProjectInput(c)
+	if !ok {
+		return
+	}
+
+	// Se modifica el proyecto y se traducen los errores del servicio a las respuestas del contrato;
+	// cualquier otro error es 500 genérico, registrado en el log.
+	view, err := h.projects.Update(c.Request.Context(), member.ProjectID, input)
+	switch {
+	case errors.Is(err, domain.ErrProjectNotFound):
+		abortProjectNotFound(c)
+	case errors.Is(err, domain.ErrProjectReadOnly):
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgProjectReadOnly})
+	case errors.Is(err, domain.ErrProjectNameTaken):
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgProjectNameTaken})
+	case err != nil:
+		slog.ErrorContext(c.Request.Context(), "no se pudo modificar el proyecto", "error", err)
+		c.JSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: msgInternalError})
+	default:
+		c.JSON(http.StatusOK, newProjectDetail(view, userID))
+	}
 }
 
 // addProjectMember godoc
@@ -374,6 +433,24 @@ func newProjectListResponse(list *service.ProjectList) ProjectListResponse {
 		})
 	}
 	return ProjectListResponse{Projects: items, Message: list.Message}
+}
+
+// bindProjectInput decodifica el cuerpo como ProjectInput y lo valida con buildCreateProjectInput,
+// compartido por la creación y la modificación (FR-013). Un cuerpo vacío o mal formado es 400 con
+// ErrorResponse y un campo inválido es 400 con su detalle; en ambos casos ya respondió y devuelve
+// false, de modo que el manejador solo retorna (Principio VII).
+func bindProjectInput(c *gin.Context) (service.CreateProjectInput, bool) {
+	var req ProjectInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, authdelivery.ErrorResponse{Error: msgInvalidBody})
+		return service.CreateProjectInput{}, false
+	}
+	input, fields := buildCreateProjectInput(req)
+	if len(fields) > 0 {
+		c.JSON(http.StatusBadRequest, authdelivery.ValidationErrorResponse{Error: msgInvalidFields, Fields: fields})
+		return service.CreateProjectInput{}, false
+	}
+	return input, true
 }
 
 // buildCreateProjectInput aplica las reglas de cada campo de ProjectInput y, si todos son válidos,

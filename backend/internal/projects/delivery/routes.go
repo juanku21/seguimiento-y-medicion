@@ -15,7 +15,7 @@ import (
 // de integrantes recibido (FR-049, research.md sección 5), donde registra la vista de estado para
 // cualquier integrante (FR-048), y el de administración, que cuelga de él
 // y agrega RequireOwnership sobre el repositorio de proyectos para las acciones reservadas al
-// propietario (FR-047, FR-050), donde registra el alta y la baja de integrantes. Al encadenarse después de RequireMembership, quien no es integrante
+// propietario (FR-047, FR-050), donde registra la modificación del proyecto y el alta y la baja de integrantes. Al encadenarse después de RequireMembership, quien no es integrante
 // recibe el 404 antes de que se evalúe el 403 (SC-006).
 func RegisterRoutes(router *gin.Engine, requireSession gin.HandlerFunc, handler *Handler, members domain.ProjectMemberRepository, projects domain.ProjectRepository) (projectGroup, adminGroup *gin.RouterGroup) {
 	group := router.Group("/api/v1/projects", requireSession)
@@ -24,6 +24,7 @@ func RegisterRoutes(router *gin.Engine, requireSession gin.HandlerFunc, handler 
 	projectGroup = group.Group("/:projectId", RequireMembership(members))
 	projectGroup.GET("", handler.getProjectDetail)
 	adminGroup = projectGroup.Group("", RequireOwnership(projects))
+	adminGroup.PUT("", handler.updateProject)
 	adminGroup.POST("/members", handler.addProjectMember)
 	adminGroup.DELETE("/members/:userId", handler.removeProjectMember)
 	return projectGroup, adminGroup

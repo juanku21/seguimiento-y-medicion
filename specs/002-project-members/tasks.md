@@ -603,7 +603,7 @@ la vista de estado refleja los nuevos valores y que `status` y `actualEndDate` q
       mismo nombre que ya tenía se acepta; un rechazo no aplica **ningún cambio parcial**; la
       modificación **no altera** `status` ni `actual_end_date`; y el cambio del factor **no toca
       ninguna otra tabla**, de modo que los sprints cerrados conserven el suyo
-- [ ] T063 [US5] Pruebas de integración de la historia en
+- [X] T063 [US5] Pruebas de integración de la historia en
       `backend/internal/projects/delivery/handler_test.go`, una función por escenario precedida por
       `// Escenario: <nombre del escenario> (002/US5)`: `TestUS5_ModificacionExitosa`,
       `TestUS5_ProyectoEnCursoSeModifica` (solo `finished` bloquea),

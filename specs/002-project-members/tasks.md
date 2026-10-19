@@ -630,7 +630,7 @@ la vista de estado refleja los nuevos valores y que `status` y `actualEndDate` q
       `backend/internal/projects/service/project_service.go`, reutilizando **la misma validación**
       que la creación (FR-013) y rechazando el proyecto `finished` antes de tocar nada (FR-018,
       RN-11) — depende de T022, T062 y T065
-- [ ] T067 [US5] Implementar el manejador `updateProject` en
+- [X] T067 [US5] Implementar el manejador `updateProject` en
       `backend/internal/projects/delivery/handler.go` con anotaciones `swag` en español y
       registrarlo como `PUT /api/v1/projects/{projectId}` en el subgrupo de administración de
       `backend/internal/projects/delivery/routes.go`, devolviendo `200` con `ProjectDetail`, `400`,

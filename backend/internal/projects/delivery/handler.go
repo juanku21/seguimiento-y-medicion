@@ -91,13 +91,8 @@ func (h *Handler) createProject(c *gin.Context) {
 	// Se crea el proyecto y se traducen los errores del servicio: el nombre repetido del mismo
 	// propietario es 409 y cualquier otro error es 500 genérico, registrado en el log.
 	view, err := h.projects.Create(c.Request.Context(), ownerID, input)
-	if errors.Is(err, domain.ErrProjectNameTaken) {
-		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgProjectNameTaken})
-		return
-	}
 	if err != nil {
-		slog.ErrorContext(c.Request.Context(), "no se pudo crear el proyecto", "error", err)
-		c.JSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: msgInternalError})
+		respondServiceError(c, err, "no se pudo crear el proyecto")
 		return
 	}
 
@@ -247,22 +242,15 @@ func (h *Handler) updateProject(c *gin.Context) {
 		return
 	}
 
-	// Se modifica el proyecto y se traducen los errores del servicio a las respuestas del contrato;
-	// cualquier otro error es 500 genérico, registrado en el log.
+	// Se modifica el proyecto y se traducen los errores del servicio a las respuestas del contrato:
+	// inexistente es 404, finalizado o con nombre repetido es 409 y cualquier otro error es 500.
 	view, err := h.projects.Update(c.Request.Context(), member.ProjectID, input)
-	switch {
-	case errors.Is(err, domain.ErrProjectNotFound):
-		abortProjectNotFound(c)
-	case errors.Is(err, domain.ErrProjectReadOnly):
-		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgProjectReadOnly})
-	case errors.Is(err, domain.ErrProjectNameTaken):
-		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgProjectNameTaken})
-	case err != nil:
-		slog.ErrorContext(c.Request.Context(), "no se pudo modificar el proyecto", "error", err)
-		c.JSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: msgInternalError})
-	default:
-		c.JSON(http.StatusOK, newProjectDetail(view, userID))
+	if err != nil {
+		respondServiceError(c, err, "no se pudo modificar el proyecto")
+		return
 	}
+
+	c.JSON(http.StatusOK, newProjectDetail(view, userID))
 }
 
 // addProjectMember godoc
@@ -329,7 +317,7 @@ func (h *Handler) addProjectMember(c *gin.Context) {
 	// cualquier otro error es 500 genérico, registrado en el log.
 	view, err := h.members.AddMember(c.Request.Context(), member.ProjectID, actorID, req.Email)
 	if err != nil {
-		respondMemberError(c, err, "no se pudo agregar el integrante")
+		respondServiceError(c, err, "no se pudo agregar el integrante")
 		return
 	}
 
@@ -386,17 +374,20 @@ func (h *Handler) removeProjectMember(c *gin.Context) {
 
 	// Se quita la membresía y se traducen los errores del servicio a las respuestas del contrato.
 	if err := h.members.RemoveMember(c.Request.Context(), member.ProjectID, actorID, userID); err != nil {
-		respondMemberError(c, err, "no se pudo quitar el integrante")
+		respondServiceError(c, err, "no se pudo quitar el integrante")
 		return
 	}
 	c.Status(http.StatusNoContent)
 }
 
-// respondMemberError traduce los errores del servicio de integrantes a la respuesta del contrato. El
-// proyecto desaparecido usa la misma salida 404 indistinguible del middleware (FR-049); cualquier
-// error no previsto es 500 genérico y se registra en el log con logMessage.
-func respondMemberError(c *gin.Context, err error, logMessage string) {
+// respondServiceError traduce los errores del servicio de proyectos y del de integrantes a la
+// respuesta del contrato. El proyecto desaparecido usa la misma salida 404 indistinguible del
+// middleware (FR-049); cualquier error no previsto es 500 genérico y se registra en el log con
+// logMessage.
+func respondServiceError(c *gin.Context, err error, logMessage string) {
 	switch {
+	case errors.Is(err, domain.ErrProjectNameTaken):
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgProjectNameTaken})
 	case errors.Is(err, domain.ErrProjectNotFound):
 		abortProjectNotFound(c)
 	case errors.Is(err, domain.ErrNotProjectOwner):

@@ -288,7 +288,7 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
       reordenar criterios), con los mensajes en español y los límites visibles antes de enviar.
       Antes de escribir código, leer la documentación de Next.js de
       `frontend/node_modules/next/dist/docs/` — depende de T026
-- [ ] T028 [US1] Crear la pantalla `frontend/src/app/projects/[projectId]/backlog/new/page.tsx`,
+- [X] T028 [US1] Crear la pantalla `frontend/src/app/projects/[projectId]/backlog/new/page.tsx`,
       protegida con la guardia de sesión de la 001 — depende de T027
 
 **Checkpoint**: US1 funciona y se prueba sola. El MVP está entregable.

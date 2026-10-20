@@ -134,7 +134,7 @@ lógica de negocio.
       `EstimationSessions.HasSessions(ctx, storyID) (bool, error)`, que cuenta las sesiones
       Finalizadas **y** las Canceladas (RC-10); y `ProjectDirectory.IsFinished(ctx, projectID)
       (bool, error)`. Cada comentario indica qué feature producirá el dato
-- [ ] T008 [P] Implementar los cuatro puertos hacia otras features en
+- [X] T008 [P] Implementar los cuatro puertos hacia otras features en
       `backend/internal/backlog/repository/sprint_assignments.go`,
       `backend/internal/backlog/repository/effort_records.go`,
       `backend/internal/backlog/repository/defect_records.go` y

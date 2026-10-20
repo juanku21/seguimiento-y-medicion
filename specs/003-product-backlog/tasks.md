@@ -216,7 +216,7 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
       (`409` y nada creado) y `TestUS1_NoIntegrante` (`404` con **el mismo cuerpo** que un
       `projectId` inexistente). En todos los rechazos se verifica contando filas que **no se creó
       ni la historia ni ningún criterio** (FR-013) — depende de T010
-- [ ] T016 [P] [US1] Pruebas de frontend en
+- [X] T016 [P] [US1] Pruebas de frontend en
       `frontend/src/features/backlog/components/story-form.test.tsx` y
       `frontend/src/features/backlog/validation.test.ts`, con
       `describe("003/US1 - Registrar una historia en el backlog")` y un `it` por escenario de la

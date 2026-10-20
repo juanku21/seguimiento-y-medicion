@@ -108,7 +108,7 @@ lógica de negocio.
       `completed` en `backend/internal/backlog/domain/status.go`, con un comentario en español que
       deje claro que **esta feature nunca escribe el estado después de la creación**: sus
       transiciones las produce `specs/004-sprint-management` (FR-027, RC-04)
-- [ ] T005 [P] Declarar los errores de dominio en `backend/internal/backlog/domain/errors.go`
+- [X] T005 [P] Declarar los errores de dominio en `backend/internal/backlog/domain/errors.go`
       (data-model.md sección 9): `ErrStoryNotFound` (historia inexistente, eliminada o ajena;
       FR-044, FR-047), `ErrBacklogReadOnly` (FR-048), `ErrStoryCompleted` (FR-030),
       `ErrCommittedStoryMustStayReady` (FR-018, FR-022) y el tipo `DeletionBlockedError` con

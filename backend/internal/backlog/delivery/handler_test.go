@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
@@ -36,8 +37,10 @@ import (
 // Pruebas de integración de punta a punta del backlog: atraviesan el router de Gin compuesto como en
 // cmd/app, el middleware de sesión de la 001, RequireMembership de la 002, el servicio y el
 // repositorio del backlog contra la base smye_test (Principios II y V). Las de US1 (T015) cubren
-// POST /api/v1/projects/{projectId}/stories; las historias siguientes agregan las suyas en este
-// archivo. Los ayudantes llevan el prefijo "backlog" para no chocar con los de validation_test.go.
+// POST /api/v1/projects/{projectId}/stories, las de US2 (T030), GET
+// /api/v1/projects/{projectId}/stories, y las de US3 (T040), GET /api/v1/stories/{storyId}; las
+// historias siguientes agregan las suyas en este archivo. Los ayudantes llevan el prefijo "backlog"
+// para no chocar con los de validation_test.go y middleware_test.go.
 
 // Textos exactos que fija el contrato para el 400 de entrada inválida, el 404 de proyecto
 // inexistente y el 409 de backlog de solo lectura.
@@ -160,15 +163,20 @@ func newBacklogTestEnv(t *testing.T, overrides ...func(*backlogTestPorts)) backl
 	for _, override := range overrides {
 		override(&ports)
 	}
+	// La misma instancia del repositorio de historias sirve al servicio y a RequireStoryAccess del
+	// grupo plano /api/v1/stories/:storyId, igual que en cmd/app.
+	storyRepository := repository.NewStoryRepository(db)
 	stories := service.NewStoryService(
-		repository.NewStoryRepository(db),
+		storyRepository,
 		ports.sprints,
 		ports.effort,
 		ports.defects,
 		ports.sessions,
 		repository.NewProjectDirectory(db),
 	)
-	RegisterRoutes(projectGroup, NewHandler(stories))
+	handler := NewHandler(stories)
+	RegisterRoutes(projectGroup, handler)
+	RegisterStoryRoutes(router, authHandler.RequireSession, storyRepository, handler)
 	return backlogTestEnv{router: router, db: db, auth: auth}
 }
 
@@ -639,6 +647,291 @@ func TestUS1_NoIntegrante(t *testing.T) {
 	assert.Equal(t, missingRec.Header().Get("Content-Type"), foreignRec.Header().Get("Content-Type"), "los tipos de contenido deberían ser idénticos")
 	assert.Equal(t, missingRec.Body.Bytes(), foreignRec.Body.Bytes(), "los cuerpos deberían ser idénticos byte a byte")
 	backlogRequireNothingCreated(t, env.db)
+}
+
+// Datos del caso normal de US3, escenario 1: el tercer criterio y los momentos fijos de creación y
+// de última actualización con que se siembra la historia, para comprobar que el detalle devuelve
+// exactamente esos valores en UTC con formato RFC 3339.
+const backlogThirdCriterion = "El reporte respeta la zona horaria del sistema."
+
+var (
+	backlogDetailCreatedAt = time.Date(2026, 10, 20, 13, 5, 0, 0, time.UTC)
+	backlogDetailUpdatedAt = time.Date(2026, 10, 20, 14, 30, 0, 0, time.UTC)
+)
+
+// backlogSprintAssignmentsDouble es el doble de testify del puerto SprintAssignments, para preparar
+// una historia que está o estuvo en un sprint sin depender de specs/004-sprint-management.
+type backlogSprintAssignmentsDouble struct {
+	mock.Mock
+}
+
+// Find devuelve la asignación que la prueba configuró para la historia.
+func (m *backlogSprintAssignmentsDouble) Find(ctx context.Context, storyID uuid.UUID) (domain.SprintAssignment, error) {
+	args := m.Called(ctx, storyID)
+	assignment, _ := args.Get(0).(domain.SprintAssignment)
+	return assignment, args.Error(1)
+}
+
+// backlogSeedStory inserta directamente en la base la historia recibida y sus criterios, en el
+// orden recibido y con la posición que trae cada uno, para preparar el "Dado" sin pasar por la API.
+// Así una prueba puede sembrar los criterios desordenados y comprobar que el detalle los devuelve
+// por posición. Sin identificador ni estado, la historia recibe un UUID nuevo y queda pending.
+func backlogSeedStory(t *testing.T, db *gorm.DB, story domain.UserStory, criteria ...domain.AcceptanceCriterion) uuid.UUID {
+	t.Helper()
+	if story.ID == uuid.Nil {
+		story.ID = uuid.New()
+	}
+	if story.Status == "" {
+		story.Status = domain.StoryStatusPending
+	}
+	require.NoError(t, db.Create(&story).Error, "no se pudo sembrar la historia")
+	for _, criterion := range criteria {
+		criterion.ID = uuid.New()
+		criterion.StoryID = story.ID
+		require.NoError(t, db.Create(&criterion).Error, "no se pudo sembrar el criterio %d", criterion.Position)
+	}
+	return story.ID
+}
+
+// backlogStoryPath es la ruta plana de una historia según contracts/openapi.yaml.
+func backlogStoryPath(storyID string) string {
+	return "/api/v1/stories/" + storyID
+}
+
+// getStory envía GET /api/v1/stories/{storyId} con el token como Bearer.
+func (e backlogTestEnv) getStory(t *testing.T, token, storyID string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, backlogStoryPath(storyID), nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, req)
+	return rec
+}
+
+// requireStoryDetail exige un 200 cuyo cuerpo sea un StoryDetail y lo devuelve decodificado.
+func requireStoryDetail(t *testing.T, rec *httptest.ResponseRecorder) backlogStoryDetailBody {
+	t.Helper()
+	require.Equal(t, http.StatusOK, rec.Code, "cuerpo: %s", rec.Body.String())
+	var body backlogStoryDetailBody
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "el cuerpo del 200 no es JSON válido: %s", rec.Body.String())
+	return body
+}
+
+// backlogPoints devuelve un puntero al valor de Story Points indicado.
+func backlogPoints(n int) *int {
+	return &n
+}
+
+// backlogForeignAndMissing prepara una historia en un proyecto de Ana y devuelve dos respuestas de
+// GET /api/v1/stories/{storyId}: la de Carla, que no es integrante, pidiendo esa historia, y la de
+// Ana, integrante, pidiendo un identificador UUID que no existe.
+func backlogForeignAndMissing(t *testing.T) (foreign, missing *httptest.ResponseRecorder) {
+	t.Helper()
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	_, carlaToken := env.signUp(t, "Carla Díaz", "carla@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedStory(t, env.db, domain.UserStory{
+		ProjectID:   projectID,
+		Title:       backlogStoryTitle,
+		Priority:    domain.StoryPriorityMedium,
+		StoryPoints: backlogPoints(8),
+		CreatedByID: anaID,
+	}, domain.AcceptanceCriterion{Position: 0, Text: backlogFirstCriterion})
+
+	foreign = env.getStory(t, carlaToken, storyID.String())
+	missing = env.getStory(t, anaToken, uuid.New().String())
+	return foreign, missing
+}
+
+// backlogRequireIdenticalNotFound exige que la respuesta sea el 404 de historia inexistente del
+// contrato e idéntica byte a byte a la de referencia en estado, tipo de contenido y cuerpo (FR-047,
+// SC-006).
+func backlogRequireIdenticalNotFound(t *testing.T, got, reference *httptest.ResponseRecorder) {
+	t.Helper()
+	assert.Equal(t, http.StatusNotFound, got.Code, "cuerpo: %s", got.Body.String())
+	assert.Equal(t, storyNotFoundBody, got.Body.String(), "el cuerpo debería ser el del contrato")
+	assert.Equal(t, reference.Code, got.Code, "los códigos de estado deberían ser idénticos")
+	assert.Equal(t, reference.Header().Get("Content-Type"), got.Header().Get("Content-Type"),
+		"los tipos de contenido deberían ser idénticos")
+	assert.Equal(t, reference.Body.Bytes(), got.Body.Bytes(), "los cuerpos deberían ser idénticos byte a byte")
+}
+
+// Escenario: Detalle completo (003/US3)
+// Bruno, integrante que no es el propietario, consulta una historia con descripción, prioridad
+// Media, 8 Story Points y tres criterios sembrados fuera de orden: obtiene todos sus datos, los
+// criterios en el orden de su posición, el estado, la autora, los momentos de creación y de última
+// actualización, que no estuvo en un sprint y que está lista para planificar (FR-039, RN-01, RN-02).
+func TestUS3_DetalleCompleto(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress, brunoID)
+	description := backlogStoryDescription
+	storyID := backlogSeedStory(t, env.db, domain.UserStory{
+		ProjectID:   projectID,
+		Title:       backlogStoryTitle,
+		Description: &description,
+		Priority:    domain.StoryPriorityMedium,
+		StoryPoints: backlogPoints(8),
+		CreatedByID: anaID,
+		CreatedAt:   backlogDetailCreatedAt,
+		UpdatedAt:   backlogDetailUpdatedAt,
+	},
+		domain.AcceptanceCriterion{Position: 2, Text: backlogThirdCriterion},
+		domain.AcceptanceCriterion{Position: 0, Text: backlogFirstCriterion},
+		domain.AcceptanceCriterion{Position: 1, Text: backlogSecondCriterion},
+	)
+
+	got := requireStoryDetail(t, env.getStory(t, brunoToken, storyID.String()))
+
+	assert.Equal(t, storyID.String(), got.ID)
+	assert.Equal(t, projectID.String(), got.ProjectID)
+	assert.Equal(t, backlogStoryTitle, got.Title)
+	require.NotNil(t, got.Description, "la descripción no debería ser null")
+	assert.Equal(t, backlogStoryDescription, *got.Description)
+	assert.Equal(t, "medium", got.Priority)
+	assert.Equal(t, "pending", got.Status)
+	require.NotNil(t, got.StoryPoints, "storyPoints no debería ser null")
+	assert.Equal(t, 8, *got.StoryPoints)
+	assert.Equal(t, []string{backlogFirstCriterion, backlogSecondCriterion, backlogThirdCriterion}, got.AcceptanceCriteria,
+		"los criterios deberían venir en el orden en que se cargaron")
+	assert.Equal(t, anaID.String(), got.CreatedBy.ID)
+	assert.Equal(t, "Ana Pérez", got.CreatedBy.FullName)
+	assert.Equal(t, "2026-10-20T13:05:00Z", got.CreatedAt)
+	assert.Equal(t, "2026-10-20T14:30:00Z", got.UpdatedAt)
+	assert.True(t, got.Readiness.Ready, "la historia debería estar lista para planificar")
+	assert.Equal(t, []string{}, got.Readiness.Missing)
+	assert.False(t, got.EverAssignedToSprint)
+}
+
+// Escenario: Sin estimar ni criterios (003/US3)
+// Una historia sin estimar y sin criterios se consulta sin error: storyPoints es null y no 0, la
+// lista de criterios es [] y no null, y no está lista para planificar, con los dos motivos en orden
+// (FR-029, FR-040).
+func TestUS3_SinEstimarNiCriterios(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedStory(t, env.db, domain.UserStory{
+		ProjectID:   projectID,
+		Title:       "Revisar los permisos de los integrantes",
+		Priority:    domain.StoryPriorityLow,
+		CreatedByID: anaID,
+	})
+
+	rec := env.getStory(t, anaToken, storyID.String())
+
+	got := requireStoryDetail(t, rec)
+	raw := backlogRawBody(t, rec)
+	value, present := raw["storyPoints"]
+	assert.True(t, present, "el campo storyPoints debería estar presente")
+	assert.Nil(t, value, "storyPoints debería ser null")
+	assert.Equal(t, []any{}, raw["acceptanceCriteria"], "acceptanceCriteria debería ser [] y no null")
+	assert.False(t, got.Readiness.Ready, "la historia no debería estar lista para planificar")
+	assert.Equal(t, []string{"story_points", "acceptance_criteria"}, got.Readiness.Missing)
+}
+
+// Escenario: Asignada a un sprint (003/US3)
+// Con el puerto de sprints reemplazado por un doble que informa que la historia está comprometida en
+// un sprint abierto y estuvo asignada, el detalle informa everAssignedToSprint verdadero además de
+// sus datos (FR-039).
+func TestUS3_AsignadaASprint(t *testing.T) {
+	sprints := &backlogSprintAssignmentsDouble{}
+	env := newBacklogTestEnv(t, func(p *backlogTestPorts) { p.sprints = sprints })
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedStory(t, env.db, domain.UserStory{
+		ProjectID:   projectID,
+		Title:       backlogStoryTitle,
+		Priority:    domain.StoryPriorityHigh,
+		StoryPoints: backlogPoints(5),
+		CreatedByID: anaID,
+	}, domain.AcceptanceCriterion{Position: 0, Text: backlogFirstCriterion})
+	sprints.On("Find", mock.Anything, storyID).
+		Return(domain.SprintAssignment{CommittedToOpenSprint: true, EverAssigned: true}, nil)
+
+	got := requireStoryDetail(t, env.getStory(t, anaToken, storyID.String()))
+
+	assert.Equal(t, storyID.String(), got.ID)
+	assert.Equal(t, backlogStoryTitle, got.Title)
+	assert.True(t, got.EverAssignedToSprint, "el detalle debería informar que estuvo en un sprint")
+	sprints.AssertExpectations(t)
+}
+
+// Escenario: Cero Story Points (003/US3)
+// Una historia estimada en 0 Story Points con un criterio devuelve storyPoints: 0, distinguible de
+// null, y está lista para planificar (FR-015, RN-07).
+func TestUS3_CeroStoryPoints(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedStory(t, env.db, domain.UserStory{
+		ProjectID:   projectID,
+		Title:       backlogStoryTitle,
+		Priority:    domain.StoryPriorityHigh,
+		StoryPoints: backlogPoints(0),
+		CreatedByID: anaID,
+	}, domain.AcceptanceCriterion{Position: 0, Text: backlogFirstCriterion})
+
+	rec := env.getStory(t, anaToken, storyID.String())
+
+	got := requireStoryDetail(t, rec)
+	raw := backlogRawBody(t, rec)
+	assert.Equal(t, float64(0), raw["storyPoints"], "storyPoints debería ser 0 y no null")
+	assert.True(t, got.Readiness.Ready, "con 0 Story Points y un criterio la historia está lista")
+	assert.Equal(t, []string{}, got.Readiness.Missing)
+}
+
+// Escenario: Historia ajena (003/US3)
+// Carla, que no es integrante del proyecto, pide una historia que existe: recibe el 404 de historia
+// inexistente, sin ningún dato ni el título, idéntico byte a byte al de un identificador que no
+// existe (FR-047, SC-006).
+func TestUS3_HistoriaAjena(t *testing.T) {
+	foreign, missing := backlogForeignAndMissing(t)
+
+	backlogRequireIdenticalNotFound(t, foreign, missing)
+	assert.NotContains(t, foreign.Body.String(), backlogStoryTitle, "la respuesta no debería revelar el título")
+}
+
+// Escenario: Historia inexistente (003/US3)
+// Un integrante pide un identificador de historia que no existe: recibe el 404 de historia
+// inexistente, idéntico byte a byte al de la historia de un proyecto ajeno (FR-044, FR-047).
+func TestUS3_HistoriaInexistente(t *testing.T) {
+	foreign, missing := backlogForeignAndMissing(t)
+
+	backlogRequireIdenticalNotFound(t, missing, foreign)
+}
+
+// Bruno crea una historia y Ana, propietaria, lo quita del proyecto con el endpoint de la 002: el
+// detalle consultado por Ana sigue devolviendo la historia con Bruno como autor, y Bruno, que ya no
+// es integrante, recibe el 404 de historia inexistente (FR-050, caso límite "Integrante quitado del
+// proyecto"). No lleva etiqueta de escenario porque deriva de un caso límite y no de un escenario.
+func TestAutoriaConservadaAlQuitarIntegrante(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress, brunoID)
+	created := requireCreatedStory(t, env.postStory(t, brunoToken, projectID, backlogFullBody()))
+
+	// Ana quita a Bruno del proyecto con DELETE /api/v1/projects/{projectId}/members/{userId}.
+	req := httptest.NewRequest(http.MethodDelete,
+		"/api/v1/projects/"+projectID.String()+"/members/"+brunoID.String(), nil)
+	req.Header.Set("Authorization", "Bearer "+anaToken)
+	removal := httptest.NewRecorder()
+	env.router.ServeHTTP(removal, req)
+	require.Equal(t, http.StatusNoContent, removal.Code, "no se pudo quitar a Bruno: %s", removal.Body.String())
+
+	// Para Ana la historia se conserva con la autoría de Bruno.
+	got := requireStoryDetail(t, env.getStory(t, anaToken, created.ID))
+	assert.Equal(t, created.ID, got.ID)
+	assert.Equal(t, brunoID.String(), got.CreatedBy.ID)
+	assert.Equal(t, "Bruno Gómez", got.CreatedBy.FullName)
+
+	// Para Bruno la historia se comporta como inexistente.
+	rec := env.getStory(t, brunoToken, created.ID)
+	assert.Equal(t, http.StatusNotFound, rec.Code, "cuerpo: %s", rec.Body.String())
+	assert.Equal(t, storyNotFoundBody, rec.Body.String())
 }
 
 // Pruebas de integración de US2 (T030): GET /api/v1/projects/{projectId}/stories. Las historias se

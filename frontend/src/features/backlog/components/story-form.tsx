@@ -26,6 +26,7 @@ import {
   STORY_POINTS_SCALE,
   STORY_PRIORITY_LABELS,
   STORY_STATUS_LABELS,
+  readinessLabel,
 } from "@/utils/story-labels";
 
 // Valores de los campos simples tal como se eligen: prioridad y Story Points son el valor del
@@ -193,11 +194,7 @@ export function StoryForm({ projectId }: StoryFormProps) {
           Estado: {STORY_STATUS_LABELS[createdStory.status]} · Story Points:{" "}
           {createdStory.storyPoints ?? UNESTIMATED_LABEL}
         </p>
-        <p>
-          {createdStory.readiness.ready
-            ? "Lista para planificar"
-            : "No lista para planificar"}
-        </p>
+        <p>{readinessLabel(createdStory.readiness.ready)}</p>
       </Alert>
     );
   }

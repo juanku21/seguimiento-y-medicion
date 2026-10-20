@@ -9,12 +9,12 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/domain"
+	projectsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/domain"
 )
 
 // StoryRepository implementa domain.StoryRepository con GORM sobre user_stories y
-// acceptance_criteria. Create y FindDetail están implementadas (T021), y List y HasStories
-// (T034); las demás operaciones las
-// implementan las historias que las usan.
+// acceptance_criteria. Create, FindDetail, List, HasStories y FindAccessible están implementadas;
+// las demás operaciones las implementan las historias que las usan.
 type StoryRepository struct {
 	db *gorm.DB
 }
@@ -33,9 +33,42 @@ type storyDetailRow struct {
 	AuthorFullName   string
 }
 
-// FindAccessible resuelve el acceso a una historia para RequireStoryAccess. Firma mínima.
+// storyAccessRow es la fila que lee FindAccessible: los identificadores de la historia y de su
+// proyecto, y el estado del proyecto que llega por el JOIN a projects con el alias project_status.
+type storyAccessRow struct {
+	StoryID       uuid.UUID
+	ProjectID     uuid.UUID
+	ProjectStatus projectsdomain.ProjectStatus
+}
+
+// FindAccessible resuelve el acceso a una historia para RequireStoryAccess con una sola consulta
+// (research.md sección 3): une user_stories con la membresía vigente del usuario en project_members
+// y con projects. Si no hay fila, la historia no existe o el usuario no es integrante de su
+// proyecto, y ambos casos se reportan igual con ErrStoryNotFound, nunca gorm.ErrRecordNotFound ni
+// (nil, nil). El estado del proyecto se compara con ProjectStatusFinished para la regla de solo
+// lectura (FR-048).
 func (r *StoryRepository) FindAccessible(ctx context.Context, storyID, userID uuid.UUID) (*domain.StoryAccess, error) {
-	return nil, errors.New("not implemented")
+	var row storyAccessRow
+	err := r.db.WithContext(ctx).
+		Table("user_stories").
+		Select(`user_stories.id AS story_id, user_stories.project_id AS project_id,
+			projects.status AS project_status`).
+		Joins(`JOIN project_members ON project_members.project_id = user_stories.project_id
+			AND project_members.user_id = ?`, userID).
+		Joins("JOIN projects ON projects.id = user_stories.project_id").
+		Where("user_stories.id = ?", storyID).
+		Take(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, domain.ErrStoryNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("resolver el acceso a la historia: %w", err)
+	}
+	return &domain.StoryAccess{
+		StoryID:         row.StoryID,
+		ProjectID:       row.ProjectID,
+		ProjectFinished: row.ProjectStatus == projectsdomain.ProjectStatusFinished,
+	}, nil
 }
 
 // Create persiste la historia y sus criterios en una sola transacción, de modo que si falla

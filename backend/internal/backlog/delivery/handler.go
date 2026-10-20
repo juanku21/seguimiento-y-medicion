@@ -15,12 +15,13 @@ import (
 )
 
 // Mensajes de las respuestas de error del backlog, en español y dirigidos a la persona. Los textos
-// del 400, del 401 y del 409 los fija contracts/openapi.yaml; el del cuerpo mal formado y el del 500
-// son los mismos que usan la 001 y la 002, y el 500 no expone detalles internos.
+// del 400, del 401, del 404 y del 409 los fija contracts/openapi.yaml; el del cuerpo mal formado y
+// el del 500 son los mismos que usan la 001 y la 002, y el 500 no expone detalles internos.
 const (
 	msgInvalidFields   = "Hay campos inválidos en la solicitud."
 	msgInvalidBody     = "El cuerpo de la solicitud debe ser un JSON válido."
 	msgSessionRequired = "Se requiere iniciar sesión."
+	msgStoryNotFound   = "La historia no existe."
 	msgBacklogReadOnly = "El proyecto está finalizado y su backlog es de solo lectura."
 	msgInternalError   = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
 )
@@ -89,6 +90,44 @@ func (h *Handler) createStory(c *gin.Context) {
 	c.JSON(http.StatusCreated, newStoryDetail(view))
 }
 
+// getStory godoc
+//
+//	@Summary		Consulta el detalle de una historia
+//	@Description	Devuelve todos los datos de la historia: criterios de aceptación en el orden en que se
+//	@Description	cargaron, si está lista para planificar y qué le falta, quién la creó, cuándo se creó y
+//	@Description	se actualizó, y si está o estuvo asignada a un sprint (FR-039). Sin criterios, la lista
+//	@Description	viene vacía y no es un error (FR-040). Se puede consultar también en proyectos finished
+//	@Description	(FR-048).
+//	@Tags			Backlog
+//	@ID				getStory
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			storyId	path		string					true	"Identificador propio, estable, inmutable y no secuencial de la historia (FR-009)"	format(uuid)
+//	@Success		200		{object}	StoryDetail				"Detalle de la historia."
+//	@Failure		401		{object}	delivery.ErrorResponse	"Se requiere iniciar sesión (FR-045)."
+//	@Failure		404		{object}	delivery.ErrorResponse	"La historia no existe, fue eliminada o pertenece a un proyecto del que quien pide no es integrante; las tres situaciones devuelven el mismo cuerpo (FR-044, FR-047, SC-006)."
+//	@Failure		500		{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/stories/{storyId} [get]
+func (h *Handler) getStory(c *gin.Context) {
+	// RequireStoryAccess ya verificó la sesión y la membresía y dejó el acceso en el contexto. Si no
+	// está, la ruta se registró fuera de ese middleware: es un error de composición y responde 500.
+	access, ok := storyAccessFromContext(c)
+	if !ok {
+		respondInternalError(c, "getStory sin acceso a la historia en el contexto")
+		return
+	}
+
+	// Se arma el detalle de la historia; cualquier error del servicio se traduce con
+	// respondServiceError.
+	view, err := h.stories.Get(c.Request.Context(), access.StoryID)
+	if err != nil {
+		respondServiceError(c, err, "no se pudo leer el detalle de la historia")
+		return
+	}
+
+	c.JSON(http.StatusOK, newStoryDetail(view))
+}
+
 // listStories godoc
 //
 //	@Summary		Lista el backlog del proyecto, ordenado y opcionalmente filtrado
@@ -151,8 +190,7 @@ func sessionAndProject(c *gin.Context, handlerName string) (uuid.UUID, uuid.UUID
 	}
 	projectID, err := uuid.Parse(c.Param("projectId"))
 	if err != nil {
-		slog.ErrorContext(c.Request.Context(), handlerName+" sin un projectId válido en la ruta", "error", err)
-		c.JSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: msgInternalError})
+		respondInternalError(c, handlerName+" sin un projectId válido en la ruta", "error", err)
 		return uuid.Nil, uuid.Nil, false
 	}
 	return actorID, projectID, true
@@ -190,7 +228,13 @@ func respondServiceError(c *gin.Context, err error, logMessage string) {
 	case errors.Is(err, domain.ErrBacklogReadOnly):
 		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgBacklogReadOnly})
 	default:
-		slog.ErrorContext(c.Request.Context(), logMessage, "error", err)
-		c.JSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: msgInternalError})
+		respondInternalError(c, logMessage, "error", err)
 	}
+}
+
+// respondInternalError registra en el log el mensaje y los atributos recibidos y responde el 500
+// genérico, sin exponer la causa a quien pide (Principio VII).
+func respondInternalError(c *gin.Context, logMessage string, attrs ...any) {
+	slog.ErrorContext(c.Request.Context(), logMessage, attrs...)
+	c.JSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: msgInternalError})
 }

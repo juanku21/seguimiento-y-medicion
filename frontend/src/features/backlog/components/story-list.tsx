@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Alert } from "@/components/alert";
 import { listStories } from "@/features/backlog/api";
+import { ReadinessBadge } from "@/features/backlog/components/readiness-badge";
 import { useRequireSession } from "@/hooks/use-session";
 import type { ApiError } from "@/lib/api-client";
 import type {
@@ -121,7 +123,8 @@ export function StoryList({ projectId, filters }: StoryListProps) {
   }
 
   // Una fila por historia, en el orden recibido, con prioridad y estado en español, Story Points,
-  // cantidad de criterios y si está lista para planificar (FR-033).
+  // cantidad de criterios y si está lista para planificar (FR-033). El título enlaza al detalle
+  // de la historia (003/US3).
   return (
     <ul aria-label="Backlog" className="flex flex-col gap-3">
       {stories.map((story) => (
@@ -130,18 +133,15 @@ export function StoryList({ projectId, filters }: StoryListProps) {
           className="flex flex-col gap-2 rounded-md border border-zinc-300 px-5 py-4 dark:border-zinc-700"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-base font-medium break-words">{story.title}</h2>
-            <span
-              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                story.readyToPlan
-                  ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200"
-                  : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-              }`}
-            >
-              {story.readyToPlan
-                ? "Lista para planificar"
-                : "No lista para planificar"}
-            </span>
+            <h2 className="text-base font-medium break-words">
+              <Link
+                href={`/projects/${projectId}/backlog/${story.id}`}
+                className="underline-offset-4 hover:underline"
+              >
+                {story.title}
+              </Link>
+            </h2>
+            <ReadinessBadge ready={story.readyToPlan} />
           </div>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
             {STORY_PRIORITY_LABELS[story.priority]} ·{" "}

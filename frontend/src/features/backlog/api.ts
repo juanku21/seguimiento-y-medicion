@@ -12,8 +12,9 @@ import type {
   StoryListResponse,
 } from "@/types/story";
 
-// Reconoce el detalle de la historia (StoryDetail) que devuelve la creación exitosa (201), sin
-// confiar en el cuerpo recibido. Los Story Points y la descripción pueden llegar en null.
+// Reconoce el detalle de la historia (StoryDetail) que devuelven la creación exitosa (201) y la
+// consulta del detalle (200), sin confiar en el cuerpo recibido. Los Story Points y la descripción
+// pueden llegar en null.
 function isStoryDetail(value: unknown): value is StoryDetail {
   return (
     isRecord(value) &&
@@ -46,6 +47,17 @@ export function createStory(
   return postAuthorizedJson(
     `/api/v1/projects/${projectId}/stories`,
     input,
+    isStoryDetail,
+  );
+}
+
+// Consulta el detalle de una historia con GET /api/v1/stories/{storyId}, usando la sesión de la
+// pestaña (003/US3). El identificador se codifica para que no altere la ruta pedida. La historia
+// ajena y la inexistente llegan con el mismo 404 y su mensaje, sin datos de la historia (FR-047), y
+// ante un 401 el cliente HTTP descarta la sesión.
+export function getStory(storyId: string): Promise<ApiResult<StoryDetail>> {
+  return getJson(
+    `/api/v1/stories/${encodeURIComponent(storyId)}`,
     isStoryDetail,
   );
 }

@@ -95,6 +95,13 @@ func (s *StoryService) Create(ctx context.Context, projectID, actorID uuid.UUID,
 	return s.buildDetail(ctx, story.ID)
 }
 
+// Get devuelve el detalle de una historia (FR-039). El acceso ya lo resolvió RequireStoryAccess
+// antes de llegar acá, así que solo arma la vista con buildDetail; si la historia no existe, el
+// error envuelve ErrStoryNotFound del repositorio.
+func (s *StoryService) Get(ctx context.Context, storyID uuid.UUID) (*StoryView, error) {
+	return s.buildDetail(ctx, storyID)
+}
+
 // buildDetail arma la vista de detalle de una historia: lee la historia con sus criterios y su
 // autor, calcula con Readiness si está lista para planificar y qué le falta (RN-12, FR-028), y
 // consulta el puerto de sprints para informar si estuvo alguna vez en un sprint (FR-039). Lo usan

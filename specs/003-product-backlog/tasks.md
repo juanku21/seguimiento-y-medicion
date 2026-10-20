@@ -390,7 +390,7 @@ idéntico byte a byte al de un identificador inventado.
 
 ### Pruebas de la Historia 3 ⚠️
 
-- [ ] T039 [P] [US3] Pruebas de integración de `RequireStoryAccess` en
+- [X] T039 [P] [US3] Pruebas de integración de `RequireStoryAccess` en
       `backend/internal/backlog/delivery/middleware_test.go`, montado sobre un manejador de prueba:
       un integrante que no es el propietario pasa y recibe en el contexto un `StoryAccess` con la
       historia, su proyecto y si está Finalizado (RN-01, RN-02); la historia inexistente, la de un
@@ -398,7 +398,7 @@ idéntico byte a byte al de un identificador inventado.
       **el mismo `404` byte a byte** (`{"error":"La historia no existe."}`) con una sola consulta;
       y sin titular en el contexto responde el `401` de la 001 (research.md sección 3) — depende de
       T038
-- [ ] T040 [US3] Pruebas de integración de la historia en
+- [X] T040 [US3] Pruebas de integración de la historia en
       `backend/internal/backlog/delivery/handler_test.go`, con `// Escenario: <nombre> (003/US3)`:
       `TestUS3_DetalleCompleto` (descripción, prioridad Media, 8 Story Points, tres criterios en
       orden, autor, `createdAt`, `updatedAt` y `readiness.ready` verdadero),
@@ -411,7 +411,7 @@ idéntico byte a byte al de un identificador inventado.
       de la 002, y el detalle consultado por Ana sigue devolviendo la historia con
       `createdBy.fullName` igual a "Bruno Gómez", mientras que Bruno recibe `404` (FR-050, caso
       límite "Integrante quitado del proyecto") — depende de T038
-- [ ] T041 [P] [US3] Pruebas de frontend en
+- [X] T041 [P] [US3] Pruebas de frontend en
       `frontend/src/features/backlog/components/story-detail-card.test.tsx`, con
       `describe("003/US3 - Consultar el detalle de una historia")` y un `it` por escenario, incluido
       que 0 se muestra como "0 Story Points" y `null` como "Sin estimar", y que se indica qué falta
@@ -419,21 +419,21 @@ idéntico byte a byte al de un identificador inventado.
 
 ### Implementación de la Historia 3
 
-- [ ] T042 [US3] Implementar `FindAccessible` en
+- [X] T042 [US3] Implementar `FindAccessible` en
       `backend/internal/backlog/repository/story_repository.go` con **una sola consulta**
       `user_stories JOIN project_members (project_id, user_id = titular) JOIN projects`, devolviendo
       `ErrStoryNotFound` si no hay fila (research.md sección 3) — depende de T039
-- [ ] T043 [US3] Implementar `RequireStoryAccess` en `backend/internal/backlog/delivery/middleware.go`
+- [X] T043 [US3] Implementar `RequireStoryAccess` en `backend/internal/backlog/delivery/middleware.go`
       con **una única salida `404`** para la historia inexistente, la ajena y el identificador mal
       formado, que deja el `StoryAccess` en el contexto; cualquier otro error responde `500`
       genérico registrado en el log — depende de T042
-- [ ] T044 [US3] Implementar `Get(ctx, storyID)` en `backend/internal/backlog/service/story_service.go`
+- [X] T044 [US3] Implementar `Get(ctx, storyID)` en `backend/internal/backlog/service/story_service.go`
       sobre `FindDetail` y `buildDetail` de T022 — depende de T040
-- [ ] T045 [US3] Implementar el manejador `getStory` en `backend/internal/backlog/delivery/handler.go`
+- [X] T045 [US3] Implementar el manejador `getStory` en `backend/internal/backlog/delivery/handler.go`
       con anotaciones `swag` en español, y crear en `backend/internal/backlog/delivery/routes.go` el
       grupo plano `/api/v1/stories/:storyId` con el middleware de sesión inyectado desde
       `cmd/app/main.go` y `RequireStoryAccess`, registrando `GET` en él — depende de T043 y T044
-- [ ] T046 [US3] Implementar la llamada de detalle en `frontend/src/features/backlog/api.ts`, el
+- [X] T046 [US3] Implementar la llamada de detalle en `frontend/src/features/backlog/api.ts`, el
       componente `StoryDetailCard` en
       `frontend/src/features/backlog/components/story-detail-card.tsx` y la pantalla
       `frontend/src/app/projects/[projectId]/backlog/[storyId]/page.tsx`, con el enlace desde cada

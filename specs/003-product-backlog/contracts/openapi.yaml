@@ -1,0 +1,933 @@
+# Contrato de la API del Product Backlog (spec 003).
+# Fuente de verdad del diseño: specs/003-product-backlog/spec.md
+# Este archivo es el contrato acordado en la Fase 1 del plan. La documentación publicada en
+# /swagger/index.html se genera con `swag init` a partir de las anotaciones del código y DEBE
+# coincidir con este contrato (Principio VIII).
+openapi: 3.0.3
+
+info:
+  title: Software Metrics & Estimation — Product Backlog
+  description: |
+    Registro, consulta, refinamiento, estimación en Story Points y eliminación de las historias de
+    usuario del backlog de un proyecto.
+
+    **Todas** las operaciones exigen una sesión válida, sin excepciones (FR-045). La sesión se envía
+    en la cabecera `Authorization: Bearer <token>` emitida por `/api/v1/auth/login` de la spec 001.
+
+    Reglas que gobiernan todas las respuestas:
+
+    - Cualquier **integrante** del proyecto puede crear, listar, consultar, modificar, estimar y
+      eliminar historias, sin importar quién las creó ni si es el propietario (RN-01, RN-02).
+    - Ante una solicitud sobre un proyecto del que quien pide no es integrante, la respuesta es
+      `404` con **el mismo cuerpo** que ante un proyecto que no existe. Ante una solicitud sobre una
+      historia de un proyecto del que quien pide no es integrante, la respuesta es `404` con **el
+      mismo cuerpo** que ante una historia que no existe o que fue eliminada (FR-044, FR-047,
+      SC-006).
+    - En un proyecto `finished` el backlog es de **solo lectura**: se puede listar y consultar, y
+      toda escritura se rechaza con `409` (FR-048, RN-15).
+    - El backlog **nunca cambia el estado** de una historia: toda historia nace `pending` y sus
+      transiciones las produce la feature de sprints (FR-027, RN-10).
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Entorno de desarrollo local
+
+tags:
+  - name: Backlog
+    description: Historias de usuario del backlog de un proyecto
+
+paths:
+  /api/v1/projects/{projectId}/stories:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+
+    post:
+      tags: [Backlog]
+      summary: Crea una historia en el backlog del proyecto
+      description: |
+        Crea una historia a partir de título, descripción opcional, prioridad, Story Points
+        opcionales y criterios de aceptación opcionales (FR-001).
+
+        La historia nace en estado `pending` (FR-008), atribuida al titular de la sesión (FR-011,
+        FR-049). Si no se indican Story Points queda "sin estimar" (`storyPoints: null`); el 0 es
+        una estimación válida y distinta de "sin estimar" (FR-015). El título no es único dentro del
+        backlog (FR-012).
+
+        La creación es atómica: si algún dato es inválido no se crea la historia ni ninguno de sus
+        criterios (FR-013). Se acepta en proyectos `planned` e `in_progress` (US1-3) y se rechaza en
+        proyectos `finished` (FR-048).
+      operationId: createStory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoryInput'
+            examples:
+              completa:
+                summary: Historia completa, lista para planificar (US1-1)
+                value:
+                  title: Exportar el reporte de velocidad a PDF
+                  description: El equipo necesita compartir la velocidad con la gerencia.
+                  priority: high
+                  storyPoints: 5
+                  acceptanceCriteria:
+                    - El PDF incluye la velocidad de los últimos cinco sprints.
+                    - El archivo se descarga con el nombre del proyecto.
+              minima:
+                summary: Solo título y prioridad (US1-2)
+                value:
+                  title: Revisar los permisos de los integrantes
+                  priority: low
+      responses:
+        '201':
+          description: Historia creada en estado `pending`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryDetail'
+        '400':
+          $ref: '#/components/responses/EntradaInvalida'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/ProyectoInexistente'
+        '409':
+          $ref: '#/components/responses/BacklogSoloLectura'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+    get:
+      tags: [Backlog]
+      summary: Lista el backlog del proyecto, ordenado y opcionalmente filtrado
+      description: |
+        Devuelve las historias del proyecto ordenadas por prioridad (`high`, `medium`, `low`) y,
+        dentro de cada prioridad, por fecha de creación ascendente. Ante igual prioridad y fecha, el
+        orden se desempata por el identificador, de modo que es estable entre consultas (FR-032,
+        RN-17).
+
+        Los filtros `status` y `priority` se pueden repetir para admitir varios valores
+        (`?status=pending&status=in_progress`). Dentro de un mismo filtro los valores se combinan
+        con O; entre los dos filtros, con Y (FR-034). Un valor que no existe se rechaza con `400`
+        indicando los valores admitidos (FR-037).
+
+        Un backlog vacío y unos filtros sin coincidencias **no son errores**: responden `200` con la
+        lista vacía y `emptyReason` en `backlog_empty` o `no_matches`, respectivamente (FR-035,
+        FR-036). Ninguna historia de otro proyecto aparece (FR-038).
+
+        Este listado no ofrece búsqueda por texto ni paginación: están en "Fuera de Alcance".
+      operationId: listStories
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Filtra por estado; se puede repetir.
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/StoryStatus'
+        - name: priority
+          in: query
+          required: false
+          description: Filtra por prioridad; se puede repetir.
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/StoryPriority'
+      responses:
+        '200':
+          description: Listado del backlog.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryListResponse'
+              examples:
+                conHistorias:
+                  summary: Backlog con historias, sin filtros
+                  value:
+                    stories:
+                      - id: 1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+                        title: Exportar el reporte de velocidad a PDF
+                        priority: high
+                        status: pending
+                        storyPoints: 5
+                        acceptanceCriteriaCount: 2
+                        readyToPlan: true
+                      - id: 6d7e8f90-1a2b-4c3d-9e4f-5a6b7c8d9e0f
+                        title: Revisar los permisos de los integrantes
+                        priority: low
+                        status: pending
+                        storyPoints: null
+                        acceptanceCriteriaCount: 0
+                        readyToPlan: false
+                    appliedFilters:
+                      status: []
+                      priority: []
+                    emptyReason: null
+                backlogVacio:
+                  summary: Proyecto sin historias (US2-4)
+                  value:
+                    stories: []
+                    appliedFilters:
+                      status: []
+                      priority: []
+                    emptyReason: backlog_empty
+                sinCoincidencias:
+                  summary: Filtros que no coinciden con ninguna historia (US2-5)
+                  value:
+                    stories: []
+                    appliedFilters:
+                      status: []
+                      priority: [high]
+                    emptyReason: no_matches
+        '400':
+          description: Un filtro tiene un valor que no existe (FR-037).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              example:
+                error: Hay campos inválidos en la solicitud.
+                fields:
+                  - field: priority
+                    message: Los valores admitidos para la prioridad son high, medium y low.
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/ProyectoInexistente'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/v1/stories/{storyId}:
+    parameters:
+      - $ref: '#/components/parameters/StoryId'
+
+    get:
+      tags: [Backlog]
+      summary: Consulta el detalle de una historia
+      description: |
+        Devuelve todos los datos de la historia: criterios de aceptación en el orden en que se
+        cargaron, si está lista para planificar y qué le falta, quién la creó, cuándo se creó y se
+        actualizó, y si está o estuvo asignada a un sprint (FR-039). Sin criterios, la lista viene
+        vacía y no es un error (FR-040).
+
+        Se puede consultar también en proyectos `finished` (FR-048).
+      operationId: getStory
+      responses:
+        '200':
+          description: Detalle de la historia.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryDetail'
+              examples:
+                lista:
+                  summary: Historia lista para planificar (US3-1)
+                  value:
+                    id: 1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+                    projectId: 9b2f1c0a-5d3e-4a71-8c62-0f4e7a1b9d35
+                    title: Exportar el reporte de velocidad a PDF
+                    description: El equipo necesita compartir la velocidad con la gerencia.
+                    priority: medium
+                    status: pending
+                    storyPoints: 8
+                    acceptanceCriteria:
+                      - El PDF incluye la velocidad de los últimos cinco sprints.
+                      - El archivo se descarga con el nombre del proyecto.
+                      - El reporte respeta la zona horaria del sistema.
+                    readiness:
+                      ready: true
+                      missing: []
+                    createdBy:
+                      id: 3f1a9c64-7b2e-4d58-9a10-5c8e2f6b1d04
+                      fullName: Ana Pérez
+                    createdAt: '2026-10-20T13:05:00Z'
+                    updatedAt: '2026-10-20T14:30:00Z'
+                    everAssignedToSprint: false
+                sinRefinar:
+                  summary: Historia sin estimar y sin criterios (US3-2)
+                  value:
+                    id: 6d7e8f90-1a2b-4c3d-9e4f-5a6b7c8d9e0f
+                    projectId: 9b2f1c0a-5d3e-4a71-8c62-0f4e7a1b9d35
+                    title: Revisar los permisos de los integrantes
+                    description: null
+                    priority: low
+                    status: pending
+                    storyPoints: null
+                    acceptanceCriteria: []
+                    readiness:
+                      ready: false
+                      missing: [story_points, acceptance_criteria]
+                    createdBy:
+                      id: 7c2d4e81-0a3b-4f6c-8d9e-1b2a3c4d5e6f
+                      fullName: Bruno Gómez
+                    createdAt: '2026-10-20T13:10:00Z'
+                    updatedAt: '2026-10-20T13:10:00Z'
+                    everAssignedToSprint: false
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/HistoriaInexistente'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+    patch:
+      tags: [Backlog]
+      summary: Refina una historia
+      description: |
+        Modifica el título, la descripción, la prioridad o los criterios de aceptación de la
+        historia. **Solo se aplican los campos incluidos**: un campo ausente deja su valor vigente y
+        un campo enviado vacío borra el valor cuando ese campo admite estar vacío (FR-020):
+
+        - `description` en `null`, `""` o solo espacios borra la descripción.
+        - `acceptanceCriteria` en `[]` deja la historia sin criterios; la lista enviada **reemplaza
+          completa** a la anterior, lo que resuelve agregar, quitar y reordenar (FR-022).
+        - `title` y `priority` no admiten quedar vacíos.
+
+        Las validaciones son las mismas que en la creación (FR-021). La modificación es atómica: si
+        algún campo es inválido no se aplica ninguno (FR-023). No altera el identificador, el
+        estado, el proyecto, el autor ni el momento de creación (FR-024).
+
+        Dos modificaciones simultáneas de campos distintos conservan los dos cambios; sobre el mismo
+        campo prevalece la última, sin aviso. La lista de criterios cuenta como un único campo y dos
+        listas enviadas a la vez nunca se fusionan (FR-025).
+
+        El estado no se modifica desde el backlog: un cuerpo con `status` se rechaza con `400`
+        (FR-027, US5-13). La estimación se cambia con `PUT /api/v1/stories/{storyId}/story-points`:
+        un cuerpo con `storyPoints` se rechaza con `400`.
+
+        Se rechaza con `409` si la historia está `completed` (FR-030), si el proyecto está
+        `finished` (FR-048) o si se intenta dejar sin criterios a una historia comprometida en un
+        sprint abierto (FR-022, RN-18).
+      operationId: updateStory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoryPatch'
+            examples:
+              prioridad:
+                summary: Cambia solo la prioridad
+                value:
+                  priority: high
+              varios:
+                summary: Cambia título, descripción, prioridad y criterios (US5-1)
+                value:
+                  title: Exportar a PDF el reporte de velocidad del equipo
+                  description: Incluye los sprints cerrados del último trimestre.
+                  priority: medium
+                  acceptanceCriteria:
+                    - El PDF incluye la velocidad de los últimos cinco sprints.
+                    - El archivo se descarga con el nombre del proyecto.
+              vaciarCriterios:
+                summary: Deja la historia sin criterios (US5-4)
+                value:
+                  acceptanceCriteria: []
+              borrarDescripcion:
+                summary: Borra la descripción
+                value:
+                  description: null
+      responses:
+        '200':
+          description: Historia actualizada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryDetail'
+        '400':
+          description: |
+            Entrada inválida, cuerpo sin campos a modificar, o intento de cambiar `status` o
+            `storyPoints` por esta vía. No se aplica ningún cambio (FR-023).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              examples:
+                titulo:
+                  summary: Título demasiado largo
+                  value:
+                    error: Hay campos inválidos en la solicitud.
+                    fields:
+                      - field: title
+                        message: El título admite como máximo 150 caracteres.
+                estado:
+                  summary: Intento de cambiar el estado desde el backlog (US5-13)
+                  value:
+                    error: Hay campos inválidos en la solicitud.
+                    fields:
+                      - field: status
+                        message: El estado de una historia no se cambia desde el backlog; lo cambia la gestión de sprints.
+                vacio:
+                  summary: Cuerpo sin campos a modificar
+                  value:
+                    error: Hay campos inválidos en la solicitud.
+                    fields:
+                      - field: body
+                        message: La solicitud no incluye ningún campo a modificar.
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/HistoriaInexistente'
+        '409':
+          description: |
+            La historia está `completed`, el proyecto está `finished`, o se intenta dejar sin
+            criterios a una historia comprometida en un sprint abierto. La historia no cambia.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                completada:
+                  summary: Historia completada (US5-10)
+                  value:
+                    error: La historia está completada y no se puede modificar ni reestimar.
+                soloLectura:
+                  summary: Proyecto finalizado (US5-11)
+                  value:
+                    error: El proyecto está finalizado y su backlog es de solo lectura.
+                comprometida:
+                  summary: Sin criterios estando comprometida en un sprint (US5-8)
+                  value:
+                    error: La historia está comprometida en un sprint abierto; primero hay que quitarla del sprint.
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+    delete:
+      tags: [Backlog]
+      summary: Elimina una historia que nunca se trabajó
+      description: |
+        Elimina la historia de forma definitiva, únicamente si nunca fue asignada a un sprint, no
+        tiene esfuerzo registrado, no tiene defectos asociados y no tiene sesiones de estimación por
+        Planning Poker, Finalizadas o Canceladas (FR-041, RN-16). Cualquier integrante puede
+        eliminarla (FR-042).
+
+        Si alguna condición se cumple, responde `409` indicando **todas** las que aplican, y la
+        historia no se toca (FR-043). Una historia eliminada desaparece de toda consulta posterior:
+        operar sobre ella responde `404` como historia inexistente (FR-044, US6-10).
+      operationId: deleteStory
+      responses:
+        '204':
+          description: Historia eliminada.
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/HistoriaInexistente'
+        '409':
+          description: |
+            El proyecto está `finished`, o la historia tiene historial asociado. En el segundo caso
+            el cuerpo lista los motivos.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/DeletionBlockedResponse'
+                  - $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                conHistorial:
+                  summary: Estuvo en un sprint y tiene esfuerzo (US6-4, US6-6)
+                  value:
+                    error: La historia tiene historial asociado y no se puede eliminar.
+                    reasons:
+                      - code: sprint_history
+                        message: Estuvo asignada a un sprint.
+                      - code: effort
+                        message: Tiene esfuerzo registrado.
+                conEstimacion:
+                  summary: Tiene sesiones de Planning Poker (US6-7)
+                  value:
+                    error: La historia tiene historial asociado y no se puede eliminar.
+                    reasons:
+                      - code: estimation_sessions
+                        message: Tiene sesiones de estimación por Planning Poker.
+                soloLectura:
+                  summary: Proyecto finalizado (US6-8)
+                  value:
+                    error: El proyecto está finalizado y su backlog es de solo lectura.
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/v1/stories/{storyId}/story-points:
+    parameters:
+      - $ref: '#/components/parameters/StoryId'
+
+    put:
+      tags: [Backlog]
+      summary: Estima una historia en Story Points
+      description: |
+        Asigna a la historia un valor de la escala (`0, 1, 2, 3, 5, 8, 13, 20, 40, 100`) o la
+        devuelve a "sin estimar" con `null` (FR-014, FR-016, FR-018). El campo es obligatorio. El
+        valor nuevo reemplaza al anterior y actualiza el momento de última actualización (FR-017).
+
+        Todo valor fuera de la escala —intermedio, negativo o decimal— se rechaza con `400`
+        indicando la escala, sin alterar el valor vigente (FR-019).
+
+        Se rechaza con `409` si la historia está `completed` (FR-030), si el proyecto está
+        `finished` (FR-048) o si se intenta devolver a "sin estimar" una historia comprometida en un
+        sprint abierto (FR-018, RN-18). Cambiar un valor de la escala por otro sí se admite en una
+        historia comprometida.
+      operationId: estimateStory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoryPointsInput'
+            examples:
+              estimar:
+                summary: Estima en 13 (US4-1)
+                value:
+                  storyPoints: 13
+              cero:
+                summary: Estima en 0, que es una estimación válida (US4-5)
+                value:
+                  storyPoints: 0
+              sinEstimar:
+                summary: Devuelve la historia a sin estimar (US4-3)
+                value:
+                  storyPoints: null
+      responses:
+        '200':
+          description: Historia estimada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryDetail'
+        '400':
+          description: Campo ausente o valor fuera de la escala (FR-019). El valor vigente no cambia.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              example:
+                error: Hay campos inválidos en la solicitud.
+                fields:
+                  - field: storyPoints
+                    message: Los valores admitidos de Story Points son 0, 1, 2, 3, 5, 8, 13, 20, 40 y 100, o sin estimar.
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/HistoriaInexistente'
+        '409':
+          description: |
+            La historia está `completed`, el proyecto está `finished`, o se intenta devolver a "sin
+            estimar" una historia comprometida en un sprint abierto. La estimación no cambia.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                completada:
+                  summary: Historia completada (US4-8)
+                  value:
+                    error: La historia está completada y no se puede modificar ni reestimar.
+                comprometida:
+                  summary: Sin estimar estando comprometida (US4-6)
+                  value:
+                    error: La historia está comprometida en un sprint abierto; primero hay que quitarla del sprint.
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Token emitido por `/api/v1/auth/login` de la spec 001, enviado como
+        `Authorization: Bearer <token>`.
+
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      description: Identificador del proyecto de la spec 002.
+      schema:
+        type: string
+        format: uuid
+    StoryId:
+      name: storyId
+      in: path
+      required: true
+      description: Identificador propio, estable, inmutable y no secuencial de la historia (FR-009).
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    SesionInvalida:
+      description: |
+        Se requiere iniciar sesión. Misma respuesta para sesión ausente, vencida, cerrada por su
+        titular o adulterada, definida por la spec 001 (FR-045). La acción no se ejecuta.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Se requiere iniciar sesión.
+
+    ProyectoInexistente:
+      description: |
+        El proyecto no existe, **o** existe y quien pide no es integrante. Las dos situaciones
+        devuelven exactamente el mismo cuerpo, definido por la spec 002 (FR-047, SC-006).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: El proyecto no existe.
+
+    HistoriaInexistente:
+      description: |
+        La historia no existe, fue eliminada, **o** pertenece a un proyecto del que quien pide no es
+        integrante. Las tres situaciones devuelven exactamente el mismo cuerpo, sin revelar ningún
+        dato de la historia, ni siquiera su título (FR-044, FR-047, SC-006).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: La historia no existe.
+
+    BacklogSoloLectura:
+      description: El proyecto está `finished` y su backlog es de solo lectura (FR-048, RN-15).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: El proyecto está finalizado y su backlog es de solo lectura.
+
+    EntradaInvalida:
+      description: |
+        Entrada inválida. Indica qué campo corregir y por qué, y no crea ni modifica nada (FR-013).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+          example:
+            error: Hay campos inválidos en la solicitud.
+            fields:
+              - field: title
+                message: El título es obligatorio.
+              - field: acceptanceCriteria[1]
+                message: Cada criterio de aceptación debe tener contenido.
+
+    ErrorInterno:
+      description: |
+        Error interno inesperado. La respuesta no expone ningún detalle de la causa (Principio VII).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Ocurrió un error inesperado. Intentá de nuevo más tarde.
+
+  schemas:
+    StoryPriority:
+      type: string
+      description: Prioridad de la historia; `high` es Alta, `medium` Media y `low` Baja (FR-004).
+      enum: [high, medium, low]
+      example: high
+
+    StoryStatus:
+      type: string
+      description: |
+        Estado de la historia; `pending` es Pendiente, `in_progress` En progreso y `completed`
+        Completada (FR-026). Lo cambia solo la feature de sprints (FR-027).
+      enum: [pending, in_progress, completed]
+      example: pending
+
+    StoryPoints:
+      type: integer
+      nullable: true
+      description: |
+        Story Points de la escala, o `null` para "sin estimar". El 0 es una estimación válida y
+        distinta de `null` (FR-014, FR-015, RN-06, RN-07).
+      enum: [0, 1, 2, 3, 5, 8, 13, 20, 40, 100, null]
+      example: 5
+
+    StoryInput:
+      type: object
+      description: Cuerpo de la creación de una historia (FR-001 a FR-007).
+      required: [title, priority]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 150
+          description: Entre 1 y 150 caracteres tras recortar los espacios extremos (FR-002).
+          example: Exportar el reporte de velocidad a PDF
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+          description: Opcional, hasta 2000 caracteres; vacía o solo espacios se guarda como ausente (FR-003).
+          example: El equipo necesita compartir la velocidad con la gerencia.
+        priority:
+          $ref: '#/components/schemas/StoryPriority'
+        storyPoints:
+          $ref: '#/components/schemas/StoryPoints'
+        acceptanceCriteria:
+          type: array
+          description: |
+            Opcional. Lista ordenada; cada criterio tiene entre 1 y 500 caracteres tras recortar
+            los espacios extremos (FR-006, FR-007).
+          items:
+            type: string
+            minLength: 1
+            maxLength: 500
+          example:
+            - El PDF incluye la velocidad de los últimos cinco sprints.
+
+    StoryPatch:
+      type: object
+      description: |
+        Cuerpo de la modificación. Todos los campos son opcionales y solo se aplican los incluidos;
+        debe incluir al menos uno (FR-020). `status` y `storyPoints` no forman parte del esquema y
+        se rechazan si se envían.
+      minProperties: 1
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 150
+          example: Exportar a PDF el reporte de velocidad del equipo
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+          description: '`null`, `""` o solo espacios borran la descripción.'
+          example: Incluye los sprints cerrados del último trimestre.
+        priority:
+          $ref: '#/components/schemas/StoryPriority'
+        acceptanceCriteria:
+          type: array
+          description: Reemplaza la lista completa; `[]` deja la historia sin criterios (FR-022).
+          items:
+            type: string
+            minLength: 1
+            maxLength: 500
+
+    StoryPointsInput:
+      type: object
+      description: Cuerpo de la estimación. `storyPoints` es obligatorio y admite `null` (FR-016, FR-018).
+      required: [storyPoints]
+      properties:
+        storyPoints:
+          $ref: '#/components/schemas/StoryPoints'
+
+    StoryListItem:
+      type: object
+      description: Elemento del listado del backlog (FR-033).
+      required: [id, title, priority, status, storyPoints, acceptanceCriteriaCount, readyToPlan]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        priority:
+          $ref: '#/components/schemas/StoryPriority'
+        status:
+          $ref: '#/components/schemas/StoryStatus'
+        storyPoints:
+          $ref: '#/components/schemas/StoryPoints'
+        acceptanceCriteriaCount:
+          type: integer
+          minimum: 0
+          example: 2
+        readyToPlan:
+          type: boolean
+          description: Verdadero cuando tiene Story Points (incluido 0) y al menos un criterio (FR-028).
+          example: true
+
+    AppliedFilters:
+      type: object
+      description: Filtros aplicados al listado; vacíos si no se filtró (FR-036).
+      required: [status, priority]
+      properties:
+        status:
+          type: array
+          items:
+            $ref: '#/components/schemas/StoryStatus'
+        priority:
+          type: array
+          items:
+            $ref: '#/components/schemas/StoryPriority'
+
+    StoryListResponse:
+      type: object
+      required: [stories, appliedFilters, emptyReason]
+      properties:
+        stories:
+          type: array
+          description: Historias en el orden de FR-032; nunca es `null`.
+          items:
+            $ref: '#/components/schemas/StoryListItem'
+        appliedFilters:
+          $ref: '#/components/schemas/AppliedFilters'
+        emptyReason:
+          type: string
+          nullable: true
+          enum: [backlog_empty, no_matches, null]
+          description: |
+            `null` si hay historias; `backlog_empty` si el proyecto no tiene ninguna (FR-035);
+            `no_matches` si hay historias pero ninguna cumple los filtros (FR-036).
+
+    Readiness:
+      type: object
+      description: Condición de lista para planificar y qué falta cuando no se cumple (FR-028, FR-029).
+      required: [ready, missing]
+      properties:
+        ready:
+          type: boolean
+          example: false
+        missing:
+          type: array
+          description: Condiciones que faltan; vacía cuando `ready` es verdadero.
+          items:
+            type: string
+            enum: [story_points, acceptance_criteria]
+
+    AuthorRef:
+      type: object
+      description: Autor de la historia; se conserva aunque haya dejado de ser integrante (FR-050).
+      required: [id, fullName]
+      properties:
+        id:
+          type: string
+          format: uuid
+        fullName:
+          type: string
+          example: Ana Pérez
+
+    StoryDetail:
+      type: object
+      description: Detalle completo de una historia (FR-039) y respuesta de las escrituras.
+      required:
+        - id
+        - projectId
+        - title
+        - description
+        - priority
+        - status
+        - storyPoints
+        - acceptanceCriteria
+        - readiness
+        - createdBy
+        - createdAt
+        - updatedAt
+        - everAssignedToSprint
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        priority:
+          $ref: '#/components/schemas/StoryPriority'
+        status:
+          $ref: '#/components/schemas/StoryStatus'
+        storyPoints:
+          $ref: '#/components/schemas/StoryPoints'
+        acceptanceCriteria:
+          type: array
+          description: Criterios en el orden en que se cargaron; vacía si no tiene (FR-040).
+          items:
+            type: string
+        readiness:
+          $ref: '#/components/schemas/Readiness'
+        createdBy:
+          $ref: '#/components/schemas/AuthorRef'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        everAssignedToSprint:
+          type: boolean
+          description: Verdadero si la historia está o estuvo asignada a un sprint (FR-039, US3-3).
+
+    DeletionBlockedReason:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum: [sprint_history, effort, defects, estimation_sessions]
+        message:
+          type: string
+          example: Estuvo asignada a un sprint.
+
+    DeletionBlockedResponse:
+      type: object
+      description: Rechazo de la eliminación por historial asociado (FR-043).
+      required: [error, reasons]
+      properties:
+        error:
+          type: string
+          example: La historia tiene historial asociado y no se puede eliminar.
+        reasons:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/DeletionBlockedReason'
+
+    ErrorResponse:
+      type: object
+      description: Esquema de error de la spec 001, reutilizado sin cambios.
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Mensaje en español dirigido a la persona (Principio VIII).
+          example: La historia no existe.
+
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+          description: |
+            Nombre del campo inválido, tal como se envió; para un criterio incluye su índice
+            (`acceptanceCriteria[2]`).
+          example: storyPoints
+        message:
+          type: string
+          description: Qué hay que corregir y por qué.
+          example: Los valores admitidos de Story Points son 0, 1, 2, 3, 5, 8, 13, 20, 40 y 100, o sin estimar.
+
+    ValidationErrorResponse:
+      type: object
+      description: Rechazo por entrada inválida, con el detalle por campo (FR-013).
+      required: [error, fields]
+      properties:
+        error:
+          type: string
+          example: Hay campos inválidos en la solicitud.
+        fields:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/FieldError'
+
+# Todas las operaciones de esta feature exigen sesión válida, sin excepciones (FR-045).
+# Ninguna declara `security: []`.
+security:
+  - BearerAuth: []

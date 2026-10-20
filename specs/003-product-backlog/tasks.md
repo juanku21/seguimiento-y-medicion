@@ -81,7 +81,7 @@ lógica de negocio.
 
 **Rama**: `fase/003-foundational`
 
-- [ ] T001 [P] Declarar la entidad `UserStory` en `backend/internal/backlog/domain/user_story.go` con
+- [X] T001 [P] Declarar la entidad `UserStory` en `backend/internal/backlog/domain/user_story.go` con
       los campos de data-model.md sección 1: `ID uuid` PK generado con `google/uuid`;
       `ProjectID uuid NOT NULL` con FK a `projects.id` (campo `Project *projectsdomain.Project` solo
       para la FK, nunca precargado); `Title varchar(150) NOT NULL` **sin índice único**;
@@ -92,7 +92,7 @@ lógica de negocio.
       NULL`; e índice compuesto `idx_user_stories_project_order (project_id, priority, created_at,
       id)`. **Sin** columnas `ready_to_plan`, `priority_rank`, `deleted_at` ni `updated_by_id`
       (plan.md, reevaluación del Principio I)
-- [ ] T002 [P] Declarar la entidad `AcceptanceCriterion` en
+- [X] T002 [P] Declarar la entidad `AcceptanceCriterion` en
       `backend/internal/backlog/domain/acceptance_criterion.go` con los campos de data-model.md
       sección 2: `ID uuid` PK; `StoryID uuid NOT NULL` con FK a `user_stories.id`;
       `Position integer NOT NULL` (**desde 0, consecutivo dentro de la historia**);
@@ -100,21 +100,21 @@ lógica de negocio.
       único** `idx_acceptance_criteria_story_position (story_id, position)`. Sin
       `ON DELETE CASCADE`: el borrado de los criterios es explícito en el repositorio (research.md
       sección 12)
-- [ ] T003 [P] Declarar el tipo `StoryPriority` con sus tres constantes `high`, `medium` y `low` en
+- [X] T003 [P] Declarar el tipo `StoryPriority` con sus tres constantes `high`, `medium` y `low` en
       `backend/internal/backlog/domain/priority.go`, como constantes de Go y **no** como `enum` de
       PostgreSQL (data-model.md sección 3). El rango de orden es regla de negocio y se implementa en
       US2
-- [ ] T004 [P] Declarar el tipo `StoryStatus` con sus tres constantes `pending`, `in_progress` y
+- [X] T004 [P] Declarar el tipo `StoryStatus` con sus tres constantes `pending`, `in_progress` y
       `completed` en `backend/internal/backlog/domain/status.go`, con un comentario en español que
       deje claro que **esta feature nunca escribe el estado después de la creación**: sus
       transiciones las produce `specs/004-sprint-management` (FR-027, RC-04)
-- [ ] T005 [P] Declarar los errores de dominio en `backend/internal/backlog/domain/errors.go`
+- [X] T005 [P] Declarar los errores de dominio en `backend/internal/backlog/domain/errors.go`
       (data-model.md sección 9): `ErrStoryNotFound` (historia inexistente, eliminada o ajena;
       FR-044, FR-047), `ErrBacklogReadOnly` (FR-048), `ErrStoryCompleted` (FR-030),
       `ErrCommittedStoryMustStayReady` (FR-018, FR-022) y el tipo `DeletionBlockedError` con
       `Reasons []DeletionBlocker`, donde `DeletionBlocker` tiene los cuatro códigos
       `sprint_history`, `effort`, `defects` y `estimation_sessions` **en ese orden** (FR-043)
-- [ ] T006 Declarar en `backend/internal/backlog/domain/repository.go` la interfaz `StoryRepository`
+- [X] T006 Declarar en `backend/internal/backlog/domain/repository.go` la interfaz `StoryRepository`
       con **exactamente** las ocho operaciones de data-model.md sección 9 —
       `FindAccessible(ctx, storyID, userID) (*StoryAccess, error)`,
       `Create(ctx, story *UserStory, criteria []string) error`,
@@ -127,14 +127,14 @@ lógica de negocio.
       `StoryDetail` (con `CreatedBy` de solo `ID` y `FullName`), `StoryFilter` y `StoryChanges` de
       data-model.md sección 6. **Prohibido** declarar cambio de estado, cambio de proyecto, búsqueda
       por texto, paginación o listados fuera de un proyecto (Principio III) — depende de T001 a T004
-- [ ] T007 Declarar los cinco puertos en `backend/internal/backlog/domain/ports.go` con los tipos de
+- [X] T007 Declarar los cinco puertos en `backend/internal/backlog/domain/ports.go` con los tipos de
       data-model.md sección 7: `SprintAssignments.Find(ctx, storyID) (SprintAssignment, error)` con
       `CommittedToOpenSprint` y `EverAssigned`; `EffortRecords.HasEffort(ctx, storyID) (bool,
       error)`; `DefectRecords.HasDefects(ctx, storyID) (bool, error)`;
       `EstimationSessions.HasSessions(ctx, storyID) (bool, error)`, que cuenta las sesiones
       Finalizadas **y** las Canceladas (RC-10); y `ProjectDirectory.IsFinished(ctx, projectID)
       (bool, error)`. Cada comentario indica qué feature producirá el dato
-- [ ] T008 [P] Implementar los cuatro puertos hacia otras features en
+- [X] T008 [P] Implementar los cuatro puertos hacia otras features en
       `backend/internal/backlog/repository/sprint_assignments.go`,
       `backend/internal/backlog/repository/effort_records.go`,
       `backend/internal/backlog/repository/defect_records.go` y
@@ -143,12 +143,12 @@ lógica de negocio.
       comentario en español en cada archivo que indique qué spec (004, 006, 007 y 005) reemplazará
       su cuerpo. No es un dato inventado: hoy esas features no existen (research.md sección 11) —
       depende de T007
-- [ ] T009 Agregar `UserStory` y `AcceptanceCriterion` al `AutoMigrate` de
+- [X] T009 Agregar `UserStory` y `AcceptanceCriterion` al `AutoMigrate` de
       `backend/internal/platform/database/postgres.go`, **después** de `Project` y `ProjectMember`,
       de modo que el índice compuesto de `user_stories` y el índice único de `acceptance_criteria`
       queden creados por las etiquetas de GORM y no por un `CREATE INDEX` en crudo — depende de T001
       y T002
-- [ ] T010 Extender el vaciado del ayudante de pruebas en
+- [X] T010 Extender el vaciado del ayudante de pruebas en
       `backend/internal/platform/testsupport/database.go` a
       `TRUNCATE users, sessions, auth_events, projects, project_members, user_stories,
       acceptance_criteria CASCADE`, manteniendo la verificación de que la base es `smye_test` y el

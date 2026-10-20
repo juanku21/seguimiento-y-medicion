@@ -343,7 +343,7 @@ y un proyecto sin historias responde `emptyReason: backlog_empty`.
       `backend/internal/backlog/delivery/validation.go` a partir de `c.QueryArray("status")` y
       `c.QueryArray("priority")`, devolviendo un `StoryFilter` o los `FieldError` de cada valor
       inválido — depende de T029
-- [ ] T034 [US2] Implementar `List` y `HasStories` en
+- [X] T034 [US2] Implementar `List` y `HasStories` en
       `backend/internal/backlog/repository/story_repository.go`: `List` es **una sola consulta**
       sobre `user_stories` del proyecto con una subconsulta de conteo de `acceptance_criteria`,
       filtros `IN` combinados con `AND` y el orden

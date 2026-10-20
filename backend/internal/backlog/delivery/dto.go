@@ -118,3 +118,70 @@ func newStoryDetail(view *service.StoryView) StoryDetail {
 		EverAssignedToSprint: view.EverAssignedToSprint,
 	}
 }
+
+// StoryListItem es un elemento del listado del backlog (FR-033). StoryPoints se serializa como null
+// cuando la historia está sin estimar; el 0 es una estimación válida.
+type StoryListItem struct {
+	// Identificador de la historia.
+	ID string `json:"id" validate:"required" format:"uuid" example:"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"`
+	// Título de la historia.
+	Title string `json:"title" validate:"required" example:"Exportar el reporte de velocidad a PDF"`
+	// Prioridad de la historia: high (Alta), medium (Media) o low (Baja).
+	Priority domain.StoryPriority `json:"priority" validate:"required" enums:"high,medium,low" example:"high"`
+	// Estado de la historia: pending (Pendiente), in_progress (En progreso) o completed (Completada).
+	Status domain.StoryStatus `json:"status" validate:"required" enums:"pending,in_progress,completed" example:"pending"`
+	// Story Points de la escala, o null para "sin estimar".
+	StoryPoints *int `json:"storyPoints" validate:"required" enums:"0,1,2,3,5,8,13,20,40,100" extensions:"x-nullable" example:"5"`
+	// Cantidad de criterios de aceptación de la historia.
+	AcceptanceCriteriaCount int `json:"acceptanceCriteriaCount" validate:"required" minimum:"0" example:"2"`
+	// Verdadero cuando tiene Story Points (incluido 0) y al menos un criterio (FR-028).
+	ReadyToPlan bool `json:"readyToPlan" validate:"required" example:"true"`
+}
+
+// AppliedFilters son los filtros aplicados al listado; cada lista va vacía, nunca null, si no se
+// filtró por ese criterio (FR-036).
+type AppliedFilters struct {
+	// Estados por los que se filtró.
+	Status []domain.StoryStatus `json:"status" validate:"required" enums:"pending,in_progress,completed"`
+	// Prioridades por las que se filtró.
+	Priority []domain.StoryPriority `json:"priority" validate:"required" enums:"high,medium,low"`
+}
+
+// StoryListResponse es la respuesta del listado del backlog. Stories nunca es null y EmptyReason es
+// null si hay historias, backlog_empty si el proyecto no tiene ninguna (FR-035) y no_matches si las
+// tiene pero ninguna cumple los filtros (FR-036).
+type StoryListResponse struct {
+	// Historias en el orden de FR-032; nunca es null.
+	Stories []StoryListItem `json:"stories" validate:"required"`
+	// Filtros aplicados al listado.
+	AppliedFilters AppliedFilters `json:"appliedFilters" validate:"required"`
+	// Motivo del listado vacío, o null si hay historias.
+	EmptyReason *service.EmptyReason `json:"emptyReason" validate:"required" swaggertype:"string" enums:"backlog_empty,no_matches" extensions:"x-nullable" example:"backlog_empty"`
+}
+
+// newStoryListResponse arma StoryListResponse a partir de la vista del servicio y del filtro aplicado.
+// Las listas de historias y de filtros se inicializan vacías para que se serialicen como [] y nunca
+// como null.
+func newStoryListResponse(view *service.StoryListView, filter domain.StoryFilter) StoryListResponse {
+	stories := make([]StoryListItem, 0, len(view.Stories))
+	for _, entry := range view.Stories {
+		stories = append(stories, StoryListItem{
+			ID:                      entry.Item.ID.String(),
+			Title:                   entry.Item.Title,
+			Priority:                entry.Item.Priority,
+			Status:                  entry.Item.Status,
+			StoryPoints:             entry.Item.StoryPoints,
+			AcceptanceCriteriaCount: entry.Item.CriteriaCount,
+			ReadyToPlan:             entry.ReadyToPlan,
+		})
+	}
+
+	statuses := append([]domain.StoryStatus{}, filter.Statuses...)
+	priorities := append([]domain.StoryPriority{}, filter.Priorities...)
+
+	return StoryListResponse{
+		Stories:        stories,
+		AppliedFilters: AppliedFilters{Status: statuses, Priority: priorities},
+		EmptyReason:    view.EmptyReason,
+	}
+}

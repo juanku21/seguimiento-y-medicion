@@ -51,3 +51,32 @@ export type StoryDetail = {
   updatedAt: string;
   everAssignedToSprint: boolean;
 };
+
+// Elemento del listado del backlog (StoryListItem, FR-033).
+export type StoryListItem = {
+  id: string;
+  title: string;
+  priority: StoryPriority;
+  status: StoryStatus;
+  storyPoints: StoryPoints;
+  acceptanceCriteriaCount: number;
+  readyToPlan: boolean;
+};
+
+// Filtros del listado; cada uno admite varios valores y vacío significa sin filtrar
+// (AppliedFilters, FR-034, FR-036).
+export type AppliedFilters = {
+  status: StoryStatus[];
+  priority: StoryPriority[];
+};
+
+// Motivo de un listado vacío: null si hay historias, backlog_empty si el proyecto no tiene ninguna
+// y no_matches si ninguna cumple los filtros (FR-035, FR-036).
+export type StoryListEmptyReason = "backlog_empty" | "no_matches" | null;
+
+// Respuesta de GET /api/v1/projects/{projectId}/stories (StoryListResponse).
+export type StoryListResponse = {
+  stories: StoryListItem[];
+  appliedFilters: AppliedFilters;
+  emptyReason: StoryListEmptyReason;
+};

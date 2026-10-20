@@ -32,6 +32,8 @@ var (
 	msgCriterionRequired  = "Cada criterio de aceptación debe tener contenido."
 	msgCriterionTooLong   = fmt.Sprintf("Cada criterio de aceptación admite como máximo %d caracteres.",
 		maxCriterionLength)
+	msgInvalidStatusFilter   = "Los valores admitidos para el estado son pending, in_progress y completed."
+	msgInvalidPriorityFilter = "Los valores admitidos para la prioridad son high, medium y low."
 )
 
 // ValidatedStory son los datos de una historia ya validados y normalizados: título y criterios
@@ -116,6 +118,51 @@ func ValidateStoryInput(req StoryInput) (ValidatedStory, []authdelivery.FieldErr
 		StoryPoints:        storyPoints,
 		AcceptanceCriteria: criteria,
 	}, nil
+}
+
+// ParseStoryFilter valida los valores repetibles de los filtros status y priority del listado, tal
+// como los entrega c.QueryArray, y devuelve el StoryFilter o un FieldError por cada filtro con un
+// valor no admitido, indicando los valores válidos (FR-034, FR-037).
+func ParseStoryFilter(statuses, priorities []string) (domain.StoryFilter, []authdelivery.FieldError) {
+	fields := []authdelivery.FieldError{}
+
+	// Cada filtro se convierte por separado para informar los dos a la vez si ambos son inválidos.
+	statusFilter, statusOK := parseFilterValues(statuses, isValidStatus)
+	if !statusOK {
+		fields = append(fields, authdelivery.FieldError{Field: "status", Message: msgInvalidStatusFilter})
+	}
+	priorityFilter, priorityOK := parseFilterValues(priorities, isValidPriority)
+	if !priorityOK {
+		fields = append(fields, authdelivery.FieldError{Field: "priority", Message: msgInvalidPriorityFilter})
+	}
+
+	if len(fields) > 0 {
+		return domain.StoryFilter{}, fields
+	}
+	return domain.StoryFilter{Statuses: statusFilter, Priorities: priorityFilter}, nil
+}
+
+// parseFilterValues convierte los valores de un filtro repetible al tipo del dominio y devuelve
+// false si alguno no es admitido; la comparación es exacta, sin aceptar otras grafías.
+func parseFilterValues[T ~string](values []string, isValid func(T) bool) ([]T, bool) {
+	parsed := make([]T, 0, len(values))
+	for _, v := range values {
+		value := T(v)
+		if !isValid(value) {
+			return nil, false
+		}
+		parsed = append(parsed, value)
+	}
+	return parsed, true
+}
+
+// isValidStatus indica si el estado es uno de los admitidos, sin distinguir otras grafías.
+func isValidStatus(status domain.StoryStatus) bool {
+	switch status {
+	case domain.StoryStatusPending, domain.StoryStatusInProgress, domain.StoryStatusCompleted:
+		return true
+	}
+	return false
 }
 
 // isValidPriority indica si la prioridad es una de las admitidas, sin distinguir otras grafías.

@@ -404,3 +404,158 @@ func TestUS1_ValidacionCriterioVacio(t *testing.T) {
 		})
 	}
 }
+
+// Pruebas unitarias obligatorias de la validación de los filtros del listado (T029, RN-05, FR-034,
+// FR-037). Reciben los valores tal como los entrega c.QueryArray, es decir, una lista por filtro con
+// cada repetición del parámetro.
+
+// validationFilterAdmittedStatuses y validationFilterAdmittedPriorities son los valores que el
+// mensaje de rechazo de cada filtro debe enumerar (contracts/openapi.yaml, respuesta 400).
+var (
+	validationFilterAdmittedStatuses   = []string{"pending", "in_progress", "completed"}
+	validationFilterAdmittedPriorities = []string{"high", "medium", "low"}
+)
+
+// validationRequireFilterRejected exige que el filtro se rechace solo por el campo indicado y que
+// cada mensaje informado enumere todos los valores admitidos para ese filtro.
+func validationRequireFilterRejected(t *testing.T, fields []authdelivery.FieldError, field string, admitted []string) {
+	t.Helper()
+	require.NotEmpty(t, fields, "el filtro %q con un valor no admitido debe rechazarse", field)
+	for _, f := range fields {
+		require.Equal(t, field, f.Field, "solo debe informarse el filtro %q", field)
+		for _, value := range admitted {
+			assert.Contains(t, f.Message, value, "el mensaje del filtro %q debe indicar el valor admitido %q", field, value)
+		}
+	}
+}
+
+// Escenario: Orden por prioridad y fecha (003/US2)
+// Sin filtros la consulta se acepta y el filtro resultante no acota ni por estado ni por prioridad,
+// tanto si los parámetros no llegan (nil) como si llegan como listas vacías.
+func TestUS2_ValidacionSinFiltros(t *testing.T) {
+	cases := []struct {
+		name       string
+		statuses   []string
+		priorities []string
+	}{
+		{"parámetros ausentes", nil, nil},
+		{"listas vacías", []string{}, []string{}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			filter, fields := ParseStoryFilter(tc.statuses, tc.priorities)
+
+			require.Empty(t, fields, "la ausencia de filtros debe aceptarse")
+			assert.Empty(t, filter.Statuses)
+			assert.Empty(t, filter.Priorities)
+		})
+	}
+}
+
+// Escenario: Filtro por estado (003/US2)
+// Cada estado admitido se acepta solo y el parámetro status es repetible: varios valores llegan
+// juntos al filtro, sin acotar la prioridad.
+func TestUS2_ValidacionFiltroPorEstado(t *testing.T) {
+	cases := []struct {
+		name     string
+		statuses []string
+		want     []domain.StoryStatus
+	}{
+		{"pending", []string{"pending"}, []domain.StoryStatus{domain.StoryStatusPending}},
+		{"in_progress", []string{"in_progress"}, []domain.StoryStatus{domain.StoryStatusInProgress}},
+		{"completed", []string{"completed"}, []domain.StoryStatus{domain.StoryStatusCompleted}},
+		{"pending y in_progress repetidos", []string{"pending", "in_progress"},
+			[]domain.StoryStatus{domain.StoryStatusPending, domain.StoryStatusInProgress}},
+		{"los tres estados", []string{"pending", "in_progress", "completed"},
+			[]domain.StoryStatus{domain.StoryStatusPending, domain.StoryStatusInProgress, domain.StoryStatusCompleted}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			filter, fields := ParseStoryFilter(tc.statuses, nil)
+
+			require.Empty(t, fields, "los estados admitidos deben aceptarse")
+			assert.ElementsMatch(t, tc.want, filter.Statuses)
+			assert.Empty(t, filter.Priorities)
+		})
+	}
+}
+
+// Escenario: Filtros combinados (003/US2)
+// El parámetro priority también es repetible, y los dos filtros llegan juntos al StoryFilter para
+// combinarse con "y" en el listado.
+func TestUS2_ValidacionFiltrosCombinados(t *testing.T) {
+	t.Run("prioridad Alta y estado Pendiente", func(t *testing.T) {
+		filter, fields := ParseStoryFilter([]string{"pending"}, []string{"high"})
+
+		require.Empty(t, fields, "los filtros admitidos deben aceptarse")
+		assert.ElementsMatch(t, []domain.StoryStatus{domain.StoryStatusPending}, filter.Statuses)
+		assert.ElementsMatch(t, []domain.StoryPriority{domain.StoryPriorityHigh}, filter.Priorities)
+	})
+
+	t.Run("prioridad high y low repetidas", func(t *testing.T) {
+		filter, fields := ParseStoryFilter(nil, []string{"high", "low"})
+
+		require.Empty(t, fields, "las prioridades admitidas deben aceptarse")
+		assert.Empty(t, filter.Statuses)
+		assert.ElementsMatch(t, []domain.StoryPriority{domain.StoryPriorityHigh, domain.StoryPriorityLow}, filter.Priorities)
+	})
+
+	t.Run("las tres prioridades", func(t *testing.T) {
+		filter, fields := ParseStoryFilter(nil, []string{"high", "medium", "low"})
+
+		require.Empty(t, fields, "las prioridades admitidas deben aceptarse")
+		assert.ElementsMatch(t, []domain.StoryPriority{
+			domain.StoryPriorityHigh, domain.StoryPriorityMedium, domain.StoryPriorityLow,
+		}, filter.Priorities)
+	})
+}
+
+// Escenario: Filtro inválido (003/US2)
+// Un estado o una prioridad que no existe se rechaza indicando los valores admitidos de ese filtro,
+// también cuando llega junto a valores válidos, con otra grafía o vacío. Si los dos filtros tienen
+// valores no admitidos, se informan ambos a la vez.
+func TestUS2_ValidacionFiltroInvalido(t *testing.T) {
+	statusCases := []struct {
+		name     string
+		statuses []string
+	}{
+		{"estado inexistente", []string{"done"}},
+		{"estado en español", []string{"pendiente"}},
+		{"estado con otra grafía", []string{"Pending"}},
+		{"estado vacío", []string{""}},
+		{"estado inválido junto a uno válido", []string{"pending", "archived"}},
+	}
+	for _, tc := range statusCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, fields := ParseStoryFilter(tc.statuses, nil)
+
+			validationRequireFilterRejected(t, fields, "status", validationFilterAdmittedStatuses)
+		})
+	}
+
+	priorityCases := []struct {
+		name       string
+		priorities []string
+	}{
+		{"prioridad inexistente", []string{"urgent"}},
+		{"prioridad en español", []string{"alta"}},
+		{"prioridad con otra grafía", []string{"HIGH"}},
+		{"prioridad vacía", []string{""}},
+		{"prioridad inválida junto a una válida", []string{"high", "critical"}},
+	}
+	for _, tc := range priorityCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, fields := ParseStoryFilter(nil, tc.priorities)
+
+			validationRequireFilterRejected(t, fields, "priority", validationFilterAdmittedPriorities)
+		})
+	}
+
+	t.Run("estado y prioridad inválidos a la vez", func(t *testing.T) {
+		_, fields := ParseStoryFilter([]string{"done"}, []string{"urgent"})
+
+		names := validationFieldNames(fields)
+		assert.Contains(t, names, "status", "debe informarse el filtro de estado")
+		assert.Contains(t, names, "priority", "debe informarse el filtro de prioridad")
+	})
+}

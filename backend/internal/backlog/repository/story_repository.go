@@ -12,7 +12,8 @@ import (
 )
 
 // StoryRepository implementa domain.StoryRepository con GORM sobre user_stories y
-// acceptance_criteria. Create y FindDetail están implementadas (T021); las demás operaciones las
+// acceptance_criteria. Create y FindDetail están implementadas (T021), y List y HasStories
+// (T034); las demás operaciones las
 // implementan las historias que las usan.
 type StoryRepository struct {
 	db *gorm.DB
@@ -107,14 +108,47 @@ func (r *StoryRepository) FindDetail(ctx context.Context, storyID uuid.UUID) (*d
 	}, nil
 }
 
-// List devuelve el backlog filtrado de un proyecto. Firma mínima.
+// List devuelve el backlog de un proyecto en una sola consulta sobre user_stories, con una
+// subconsulta correlacionada que cuenta los criterios de cada historia (research.md sección 9). Cada
+// lista no vacía del filtro agrega una condición IN, y GORM combina las condiciones con AND
+// (FR-034). El orden es prioridad Alta, Media, Baja, luego momento de creación y por último id, que
+// hace el orden reproducible (FR-032). Sin resultados devuelve una lista vacía, nunca nil.
 func (r *StoryRepository) List(ctx context.Context, projectID uuid.UUID, filter domain.StoryFilter) ([]domain.StoryListItem, error) {
-	return nil, errors.New("not implemented")
+	query := r.db.WithContext(ctx).
+		Table("user_stories").
+		Select("user_stories.id, user_stories.title, user_stories.priority, user_stories.status, "+
+			"user_stories.story_points, user_stories.created_at, "+
+			"(SELECT COUNT(*) FROM acceptance_criteria WHERE acceptance_criteria.story_id = user_stories.id) AS criteria_count").
+		Where("user_stories.project_id = ?", projectID)
+	if len(filter.Statuses) > 0 {
+		query = query.Where("user_stories.status IN ?", filter.Statuses)
+	}
+	if len(filter.Priorities) > 0 {
+		query = query.Where("user_stories.priority IN ?", filter.Priorities)
+	}
+
+	items := []domain.StoryListItem{}
+	err := query.
+		Order("CASE user_stories.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, " +
+			"user_stories.created_at ASC, user_stories.id ASC").
+		Scan(&items).Error
+	if err != nil {
+		return nil, fmt.Errorf("listar las historias del proyecto: %w", err)
+	}
+	return items, nil
 }
 
-// HasStories indica si el proyecto tiene alguna historia. Firma mínima.
+// HasStories indica si el proyecto tiene alguna historia con un SELECT 1 ... LIMIT 1, sin contar
+// todas las filas (research.md sección 9). Sin filas, Scan deja found en 0 y no devuelve error.
 func (r *StoryRepository) HasStories(ctx context.Context, projectID uuid.UUID) (bool, error) {
-	return false, errors.New("not implemented")
+	var found int
+	err := r.db.WithContext(ctx).
+		Raw("SELECT 1 FROM user_stories WHERE project_id = ? LIMIT 1", projectID).
+		Scan(&found).Error
+	if err != nil {
+		return false, fmt.Errorf("comprobar si el proyecto tiene historias: %w", err)
+	}
+	return found == 1, nil
 }
 
 // Update aplica los cambios presentes de un PATCH. Firma mínima.

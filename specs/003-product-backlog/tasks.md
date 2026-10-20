@@ -92,7 +92,7 @@ lógica de negocio.
       NULL`; e índice compuesto `idx_user_stories_project_order (project_id, priority, created_at,
       id)`. **Sin** columnas `ready_to_plan`, `priority_rank`, `deleted_at` ni `updated_by_id`
       (plan.md, reevaluación del Principio I)
-- [ ] T002 [P] Declarar la entidad `AcceptanceCriterion` en
+- [X] T002 [P] Declarar la entidad `AcceptanceCriterion` en
       `backend/internal/backlog/domain/acceptance_criterion.go` con los campos de data-model.md
       sección 2: `ID uuid` PK; `StoryID uuid NOT NULL` con FK a `user_stories.id`;
       `Position integer NOT NULL` (**desde 0, consecutivo dentro de la historia**);

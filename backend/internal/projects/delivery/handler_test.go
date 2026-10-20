@@ -250,6 +250,16 @@ func findStoredProject(t *testing.T, db *gorm.DB, id string) domain.Project {
 	return project
 }
 
+// assertNoPasswordHash comprueba sobre el cuerpo crudo de una respuesta exitosa que no aparezca el
+// hash de la contraseña de ninguna cuenta, ni en snake_case ni en camelCase, aunque la respuesta
+// incluya integrantes o al propietario (Principio VI).
+func assertNoPasswordHash(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	body := rec.Body.String()
+	assert.NotContains(t, body, "password_hash", "la respuesta no debería exponer el hash de la contraseña")
+	assert.NotContains(t, body, "passwordHash", "la respuesta no debería exponer el hash de la contraseña")
+}
+
 // seedOwnedProject inserta directamente en la base un proyecto del propietario indicado con su
 // membresía, para preparar el "Dado" de un escenario sin pasar por la API que se está probando.
 func seedOwnedProject(t *testing.T, db *gorm.DB, ownerID uuid.UUID, name string) {
@@ -277,7 +287,9 @@ func TestUS1_CreacionExitosa(t *testing.T) {
 	env := newProjectsTestEnv(t)
 	userID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
 
-	got := requireCreatedProject(t, env.postProject(t, token, validProjectInputBody()))
+	rec := env.postProject(t, token, validProjectInputBody())
+	got := requireCreatedProject(t, rec)
+	assertNoPasswordHash(t, rec)
 
 	// La respuesta es la vista completa del proyecto recién creado.
 	assert.Equal(t, "Portal de Clientes", got.Name)
@@ -956,7 +968,9 @@ func TestUS3_AltaExitosa(t *testing.T) {
 	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
 	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress)
 
-	got := requireCreatedMember(t, env.postMember(t, ownerToken, projectID, "bruno@example.com"))
+	rec := env.postMember(t, ownerToken, projectID, "bruno@example.com")
+	got := requireCreatedMember(t, rec)
+	assertNoPasswordHash(t, rec)
 
 	// La respuesta describe a Bruno; quien la recibe es el propietario, así que incluye el correo.
 	assert.Equal(t, brunoID.String(), got.UserID)
@@ -1465,7 +1479,9 @@ func TestUS4_EstadoCompleto(t *testing.T) {
 	requireCreatedMember(t, env.postMember(t, ownerToken, projectID, "carla@example.com"))
 	setProjectStatus(t, env.db, created.ID, domain.ProjectStatusInProgress)
 
-	got, raw := requireProjectDetail(t, env.get(t, brunoToken, projectDetailPath(projectID)))
+	rec := env.get(t, brunoToken, projectDetailPath(projectID))
+	got, raw := requireProjectDetail(t, rec)
+	assertNoPasswordHash(t, rec)
 
 	// Todos los campos de FR-042 llegan en la misma respuesta.
 	for _, key := range []string{"id", "name", "description", "status", "startDate", "plannedEndDate", "actualEndDate",
@@ -1726,7 +1742,9 @@ func TestUS5_ModificacionExitosa(t *testing.T) {
 	body := updatedProjectInputBody()
 	body["actualEndDate"] = "2026-11-30"
 
-	got := requireUpdatedProject(t, env.putProject(t, token, projectID, body))
+	rec := env.putProject(t, token, projectID, body)
+	got := requireUpdatedProject(t, rec)
+	assertNoPasswordHash(t, rec)
 
 	// La respuesta trae los valores nuevos con el estado y la fecha real intactos.
 	assert.Equal(t, projectID.String(), got.ID)
@@ -1951,6 +1969,42 @@ func TestUS5_ProyectoFinalizado(t *testing.T) {
 	assert.Equal(t, before, findStoredProject(t, env.db, projectID.String()), "el proyecto no debería cambiar")
 }
 
+// Escenario: Sin sesión (002/US5)
+// Sin sesión válida (sin cabecera o con un token adulterado del propietario), la modificación de un
+// proyecto Planificado, que con la sesión del propietario se aceptaría, se rechaza con 401 pidiendo
+// iniciar sesión y el proyecto no cambia (FR-046, SC-004). Prueba de caracterización (T100).
+func TestUS5_SinSesion(t *testing.T) {
+	cases := []struct {
+		name  string
+		token func(valid string) string
+	}{
+		{"sin cabecera Authorization", func(string) string { return "" }},
+		{"token adulterado", func(valid string) string { return valid + "x" }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newProjectsTestEnv(t)
+			ownerID, valid := env.signUp(t, "Ana Pérez", "ana@example.com")
+			projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusPlanned)
+			before := findStoredProject(t, env.db, projectID.String())
+
+			// Arma el PUT con un cuerpo válido y agrega la cabecera Authorization solo si hay token
+			payload, err := json.Marshal(updatedProjectInputBody())
+			require.NoError(t, err, "no se pudo serializar la solicitud")
+			req := httptest.NewRequest(http.MethodPut, projectDetailPath(projectID), bytes.NewReader(payload))
+			req.Header.Set("Content-Type", "application/json")
+			if token := tc.token(valid); token != "" {
+				req.Header.Set("Authorization", "Bearer "+token)
+			}
+			rec := httptest.NewRecorder()
+			env.router.ServeHTTP(rec, req)
+
+			requireErrorResponse(t, rec, http.StatusUnauthorized, projectSessionMessage)
+			assert.Equal(t, before, findStoredProject(t, env.db, projectID.String()), "el proyecto no debería cambiar")
+		})
+	}
+}
+
 // Textos exactos que fija el contrato para cada 409 del cambio de estado: salto de planned a
 // finished, retroceso, transición al estado actual y finalización con un sprint activo. El de solo
 // lectura es projectReadOnlyMessage, compartido con las demás acciones de administración.
@@ -2046,7 +2100,9 @@ func TestUS6_RecorridoCompleto(t *testing.T) {
 	})
 
 	// Primera transición: planned → in_progress, sin fecha real.
-	started := requireStatusChanged(t, env.patchStatus(t, token, projectID, domain.ProjectStatusInProgress), domain.ProjectStatusInProgress)
+	startRec := env.patchStatus(t, token, projectID, domain.ProjectStatusInProgress)
+	started := requireStatusChanged(t, startRec, domain.ProjectStatusInProgress)
+	assertNoPasswordHash(t, startRec)
 	assert.Equal(t, projectID.String(), started.ID)
 	assert.Nil(t, started.ActualEndDate, "un proyecto En curso no tiene fecha de finalización real")
 	assert.False(t, started.ReadOnly)
@@ -2055,8 +2111,10 @@ func TestUS6_RecorridoCompleto(t *testing.T) {
 
 	// Segunda transición: in_progress → finished, con la fecha del cambio registrada.
 	before := env.dayInSystemZone(0)
-	finished := requireStatusChanged(t, env.patchStatus(t, token, projectID, domain.ProjectStatusFinished), domain.ProjectStatusFinished)
+	finishRec := env.patchStatus(t, token, projectID, domain.ProjectStatusFinished)
+	finished := requireStatusChanged(t, finishRec, domain.ProjectStatusFinished)
 	after := env.dayInSystemZone(0)
+	assertNoPasswordHash(t, finishRec)
 	requireDateOfChange(t, finished.ActualEndDate, before, after)
 	assert.True(t, finished.ReadOnly, "un proyecto finalizado debería indicarse de solo lectura")
 	assert.Equal(t, domain.ProjectStatusFinished, findStoredProject(t, env.db, projectID.String()).Status)
@@ -2315,4 +2373,42 @@ func TestUS6_FinalizarConSprintActivo(t *testing.T) {
 	assert.Equal(t, before, stored, "el proyecto no debería cambiar")
 	assert.Equal(t, domain.ProjectStatusInProgress, stored.Status, "el proyecto debería seguir En curso")
 	assert.Nil(t, stored.ActualEndDate, "no debería registrarse fecha de finalización real")
+}
+
+// Escenario: Sin sesión (002/US6)
+// Sin sesión válida (sin cabecera o con un token adulterado del propietario), el paso de un proyecto
+// Planificado a En curso, que con la sesión del propietario se aceptaría, se rechaza con 401
+// pidiendo iniciar sesión y el proyecto no cambia: sigue Planificado y sin fecha de finalización
+// real (FR-046, SC-004). Prueba de caracterización (T100).
+func TestUS6_SinSesion(t *testing.T) {
+	cases := []struct {
+		name  string
+		token func(valid string) string
+	}{
+		{"sin cabecera Authorization", func(string) string { return "" }},
+		{"token adulterado", func(valid string) string { return valid + "x" }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newProjectsTestEnv(t)
+			ownerID, valid := env.signUp(t, "Ana Pérez", "ana@example.com")
+			projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusPlanned)
+			before := findStoredProject(t, env.db, projectID.String())
+
+			// Arma el PATCH con un estado destino válido y agrega la cabecera Authorization solo si hay token
+			req := httptest.NewRequest(http.MethodPatch, projectStatusPath(projectID), strings.NewReader(`{"status":"in_progress"}`))
+			req.Header.Set("Content-Type", "application/json")
+			if token := tc.token(valid); token != "" {
+				req.Header.Set("Authorization", "Bearer "+token)
+			}
+			rec := httptest.NewRecorder()
+			env.router.ServeHTTP(rec, req)
+
+			requireErrorResponse(t, rec, http.StatusUnauthorized, projectSessionMessage)
+			stored := findStoredProject(t, env.db, projectID.String())
+			assert.Equal(t, before, stored, "el proyecto no debería cambiar")
+			assert.Equal(t, domain.ProjectStatusPlanned, stored.Status, "el proyecto debería seguir Planificado")
+			assert.Nil(t, stored.ActualEndDate, "no debería registrarse fecha de finalización real")
+		})
+	}
 }

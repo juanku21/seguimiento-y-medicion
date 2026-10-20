@@ -770,7 +770,7 @@ sin RED.
       coincide con el valor configurado (Principio II, validación de entrada; FR-039). Prueba de
       caracterización: la validación existe desde T003, así que no tiene RED; el commit lo
       justifica — depende de T003
-- [ ] T100 Pruebas de integración de caracterización en
+- [X] T100 Pruebas de integración de caracterización en
       `backend/internal/projects/delivery/handler_test.go`: (a) `TestUS5_SinSesion` y
       `TestUS6_SinSesion`, con el comentario `// Escenario: Sin sesión (002/USn)` como
       `TestUS3_SinSesion`, que envían `PUT /api/v1/projects/{projectId}` y

@@ -10,4 +10,5 @@ import (
 // integrante recibe el 404 indistinguible antes de llegar al manejador (FR-045, FR-047).
 func RegisterRoutes(projectGroup *gin.RouterGroup, handler *Handler) {
 	projectGroup.POST("/stories", handler.createStory)
+	projectGroup.GET("/stories", handler.listStories)
 }

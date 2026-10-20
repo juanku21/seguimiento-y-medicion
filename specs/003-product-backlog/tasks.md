@@ -355,7 +355,7 @@ y un proyecto sin historias responde `emptyReason: backlog_empty`.
       y elige `emptyReason`: `null` con resultados, `backlog_empty` si el proyecto no tiene historias
       (aunque haya filtros) y `no_matches` si las tiene pero ninguna cumple los filtros, llamando a
       `HasStories` **solo** cuando el resultado filtrado viene vacío — depende de T034
-- [ ] T036 [US2] Declarar `StoryListItem`, `AppliedFilters` y `StoryListResponse` en
+- [X] T036 [US2] Declarar `StoryListItem`, `AppliedFilters` y `StoryListResponse` en
       `backend/internal/backlog/delivery/dto.go` (`stories` y los dos filtros aplicados nunca son
       `null`), implementar el manejador `listStories` en `backend/internal/backlog/delivery/handler.go`
       con anotaciones `swag` en español y registrar `GET /stories` en el subgrupo del proyecto en

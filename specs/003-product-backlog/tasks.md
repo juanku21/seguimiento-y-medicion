@@ -239,7 +239,7 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
       y validados sobre el texto literal con `IsValidStoryPoints`, y un `FieldError` por cada campo
       inválido. La validación ocurre antes de la capa de servicio (Principio VII) — depende de T013 y
       T017
-- [ ] T020 [US1] Implementar `IsFinished` en `backend/internal/backlog/repository/project_directory.go`
+- [X] T020 [US1] Implementar `IsFinished` en `backend/internal/backlog/repository/project_directory.go`
       sobre el modelo `projectsdomain.Project`, **seleccionando solo la columna `status`** y
       comparándola con `projectsdomain.ProjectStatusFinished` (research.md sección 14) — depende de
       T007 y T015

@@ -737,8 +737,8 @@ sprint activo se prueba con un doble del puerto `SprintDirectory`.
 ## Fase 9: Polish (Cierre y asuntos transversales)
 
 **Propósito**: documentación viva, cobertura, vulnerabilidades y verificación de las puertas de
-calidad. Todas las tareas son **técnicas**, salvo T099, que es una prueba de caracterización sin
-RED.
+calidad. Todas las tareas son **técnicas**, salvo T099 y T100, que son pruebas de caracterización
+sin RED.
 
 **Rama**: `fase/002-polish`
 
@@ -770,6 +770,17 @@ RED.
       coincide con el valor configurado (Principio II, validación de entrada; FR-039). Prueba de
       caracterización: la validación existe desde T003, así que no tiene RED; el commit lo
       justifica — depende de T003
+- [ ] T100 Pruebas de integración de caracterización en
+      `backend/internal/projects/delivery/handler_test.go`: (a) `TestUS5_SinSesion` y
+      `TestUS6_SinSesion`, con el comentario `// Escenario: Sin sesión (002/USn)` como
+      `TestUS3_SinSesion`, que envían `PUT /api/v1/projects/{projectId}` y
+      `PATCH /api/v1/projects/{projectId}/status` sin cabecera y con token adulterado, y asertan
+      `401` sin cambios en el proyecto (SC-004); y (b) en las pruebas que ya obtienen respuestas
+      con integrantes o propietario (`POST /api/v1/projects`, `GET`, `PUT` y `PATCH` sobre
+      `/api/v1/projects/{projectId}`, y `POST /api/v1/projects/{projectId}/members`), una
+      aserción de que el cuerpo no contiene `password_hash` ni `passwordHash` (Principio VI).
+      Prueba de caracterización: las rutas ya están dentro del grupo con sesión y los DTOs no
+      exponen la contraseña, así que no tiene RED; el commit lo justifica — depende de T076
 - [X] T084 Verificar la trazabilidad y las puertas de seguridad recorriendo
       `backend/internal/projects/` y `frontend/src/features/projects/`: que buscar `002/US1`
       a `002/US6` en el código de pruebas devuelva los **55** escenarios; que las **16** reglas

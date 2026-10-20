@@ -243,7 +243,7 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
       sobre el modelo `projectsdomain.Project`, **seleccionando solo la columna `status`** y
       comparándola con `projectsdomain.ProjectStatusFinished` (research.md sección 14) — depende de
       T007 y T015
-- [ ] T021 [US1] Implementar `Create` y `FindDetail` en
+- [X] T021 [US1] Implementar `Create` y `FindDetail` en
       `backend/internal/backlog/repository/story_repository.go`: `Create` inserta la historia y sus
       criterios con posiciones `0..n-1` en **una sola transacción**, de modo que FR-013 sea atómico
       por construcción; `FindDetail` lee la historia con un `JOIN` a `users` que **selecciona solo

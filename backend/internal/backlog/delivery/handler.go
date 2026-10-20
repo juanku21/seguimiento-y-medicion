@@ -113,8 +113,7 @@ func (h *Handler) getStory(c *gin.Context) {
 	// está, la ruta se registró fuera de ese middleware: es un error de composición y responde 500.
 	access, ok := storyAccessFromContext(c)
 	if !ok {
-		slog.ErrorContext(c.Request.Context(), "getStory sin acceso a la historia en el contexto")
-		c.JSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: msgInternalError})
+		respondInternalError(c, "getStory sin acceso a la historia en el contexto")
 		return
 	}
 
@@ -141,8 +140,7 @@ func sessionAndProject(c *gin.Context, handlerName string) (uuid.UUID, uuid.UUID
 	}
 	projectID, err := uuid.Parse(c.Param("projectId"))
 	if err != nil {
-		slog.ErrorContext(c.Request.Context(), handlerName+" sin un projectId válido en la ruta", "error", err)
-		c.JSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: msgInternalError})
+		respondInternalError(c, handlerName+" sin un projectId válido en la ruta", "error", err)
 		return uuid.Nil, uuid.Nil, false
 	}
 	return actorID, projectID, true
@@ -180,7 +178,13 @@ func respondServiceError(c *gin.Context, err error, logMessage string) {
 	case errors.Is(err, domain.ErrBacklogReadOnly):
 		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgBacklogReadOnly})
 	default:
-		slog.ErrorContext(c.Request.Context(), logMessage, "error", err)
-		c.JSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: msgInternalError})
+		respondInternalError(c, logMessage, "error", err)
 	}
+}
+
+// respondInternalError registra en el log el mensaje y los atributos recibidos y responde el 500
+// genérico, sin exponer la causa a quien pide (Principio VII).
+func respondInternalError(c *gin.Context, logMessage string, attrs ...any) {
+	slog.ErrorContext(c.Request.Context(), logMessage, attrs...)
+	c.JSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: msgInternalError})
 }

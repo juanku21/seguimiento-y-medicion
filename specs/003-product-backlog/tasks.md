@@ -423,7 +423,7 @@ idéntico byte a byte al de un identificador inventado.
       genérico registrado en el log — depende de T042
 - [X] T044 [US3] Implementar `Get(ctx, storyID)` en `backend/internal/backlog/service/story_service.go`
       sobre `FindDetail` y `buildDetail` de T022 — depende de T040
-- [ ] T045 [US3] Implementar el manejador `getStory` en `backend/internal/backlog/delivery/handler.go`
+- [X] T045 [US3] Implementar el manejador `getStory` en `backend/internal/backlog/delivery/handler.go`
       con anotaciones `swag` en español, y crear en `backend/internal/backlog/delivery/routes.go` el
       grupo plano `/api/v1/stories/:storyId` con el middleware de sesión inyectado desde
       `cmd/app/main.go` y `RequireStoryAccess`, registrando `GET` en él — depende de T043 y T044

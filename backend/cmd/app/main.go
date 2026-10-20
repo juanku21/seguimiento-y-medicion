@@ -125,16 +125,21 @@ func run() error {
 	// otras features: sprints, esfuerzo, defectos y sesiones de estimación, que todavía no existen y
 	// responden sin historial, y el directorio de proyectos, que lee el estado de la 002. Sus rutas
 	// cuelgan del subgrupo /api/v1/projects/:projectId, que ya exige sesión y membresía, recibido
-	// aquí para que backlog/delivery no importe projects/delivery.
+	// aquí para que backlog/delivery no importe projects/delivery. Las rutas de ítem van en el grupo
+	// plano /api/v1/stories/:storyId, que exige sesión y RequireStoryAccess sobre la misma instancia
+	// del repositorio de historias que usa el servicio.
+	storyRepository := backlogrepository.NewStoryRepository(db)
 	stories := backlogservice.NewStoryService(
-		backlogrepository.NewStoryRepository(db),
+		storyRepository,
 		backlogrepository.NewSprintAssignments(),
 		backlogrepository.NewEffortRecords(),
 		backlogrepository.NewDefectRecords(),
 		backlogrepository.NewEstimationSessions(),
 		backlogrepository.NewProjectDirectory(db),
 	)
-	backlogdelivery.RegisterRoutes(projectGroup, backlogdelivery.NewHandler(stories))
+	backlogHandler := backlogdelivery.NewHandler(stories)
+	backlogdelivery.RegisterRoutes(projectGroup, backlogHandler)
+	backlogdelivery.RegisterStoryRoutes(router, handler.RequireSession, storyRepository, backlogHandler)
 
 	// ReadHeaderTimeout acota el tiempo para recibir las cabeceras y ReadTimeout el de la solicitud
 	// completa, cuerpo incluido, para evitar conexiones colgadas.

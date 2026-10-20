@@ -90,6 +90,45 @@ func (h *Handler) createStory(c *gin.Context) {
 	c.JSON(http.StatusCreated, newStoryDetail(view))
 }
 
+// getStory godoc
+//
+//	@Summary		Consulta el detalle de una historia
+//	@Description	Devuelve todos los datos de la historia: criterios de aceptación en el orden en que se
+//	@Description	cargaron, si está lista para planificar y qué le falta, quién la creó, cuándo se creó y
+//	@Description	se actualizó, y si está o estuvo asignada a un sprint (FR-039). Sin criterios, la lista
+//	@Description	viene vacía y no es un error (FR-040). Se puede consultar también en proyectos finished
+//	@Description	(FR-048).
+//	@Tags			Backlog
+//	@ID				getStory
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			storyId	path		string					true	"Identificador propio, estable, inmutable y no secuencial de la historia (FR-009)"	format(uuid)
+//	@Success		200		{object}	StoryDetail				"Detalle de la historia."
+//	@Failure		401		{object}	delivery.ErrorResponse	"Se requiere iniciar sesión (FR-045)."
+//	@Failure		404		{object}	delivery.ErrorResponse	"La historia no existe, fue eliminada o pertenece a un proyecto del que quien pide no es integrante; las tres situaciones devuelven el mismo cuerpo (FR-044, FR-047, SC-006)."
+//	@Failure		500		{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/stories/{storyId} [get]
+func (h *Handler) getStory(c *gin.Context) {
+	// RequireStoryAccess ya verificó la sesión y la membresía y dejó el acceso en el contexto. Si no
+	// está, la ruta se registró fuera de ese middleware: es un error de composición y responde 500.
+	access, ok := storyAccessFromContext(c)
+	if !ok {
+		slog.ErrorContext(c.Request.Context(), "getStory sin acceso a la historia en el contexto")
+		c.JSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: msgInternalError})
+		return
+	}
+
+	// Se arma el detalle de la historia; cualquier error del servicio se traduce con
+	// respondServiceError.
+	view, err := h.stories.Get(c.Request.Context(), access.StoryID)
+	if err != nil {
+		respondServiceError(c, err, "no se pudo leer el detalle de la historia")
+		return
+	}
+
+	c.JSON(http.StatusOK, newStoryDetail(view))
+}
+
 // sessionAndProject devuelve el titular de la sesión y el proyecto de la ruta. Sin sesión responde el
 // 401 del contrato. Un projectId que no sea UUID solo es posible si la ruta se registró fuera del
 // subgrupo protegido por RequireMembership, así que es un error de composición: responde 500

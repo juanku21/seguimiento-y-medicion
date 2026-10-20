@@ -16,6 +16,8 @@ func RegisterRoutes(projectGroup *gin.RouterGroup, handler *Handler) {
 
 // RegisterStoryRoutes crea el grupo plano /api/v1/stories/:storyId con el middleware de sesión
 // inyectado desde cmd/app y RequireStoryAccess sobre el repositorio de historias, y registra en él
-// las rutas de ítem de la historia (research.md sección 2). Firma mínima.
+// las rutas de ítem de la historia (research.md sección 2).
 func RegisterStoryRoutes(router *gin.Engine, requireSession gin.HandlerFunc, stories domain.StoryRepository, handler *Handler) {
+	storyGroup := router.Group("/api/v1/stories/:storyId", requireSession, RequireStoryAccess(stories))
+	storyGroup.GET("", handler.getStory)
 }

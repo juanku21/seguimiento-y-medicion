@@ -143,7 +143,7 @@ lógica de negocio.
       comentario en español en cada archivo que indique qué spec (004, 006, 007 y 005) reemplazará
       su cuerpo. No es un dato inventado: hoy esas features no existen (research.md sección 11) —
       depende de T007
-- [ ] T009 Agregar `UserStory` y `AcceptanceCriterion` al `AutoMigrate` de
+- [X] T009 Agregar `UserStory` y `AcceptanceCriterion` al `AutoMigrate` de
       `backend/internal/platform/database/postgres.go`, **después** de `Project` y `ProjectMember`,
       de modo que el índice compuesto de `user_stories` y el índice único de `acceptance_criteria`
       queden creados por las etiquetas de GORM y no por un `CREATE INDEX` en crudo — depende de T001

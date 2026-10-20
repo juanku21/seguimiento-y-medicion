@@ -100,7 +100,7 @@ lógica de negocio.
       único** `idx_acceptance_criteria_story_position (story_id, position)`. Sin
       `ON DELETE CASCADE`: el borrado de los criterios es explícito en el repositorio (research.md
       sección 12)
-- [ ] T003 [P] Declarar el tipo `StoryPriority` con sus tres constantes `high`, `medium` y `low` en
+- [X] T003 [P] Declarar el tipo `StoryPriority` con sus tres constantes `high`, `medium` y `low` en
       `backend/internal/backlog/domain/priority.go`, como constantes de Go y **no** como `enum` de
       PostgreSQL (data-model.md sección 3). El rango de orden es regla de negocio y se implementa en
       US2

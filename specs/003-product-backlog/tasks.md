@@ -282,7 +282,7 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
       cliente `fetch` de la 001, y las reglas del formulario en
       `frontend/src/features/backlog/validation.ts` con los límites 150, 2000 y 500 como constantes
       nombradas en un único lugar — depende de T016 y T025
-- [ ] T027 [US1] Implementar `StoryForm` en `frontend/src/features/backlog/components/story-form.tsx`
+- [X] T027 [US1] Implementar `StoryForm` en `frontend/src/features/backlog/components/story-form.tsx`
       y `AcceptanceCriteriaEditor` en
       `frontend/src/features/backlog/components/acceptance-criteria-editor.tsx` (agregar, quitar y
       reordenar criterios), con los mensajes en español y los límites visibles antes de enviar.

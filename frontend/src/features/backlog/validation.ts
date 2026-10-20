@@ -29,7 +29,7 @@ function countCodePoints(value: string): number {
 }
 
 // Indica si el texto es uno de los valores de prioridad de la API, tomados de las etiquetas.
-function isStoryPriority(value: string): value is StoryPriority {
+export function isStoryPriority(value: string): value is StoryPriority {
   return Object.hasOwn(STORY_PRIORITY_LABELS, value);
 }
 

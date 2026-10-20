@@ -250,7 +250,7 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
       `users.id` y `users.full_name`** (nunca `password_hash`) y los criterios ordenados por
       `position`, en dos consultas, y devuelve `ErrStoryNotFound` si no hay fila — depende de T006 y
       T015
-- [ ] T022 [US1] Implementar en `backend/internal/backlog/service/story_service.go` el constructor
+- [X] T022 [US1] Implementar en `backend/internal/backlog/service/story_service.go` el constructor
       `NewStoryService`, que recibe `StoryRepository` y **los cinco puertos de T007**, para que su
       firma no cambie en las historias siguientes; el método `Create(ctx, projectID, actorID,
       input)`, que rechaza con `ErrBacklogReadOnly` si el proyecto está Finalizado y construye la

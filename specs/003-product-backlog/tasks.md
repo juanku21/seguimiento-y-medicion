@@ -183,7 +183,7 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
       combinaciones de data-model.md sección 5: (5, 2) lista; (0, 1) lista; (`nil`, 2) falta
       `story_points`; (3, 0) falta `acceptance_criteria`; (`nil`, 0) faltan las dos, **en ese
       orden** (SC-009) — depende de T010
-- [ ] T013 [P] [US1] Pruebas unitarias **obligatorias** de validación en
+- [X] T013 [P] [US1] Pruebas unitarias **obligatorias** de validación en
       `backend/internal/backlog/delivery/validation_test.go`, cubriendo RN-03 a RN-08: título
       **obligatorio, entre 1 y 150 runas tras `TrimSpace`**, con ausente o solo espacios rechazado y
       150 válido y 151 rechazado (RN-03); descripción **opcional de hasta 2000 runas tras

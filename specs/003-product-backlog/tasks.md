@@ -229,7 +229,7 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
 - [X] T017 [US1] Implementar la escala en `backend/internal/backlog/domain/story_points.go`: el
       conjunto cerrado `{0, 1, 2, 3, 5, 8, 13, 20, 40, 100}` declarado **una sola vez** e
       `IsValidStoryPoints(int) bool` (RN-06) — depende de T011
-- [ ] T018 [US1] Implementar `Readiness(storyPoints *int, criteriaCount int)` en
+- [X] T018 [US1] Implementar `Readiness(storyPoints *int, criteriaCount int)` en
       `backend/internal/backlog/domain/readiness.go`, devolviendo `ready` y la lista `missing` con
       `story_points` y `acceptance_criteria` en ese orden. Es la **única** fuente de la regla
       (research.md sección 10) — depende de T012

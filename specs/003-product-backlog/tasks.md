@@ -364,7 +364,7 @@ y un proyecto sin historias responde `emptyReason: backlog_empty`.
       filtros como parámetros repetidos de `URLSearchParams`, y los componentes `StoryList` en
       `frontend/src/features/backlog/components/story-list.tsx` y `BacklogFilters` en
       `frontend/src/features/backlog/components/backlog-filters.tsx` — depende de T031 y T036
-- [ ] T038 [US2] Crear la pantalla `frontend/src/app/projects/[projectId]/backlog/page.tsx`, protegida
+- [X] T038 [US2] Crear la pantalla `frontend/src/app/projects/[projectId]/backlog/page.tsx`, protegida
       con la guardia de sesión, con el acceso a "Nueva historia" — depende de T037
 
 **Checkpoint**: US1 y US2 funcionan de forma independiente. El backlog ya se registra y se consulta.

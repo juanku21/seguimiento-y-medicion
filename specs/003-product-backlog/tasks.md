@@ -327,7 +327,7 @@ y un proyecto sin historias responde `emptyReason: backlog_empty`.
       `?status=pending&status=in_progress` devuelve las historias de los dos estados y ninguna
       `completed`, y `?priority=high&priority=low` devuelve las Altas y las Bajas sin las Medias
       (FR-034) — depende de T028
-- [ ] T031 [P] [US2] Pruebas de frontend en
+- [X] T031 [P] [US2] Pruebas de frontend en
       `frontend/src/features/backlog/components/story-list.test.tsx` y
       `frontend/src/features/backlog/components/backlog-filters.test.tsx`, con
       `describe("003/US2 - Ver el backlog ordenado y filtrado")` y un `it` por escenario, incluido

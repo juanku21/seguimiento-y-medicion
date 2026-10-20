@@ -201,7 +201,7 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
       nuevo, el autor es el actor recibido y no un dato de la entrada (FR-049), un actor que no es
       el propietario del proyecto crea igual (RN-01, RN-02), y con `ProjectDirectory.IsFinished`
       verdadero devuelve `ErrBacklogReadOnly` sin llamar a `Create` (RN-15) — depende de T010
-- [ ] T015 [US1] Pruebas de integración de la historia en
+- [X] T015 [US1] Pruebas de integración de la historia en
       `backend/internal/backlog/delivery/handler_test.go`, con un ayudante `newBacklogTestEnv` que
       compone el router como `cmd/app` (sesión de la 001, rutas de la 002 con su subgrupo
       `/:projectId`, rutas del backlog y `httpserver.LimitRequestBody`) y que permite inyectar dobles

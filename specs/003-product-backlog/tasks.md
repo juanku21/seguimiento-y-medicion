@@ -384,7 +384,7 @@ idéntico byte a byte al de un identificador inventado.
 
 ### Pruebas de la Historia 3 ⚠️
 
-- [ ] T039 [P] [US3] Pruebas de integración de `RequireStoryAccess` en
+- [X] T039 [P] [US3] Pruebas de integración de `RequireStoryAccess` en
       `backend/internal/backlog/delivery/middleware_test.go`, montado sobre un manejador de prueba:
       un integrante que no es el propietario pasa y recibe en el contexto un `StoryAccess` con la
       historia, su proyecto y si está Finalizado (RN-01, RN-02); la historia inexistente, la de un

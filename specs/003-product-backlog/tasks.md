@@ -81,7 +81,7 @@ lógica de negocio.
 
 **Rama**: `fase/003-foundational`
 
-- [ ] T001 [P] Declarar la entidad `UserStory` en `backend/internal/backlog/domain/user_story.go` con
+- [X] T001 [P] Declarar la entidad `UserStory` en `backend/internal/backlog/domain/user_story.go` con
       los campos de data-model.md sección 1: `ID uuid` PK generado con `google/uuid`;
       `ProjectID uuid NOT NULL` con FK a `projects.id` (campo `Project *projectsdomain.Project` solo
       para la FK, nunca precargado); `Title varchar(150) NOT NULL` **sin índice único**;

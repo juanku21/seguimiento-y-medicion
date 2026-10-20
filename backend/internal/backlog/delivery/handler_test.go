@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -637,4 +639,496 @@ func TestUS1_NoIntegrante(t *testing.T) {
 	assert.Equal(t, missingRec.Header().Get("Content-Type"), foreignRec.Header().Get("Content-Type"), "los tipos de contenido deberían ser idénticos")
 	assert.Equal(t, missingRec.Body.Bytes(), foreignRec.Body.Bytes(), "los cuerpos deberían ser idénticos byte a byte")
 	backlogRequireNothingCreated(t, env.db)
+}
+
+// Pruebas de integración de US2 (T030): GET /api/v1/projects/{projectId}/stories. Las historias se
+// siembran directamente en la base, con su estado, su momento de creación y sus criterios, porque
+// ningún endpoint de esta feature produce los estados in_progress y completed ni fija el created_at
+// (plan.md, cómo se preparan los escenarios).
+
+// backlogSeedBase es el instante de referencia de las historias sembradas; cada una se ubica a una
+// cantidad de minutos de él para fijar el orden por fecha de creación.
+var backlogSeedBase = time.Date(2026, 10, 5, 9, 0, 0, 0, time.UTC)
+
+// backlogListItemBody refleja StoryListItem del contrato. StoryPoints es un puntero para distinguir
+// el 0 de "sin estimar".
+type backlogListItemBody struct {
+	ID                      string `json:"id"`
+	Title                   string `json:"title"`
+	Priority                string `json:"priority"`
+	Status                  string `json:"status"`
+	StoryPoints             *int   `json:"storyPoints"`
+	AcceptanceCriteriaCount int    `json:"acceptanceCriteriaCount"`
+	ReadyToPlan             bool   `json:"readyToPlan"`
+}
+
+// backlogListBody refleja StoryListResponse del contrato; EmptyReason es nil cuando hay historias.
+type backlogListBody struct {
+	Stories        []backlogListItemBody `json:"stories"`
+	AppliedFilters struct {
+		Status   []string `json:"status"`
+		Priority []string `json:"priority"`
+	} `json:"appliedFilters"`
+	EmptyReason *string `json:"emptyReason"`
+}
+
+// backlogSeed describe una historia a sembrar: prioridad, estado, Story Points (nil es "sin
+// estimar"), cantidad de criterios y minutos desde backlogSeedBase. Si ID es uuid.Nil se genera uno.
+type backlogSeed struct {
+	ID          uuid.UUID
+	Title       string
+	Priority    domain.StoryPriority
+	Status      domain.StoryStatus
+	StoryPoints *int
+	Criteria    int
+	Minute      int
+}
+
+// backlogIntPtr devuelve un puntero al entero indicado, para los Story Points sembrados.
+func backlogIntPtr(v int) *int {
+	return &v
+}
+
+// backlogSeedStories inserta las historias en user_stories, con el created_at fijado por la prueba,
+// y sus criterios en acceptance_criteria, y devuelve los identificadores en el orden recibido.
+func backlogSeedStories(t *testing.T, db *gorm.DB, projectID, creatorID uuid.UUID, seeds ...backlogSeed) []string {
+	t.Helper()
+	ids := make([]string, 0, len(seeds))
+	for i, seed := range seeds {
+		id := seed.ID
+		if id == uuid.Nil {
+			id = uuid.New()
+		}
+		title := seed.Title
+		if title == "" {
+			title = fmt.Sprintf("Historia sembrada %d", i+1)
+		}
+		status := seed.Status
+		if status == "" {
+			status = domain.StoryStatusPending
+		}
+		createdAt := backlogSeedBase.Add(time.Duration(seed.Minute) * time.Minute)
+		story := domain.UserStory{
+			ID:          id,
+			ProjectID:   projectID,
+			Title:       title,
+			Priority:    seed.Priority,
+			Status:      status,
+			StoryPoints: seed.StoryPoints,
+			CreatedByID: creatorID,
+			CreatedAt:   createdAt,
+			UpdatedAt:   createdAt,
+		}
+		require.NoError(t, db.Create(&story).Error, "no se pudo sembrar la historia %q", title)
+		for p := 0; p < seed.Criteria; p++ {
+			criterion := domain.AcceptanceCriterion{ID: uuid.New(), StoryID: id, Position: p, Text: fmt.Sprintf("Criterio %d", p+1)}
+			require.NoError(t, db.Create(&criterion).Error, "no se pudo sembrar el criterio de %q", title)
+		}
+		ids = append(ids, id.String())
+	}
+	return ids
+}
+
+// getStories envía GET /api/v1/projects/{projectId}/stories con la consulta cruda indicada (sin el
+// signo de pregunta) y el token como Bearer.
+func (e backlogTestEnv) getStories(t *testing.T, token string, projectID uuid.UUID, rawQuery string) *httptest.ResponseRecorder {
+	t.Helper()
+	target := backlogStoriesPath(projectID)
+	if rawQuery != "" {
+		target += "?" + rawQuery
+	}
+	req := httptest.NewRequest(http.MethodGet, target, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, req)
+	return rec
+}
+
+// requireStoryList exige un 200 cuyo cuerpo sea un StoryListResponse con stories y los dos filtros
+// aplicados como listas (nunca null) y emptyReason presente, y lo devuelve decodificado.
+func requireStoryList(t *testing.T, rec *httptest.ResponseRecorder) backlogListBody {
+	t.Helper()
+	require.Equal(t, http.StatusOK, rec.Code, "cuerpo: %s", rec.Body.String())
+	raw := backlogRawBody(t, rec)
+	require.IsType(t, []any{}, raw["stories"], "stories debería ser una lista y no null: %s", rec.Body.String())
+	applied, ok := raw["appliedFilters"].(map[string]any)
+	require.True(t, ok, "appliedFilters debería ser un objeto: %s", rec.Body.String())
+	require.IsType(t, []any{}, applied["status"], "appliedFilters.status debería ser una lista y no null")
+	require.IsType(t, []any{}, applied["priority"], "appliedFilters.priority debería ser una lista y no null")
+	_, present := raw["emptyReason"]
+	require.True(t, present, "emptyReason debería estar presente aunque valga null")
+	var body backlogListBody
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "el cuerpo del 200 no es JSON válido: %s", rec.Body.String())
+	return body
+}
+
+// backlogListIDs devuelve los identificadores del listado en el orden recibido.
+func backlogListIDs(body backlogListBody) []string {
+	ids := make([]string, 0, len(body.Stories))
+	for _, story := range body.Stories {
+		ids = append(ids, story.ID)
+	}
+	return ids
+}
+
+// backlogRequireEmptyReason exige el motivo de lista vacía indicado, o null si want es "".
+func backlogRequireEmptyReason(t *testing.T, body backlogListBody, want string) {
+	t.Helper()
+	if want == "" {
+		assert.Nil(t, body.EmptyReason, "emptyReason debería ser null cuando hay historias")
+		return
+	}
+	require.NotNil(t, body.EmptyReason, "emptyReason debería ser %q y no null", want)
+	assert.Equal(t, want, *body.EmptyReason)
+}
+
+// Escenario: Orden por prioridad y fecha (003/US2)
+// Con historias Alta, Media y Baja creadas en distinto orden, el integrante ve primero las Altas,
+// después las Medias y después las Bajas, y dentro de cada prioridad las más antiguas primero
+// (FR-032, RN-17). Cada elemento trae los datos de FR-033, sin filtros aplicados y con emptyReason
+// null.
+func TestUS2_OrdenPorPrioridadYFecha(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	ownerID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Díaz", "bruno@example.com")
+	projectID := backlogSeedProject(t, env.db, ownerID, projectsdomain.ProjectStatusInProgress, brunoID)
+	ids := backlogSeedStories(t, env.db, projectID, ownerID,
+		backlogSeed{Title: "Baja reciente", Priority: domain.StoryPriorityLow, Minute: 40},
+		backlogSeed{Title: "Alta reciente", Priority: domain.StoryPriorityHigh, Minute: 30, StoryPoints: backlogIntPtr(5), Criteria: 2},
+		backlogSeed{Title: "Media", Priority: domain.StoryPriorityMedium, Minute: 20, StoryPoints: backlogIntPtr(0), Criteria: 1},
+		backlogSeed{Title: "Baja antigua", Priority: domain.StoryPriorityLow, Minute: 0, StoryPoints: backlogIntPtr(3)},
+		backlogSeed{Title: "Alta antigua", Priority: domain.StoryPriorityHigh, Minute: 10},
+	)
+
+	body := requireStoryList(t, env.getStories(t, brunoToken, projectID, ""))
+
+	// El orden es Alta antigua, Alta reciente, Media, Baja antigua, Baja reciente.
+	assert.Equal(t, []string{ids[4], ids[1], ids[2], ids[3], ids[0]}, backlogListIDs(body))
+	assert.Empty(t, body.AppliedFilters.Status)
+	assert.Empty(t, body.AppliedFilters.Priority)
+	backlogRequireEmptyReason(t, body, "")
+
+	// Cada elemento informa sus datos, Story Points o null, cantidad de criterios y si está lista.
+	require.Len(t, body.Stories, 5)
+	byTitle := map[string]backlogListItemBody{}
+	for _, story := range body.Stories {
+		byTitle[story.Title] = story
+	}
+	ready := byTitle["Alta reciente"]
+	assert.Equal(t, "high", ready.Priority)
+	assert.Equal(t, "pending", ready.Status)
+	require.NotNil(t, ready.StoryPoints)
+	assert.Equal(t, 5, *ready.StoryPoints)
+	assert.Equal(t, 2, ready.AcceptanceCriteriaCount)
+	assert.True(t, ready.ReadyToPlan, "con Story Points y criterios la historia está lista")
+	zero := byTitle["Media"]
+	require.NotNil(t, zero.StoryPoints, "0 Story Points no debería informarse como null")
+	assert.Equal(t, 0, *zero.StoryPoints)
+	assert.Equal(t, 1, zero.AcceptanceCriteriaCount)
+	assert.True(t, zero.ReadyToPlan, "con 0 Story Points y un criterio la historia está lista")
+	noCriteria := byTitle["Baja antigua"]
+	assert.Equal(t, 0, noCriteria.AcceptanceCriteriaCount)
+	assert.False(t, noCriteria.ReadyToPlan, "sin criterios la historia no está lista")
+	unestimated := byTitle["Alta antigua"]
+	assert.Nil(t, unestimated.StoryPoints, "sin estimar debería informarse como null")
+	assert.False(t, unestimated.ReadyToPlan)
+}
+
+// Escenario: Filtro por estado (003/US2)
+// En un backlog con historias en los tres estados, sembrados en la base, filtrar por Pendiente
+// devuelve solo las Pendientes, en el mismo orden de prioridad y fecha, y lo informa en
+// appliedFilters (FR-034).
+func TestUS2_FiltroPorEstado(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, ownerID, projectsdomain.ProjectStatusInProgress)
+	ids := backlogSeedStories(t, env.db, projectID, ownerID,
+		backlogSeed{Priority: domain.StoryPriorityLow, Status: domain.StoryStatusPending, Minute: 0},
+		backlogSeed{Priority: domain.StoryPriorityHigh, Status: domain.StoryStatusInProgress, Minute: 1},
+		backlogSeed{Priority: domain.StoryPriorityHigh, Status: domain.StoryStatusPending, Minute: 2},
+		backlogSeed{Priority: domain.StoryPriorityMedium, Status: domain.StoryStatusCompleted, Minute: 3},
+		backlogSeed{Priority: domain.StoryPriorityMedium, Status: domain.StoryStatusPending, Minute: 4},
+	)
+
+	body := requireStoryList(t, env.getStories(t, token, projectID, "status=pending"))
+
+	assert.Equal(t, []string{ids[2], ids[4], ids[0]}, backlogListIDs(body))
+	for _, story := range body.Stories {
+		assert.Equal(t, "pending", story.Status)
+	}
+	assert.Equal(t, []string{"pending"}, body.AppliedFilters.Status)
+	assert.Empty(t, body.AppliedFilters.Priority)
+	backlogRequireEmptyReason(t, body, "")
+}
+
+// Escenario: Filtros combinados (003/US2)
+// Filtrar a la vez por prioridad Alta y por estado Pendiente devuelve solo las historias que cumplen
+// ambas condiciones (FR-034).
+func TestUS2_FiltrosCombinados(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, ownerID, projectsdomain.ProjectStatusInProgress)
+	ids := backlogSeedStories(t, env.db, projectID, ownerID,
+		backlogSeed{Priority: domain.StoryPriorityHigh, Status: domain.StoryStatusPending, Minute: 5},
+		backlogSeed{Priority: domain.StoryPriorityHigh, Status: domain.StoryStatusCompleted, Minute: 1},
+		backlogSeed{Priority: domain.StoryPriorityMedium, Status: domain.StoryStatusPending, Minute: 2},
+		backlogSeed{Priority: domain.StoryPriorityLow, Status: domain.StoryStatusInProgress, Minute: 3},
+		backlogSeed{Priority: domain.StoryPriorityHigh, Status: domain.StoryStatusPending, Minute: 0},
+	)
+
+	body := requireStoryList(t, env.getStories(t, token, projectID, "priority=high&status=pending"))
+
+	assert.Equal(t, []string{ids[4], ids[0]}, backlogListIDs(body))
+	assert.Equal(t, []string{"pending"}, body.AppliedFilters.Status)
+	assert.Equal(t, []string{"high"}, body.AppliedFilters.Priority)
+	backlogRequireEmptyReason(t, body, "")
+}
+
+// Escenario: Backlog vacío (003/US2)
+// Un proyecto sin historias responde 200 con stories: [] y emptyReason backlog_empty, sin que sea un
+// error (FR-035). Aunque la consulta lleve filtros, el motivo sigue siendo backlog_empty, porque el
+// proyecto no tiene ninguna historia.
+func TestUS2_BacklogVacio(t *testing.T) {
+	cases := []struct {
+		name         string
+		rawQuery     string
+		wantStatus   []string
+		wantPriority []string
+	}{
+		{"sin filtros", "", []string{}, []string{}},
+		{"con filtros", "status=pending&priority=high", []string{"pending"}, []string{"high"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newBacklogTestEnv(t)
+			ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+			projectID := backlogSeedProject(t, env.db, ownerID, projectsdomain.ProjectStatusPlanned)
+
+			body := requireStoryList(t, env.getStories(t, token, projectID, tc.rawQuery))
+
+			assert.Empty(t, body.Stories)
+			backlogRequireEmptyReason(t, body, "backlog_empty")
+			assert.Equal(t, tc.wantStatus, body.AppliedFilters.Status)
+			assert.Equal(t, tc.wantPriority, body.AppliedFilters.Priority)
+		})
+	}
+}
+
+// Escenario: Filtro sin coincidencias (003/US2)
+// En un backlog que solo tiene historias de prioridad Baja, filtrar por Alta responde 200 con la
+// lista vacía, emptyReason no_matches y el detalle de los filtros aplicados, distinguible del
+// backlog vacío (FR-036).
+func TestUS2_FiltroSinCoincidencias(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, ownerID, projectsdomain.ProjectStatusInProgress)
+	backlogSeedStories(t, env.db, projectID, ownerID,
+		backlogSeed{Priority: domain.StoryPriorityLow, Minute: 0},
+		backlogSeed{Priority: domain.StoryPriorityLow, Minute: 1},
+	)
+
+	body := requireStoryList(t, env.getStories(t, token, projectID, "priority=high"))
+
+	assert.Empty(t, body.Stories)
+	backlogRequireEmptyReason(t, body, "no_matches")
+	assert.Empty(t, body.AppliedFilters.Status)
+	assert.Equal(t, []string{"high"}, body.AppliedFilters.Priority)
+}
+
+// Escenario: Orden estable ante empate (003/US2)
+// Dos historias de la misma prioridad con el mismo created_at escrito en la base aparecen siempre en
+// el mismo orden en dos consultas seguidas, desempatadas por id ascendente (FR-032). La de id mayor
+// se inserta primero para que el orden de inserción no coincida con el esperado.
+func TestUS2_OrdenEstableAnteEmpate(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, ownerID, projectsdomain.ProjectStatusInProgress)
+	higherID := uuid.MustParse("ffffffff-0000-4000-8000-000000000001")
+	lowerID := uuid.MustParse("00000000-0000-4000-8000-000000000002")
+	backlogSeedStories(t, env.db, projectID, ownerID,
+		backlogSeed{ID: higherID, Priority: domain.StoryPriorityMedium, Minute: 3},
+		backlogSeed{ID: lowerID, Priority: domain.StoryPriorityMedium, Minute: 7},
+	)
+	tie := backlogSeedBase.Add(15 * time.Minute)
+	require.NoError(t, env.db.Exec("UPDATE user_stories SET created_at = ? WHERE id IN ?", tie, []uuid.UUID{higherID, lowerID}).Error,
+		"no se pudo igualar el created_at de las historias")
+	require.Equal(t, int64(2), backlogCountRows(t, env.db, &domain.UserStory{}, "created_at = ?", tie),
+		"las dos historias deberían tener el mismo created_at")
+
+	first := requireStoryList(t, env.getStories(t, token, projectID, ""))
+	second := requireStoryList(t, env.getStories(t, token, projectID, ""))
+
+	want := []string{lowerID.String(), higherID.String()}
+	assert.Equal(t, want, backlogListIDs(first), "el empate se desempata por id ascendente")
+	assert.Equal(t, want, backlogListIDs(second), "la segunda consulta debe devolver el mismo orden")
+}
+
+// Escenario: Filtro inválido (003/US2)
+// Un estado o una prioridad que no existe se rechaza con 400 indicando los valores admitidos para
+// ese filtro, también cuando llega junto a un valor válido (FR-037).
+func TestUS2_FiltroInvalido(t *testing.T) {
+	cases := []struct {
+		name     string
+		rawQuery string
+		field    string
+		admitted []string
+	}{
+		{"estado inexistente", "status=done", "status", []string{"pending", "in_progress", "completed"}},
+		{"estado inválido junto a uno válido", "status=pending&status=archived", "status", []string{"pending", "in_progress", "completed"}},
+		{"prioridad inexistente", "priority=urgent", "priority", []string{"high", "medium", "low"}},
+		{"prioridad en español", "priority=alta", "priority", []string{"high", "medium", "low"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newBacklogTestEnv(t)
+			ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+			projectID := backlogSeedProject(t, env.db, ownerID, projectsdomain.ProjectStatusInProgress)
+			backlogSeedStories(t, env.db, projectID, ownerID, backlogSeed{Priority: domain.StoryPriorityHigh})
+
+			rec := env.getStories(t, token, projectID, tc.rawQuery)
+
+			backlogRequireFieldRejected(t, rec, tc.field, tc.admitted...)
+		})
+	}
+}
+
+// Escenario: No integrante (003/US2)
+// Quien no es integrante recibe 404 de proyecto inexistente, idéntico byte a byte al de un
+// projectId que no existe, y la respuesta no revela ninguna historia (FR-047, SC-006).
+func TestUS2_NoIntegrante(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	ownerID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	_, outsiderToken := env.signUp(t, "Carla Gómez", "carla@example.com")
+	projectID := backlogSeedProject(t, env.db, ownerID, projectsdomain.ProjectStatusInProgress)
+	ids := backlogSeedStories(t, env.db, projectID, ownerID,
+		backlogSeed{Title: backlogStoryTitle, Priority: domain.StoryPriorityHigh})
+
+	foreignRec := env.getStories(t, outsiderToken, projectID, "")
+	missingRec := env.getStories(t, outsiderToken, uuid.New(), "")
+
+	assert.Equal(t, http.StatusNotFound, foreignRec.Code, "cuerpo: %s", foreignRec.Body.String())
+	assert.JSONEq(t, `{"error":"`+backlogProjectNotFound+`"}`, foreignRec.Body.String())
+	assert.Equal(t, missingRec.Code, foreignRec.Code, "los códigos de estado deberían ser idénticos")
+	assert.Equal(t, missingRec.Header().Get("Content-Type"), foreignRec.Header().Get("Content-Type"), "los tipos de contenido deberían ser idénticos")
+	assert.Equal(t, missingRec.Body.Bytes(), foreignRec.Body.Bytes(), "los cuerpos deberían ser idénticos byte a byte")
+	assert.NotContains(t, foreignRec.Body.String(), backlogStoryTitle, "la respuesta no debería revelar el título")
+	assert.NotContains(t, foreignRec.Body.String(), ids[0], "la respuesta no debería revelar el identificador")
+}
+
+// backlogPriorityRank es el rango de orden de cada prioridad según RN-17, declarado en la prueba
+// para calcular el orden esperado sin depender del código de producción.
+var backlogPriorityRank = map[domain.StoryPriority]int{
+	domain.StoryPriorityHigh:   0,
+	domain.StoryPriorityMedium: 1,
+	domain.StoryPriorityLow:    2,
+}
+
+// TestStoryList_OrdenConCincuentaHistorias verifica el orden de FR-032 sobre un backlog de 50
+// historias de las tres prioridades (SC-004). Las fechas se reparten en siete instantes para que
+// haya empates de prioridad y fecha, que se desempatan por id. El orden esperado se calcula en la
+// prueba ordenando los datos sembrados por rango, fecha e id.
+func TestStoryList_OrdenConCincuentaHistorias(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, ownerID, projectsdomain.ProjectStatusInProgress)
+	priorities := []domain.StoryPriority{domain.StoryPriorityLow, domain.StoryPriorityHigh, domain.StoryPriorityMedium}
+	seeds := make([]backlogSeed, 0, 50)
+	for i := 0; i < 50; i++ {
+		seeds = append(seeds, backlogSeed{Priority: priorities[i%3], Minute: (i * 5) % 7})
+	}
+	ids := backlogSeedStories(t, env.db, projectID, ownerID, seeds...)
+
+	// Orden esperado: rango de prioridad, minuto de creación e id ascendentes.
+	order := make([]int, len(seeds))
+	for i := range order {
+		order[i] = i
+	}
+	sort.Slice(order, func(a, b int) bool {
+		sa, sb := seeds[order[a]], seeds[order[b]]
+		if ra, rb := backlogPriorityRank[sa.Priority], backlogPriorityRank[sb.Priority]; ra != rb {
+			return ra < rb
+		}
+		if sa.Minute != sb.Minute {
+			return sa.Minute < sb.Minute
+		}
+		return ids[order[a]] < ids[order[b]]
+	})
+	want := make([]string, 0, len(order))
+	for _, i := range order {
+		want = append(want, ids[i])
+	}
+
+	body := requireStoryList(t, env.getStories(t, token, projectID, ""))
+
+	assert.Equal(t, want, backlogListIDs(body))
+}
+
+// TestStoryList_SinHistoriasDeOtroProyecto verifica que el listado de un proyecto no incluye
+// historias de otro, aunque quien consulta sea integrante de ambos (FR-038).
+func TestStoryList_SinHistoriasDeOtroProyecto(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, _ := env.signUp(t, "Bruno Díaz", "bruno@example.com")
+	ownProject := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	otherProject := backlogSeedProject(t, env.db, brunoID, projectsdomain.ProjectStatusInProgress, anaID)
+	ownIDs := backlogSeedStories(t, env.db, ownProject, anaID,
+		backlogSeed{Priority: domain.StoryPriorityHigh, Minute: 0},
+		backlogSeed{Priority: domain.StoryPriorityLow, Minute: 1},
+	)
+	otherIDs := backlogSeedStories(t, env.db, otherProject, brunoID,
+		backlogSeed{Priority: domain.StoryPriorityHigh, Minute: 0},
+		backlogSeed{Priority: domain.StoryPriorityMedium, Minute: 1},
+	)
+
+	body := requireStoryList(t, env.getStories(t, anaToken, ownProject, ""))
+
+	assert.Equal(t, ownIDs, backlogListIDs(body))
+	for _, id := range otherIDs {
+		assert.NotContains(t, backlogListIDs(body), id, "no debería aparecer una historia de otro proyecto")
+	}
+}
+
+// TestStoryList_VariosValoresPorFiltro verifica que un mismo filtro admite varios valores, que se
+// combinan con "o": dos estados devuelven las historias de ambos y ninguna completed, y dos
+// prioridades devuelven las Altas y las Bajas sin las Medias (FR-034).
+func TestStoryList_VariosValoresPorFiltro(t *testing.T) {
+	seeds := []backlogSeed{
+		{Priority: domain.StoryPriorityHigh, Status: domain.StoryStatusPending, Minute: 0},
+		{Priority: domain.StoryPriorityHigh, Status: domain.StoryStatusCompleted, Minute: 1},
+		{Priority: domain.StoryPriorityMedium, Status: domain.StoryStatusInProgress, Minute: 2},
+		{Priority: domain.StoryPriorityMedium, Status: domain.StoryStatusPending, Minute: 3},
+		{Priority: domain.StoryPriorityLow, Status: domain.StoryStatusInProgress, Minute: 4},
+		{Priority: domain.StoryPriorityLow, Status: domain.StoryStatusCompleted, Minute: 5},
+	}
+	cases := []struct {
+		name         string
+		rawQuery     string
+		wantIndexes  []int
+		wantStatus   []string
+		wantPriority []string
+	}{
+		{"pending e in_progress", "status=pending&status=in_progress", []int{0, 2, 3, 4},
+			[]string{"pending", "in_progress"}, []string{}},
+		{"high y low", "priority=high&priority=low", []int{0, 1, 4, 5},
+			[]string{}, []string{"high", "low"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newBacklogTestEnv(t)
+			ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+			projectID := backlogSeedProject(t, env.db, ownerID, projectsdomain.ProjectStatusInProgress)
+			ids := backlogSeedStories(t, env.db, projectID, ownerID, seeds...)
+
+			body := requireStoryList(t, env.getStories(t, token, projectID, tc.rawQuery))
+
+			want := make([]string, 0, len(tc.wantIndexes))
+			for _, i := range tc.wantIndexes {
+				want = append(want, ids[i])
+			}
+			assert.Equal(t, want, backlogListIDs(body))
+			assert.ElementsMatch(t, tc.wantStatus, body.AppliedFilters.Status)
+			assert.ElementsMatch(t, tc.wantPriority, body.AppliedFilters.Priority)
+			backlogRequireEmptyReason(t, body, "")
+		})
+	}
 }

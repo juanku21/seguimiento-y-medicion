@@ -314,7 +314,7 @@ y un proyecto sin historias responde `emptyReason: backlog_empty`.
       `priority` repetibles, valores fuera de `pending`/`in_progress`/`completed` o
       `high`/`medium`/`low` rechazados indicando los valores admitidos, y ausencia de filtros
       aceptada (RN-05, RN-17, FR-037) — depende de T028
-- [ ] T030 [US2] Pruebas de integración de la historia en
+- [X] T030 [US2] Pruebas de integración de la historia en
       `backend/internal/backlog/delivery/handler_test.go`, con `// Escenario: <nombre> (003/US2)`:
       `TestUS2_OrdenPorPrioridadYFecha`, `TestUS2_FiltroPorEstado` (estados sembrados en la base),
       `TestUS2_FiltrosCombinados`, `TestUS2_BacklogVacio` (`200`, `stories: []` y `emptyReason:

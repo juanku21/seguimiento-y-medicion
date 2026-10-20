@@ -15,12 +15,13 @@ import (
 )
 
 // Mensajes de las respuestas de error del backlog, en español y dirigidos a la persona. Los textos
-// del 400, del 401 y del 409 los fija contracts/openapi.yaml; el del cuerpo mal formado y el del 500
-// son los mismos que usan la 001 y la 002, y el 500 no expone detalles internos.
+// del 400, del 401, del 404 y del 409 los fija contracts/openapi.yaml; el del cuerpo mal formado y
+// el del 500 son los mismos que usan la 001 y la 002, y el 500 no expone detalles internos.
 const (
 	msgInvalidFields   = "Hay campos inválidos en la solicitud."
 	msgInvalidBody     = "El cuerpo de la solicitud debe ser un JSON válido."
 	msgSessionRequired = "Se requiere iniciar sesión."
+	msgStoryNotFound   = "La historia no existe."
 	msgBacklogReadOnly = "El proyecto está finalizado y su backlog es de solo lectura."
 	msgInternalError   = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
 )

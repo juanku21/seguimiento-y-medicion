@@ -392,7 +392,7 @@ idéntico byte a byte al de un identificador inventado.
       **el mismo `404` byte a byte** (`{"error":"La historia no existe."}`) con una sola consulta;
       y sin titular en el contexto responde el `401` de la 001 (research.md sección 3) — depende de
       T038
-- [ ] T040 [US3] Pruebas de integración de la historia en
+- [X] T040 [US3] Pruebas de integración de la historia en
       `backend/internal/backlog/delivery/handler_test.go`, con `// Escenario: <nombre> (003/US3)`:
       `TestUS3_DetalleCompleto` (descripción, prioridad Media, 8 Story Points, tres criterios en
       orden, autor, `createdAt`, `updatedAt` y `readiness.ready` verdadero),

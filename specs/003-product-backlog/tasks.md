@@ -421,7 +421,7 @@ idéntico byte a byte al de un identificador inventado.
       con **una única salida `404`** para la historia inexistente, la ajena y el identificador mal
       formado, que deja el `StoryAccess` en el contexto; cualquier otro error responde `500`
       genérico registrado en el log — depende de T042
-- [ ] T044 [US3] Implementar `Get(ctx, storyID)` en `backend/internal/backlog/service/story_service.go`
+- [X] T044 [US3] Implementar `Get(ctx, storyID)` en `backend/internal/backlog/service/story_service.go`
       sobre `FindDetail` y `buildDetail` de T022 — depende de T040
 - [ ] T045 [US3] Implementar el manejador `getStory` en `backend/internal/backlog/delivery/handler.go`
       con anotaciones `swag` en español, y crear en `backend/internal/backlog/delivery/routes.go` el

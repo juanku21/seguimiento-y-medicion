@@ -756,7 +756,7 @@ calidad. Todas las tareas son **técnicas**.
       (Principios VI y IX) — depende de T002
 - [X] T082 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
-- [ ] T083 [P] Ejecutar los comandos de cobertura de los dos lados —
+- [X] T083 [P] Ejecutar los comandos de cobertura de los dos lados —
       `go test ./... -coverprofile=coverage.out` más `go tool cover -func=coverage.out` en
       `backend/`, y `npm run test:coverage` en `frontend/` — y revisar que el módulo
       `internal/projects/` esté cubierto

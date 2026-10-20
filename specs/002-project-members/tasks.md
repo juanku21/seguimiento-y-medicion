@@ -737,7 +737,8 @@ sprint activo se prueba con un doble del puerto `SprintDirectory`.
 ## Fase 9: Polish (Cierre y asuntos transversales)
 
 **Propósito**: documentación viva, cobertura, vulnerabilidades y verificación de las puertas de
-calidad. Todas las tareas son **técnicas**.
+calidad. Todas las tareas son **técnicas**, salvo T099, que es una prueba de caracterización sin
+RED.
 
 **Rama**: `fase/002-polish`
 
@@ -760,6 +761,15 @@ calidad. Todas las tareas son **técnicas**.
       `go test ./... -coverprofile=coverage.out` más `go tool cover -func=coverage.out` en
       `backend/`, y `npm run test:coverage` en `frontend/` — y revisar que el módulo
       `internal/projects/` esté cubierto
+- [ ] T099 Pruebas unitarias **obligatorias** de la validación de `APP_TIMEZONE` en
+      `backend/internal/platform/config/config_test.go`, configurando el entorno con `t.Setenv`
+      y con el resto de las variables obligatorias completas: (a) sin `APP_TIMEZONE`, o solo con
+      espacios, `Load` devuelve error y el mensaje la enumera entre las faltantes; (b) con un
+      valor que no es zona IANA (`Buenos_Aires`) devuelve el error de zona horaria inválida; y
+      (c) con `America/Argentina/Buenos_Aires` no devuelve error y `Config.Location.String()`
+      coincide con el valor configurado (Principio II, validación de entrada; FR-039). Prueba de
+      caracterización: la validación existe desde T003, así que no tiene RED; el commit lo
+      justifica — depende de T003
 - [ ] T084 Verificar la trazabilidad y las puertas de seguridad recorriendo
       `backend/internal/projects/` y `frontend/src/features/projects/`: que buscar `002/US1`
       a `002/US6` en el código de pruebas devuelva los **55** escenarios; que las **16** reglas

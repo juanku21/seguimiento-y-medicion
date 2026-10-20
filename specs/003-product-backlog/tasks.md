@@ -273,7 +273,7 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
       Respuestas: `201` con `StoryDetail`, `400` con `ValidationErrorResponse`, `401`, `404` de
       `RequireMembership` y `409` (`El proyecto está finalizado y su backlog es de solo lectura.`)
       (research.md sección 2) — depende de T015, T019 y T023
-- [ ] T025 [P] [US1] Declarar los tipos de petición y respuesta en `frontend/src/types/story.ts` y,
+- [X] T025 [P] [US1] Declarar los tipos de petición y respuesta en `frontend/src/types/story.ts` y,
       en `frontend/src/utils/story-labels.ts`, las etiquetas en español de la prioridad (`high` →
       Alta, `medium` → Media, `low` → Baja) y del estado (`pending` → Pendiente, `in_progress` → En
       progreso, `completed` → Completada), y la escala `[0, 1, 2, 3, 5, 8, 13, 20, 40, 100]`.

@@ -148,7 +148,7 @@ lógica de negocio.
       de modo que el índice compuesto de `user_stories` y el índice único de `acceptance_criteria`
       queden creados por las etiquetas de GORM y no por un `CREATE INDEX` en crudo — depende de T001
       y T002
-- [ ] T010 Extender el vaciado del ayudante de pruebas en
+- [X] T010 Extender el vaciado del ayudante de pruebas en
       `backend/internal/platform/testsupport/database.go` a
       `TRUNCATE users, sessions, auth_events, projects, project_members, user_stories,
       acceptance_criteria CASCADE`, manteniendo la verificación de que la base es `smye_test` y el

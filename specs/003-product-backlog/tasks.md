@@ -262,7 +262,7 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
       `ErrorResponse`, `FieldError` y `ValidationErrorResponse` de la 001. `storyPoints` y
       `description` se serializan como `null` cuando no tienen valor y `acceptanceCriteria` como
       `[]`, nunca como `null` (FR-040) — depende de T022
-- [ ] T024 [US1] Implementar el manejador `createStory` en
+- [X] T024 [US1] Implementar el manejador `createStory` en
       `backend/internal/backlog/delivery/handler.go` con anotaciones `swag` en español, que lee al
       titular con `authdelivery.CurrentUserID` y el proyecto del parámetro `projectId` ya validado
       por `RequireMembership`; crear `RegisterRoutes` en `backend/internal/backlog/delivery/routes.go`

@@ -462,7 +462,7 @@ govulncheck ./...
 go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 ```
 
-El último análisis (2026-10-13) no reporta vulnerabilidades que alcancen al código. Queda un único aviso a nivel de módulo, justificado a continuación:
+El último análisis (2026-10-19) no reporta vulnerabilidades que alcancen al código. Queda un único aviso a nivel de módulo, justificado a continuación:
 
 | Aviso | Módulo | Justificación |
 | --- | --- | --- |

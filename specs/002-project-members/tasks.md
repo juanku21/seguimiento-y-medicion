@@ -754,7 +754,7 @@ calidad. Todas las tareas son **técnicas**.
       `.next/`, `backend/docs/`, `coverage.out` y `coverage.html`, y que `backend/.env.example` esté
       sincronizado con `backend/.env` incluida la clave `APP_TIMEZONE`, sin secretos versionados
       (Principios VI y IX) — depende de T002
-- [ ] T082 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
+- [X] T082 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
 - [ ] T083 [P] Ejecutar los comandos de cobertura de los dos lados —
       `go test ./... -coverprofile=coverage.out` más `go tool cover -func=coverage.out` en

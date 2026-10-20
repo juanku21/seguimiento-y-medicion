@@ -178,7 +178,7 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
       `backend/internal/backlog/domain/story_points_test.go`, cubriendo RN-06 y RN-07:
       `IsValidStoryPoints` acepta exactamente **0, 1, 2, 3, 5, 8, 13, 20, 40 y 100** y rechaza 4, 6,
       7, 50, 101 y -1 (SC-007) — depende de T010
-- [ ] T012 [P] [US1] Pruebas unitarias **obligatorias** de `Readiness` en
+- [X] T012 [P] [US1] Pruebas unitarias **obligatorias** de `Readiness` en
       `backend/internal/backlog/domain/readiness_test.go`, cubriendo RN-12 y RN-13 con las cinco
       combinaciones de data-model.md sección 5: (5, 2) lista; (0, 1) lista; (`nil`, 2) falta
       `story_points`; (3, 0) falta `acceptance_criteria`; (`nil`, 0) faltan las dos, **en ese

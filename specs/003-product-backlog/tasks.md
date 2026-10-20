@@ -174,16 +174,16 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T011 [P] [US1] Pruebas unitarias **obligatorias** de la escala en
+- [X] T011 [P] [US1] Pruebas unitarias **obligatorias** de la escala en
       `backend/internal/backlog/domain/story_points_test.go`, cubriendo RN-06 y RN-07:
       `IsValidStoryPoints` acepta exactamente **0, 1, 2, 3, 5, 8, 13, 20, 40 y 100** y rechaza 4, 6,
       7, 50, 101 y -1 (SC-007) — depende de T010
-- [ ] T012 [P] [US1] Pruebas unitarias **obligatorias** de `Readiness` en
+- [X] T012 [P] [US1] Pruebas unitarias **obligatorias** de `Readiness` en
       `backend/internal/backlog/domain/readiness_test.go`, cubriendo RN-12 y RN-13 con las cinco
       combinaciones de data-model.md sección 5: (5, 2) lista; (0, 1) lista; (`nil`, 2) falta
       `story_points`; (3, 0) falta `acceptance_criteria`; (`nil`, 0) faltan las dos, **en ese
       orden** (SC-009) — depende de T010
-- [ ] T013 [P] [US1] Pruebas unitarias **obligatorias** de validación en
+- [X] T013 [P] [US1] Pruebas unitarias **obligatorias** de validación en
       `backend/internal/backlog/delivery/validation_test.go`, cubriendo RN-03 a RN-08: título
       **obligatorio, entre 1 y 150 runas tras `TrimSpace`**, con ausente o solo espacios rechazado y
       150 válido y 151 rechazado (RN-03); descripción **opcional de hasta 2000 runas tras
@@ -195,13 +195,13 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
       1 y 500 runas**, con 1 y 500 válidos, vacío, solo espacios y 501 rechazados, el campo
       informado como `acceptanceCriteria[i]` y el orden de la lista conservado (RN-08). La validación
       devuelve **todos** los campos inválidos a la vez — depende de T010
-- [ ] T014 [P] [US1] Pruebas unitarias **obligatorias** de la creación en el servicio en
+- [X] T014 [P] [US1] Pruebas unitarias **obligatorias** de la creación en el servicio en
       `backend/internal/backlog/service/story_service_test.go`, con dobles de `testify/mock` de
       `StoryRepository` y de los cinco puertos: la historia nace `pending` (RN-09) con un UUID
       nuevo, el autor es el actor recibido y no un dato de la entrada (FR-049), un actor que no es
       el propietario del proyecto crea igual (RN-01, RN-02), y con `ProjectDirectory.IsFinished`
       verdadero devuelve `ErrBacklogReadOnly` sin llamar a `Create` (RN-15) — depende de T010
-- [ ] T015 [US1] Pruebas de integración de la historia en
+- [X] T015 [US1] Pruebas de integración de la historia en
       `backend/internal/backlog/delivery/handler_test.go`, con un ayudante `newBacklogTestEnv` que
       compone el router como `cmd/app` (sesión de la 001, rutas de la 002 con su subgrupo
       `/:projectId`, rutas del backlog y `httpserver.LimitRequestBody`) y que permite inyectar dobles
@@ -216,7 +216,7 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
       (`409` y nada creado) y `TestUS1_NoIntegrante` (`404` con **el mismo cuerpo** que un
       `projectId` inexistente). En todos los rechazos se verifica contando filas que **no se creó
       ni la historia ni ningún criterio** (FR-013) — depende de T010
-- [ ] T016 [P] [US1] Pruebas de frontend en
+- [X] T016 [P] [US1] Pruebas de frontend en
       `frontend/src/features/backlog/components/story-form.test.tsx` y
       `frontend/src/features/backlog/validation.test.ts`, con
       `describe("003/US1 - Registrar una historia en el backlog")` y un `it` por escenario de la
@@ -226,43 +226,43 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
 
 ### Implementación de la Historia 1
 
-- [ ] T017 [US1] Implementar la escala en `backend/internal/backlog/domain/story_points.go`: el
+- [X] T017 [US1] Implementar la escala en `backend/internal/backlog/domain/story_points.go`: el
       conjunto cerrado `{0, 1, 2, 3, 5, 8, 13, 20, 40, 100}` declarado **una sola vez** e
       `IsValidStoryPoints(int) bool` (RN-06) — depende de T011
-- [ ] T018 [US1] Implementar `Readiness(storyPoints *int, criteriaCount int)` en
+- [X] T018 [US1] Implementar `Readiness(storyPoints *int, criteriaCount int)` en
       `backend/internal/backlog/domain/readiness.go`, devolviendo `ready` y la lista `missing` con
       `story_points` y `acceptance_criteria` en ese orden. Es la **única** fuente de la regla
       (research.md sección 10) — depende de T012
-- [ ] T019 [US1] Implementar la normalización y validación de la creación en
+- [X] T019 [US1] Implementar la normalización y validación de la creación en
       `backend/internal/backlog/delivery/validation.go`, con los límites 150, 2000 y 500 declarados
       como **constantes nombradas en un único lugar**, los Story Points recibidos como `json.Number`
       y validados sobre el texto literal con `IsValidStoryPoints`, y un `FieldError` por cada campo
       inválido. La validación ocurre antes de la capa de servicio (Principio VII) — depende de T013 y
       T017
-- [ ] T020 [US1] Implementar `IsFinished` en `backend/internal/backlog/repository/project_directory.go`
+- [X] T020 [US1] Implementar `IsFinished` en `backend/internal/backlog/repository/project_directory.go`
       sobre el modelo `projectsdomain.Project`, **seleccionando solo la columna `status`** y
       comparándola con `projectsdomain.ProjectStatusFinished` (research.md sección 14) — depende de
       T007 y T015
-- [ ] T021 [US1] Implementar `Create` y `FindDetail` en
+- [X] T021 [US1] Implementar `Create` y `FindDetail` en
       `backend/internal/backlog/repository/story_repository.go`: `Create` inserta la historia y sus
       criterios con posiciones `0..n-1` en **una sola transacción**, de modo que FR-013 sea atómico
       por construcción; `FindDetail` lee la historia con un `JOIN` a `users` que **selecciona solo
       `users.id` y `users.full_name`** (nunca `password_hash`) y los criterios ordenados por
       `position`, en dos consultas, y devuelve `ErrStoryNotFound` si no hay fila — depende de T006 y
       T015
-- [ ] T022 [US1] Implementar en `backend/internal/backlog/service/story_service.go` el constructor
+- [X] T022 [US1] Implementar en `backend/internal/backlog/service/story_service.go` el constructor
       `NewStoryService`, que recibe `StoryRepository` y **los cinco puertos de T007**, para que su
       firma no cambie en las historias siguientes; el método `Create(ctx, projectID, actorID,
       input)`, que rechaza con `ErrBacklogReadOnly` si el proyecto está Finalizado y construye la
       historia con UUID, estado `pending` y autor el actor; y el armado del detalle
       (`buildDetail`), que usa `Readiness` y `SprintAssignments.Find` para `everAssignedToSprint`.
       Lo reutilizan todas las historias siguientes — depende de T014, T018, T020 y T021
-- [ ] T023 [US1] Declarar en `backend/internal/backlog/delivery/dto.go` los esquemas de
+- [X] T023 [US1] Declarar en `backend/internal/backlog/delivery/dto.go` los esquemas de
       contracts/openapi.yaml `StoryInput`, `StoryDetail`, `Readiness` y `AuthorRef`, reutilizando
       `ErrorResponse`, `FieldError` y `ValidationErrorResponse` de la 001. `storyPoints` y
       `description` se serializan como `null` cuando no tienen valor y `acceptanceCriteria` como
       `[]`, nunca como `null` (FR-040) — depende de T022
-- [ ] T024 [US1] Implementar el manejador `createStory` en
+- [X] T024 [US1] Implementar el manejador `createStory` en
       `backend/internal/backlog/delivery/handler.go` con anotaciones `swag` en español, que lee al
       titular con `authdelivery.CurrentUserID` y el proyecto del parámetro `projectId` ya validado
       por `RequireMembership`; crear `RegisterRoutes` en `backend/internal/backlog/delivery/routes.go`
@@ -273,22 +273,22 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
       Respuestas: `201` con `StoryDetail`, `400` con `ValidationErrorResponse`, `401`, `404` de
       `RequireMembership` y `409` (`El proyecto está finalizado y su backlog es de solo lectura.`)
       (research.md sección 2) — depende de T015, T019 y T023
-- [ ] T025 [P] [US1] Declarar los tipos de petición y respuesta en `frontend/src/types/story.ts` y,
+- [X] T025 [P] [US1] Declarar los tipos de petición y respuesta en `frontend/src/types/story.ts` y,
       en `frontend/src/utils/story-labels.ts`, las etiquetas en español de la prioridad (`high` →
       Alta, `medium` → Media, `low` → Baja) y del estado (`pending` → Pendiente, `in_progress` → En
       progreso, `completed` → Completada), y la escala `[0, 1, 2, 3, 5, 8, 13, 20, 40, 100]`.
       **Prohibido el tipo `any`** (Principio VIII)
-- [ ] T026 [US1] Implementar la llamada de creación en `frontend/src/features/backlog/api.ts` sobre el
+- [X] T026 [US1] Implementar la llamada de creación en `frontend/src/features/backlog/api.ts` sobre el
       cliente `fetch` de la 001, y las reglas del formulario en
       `frontend/src/features/backlog/validation.ts` con los límites 150, 2000 y 500 como constantes
       nombradas en un único lugar — depende de T016 y T025
-- [ ] T027 [US1] Implementar `StoryForm` en `frontend/src/features/backlog/components/story-form.tsx`
+- [X] T027 [US1] Implementar `StoryForm` en `frontend/src/features/backlog/components/story-form.tsx`
       y `AcceptanceCriteriaEditor` en
       `frontend/src/features/backlog/components/acceptance-criteria-editor.tsx` (agregar, quitar y
       reordenar criterios), con los mensajes en español y los límites visibles antes de enviar.
       Antes de escribir código, leer la documentación de Next.js de
       `frontend/node_modules/next/dist/docs/` — depende de T026
-- [ ] T028 [US1] Crear la pantalla `frontend/src/app/projects/[projectId]/backlog/new/page.tsx`,
+- [X] T028 [US1] Crear la pantalla `frontend/src/app/projects/[projectId]/backlog/new/page.tsx`,
       protegida con la guardia de sesión de la 001 — depende de T027
 
 **Checkpoint**: US1 funciona y se prueba sola. El MVP está entregable.

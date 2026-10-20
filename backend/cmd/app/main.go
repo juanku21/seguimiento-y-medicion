@@ -3,8 +3,8 @@
 //
 //	@title						Software Metrics & Estimation — API
 //	@version					1.0.0
-//	@description				API de Software Metrics & Estimation: autenticación y cuentas de usuario, y gestión de
-//	@description				proyectos y de sus integrantes.
+//	@description				API de Software Metrics & Estimation: autenticación y cuentas de usuario, gestión de
+//	@description				proyectos y de sus integrantes, y Product Backlog de cada proyecto.
 //	@description				Las únicas operaciones públicas son el registro y el inicio de sesión; las demás exigen
 //	@description				la cabecera `Authorization: Bearer <token>`.
 //	@BasePath					/
@@ -36,6 +36,9 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/delivery"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/repository"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/service"
+	backlogdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/delivery"
+	backlogrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/repository"
+	backlogservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/service"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/config"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/database"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/httpserver"
@@ -116,7 +119,22 @@ func run() error {
 	)
 	members := projectsservice.NewMemberService(projectRepository, projectMembers, projectsrepository.NewUserDirectory(db))
 	status := projectsservice.NewStatusService(projectRepository, projectsrepository.NewSprintDirectory(), cfg.Location, time.Now)
-	projectsdelivery.RegisterRoutes(router, handler.RequireSession, projectsdelivery.NewHandler(projects, members, status), projectMembers, projectRepository)
+	projectGroup, _ := projectsdelivery.RegisterRoutes(router, handler.RequireSession, projectsdelivery.NewHandler(projects, members, status), projectMembers, projectRepository)
+
+	// El módulo del backlog se compone sobre el repositorio de historias y los cinco puertos hacia
+	// otras features: sprints, esfuerzo, defectos y sesiones de estimación, que todavía no existen y
+	// responden sin historial, y el directorio de proyectos, que lee el estado de la 002. Sus rutas
+	// cuelgan del subgrupo /api/v1/projects/:projectId, que ya exige sesión y membresía, recibido
+	// aquí para que backlog/delivery no importe projects/delivery.
+	stories := backlogservice.NewStoryService(
+		backlogrepository.NewStoryRepository(db),
+		backlogrepository.NewSprintAssignments(),
+		backlogrepository.NewEffortRecords(),
+		backlogrepository.NewDefectRecords(),
+		backlogrepository.NewEstimationSessions(),
+		backlogrepository.NewProjectDirectory(db),
+	)
+	backlogdelivery.RegisterRoutes(projectGroup, backlogdelivery.NewHandler(stories))
 
 	// ReadHeaderTimeout acota el tiempo para recibir las cabeceras y ReadTimeout el de la solicitud
 	// completa, cuerpo incluido, para evitar conexiones colgadas.

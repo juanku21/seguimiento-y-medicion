@@ -413,7 +413,7 @@ idéntico byte a byte al de un identificador inventado.
 
 ### Implementación de la Historia 3
 
-- [ ] T042 [US3] Implementar `FindAccessible` en
+- [X] T042 [US3] Implementar `FindAccessible` en
       `backend/internal/backlog/repository/story_repository.go` con **una sola consulta**
       `user_stories JOIN project_members (project_id, user_id = titular) JOIN projects`, devolviendo
       `ErrStoryNotFound` si no hay fila (research.md sección 3) — depende de T039

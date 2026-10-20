@@ -13,8 +13,8 @@ import (
 )
 
 // StoryRepository implementa domain.StoryRepository con GORM sobre user_stories y
-// acceptance_criteria. Create y FindDetail están implementadas (T021); las demás operaciones las
-// implementan las historias que las usan.
+// acceptance_criteria. Create, FindDetail y FindAccessible están implementadas; las demás
+// operaciones las implementan las historias que las usan.
 type StoryRepository struct {
 	db *gorm.DB
 }
@@ -51,8 +51,10 @@ func (r *StoryRepository) FindAccessible(ctx context.Context, storyID, userID uu
 	var row storyAccessRow
 	err := r.db.WithContext(ctx).
 		Table("user_stories").
-		Select("user_stories.id AS story_id, user_stories.project_id AS project_id, projects.status AS project_status").
-		Joins("JOIN project_members ON project_members.project_id = user_stories.project_id AND project_members.user_id = ?", userID).
+		Select(`user_stories.id AS story_id, user_stories.project_id AS project_id,
+			projects.status AS project_status`).
+		Joins(`JOIN project_members ON project_members.project_id = user_stories.project_id
+			AND project_members.user_id = ?`, userID).
 		Joins("JOIN projects ON projects.id = user_stories.project_id").
 		Where("user_stories.id = ?", storyID).
 		Take(&row).Error

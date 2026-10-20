@@ -89,12 +89,13 @@ func run() error {
 	)
 	handler := delivery.NewHandler(auth)
 
-	// El router habilita CORS solo para el origen del frontend, publica Swagger y registra las
-	// rutas de la feature de autenticación. La ruta de Swagger es pública sin sesión: es la excepción
-	// a RN-08 documentada en specs/001-user-auth/spec.md, porque el Principio VIII exige documentar
-	// la API con Swagger.
+	// El router habilita CORS solo para el origen del frontend, limita el cuerpo de cada solicitud a
+	// 1 MiB, publica Swagger y registra las rutas de la feature de autenticación. La ruta de Swagger
+	// es pública sin sesión: es la excepción a RN-08 documentada en specs/001-user-auth/spec.md,
+	// porque el Principio VIII exige documentar la API con Swagger.
 	router := gin.Default()
 	router.Use(httpserver.CORS(cfg.CORSAllowedOrigin))
+	router.Use(httpserver.LimitRequestBody())
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	delivery.RegisterRoutes(router, handler)
 
@@ -117,11 +118,13 @@ func run() error {
 	status := projectsservice.NewStatusService(projectRepository, projectsrepository.NewSprintDirectory(), cfg.Location, time.Now)
 	projectsdelivery.RegisterRoutes(router, handler.RequireSession, projectsdelivery.NewHandler(projects, members, status), projectMembers, projectRepository)
 
-	// ReadHeaderTimeout acota el tiempo para recibir las cabeceras y evita conexiones colgadas.
+	// ReadHeaderTimeout acota el tiempo para recibir las cabeceras y ReadTimeout el de la solicitud
+	// completa, cuerpo incluido, para evitar conexiones colgadas.
 	server := &http.Server{
 		Addr:              net.JoinHostPort("", cfg.ServerPort),
 		Handler:           router,
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
 	}
 	slog.Info("servidor escuchando", "addr", server.Addr)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

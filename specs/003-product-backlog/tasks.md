@@ -114,7 +114,7 @@ lógica de negocio.
       `ErrCommittedStoryMustStayReady` (FR-018, FR-022) y el tipo `DeletionBlockedError` con
       `Reasons []DeletionBlocker`, donde `DeletionBlocker` tiene los cuatro códigos
       `sprint_history`, `effort`, `defects` y `estimation_sessions` **en ese orden** (FR-043)
-- [ ] T006 Declarar en `backend/internal/backlog/domain/repository.go` la interfaz `StoryRepository`
+- [X] T006 Declarar en `backend/internal/backlog/domain/repository.go` la interfaz `StoryRepository`
       con **exactamente** las ocho operaciones de data-model.md sección 9 —
       `FindAccessible(ctx, storyID, userID) (*StoryAccess, error)`,
       `Create(ctx, story *UserStory, criteria []string) error`,

@@ -15,8 +15,9 @@ import (
 // user_stories (data-model.md sección 1). El ID lo genera la aplicación con google/uuid. Title no
 // tiene índice único porque dos historias del mismo proyecto pueden llamarse igual, y Description es
 // anulable porque la vacía se guarda como NULL. StoryPoints es anulable: NULL significa "sin
-// estimar" y 0 es una estimación válida. Priority y Status guardan los valores de la API (high,
-// medium, low y pending, in_progress, completed) como texto, no como enum de PostgreSQL. El índice
+// estimar" y 0 es una estimación válida. Priority y Status usan los tipos StoryPriority y
+// StoryStatus, que se guardan como texto con los valores de la API (high, medium, low y pending,
+// in_progress, completed) y no como enum de PostgreSQL. El índice
 // compuesto (project_id, priority, created_at, id) sirve al filtro por proyecto del listado y, en
 // parte, a su orden. Los campos Project y CreatedBy existen solo para que AutoMigrate cree las claves
 // foráneas hacia projects.id y users.id: no son columnas y nunca se precargan. No hay columnas de
@@ -28,8 +29,8 @@ type UserStory struct {
 	Project     *projectsdomain.Project `gorm:"foreignKey:ProjectID;references:ID"`
 	Title       string                  `gorm:"type:varchar(150);not null"`
 	Description *string                 `gorm:"type:varchar(2000)"`
-	Priority    string                  `gorm:"type:varchar(8);not null;index:idx_user_stories_project_order,priority:2"`
-	Status      string                  `gorm:"type:varchar(16);not null"`
+	Priority    StoryPriority           `gorm:"type:varchar(8);not null;index:idx_user_stories_project_order,priority:2"`
+	Status      StoryStatus             `gorm:"type:varchar(16);not null"`
 	StoryPoints *int                    `gorm:"type:smallint"`
 	CreatedByID uuid.UUID               `gorm:"type:uuid;not null"`
 	CreatedBy   *authdomain.User        `gorm:"foreignKey:CreatedByID;references:ID"`

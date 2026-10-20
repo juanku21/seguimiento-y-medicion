@@ -337,7 +337,7 @@ y un proyecto sin historias responde `emptyReason: backlog_empty`.
 
 ### Implementación de la Historia 2
 
-- [ ] T032 [US2] Implementar el rango de prioridad en `backend/internal/backlog/domain/priority.go` —
+- [X] T032 [US2] Implementar el rango de prioridad en `backend/internal/backlog/domain/priority.go` —
       depende de T029
 - [ ] T033 [US2] Implementar el parseo y la validación de los filtros en
       `backend/internal/backlog/delivery/validation.go` a partir de `c.QueryArray("status")` y

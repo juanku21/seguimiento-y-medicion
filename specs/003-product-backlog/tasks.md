@@ -366,6 +366,12 @@ y un proyecto sin historias responde `emptyReason: backlog_empty`.
       `frontend/src/features/backlog/components/backlog-filters.tsx` — depende de T031 y T036
 - [X] T038 [US2] Crear la pantalla `frontend/src/app/projects/[projectId]/backlog/page.tsx`, protegida
       con la guardia de sesión, con el acceso a "Nueva historia" — depende de T037
+- [ ] T089 [US2] Agregar pruebas unitarias de `StoryService.List` en
+      `backend/internal/backlog/service/story_service_test.go` con `mockStoryRepository`: con
+      resultados, `emptyReason` nulo, `readyToPlan` calculado con `Readiness` y `HasStories` sin
+      llamar; con resultado vacío y `HasStories` en `false`, `backlog_empty` con y sin filtros; con
+      resultado vacío y `HasStories` en `true`, `no_matches`; y errores de `List` y de `HasStories`
+      propagados per FR-035, FR-036 (partial)
 
 **Checkpoint**: US1 y US2 funcionan de forma independiente. El backlog ya se registra y se consulta.
 
@@ -730,6 +736,40 @@ calidad. Todas las tareas son **técnicas**, salvo T078, que es una prueba de ca
       vista de estado de la 002 con historias reales, las pruebas de concurrencia y la verificación
       de que las pruebas corrieron contra `smye_test` en el puerto 5433 y no contra desarrollo —
       depende de T075, T077, T079, T080 y T083
+
+---
+
+## Phase 10: Convergence and Security
+
+Propósito: ajustes transversales detectados por /speckit-converge y /revisar-seguridad.
+
+- [ ] T085 Agregar en `backend/internal/backlog/delivery/validation_test.go` una prueba unitaria de
+      `ParseStoryFilter` con miles de valores repetidos de `status` y de `priority` que verifique que
+      el filtro resultante contiene cada valor admitido una sola vez, y en
+      `backend/internal/backlog/delivery/handler_test.go` una prueba de integración de
+      `GET /api/v1/projects/{projectId}/stories` con miles de `status=pending` que espere `200` y no
+      `500` per hallazgo de seguridad: filtros repetibles sin tope que arman una cláusula IN con un
+      parámetro por valor (security) — origen: seguridad, detectado en 003/US2
+- [ ] T086 Eliminar los valores duplicados de cada filtro en `ParseStoryFilter` de
+      `backend/internal/backlog/delivery/validation.go`, de modo que la cláusula `IN` reciba como
+      máximo los tres valores admitidos por filtro per hallazgo de seguridad: filtros repetibles sin
+      tope que arman una cláusula IN con un parámetro por valor (security) — origen: seguridad,
+      detectado en 003/US2
+- [ ] T087 Agregar pruebas de frontend en `frontend/src/features/backlog/api.test.ts` y
+      `frontend/src/features/projects/api.test.ts` que llamen a cada función de los clientes de API
+      con un identificador que contenga `../` y `/`, y verifiquen que la URL pedida a `fetch`
+      conserva la ruta esperada con el segmento codificado per hallazgo de seguridad: identificadores
+      interpolados sin codificar en las rutas de los clientes de API (security) — origen: seguridad,
+      detectado en 003/US2
+- [ ] T088 Codificar con `encodeURIComponent` cada segmento de ruta interpolado en
+      `frontend/src/features/backlog/api.ts` y `frontend/src/features/projects/api.ts`, incluidas las
+      llamadas de `DELETE` y `PATCH` per hallazgo de seguridad: identificadores interpolados sin
+      codificar en las rutas de los clientes de API (security) — origen: seguridad, detectado en
+      003/US2
+- [ ] T090 Corregir los comentarios de `isValidStatus` e `isValidPriority` en
+      `backend/internal/backlog/delivery/validation.go` para indicar que la comparación es exacta y
+      rechaza otras grafías per Constitución VIII (contradicts) — origen: converge, detectado en
+      hu/003-us2-ver-el-backlog
 
 ---
 

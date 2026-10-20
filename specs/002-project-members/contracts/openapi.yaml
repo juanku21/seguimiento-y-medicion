@@ -96,6 +96,8 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
               example:
                 error: Ya existe un proyecto propio con ese nombre.
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
 
     get:
       tags: [Proyectos]
@@ -147,6 +149,8 @@ paths:
                     message: Todavía no participás en ningún proyecto.
         '401':
           $ref: '#/components/responses/SesionInvalida'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
 
   /api/v1/projects/{projectId}:
     parameters:
@@ -285,6 +289,8 @@ paths:
           $ref: '#/components/responses/SesionInvalida'
         '404':
           $ref: '#/components/responses/ProyectoInexistente'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
 
     put:
       tags: [Proyectos]
@@ -348,6 +354,8 @@ paths:
                 soloLectura:
                   value:
                     error: El proyecto está finalizado y es de solo lectura.
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
 
   /api/v1/projects/{projectId}/status:
     parameters:
@@ -417,7 +425,7 @@ paths:
                     error: El proyecto debe pasar primero a En curso antes de finalizarse.
                 retroceso:
                   value:
-                    error: Los estados del proyecto solo avanzan: no se puede volver a un estado anterior.
+                    error: 'Los estados del proyecto solo avanzan: no se puede volver a un estado anterior.'
                 mismoEstado:
                   value:
                     error: El proyecto ya está En curso.
@@ -427,6 +435,8 @@ paths:
                 soloLectura:
                   value:
                     error: El proyecto está finalizado y es de solo lectura.
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
 
   /api/v1/projects/{projectId}/members:
     parameters:
@@ -518,6 +528,8 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
               example:
                 error: No existe un usuario registrado con ese correo electrónico.
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
 
   /api/v1/projects/{projectId}/members/{userId}:
     parameters:
@@ -586,6 +598,8 @@ paths:
                 soloLectura:
                   value:
                     error: El proyecto está finalizado y es de solo lectura.
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
 
 components:
   securitySchemes:
@@ -658,6 +672,17 @@ components:
                 message: El factor de horas por Story Point admite como máximo 2 decimales.
               - field: plannedEndDate
                 message: La fecha de finalización prevista no puede ser anterior a la fecha de inicio.
+
+    ErrorInterno:
+      description: |
+        Error interno inesperado. La respuesta no expone ningún detalle de la causa (Principio
+        VII).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Ocurrió un error inesperado. Intentá de nuevo más tarde.
 
   schemas:
     ProjectInput:

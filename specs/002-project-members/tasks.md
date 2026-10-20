@@ -741,7 +741,7 @@ calidad. Todas las tareas son **técnicas**.
 
 **Rama**: `fase/002-polish`
 
-- [ ] T079 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
+- [X] T079 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
       `backend/docs/` coincida con [contracts/openapi.yaml](./contracts/openapi.yaml) en las seis
       rutas, sus códigos de respuesta y los catorce esquemas; corregir las anotaciones si difieren
       (Principio VIII). Criterio acordado: todos los endpoints declaran la respuesta `500` en el

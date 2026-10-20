@@ -104,7 +104,7 @@ lógica de negocio.
       `backend/internal/backlog/domain/priority.go`, como constantes de Go y **no** como `enum` de
       PostgreSQL (data-model.md sección 3). El rango de orden es regla de negocio y se implementa en
       US2
-- [ ] T004 [P] Declarar el tipo `StoryStatus` con sus tres constantes `pending`, `in_progress` y
+- [X] T004 [P] Declarar el tipo `StoryStatus` con sus tres constantes `pending`, `in_progress` y
       `completed` en `backend/internal/backlog/domain/status.go`, con un comentario en español que
       deje claro que **esta feature nunca escribe el estado después de la creación**: sus
       transiciones las produce `specs/004-sprint-management` (FR-027, RC-04)

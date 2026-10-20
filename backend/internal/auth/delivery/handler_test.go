@@ -18,6 +18,7 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/domain"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/repository"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/service"
+	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/httpserver"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/testsupport"
 )
 
@@ -42,7 +43,7 @@ type validationErrorBody struct {
 }
 
 // newTestRouter abre la base de test vacía y compone la cadena real repositorios, servicio,
-// manejadores y rutas, igual que cmd/app, sin CORS ni Swagger.
+// manejadores y rutas, igual que cmd/app: con el límite global del cuerpo, sin CORS ni Swagger.
 func newTestRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	t.Helper()
 	router, db, _ := newTestRouterWithSecret(t)
@@ -62,6 +63,7 @@ func newTestRouterWithSecret(t *testing.T) (*gin.Engine, *gorm.DB, string) {
 		cfg.JWTSecret,
 	)
 	router := gin.New()
+	router.Use(httpserver.LimitRequestBody())
 	RegisterRoutes(router, NewHandler(auth))
 	return router, db, cfg.JWTSecret
 }
@@ -1500,4 +1502,57 @@ func TestUS5_CierreSinSesion(t *testing.T) {
 		t.Errorf("se registraron %d eventos logout, se esperaba 0", n)
 	}
 	requireOwnProfile(t, getProfile(t, router, profilePath, "Bearer "+token), ana)
+}
+
+// Pruebas de integración del límite global del cuerpo de las solicitudes en las rutas públicas
+// (T094, hallazgo de seguridad detectado en la US3 de la 002): un JSON de más de 1 MiB se rechaza con
+// 413 o 400 antes de que el servicio lo procese. Los campos esperados van completos y válidos, y el
+// exceso viaja en un campo que los DTO ignoran, de modo que sin el límite la solicitud llegaría al
+// servicio y crearía la cuenta o la sesión.
+
+// maxRequestBodyBytes es el tope del cuerpo de las solicitudes que fija el hallazgo: 1 MiB.
+const maxRequestBodyBytes = 1 << 20
+
+// oversizedPadding es el valor de relleno que, solo, ya supera el tope del cuerpo.
+func oversizedPadding() string {
+	return strings.Repeat("a", maxRequestBodyBytes+1)
+}
+
+// requireBodyTooLarge exige que la respuesta sea 413 o 400, los dos rechazos admitidos para un cuerpo
+// que excede el tope.
+func requireBodyTooLarge(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	if rec.Code != http.StatusRequestEntityTooLarge && rec.Code != http.StatusBadRequest {
+		t.Errorf("un cuerpo de más de 1 MiB debería rechazarse con 413 o 400, se obtuvo %d", rec.Code)
+	}
+}
+
+// Un registro válido dentro de un cuerpo de más de 1 MiB responde 413 o 400 y no crea la cuenta.
+func TestRegisterUser_OversizedBody(t *testing.T) {
+	router, db := newTestRouter(t)
+	body := validRegistration()
+	body["padding"] = oversizedPadding()
+
+	rec := postRegister(t, router, body)
+
+	requireBodyTooLarge(t, rec)
+	if n := countRows(t, db, &domain.User{}, ""); n != 0 {
+		t.Errorf("se crearon %d cuentas, se esperaba 0", n)
+	}
+}
+
+// Un inicio de sesión con credenciales correctas dentro de un cuerpo de más de 1 MiB responde 413 o
+// 400, sin crear sesiones ni registrar eventos.
+func TestLoginUser_OversizedBody(t *testing.T) {
+	router, db := newTestRouter(t)
+	seedAccount(t, db)
+	payload, err := json.Marshal(map[string]string{"email": anaEmail, "password": anaPassword, "padding": oversizedPadding()})
+	if err != nil {
+		t.Fatalf("no se pudo serializar la solicitud: %v", err)
+	}
+
+	rec := postLoginRaw(t, router, string(payload))
+
+	requireBodyTooLarge(t, rec)
+	requireNoLoginSideEffects(t, db)
 }

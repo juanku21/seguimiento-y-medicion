@@ -360,7 +360,7 @@ y un proyecto sin historias responde `emptyReason: backlog_empty`.
       `null`), implementar el manejador `listStories` en `backend/internal/backlog/delivery/handler.go`
       con anotaciones `swag` en español y registrar `GET /stories` en el subgrupo del proyecto en
       `backend/internal/backlog/delivery/routes.go` — depende de T030, T033 y T035
-- [ ] T037 [US2] Implementar la llamada de listado en `frontend/src/features/backlog/api.ts`, con los
+- [X] T037 [US2] Implementar la llamada de listado en `frontend/src/features/backlog/api.ts`, con los
       filtros como parámetros repetidos de `URLSearchParams`, y los componentes `StoryList` en
       `frontend/src/features/backlog/components/story-list.tsx` y `BacklogFilters` en
       `frontend/src/features/backlog/components/backlog-filters.tsx` — depende de T031 y T036

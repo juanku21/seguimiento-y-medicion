@@ -45,9 +45,10 @@ El sistema ofrece una solución integral para gestionar el ciclo de vida de proy
 
 ## Estado Actual
 
-El sistema se construye por funcionalidades, cada una especificada en su carpeta de [`specs/`](./specs). Hoy está implementada la primera:
+El sistema se construye por funcionalidades, cada una especificada en su carpeta de [`specs/`](./specs). Hoy están implementadas las dos primeras:
 
 - **Autenticación y cuentas de usuario** ([`specs/001-user-auth`](./specs/001-user-auth)): registro de cuentas, inicio y cierre de sesión con JWT, protección de las funciones del sistema, consulta del propio perfil y registro de eventos de autenticación.
+- **Gestión de proyectos e integrantes** ([`specs/002-project-members`](./specs/002-project-members)): creación y modificación de proyectos con su factor de horas por Story Point, listado de los proyectos propios aislado de los ajenos, alta y baja de integrantes por correo electrónico, consulta del estado del proyecto en una sola pantalla y avance del estado (`planned` → `in_progress` → `finished`) con registro de la fecha de finalización real.
 
 Las funcionalidades descritas en las secciones siguientes son el alcance completo del sistema y se incorporan en las próximas specs.
 
@@ -201,9 +202,15 @@ Después, editar los valores. Los secretos se pueden generar con `openssl rand -
 | `backend/.env.test` | `DB_NAME` | `smye_test` |
 | `backend/.env.test` | `JWT_SECRET` | Un secreto de **al menos 32 caracteres**, distinto del de desarrollo |
 
-Los archivos del frontend no necesitan cambios: `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080` apunta al backend local. El resto de las claves (`DB_HOST=localhost`, `DB_USER=smye`, `SERVER_PORT=8080`, `CORS_ALLOWED_ORIGIN=http://localhost:3000`) sirven tal como vienen en las plantillas.
+Los archivos del frontend no necesitan cambios: `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080` apunta al backend local. El resto de las claves (`DB_HOST=localhost`, `DB_USER=smye`, `SERVER_PORT=8080`, `CORS_ALLOWED_ORIGIN=http://localhost:3000`, `APP_TIMEZONE=America/Argentina/Buenos_Aires`) sirven tal como vienen en las plantillas.
 
-Si `JWT_SECRET` falta o tiene menos de 32 caracteres, o si falta cualquier otra variable, el backend no arranca e informa qué corregir. Las pruebas de integración se niegan a ejecutarse si `backend/.env.test` no apunta a la base `smye_test`.
+**`APP_TIMEZONE`** es la zona horaria única del sistema, en formato IANA (por ejemplo `America/Argentina/Buenos_Aires`, `America/Montevideo` o `UTC`). El backend la usa para fijar fechas de calendario que no dependen del dispositivo de quien opera: cuando un proyecto pasa a `finished`, su fecha de finalización real es la fecha del cambio en esta zona. No es un secreto, pero vive en `backend/.env` y `backend/.env.test` como el resto de la configuración, y debe estar en los dos. Si se crearon los archivos de entorno antes de la gestión de proyectos (spec 002), hay que agregarles la línea:
+
+```bash
+APP_TIMEZONE=America/Argentina/Buenos_Aires
+```
+
+Si `JWT_SECRET` falta o tiene menos de 32 caracteres, si `APP_TIMEZONE` falta o no es una zona horaria válida, o si falta cualquier otra variable, el backend no arranca e informa qué corregir. Las pruebas de integración se niegan a ejecutarse si `backend/.env.test` no apunta a la base `smye_test`.
 
 ### 4. Levantar las bases de datos
 
@@ -231,7 +238,7 @@ Para confirmar que el contenedor de test apunta a la base correcta:
 docker exec smye-test-postgres-1 psql -U smye -d smye_test -c "SELECT current_database();"
 ```
 
-Debe responder `smye_test`. No hace falta crear tablas: el backend crea y migra el esquema automáticamente al conectarse (`AutoMigrate` de GORM).
+Debe responder `smye_test`. No hace falta crear tablas: el backend crea y migra el esquema automáticamente al conectarse (`AutoMigrate` de GORM), incluidas las tablas `projects` y `project_members` de la gestión de proyectos.
 
 ### 5. Generar la documentación Swagger
 
@@ -280,12 +287,24 @@ El frontend queda en <http://localhost:3000> y lee `frontend/.env.local`. Para u
 | <http://localhost:3000/register> | Formulario de registro de cuenta |
 | <http://localhost:3000/login> | Formulario de inicio de sesión |
 | <http://localhost:3000/profile> | Perfil del usuario con sesión iniciada (sin sesión redirige a `/login`) |
+| <http://localhost:3000/projects> | Listado de los proyectos de los que se es integrante, con su estado, fechas, cantidad de integrantes y la marca "Propietario" en los propios (sin sesión redirige a `/login`) |
 | <http://localhost:3000/projects/new> | Formulario de creación de proyecto (sin sesión redirige a `/login`) |
-| `http://localhost:3000/projects/<projectId>` | Estado del proyecto e integrantes en una sola pantalla; el propietario ve además los correos y el alta y la baja de integrantes (sin sesión redirige a `/login`; un proyecto inexistente o ajeno muestra "El proyecto no existe.") |
+| `http://localhost:3000/projects/<projectId>` | Estado del proyecto e integrantes en una sola pantalla; el propietario ve además los correos, el alta y la baja de integrantes y el botón para avanzar el estado (sin sesión redirige a `/login`; un proyecto inexistente o ajeno muestra "El proyecto no existe.") |
 | `http://localhost:3000/projects/<projectId>/edit` | Modificación de nombre, descripción, fechas y horas por Story Point; solo el propietario ve el formulario y el resto de los integrantes ve "Solo el propietario del proyecto puede realizar esta acción." (sin sesión redirige a `/login`; un proyecto inexistente o ajeno muestra "El proyecto no existe.") |
 | <http://localhost:8080/swagger/index.html> | Documentación interactiva de la API |
 
 Recorrido mínimo: crear una cuenta en `/register`, iniciar sesión en `/login`, ver el perfil en `/profile` y cerrar sesión desde ahí.
+
+Recorrido de la gestión de proyectos, con el backend y el frontend en ejecución:
+
+1. Crear dos cuentas en `/register` (por ejemplo, Ana y Bruno). Ana será la propietaria y Bruno el integrante.
+2. Iniciar sesión como Ana. Desde `/profile`, el enlace **Mis proyectos** lleva a `/projects`, que la primera vez muestra la lista vacía con un mensaje, no un error.
+3. Abrir `/projects/new` y crear un proyecto con nombre, descripción opcional, fecha de inicio, fecha de finalización prevista y horas por Story Point (entre 0,01 y 40, con hasta dos decimales). El proyecto nace en estado **Planificado**, con Ana como propietaria y única integrante, y aparece en `/projects`.
+4. Obtener el identificador del proyecto (`projectId`). El listado de la interfaz todavía no enlaza al detalle, así que el identificador se toma de la respuesta de `GET /api/v1/projects` (campo `id`), por ejemplo desde Swagger: en <http://localhost:8080/swagger/index.html>, ejecutar `POST /api/v1/auth/login` con las credenciales de Ana, copiar el token en **Authorize** como `Bearer <token>` y ejecutar `GET /api/v1/projects`.
+5. Abrir `/projects/<projectId>`: muestra el estado, las fechas, el factor, los integrantes, el sprint activo (por ahora ninguno) y el resumen del backlog. Desde ahí Ana agrega a Bruno escribiendo su correo electrónico; solo se pueden agregar cuentas ya registradas.
+6. Abrir `/projects/<projectId>/edit` para modificar los datos del proyecto. Solo la propietaria ve el formulario.
+7. En `/projects/<projectId>`, usar **Pasar a En curso** y después **Finalizar proyecto**. Al finalizar se registra la fecha de finalización real con la fecha del día en la zona de `APP_TIMEZONE`, y el proyecto queda de solo lectura: ya no admite modificaciones, cambios de integrantes ni cambios de estado.
+8. Iniciar sesión como Bruno: ve el proyecto en `/projects` y su detalle, pero no los correos de los integrantes ni las acciones de administración. Si Ana lo quita del proyecto antes de finalizarlo, para Bruno el proyecto pasa a comportarse como inexistente.
 
 La API expone estos endpoints bajo `/api/v1`; solo el registro y el inicio de sesión son públicos, los demás exigen la cabecera `Authorization: Bearer <token>`. Fuera de `/api/v1`, la documentación Swagger (`/swagger/index.html`) también es pública, como excepción documentada a la regla RN-08 de `specs/001-user-auth/spec.md`:
 
@@ -295,8 +314,17 @@ La API expone estos endpoints bajo `/api/v1`; solo el registro y el inicio de se
 | `POST` | `/api/v1/auth/login` | Inicio de sesión; devuelve el token y su vencimiento |
 | `POST` | `/api/v1/auth/logout` | Cierre de la sesión actual |
 | `GET` | `/api/v1/users/me` | Perfil del titular de la sesión |
+| `POST` | `/api/v1/projects` | Creación de proyecto; quien lo crea queda como propietario |
+| `GET` | `/api/v1/projects` | Listado de los proyectos de los que se es integrante |
+| `GET` | `/api/v1/projects/{projectId}` | Estado completo del proyecto (cualquier integrante) |
+| `PUT` | `/api/v1/projects/{projectId}` | Modificación de los datos del proyecto (solo el propietario) |
+| `PATCH` | `/api/v1/projects/{projectId}/status` | Avance del estado del proyecto (solo el propietario) |
+| `POST` | `/api/v1/projects/{projectId}/members` | Alta de un integrante por correo electrónico (solo el propietario) |
+| `DELETE` | `/api/v1/projects/{projectId}/members/{userId}` | Baja de un integrante (solo el propietario) |
 
-La guía de validación de punta a punta, con ejemplos de `curl` para cada historia, está en [`specs/001-user-auth/quickstart.md`](./specs/001-user-auth/quickstart.md).
+Un proyecto inexistente y un proyecto del que no se es integrante responden el mismo `404`, para no revelar qué proyectos existen. Las acciones de administración devuelven `403` a un integrante que no es el propietario.
+
+Las guías de validación de punta a punta, con ejemplos de `curl` para cada historia, están en [`specs/001-user-auth/quickstart.md`](./specs/001-user-auth/quickstart.md) y [`specs/002-project-members/quickstart.md`](./specs/002-project-members/quickstart.md).
 
 ### 9. Ejecutar las pruebas
 
@@ -306,6 +334,9 @@ Las pruebas del backend corren siempre contra la base de **test** (`smye_test`, 
 cd backend
 go vet ./...
 go test ./...
+
+# Solo las pruebas de un módulo (por ejemplo, la gestión de proyectos)
+go test ./internal/projects/...
 
 # Solo las pruebas de una historia de usuario (por ejemplo, US1)
 go test ./... -run TestUS1
@@ -323,7 +354,7 @@ npx next typegen && npx tsc --noEmit   # Comprobación de tipos
 
 `next typegen` genera los tipos de las rutas de Next.js (por ejemplo, `LayoutProps`) que `tsc` necesita; sin él, la comprobación de tipos falla en un clon recién hecho. `npm run dev` y `npm run build` también los generan.
 
-Cada escenario de las specs tiene una prueba rastreable: buscar `001/US1` (o `001/US2`, etc.) en el código de pruebas muestra cuáles lo cubren. Los comandos de cobertura están en [Cobertura de Pruebas](#cobertura-de-pruebas).
+Cada escenario de las specs tiene una prueba rastreable: buscar `001/US1` (o `002/US3`, etc.) en el código de pruebas muestra cuáles lo cubren. El prefijo es el número de la spec y `USn`, la historia de usuario. Los comandos de cobertura están en [Cobertura de Pruebas](#cobertura-de-pruebas).
 
 ### 10. Ejecución con Docker
 
@@ -336,7 +367,7 @@ docker build -t smye-backend .
 docker run --rm --env-file .env -e DB_HOST=host.docker.internal -p 8080:8080 smye-backend
 ```
 
-Dentro de un contenedor, `localhost` es el propio contenedor y no la máquina anfitriona, por eso `DB_HOST` se reemplaza por `host.docker.internal`, que apunta al anfitrión. En Linux hay que agregar `--add-host=host.docker.internal:host-gateway` al `docker run`.
+`--env-file .env` le pasa al contenedor todas las variables de `backend/.env`, incluida `APP_TIMEZONE`. La imagen `alpine` no trae la base de zonas horarias, pero no hace falta instalarla: el binario la incluye (`time/tzdata`). Dentro de un contenedor, `localhost` es el propio contenedor y no la máquina anfitriona, por eso `DB_HOST` se reemplaza por `host.docker.internal`, que apunta al anfitrión. En Linux hay que agregar `--add-host=host.docker.internal:host-gateway` al `docker run`.
 
 **Frontend**, desde `frontend/`:
 
@@ -372,6 +403,7 @@ El backend y el frontend se detienen con `Ctrl+C` en su terminal.
 | --- | --- |
 | `no required module provides package .../backend/docs` | Falta generar Swagger: ejecutar el [paso 5](#5-generar-la-documentación-swagger) desde `backend/`. |
 | `faltan variables de entorno obligatorias: ...` o `JWT_SECRET debe tener al menos 32 bytes` | Revisar `backend/.env` (o `backend/.env.test` en las pruebas) según el [paso 3](#3-crear-los-archivos-de-entorno). |
+| `faltan variables de entorno obligatorias: APP_TIMEZONE` o `APP_TIMEZONE "..." no es una zona horaria válida` | Agregar a `backend/.env` y a `backend/.env.test` la línea `APP_TIMEZONE=America/Argentina/Buenos_Aires`, o corregir el valor por un nombre de zona IANA completo (por ejemplo `America/Argentina/Buenos_Aires` y no `Buenos_Aires`). Conviene respetar las mayúsculas del nombre oficial: en macOS una variante en minúsculas puede aceptarse, pero en Linux y dentro del contenedor se rechaza. |
 | Error de autenticación de PostgreSQL al conectar | `DB_PASSWORD` no coincide con `POSTGRES_PASSWORD`. Si se cambió la contraseña después del primer arranque, la base conserva la anterior: recrear el volumen con `docker compose -p <proyecto> down -v` y volver a levantarlo. |
 | `port is already allocated` al levantar PostgreSQL | Otro proceso usa el puerto 5432 o 5433: liberarlo o cambiar `POSTGRES_HOST_PORT` y el `DB_PORT` correspondiente. |
 | Las pruebas fallan con `no se pudo cargar el entorno de test` | Falta `backend/.env.test`. |

@@ -747,7 +747,7 @@ calidad. Todas las tareas son **técnicas**.
       (Principio VIII). Criterio acordado: todos los endpoints declaran la respuesta `500` en el
       contrato. Si falta en `contracts/openapi.yaml`, agregarla en los seis endpoints y regenerar
       `backend/docs/` con `swag` para que coincidan — depende de T076
-- [ ] T080 [P] Actualizar `README.md` de la raíz en español documentando la variable `APP_TIMEZONE`
+- [X] T080 [P] Actualizar `README.md` de la raíz en español documentando la variable `APP_TIMEZONE`
       y el paso a paso para usar la feature, manteniendo el criterio de aceptación de que alguien
       que no conoce el proyecto pueda ejecutarlo siguiendo el documento — depende de T003
 - [ ] T081 [P] Revisar que `.gitignore` siga excluyendo `.env`, `.env.test`, `node_modules/`,

@@ -1,3 +1,4 @@
+import { ReadinessBadge } from "@/features/backlog/components/readiness-badge";
 import type { ReadinessMissing, StoryDetail } from "@/types/story";
 import { formatInstant } from "@/utils/format-date";
 import {
@@ -28,6 +29,7 @@ function formatStoryPoints(points: StoryDetail["storyPoints"]): string {
 // la condición de lista para planificar con lo que falta, que calcula el backend (FR-039, FR-040).
 export function StoryDetailCard({ story }: StoryDetailCardProps) {
   const { readiness } = story;
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   return (
     <article className="flex flex-col gap-6 rounded-md border border-zinc-300 px-5 py-5 dark:border-zinc-700">
@@ -36,17 +38,7 @@ export function StoryDetailCard({ story }: StoryDetailCardProps) {
       <header className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-xl font-semibold break-words">{story.title}</h2>
-          <span
-            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-              readiness.ready
-                ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200"
-                : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-            }`}
-          >
-            {readiness.ready
-              ? "Lista para planificar"
-              : "No lista para planificar"}
-          </span>
+          <ReadinessBadge ready={readiness.ready} />
         </div>
         {story.everAssignedToSprint && (
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -76,19 +68,13 @@ export function StoryDetailCard({ story }: StoryDetailCardProps) {
         <dt className="text-zinc-600 dark:text-zinc-400">Creada el</dt>
         <dd>
           <time dateTime={story.createdAt}>
-            {formatInstant(
-              story.createdAt,
-              Intl.DateTimeFormat().resolvedOptions().timeZone,
-            )}
+            {formatInstant(story.createdAt, timeZone)}
           </time>
         </dd>
         <dt className="text-zinc-600 dark:text-zinc-400">Actualizada el</dt>
         <dd>
           <time dateTime={story.updatedAt}>
-            {formatInstant(
-              story.updatedAt,
-              Intl.DateTimeFormat().resolvedOptions().timeZone,
-            )}
+            {formatInstant(story.updatedAt, timeZone)}
           </time>
         </dd>
       </dl>

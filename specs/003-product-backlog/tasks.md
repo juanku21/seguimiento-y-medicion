@@ -433,7 +433,7 @@ idéntico byte a byte al de un identificador inventado.
       con anotaciones `swag` en español, y crear en `backend/internal/backlog/delivery/routes.go` el
       grupo plano `/api/v1/stories/:storyId` con el middleware de sesión inyectado desde
       `cmd/app/main.go` y `RequireStoryAccess`, registrando `GET` en él — depende de T043 y T044
-- [ ] T046 [US3] Implementar la llamada de detalle en `frontend/src/features/backlog/api.ts`, el
+- [X] T046 [US3] Implementar la llamada de detalle en `frontend/src/features/backlog/api.ts`, el
       componente `StoryDetailCard` en
       `frontend/src/features/backlog/components/story-detail-card.tsx` y la pantalla
       `frontend/src/app/projects/[projectId]/backlog/[storyId]/page.tsx`, con el enlace desde cada

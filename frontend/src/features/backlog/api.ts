@@ -13,7 +13,8 @@ import type {
 } from "@/types/story";
 
 // Reconoce el detalle de la historia (StoryDetail) que devuelven la creación exitosa (201) y la
-// consulta del detalle (200), sin confiar en el cuerpo recibido. Los Story Points y la descripción pueden llegar en null.
+// consulta del detalle (200), sin confiar en el cuerpo recibido. Los Story Points y la descripción
+// pueden llegar en null.
 function isStoryDetail(value: unknown): value is StoryDetail {
   return (
     isRecord(value) &&

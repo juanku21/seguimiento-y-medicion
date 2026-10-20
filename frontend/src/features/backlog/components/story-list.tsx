@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Alert } from "@/components/alert";
 import { listStories } from "@/features/backlog/api";
+import { ReadinessBadge } from "@/features/backlog/components/readiness-badge";
 import { useRequireSession } from "@/hooks/use-session";
 import type { ApiError } from "@/lib/api-client";
 import type {
@@ -140,17 +141,7 @@ export function StoryList({ projectId, filters }: StoryListProps) {
                 {story.title}
               </Link>
             </h2>
-            <span
-              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                story.readyToPlan
-                  ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200"
-                  : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-              }`}
-            >
-              {story.readyToPlan
-                ? "Lista para planificar"
-                : "No lista para planificar"}
-            </span>
+            <ReadinessBadge ready={story.readyToPlan} />
           </div>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
             {STORY_PRIORITY_LABELS[story.priority]} ·{" "}

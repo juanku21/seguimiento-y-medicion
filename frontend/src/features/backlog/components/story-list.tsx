@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Alert } from "@/components/alert";
 import { listStories } from "@/features/backlog/api";
@@ -121,7 +122,8 @@ export function StoryList({ projectId, filters }: StoryListProps) {
   }
 
   // Una fila por historia, en el orden recibido, con prioridad y estado en español, Story Points,
-  // cantidad de criterios y si está lista para planificar (FR-033).
+  // cantidad de criterios y si está lista para planificar (FR-033). El título enlaza al detalle
+  // de la historia (003/US3).
   return (
     <ul aria-label="Backlog" className="flex flex-col gap-3">
       {stories.map((story) => (
@@ -130,7 +132,14 @@ export function StoryList({ projectId, filters }: StoryListProps) {
           className="flex flex-col gap-2 rounded-md border border-zinc-300 px-5 py-4 dark:border-zinc-700"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-base font-medium break-words">{story.title}</h2>
+            <h2 className="text-base font-medium break-words">
+              <Link
+                href={`/projects/${projectId}/backlog/${story.id}`}
+                className="underline-offset-4 hover:underline"
+              >
+                {story.title}
+              </Link>
+            </h2>
             <span
               className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
                 story.readyToPlan

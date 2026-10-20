@@ -127,7 +127,7 @@ lógica de negocio.
       `StoryDetail` (con `CreatedBy` de solo `ID` y `FullName`), `StoryFilter` y `StoryChanges` de
       data-model.md sección 6. **Prohibido** declarar cambio de estado, cambio de proyecto, búsqueda
       por texto, paginación o listados fuera de un proyecto (Principio III) — depende de T001 a T004
-- [ ] T007 Declarar los cinco puertos en `backend/internal/backlog/domain/ports.go` con los tipos de
+- [X] T007 Declarar los cinco puertos en `backend/internal/backlog/domain/ports.go` con los tipos de
       data-model.md sección 7: `SprintAssignments.Find(ctx, storyID) (SprintAssignment, error)` con
       `CommittedToOpenSprint` y `EverAssigned`; `EffortRecords.HasEffort(ctx, storyID) (bool,
       error)`; `DefectRecords.HasDefects(ctx, storyID) (bool, error)`;

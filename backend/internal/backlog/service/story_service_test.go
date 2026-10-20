@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -291,4 +292,128 @@ func TestUS1_ServicioProyectoFinalizado(t *testing.T) {
 	assert.Nil(t, view)
 	d.projects.AssertExpectations(t)
 	d.stories.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// Pruebas unitarias del listado del backlog en el servicio (T089): FR-033, FR-035 y FR-036. El
+// repositorio es el doble de testify, de modo que cada prueba fija lo que devuelven List y
+// HasStories y verifica cómo el servicio arma readyToPlan y elige el motivo del vacío.
+
+// Con resultados, cada elemento conserva el orden y los datos del repositorio, readyToPlan sale de
+// Readiness (lista solo con Story Points, el 0 incluido, y al menos un criterio), emptyReason es nil y
+// HasStories no se consulta (FR-033).
+func TestUS2_ServicioListadoConResultados(t *testing.T) {
+	svc, d := newStoryServiceWithDoubles()
+	projectID := uuid.New()
+	filter := domain.StoryFilter{Statuses: []domain.StoryStatus{domain.StoryStatusPending}}
+	items := []domain.StoryListItem{
+		{ID: uuid.New(), Title: "Estimada y con criterios", StoryPoints: intPtr(5), CriteriaCount: 2},
+		{ID: uuid.New(), Title: "Estimada en cero y con criterio", StoryPoints: intPtr(0), CriteriaCount: 1},
+		{ID: uuid.New(), Title: "Sin estimar", StoryPoints: nil, CriteriaCount: 3},
+		{ID: uuid.New(), Title: "Sin criterios", StoryPoints: intPtr(3), CriteriaCount: 0},
+	}
+	d.stories.On("List", mock.Anything, projectID, filter).Return(items, nil).Once()
+
+	view, err := svc.List(context.Background(), projectID, filter)
+
+	require.NoError(t, err)
+	require.NotNil(t, view)
+	require.Len(t, view.Stories, len(items))
+	is := assert.New(t)
+	is.Nil(view.EmptyReason)
+	for i, want := range []bool{true, true, false, false} {
+		is.Equal(items[i], view.Stories[i].Item, "elemento %d", i)
+		is.Equal(want, view.Stories[i].ReadyToPlan, "readyToPlan de %q", items[i].Title)
+	}
+	d.stories.AssertExpectations(t)
+	d.stories.AssertNotCalled(t, "HasStories", mock.Anything, mock.Anything)
+}
+
+// Escenario: Backlog vacío (003/US2)
+// Con el resultado vacío y HasStories en false, el motivo es backlog_empty con o sin filtros, la
+// lista es vacía y no nil, y no hay error (FR-035).
+func TestUS2_ServicioBacklogVacio(t *testing.T) {
+	cases := []struct {
+		name   string
+		filter domain.StoryFilter
+	}{
+		{"sin filtros", domain.StoryFilter{}},
+		{"con filtros", domain.StoryFilter{
+			Statuses:   []domain.StoryStatus{domain.StoryStatusPending},
+			Priorities: []domain.StoryPriority{domain.StoryPriorityHigh},
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, d := newStoryServiceWithDoubles()
+			projectID := uuid.New()
+			d.stories.On("List", mock.Anything, projectID, tc.filter).Return([]domain.StoryListItem{}, nil).Once()
+			d.stories.On("HasStories", mock.Anything, projectID).Return(false, nil).Once()
+
+			view, err := svc.List(context.Background(), projectID, tc.filter)
+
+			require.NoError(t, err)
+			require.NotNil(t, view)
+			is := assert.New(t)
+			is.NotNil(view.Stories)
+			is.Empty(view.Stories)
+			require.NotNil(t, view.EmptyReason)
+			is.Equal(EmptyReasonBacklogEmpty, *view.EmptyReason)
+			d.stories.AssertExpectations(t)
+		})
+	}
+}
+
+// Escenario: Filtro sin coincidencias (003/US2)
+// Con el resultado vacío y HasStories en true, el motivo es no_matches, distinguible del backlog
+// vacío, y no hay error (FR-036).
+func TestUS2_ServicioFiltroSinCoincidencias(t *testing.T) {
+	svc, d := newStoryServiceWithDoubles()
+	projectID := uuid.New()
+	filter := domain.StoryFilter{Priorities: []domain.StoryPriority{domain.StoryPriorityHigh}}
+	d.stories.On("List", mock.Anything, projectID, filter).Return([]domain.StoryListItem{}, nil).Once()
+	d.stories.On("HasStories", mock.Anything, projectID).Return(true, nil).Once()
+
+	view, err := svc.List(context.Background(), projectID, filter)
+
+	require.NoError(t, err)
+	require.NotNil(t, view)
+	is := assert.New(t)
+	is.NotNil(view.Stories)
+	is.Empty(view.Stories)
+	require.NotNil(t, view.EmptyReason)
+	is.Equal(EmptyReasonNoMatches, *view.EmptyReason)
+	d.stories.AssertExpectations(t)
+}
+
+// Los errores del repositorio se propagan envueltos y sin vista: si falla List no se consulta
+// HasStories, y si falla HasStories con el resultado vacío no se inventa un motivo.
+func TestUS2_ServicioListadoPropagaErrores(t *testing.T) {
+	errList := errors.New("fallo de List")
+	errHas := errors.New("fallo de HasStories")
+
+	t.Run("falla List", func(t *testing.T) {
+		svc, d := newStoryServiceWithDoubles()
+		projectID := uuid.New()
+		d.stories.On("List", mock.Anything, projectID, domain.StoryFilter{}).Return(nil, errList).Once()
+
+		view, err := svc.List(context.Background(), projectID, domain.StoryFilter{})
+
+		require.ErrorIs(t, err, errList)
+		assert.Nil(t, view)
+		d.stories.AssertExpectations(t)
+		d.stories.AssertNotCalled(t, "HasStories", mock.Anything, mock.Anything)
+	})
+
+	t.Run("falla HasStories", func(t *testing.T) {
+		svc, d := newStoryServiceWithDoubles()
+		projectID := uuid.New()
+		d.stories.On("List", mock.Anything, projectID, domain.StoryFilter{}).Return([]domain.StoryListItem{}, nil).Once()
+		d.stories.On("HasStories", mock.Anything, projectID).Return(false, errHas).Once()
+
+		view, err := svc.List(context.Background(), projectID, domain.StoryFilter{})
+
+		require.ErrorIs(t, err, errHas)
+		assert.Nil(t, view)
+		d.stories.AssertExpectations(t)
+	})
 }

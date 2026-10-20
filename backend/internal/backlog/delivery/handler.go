@@ -128,6 +128,56 @@ func (h *Handler) getStory(c *gin.Context) {
 	c.JSON(http.StatusOK, newStoryDetail(view))
 }
 
+// listStories godoc
+//
+//	@Summary		Lista el backlog del proyecto, ordenado y opcionalmente filtrado
+//	@Description	Devuelve las historias del proyecto ordenadas por prioridad (high, medium, low) y,
+//	@Description	dentro de cada prioridad, por fecha de creación ascendente; ante igual prioridad y fecha
+//	@Description	se desempata por el identificador, de modo que el orden es estable (FR-032, RN-17). Los
+//	@Description	filtros status y priority se pueden repetir: dentro de un mismo filtro los valores se
+//	@Description	combinan con O y entre los dos filtros con Y (FR-034). Un valor que no existe se rechaza
+//	@Description	con 400 indicando los valores admitidos (FR-037). Un backlog vacío y unos filtros sin
+//	@Description	coincidencias no son errores: responden 200 con la lista vacía y emptyReason en
+//	@Description	backlog_empty o no_matches (FR-035, FR-036). Ninguna historia de otro proyecto aparece
+//	@Description	(FR-038). No ofrece búsqueda por texto ni paginación.
+//	@Tags			Backlog
+//	@ID				listStories
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			projectId	path		string								true	"Identificador del proyecto"	format(uuid)
+//	@Param			status		query		[]string							false	"Filtra por estado; se puede repetir."		collectionFormat(multi)	Enums(pending, in_progress, completed)
+//	@Param			priority	query		[]string							false	"Filtra por prioridad; se puede repetir."	collectionFormat(multi)	Enums(high, medium, low)
+//	@Success		200			{object}	StoryListResponse					"Listado del backlog."
+//	@Failure		400			{object}	delivery.ValidationErrorResponse	"Un filtro tiene un valor que no existe (FR-037)."
+//	@Failure		401			{object}	delivery.ErrorResponse				"Se requiere iniciar sesión (FR-045)."
+//	@Failure		404			{object}	delivery.ErrorResponse				"El proyecto no existe o quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo (FR-047, SC-006)."
+//	@Failure		500			{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."
+//	@Router			/api/v1/projects/{projectId}/stories [get]
+func (h *Handler) listStories(c *gin.Context) {
+	// El proyecto sale del parámetro que RequireMembership ya validó; la sesión solo se exige.
+	_, projectID, ok := sessionAndProject(c, "listStories")
+	if !ok {
+		return
+	}
+
+	// Los filtros repetibles se validan antes de llegar al servicio; un valor no admitido responde
+	// 400 con el mismo formato que la creación (FR-037).
+	filter, fields := ParseStoryFilter(c.QueryArray("status"), c.QueryArray("priority"))
+	if len(fields) > 0 {
+		c.JSON(http.StatusBadRequest, authdelivery.ValidationErrorResponse{Error: msgInvalidFields, Fields: fields})
+		return
+	}
+
+	// Se lista el backlog; cualquier error del servicio es 500 genérico, registrado en el log.
+	view, err := h.stories.List(c.Request.Context(), projectID, filter)
+	if err != nil {
+		respondServiceError(c, err, "no se pudo listar el backlog")
+		return
+	}
+
+	c.JSON(http.StatusOK, newStoryListResponse(view, filter))
+}
+
 // sessionAndProject devuelve el titular de la sesión y el proyecto de la ruta. Sin sesión responde el
 // 401 del contrato. Un projectId que no sea UUID solo es posible si la ruta se registró fuera del
 // subgrupo protegido por RequireMembership, así que es un error de composición: responde 500

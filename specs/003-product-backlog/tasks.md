@@ -308,13 +308,13 @@ y un proyecto sin historias responde `emptyReason: backlog_empty`.
 
 ### Pruebas de la Historia 2 ⚠️
 
-- [ ] T029 [P] [US2] Pruebas unitarias **obligatorias** del rango de prioridad en
+- [X] T029 [P] [US2] Pruebas unitarias **obligatorias** del rango de prioridad en
       `backend/internal/backlog/domain/priority_test.go` (`high` 0, `medium` 1, `low` 2) y de la
       validación de filtros en `backend/internal/backlog/delivery/validation_test.go`: `status` y
       `priority` repetibles, valores fuera de `pending`/`in_progress`/`completed` o
       `high`/`medium`/`low` rechazados indicando los valores admitidos, y ausencia de filtros
       aceptada (RN-05, RN-17, FR-037) — depende de T028
-- [ ] T030 [US2] Pruebas de integración de la historia en
+- [X] T030 [US2] Pruebas de integración de la historia en
       `backend/internal/backlog/delivery/handler_test.go`, con `// Escenario: <nombre> (003/US2)`:
       `TestUS2_OrdenPorPrioridadYFecha`, `TestUS2_FiltroPorEstado` (estados sembrados en la base),
       `TestUS2_FiltrosCombinados`, `TestUS2_BacklogVacio` (`200`, `stories: []` y `emptyReason:
@@ -327,7 +327,7 @@ y un proyecto sin historias responde `emptyReason: backlog_empty`.
       `?status=pending&status=in_progress` devuelve las historias de los dos estados y ninguna
       `completed`, y `?priority=high&priority=low` devuelve las Altas y las Bajas sin las Medias
       (FR-034) — depende de T028
-- [ ] T031 [P] [US2] Pruebas de frontend en
+- [X] T031 [P] [US2] Pruebas de frontend en
       `frontend/src/features/backlog/components/story-list.test.tsx` y
       `frontend/src/features/backlog/components/backlog-filters.test.tsx`, con
       `describe("003/US2 - Ver el backlog ordenado y filtrado")` y un `it` por escenario, incluido
@@ -337,35 +337,41 @@ y un proyecto sin historias responde `emptyReason: backlog_empty`.
 
 ### Implementación de la Historia 2
 
-- [ ] T032 [US2] Implementar el rango de prioridad en `backend/internal/backlog/domain/priority.go` —
+- [X] T032 [US2] Implementar el rango de prioridad en `backend/internal/backlog/domain/priority.go` —
       depende de T029
-- [ ] T033 [US2] Implementar el parseo y la validación de los filtros en
+- [X] T033 [US2] Implementar el parseo y la validación de los filtros en
       `backend/internal/backlog/delivery/validation.go` a partir de `c.QueryArray("status")` y
       `c.QueryArray("priority")`, devolviendo un `StoryFilter` o los `FieldError` de cada valor
       inválido — depende de T029
-- [ ] T034 [US2] Implementar `List` y `HasStories` en
+- [X] T034 [US2] Implementar `List` y `HasStories` en
       `backend/internal/backlog/repository/story_repository.go`: `List` es **una sola consulta**
       sobre `user_stories` del proyecto con una subconsulta de conteo de `acceptance_criteria`,
       filtros `IN` combinados con `AND` y el orden
       `CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, created_at ASC, id ASC`
       (FR-032); `HasStories` es un `SELECT 1 ... LIMIT 1` (research.md sección 9) — depende de T030
       y T032
-- [ ] T035 [US2] Implementar `List(ctx, projectID, filter)` en
+- [X] T035 [US2] Implementar `List(ctx, projectID, filter)` en
       `backend/internal/backlog/service/story_service.go`, que calcula `readyToPlan` con `Readiness`
       y elige `emptyReason`: `null` con resultados, `backlog_empty` si el proyecto no tiene historias
       (aunque haya filtros) y `no_matches` si las tiene pero ninguna cumple los filtros, llamando a
       `HasStories` **solo** cuando el resultado filtrado viene vacío — depende de T034
-- [ ] T036 [US2] Declarar `StoryListItem`, `AppliedFilters` y `StoryListResponse` en
+- [X] T036 [US2] Declarar `StoryListItem`, `AppliedFilters` y `StoryListResponse` en
       `backend/internal/backlog/delivery/dto.go` (`stories` y los dos filtros aplicados nunca son
       `null`), implementar el manejador `listStories` en `backend/internal/backlog/delivery/handler.go`
       con anotaciones `swag` en español y registrar `GET /stories` en el subgrupo del proyecto en
       `backend/internal/backlog/delivery/routes.go` — depende de T030, T033 y T035
-- [ ] T037 [US2] Implementar la llamada de listado en `frontend/src/features/backlog/api.ts`, con los
+- [X] T037 [US2] Implementar la llamada de listado en `frontend/src/features/backlog/api.ts`, con los
       filtros como parámetros repetidos de `URLSearchParams`, y los componentes `StoryList` en
       `frontend/src/features/backlog/components/story-list.tsx` y `BacklogFilters` en
       `frontend/src/features/backlog/components/backlog-filters.tsx` — depende de T031 y T036
-- [ ] T038 [US2] Crear la pantalla `frontend/src/app/projects/[projectId]/backlog/page.tsx`, protegida
+- [X] T038 [US2] Crear la pantalla `frontend/src/app/projects/[projectId]/backlog/page.tsx`, protegida
       con la guardia de sesión, con el acceso a "Nueva historia" — depende de T037
+- [X] T089 [US2] Agregar pruebas unitarias de `StoryService.List` en
+      `backend/internal/backlog/service/story_service_test.go` con `mockStoryRepository`: con
+      resultados, `emptyReason` nulo, `readyToPlan` calculado con `Readiness` y `HasStories` sin
+      llamar; con resultado vacío y `HasStories` en `false`, `backlog_empty` con y sin filtros; con
+      resultado vacío y `HasStories` en `true`, `no_matches`; y errores de `List` y de `HasStories`
+      propagados per FR-035, FR-036 (partial)
 
 **Checkpoint**: US1 y US2 funcionan de forma independiente. El backlog ya se registra y se consulta.
 
@@ -730,6 +736,40 @@ calidad. Todas las tareas son **técnicas**, salvo T078, que es una prueba de ca
       vista de estado de la 002 con historias reales, las pruebas de concurrencia y la verificación
       de que las pruebas corrieron contra `smye_test` en el puerto 5433 y no contra desarrollo —
       depende de T075, T077, T079, T080 y T083
+
+---
+
+## Phase 10: Convergence and Security
+
+Propósito: ajustes transversales detectados por /speckit-converge y /revisar-seguridad.
+
+- [ ] T085 Agregar en `backend/internal/backlog/delivery/validation_test.go` una prueba unitaria de
+      `ParseStoryFilter` con miles de valores repetidos de `status` y de `priority` que verifique que
+      el filtro resultante contiene cada valor admitido una sola vez, y en
+      `backend/internal/backlog/delivery/handler_test.go` una prueba de integración de
+      `GET /api/v1/projects/{projectId}/stories` con miles de `status=pending` que espere `200` y no
+      `500` per hallazgo de seguridad: filtros repetibles sin tope que arman una cláusula IN con un
+      parámetro por valor (security) — origen: seguridad, detectado en 003/US2
+- [ ] T086 Eliminar los valores duplicados de cada filtro en `ParseStoryFilter` de
+      `backend/internal/backlog/delivery/validation.go`, de modo que la cláusula `IN` reciba como
+      máximo los tres valores admitidos por filtro per hallazgo de seguridad: filtros repetibles sin
+      tope que arman una cláusula IN con un parámetro por valor (security) — origen: seguridad,
+      detectado en 003/US2
+- [ ] T087 Agregar pruebas de frontend en `frontend/src/features/backlog/api.test.ts` y
+      `frontend/src/features/projects/api.test.ts` que llamen a cada función de los clientes de API
+      con un identificador que contenga `../` y `/`, y verifiquen que la URL pedida a `fetch`
+      conserva la ruta esperada con el segmento codificado per hallazgo de seguridad: identificadores
+      interpolados sin codificar en las rutas de los clientes de API (security) — origen: seguridad,
+      detectado en 003/US2
+- [ ] T088 Codificar con `encodeURIComponent` cada segmento de ruta interpolado en
+      `frontend/src/features/backlog/api.ts` y `frontend/src/features/projects/api.ts`, incluidas las
+      llamadas de `DELETE` y `PATCH` per hallazgo de seguridad: identificadores interpolados sin
+      codificar en las rutas de los clientes de API (security) — origen: seguridad, detectado en
+      003/US2
+- [ ] T090 Corregir los comentarios de `isValidStatus` e `isValidPriority` en
+      `backend/internal/backlog/delivery/validation.go` para indicar que la comparación es exacta y
+      rechaza otras grafías per Constitución VIII (contradicts) — origen: converge, detectado en
+      hu/003-us2-ver-el-backlog
 
 ---
 

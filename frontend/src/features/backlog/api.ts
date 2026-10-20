@@ -1,5 +1,16 @@
-import { isRecord, postAuthorizedJson, type ApiResult } from "@/lib/api-client";
-import type { StoryDetail, StoryInput } from "@/types/story";
+import {
+  getJson,
+  isRecord,
+  postAuthorizedJson,
+  type ApiResult,
+} from "@/lib/api-client";
+import type {
+  AppliedFilters,
+  StoryDetail,
+  StoryInput,
+  StoryListItem,
+  StoryListResponse,
+} from "@/types/story";
 
 // Reconoce el detalle de la historia (StoryDetail) que devuelve la creación exitosa (201), sin
 // confiar en el cuerpo recibido. Los Story Points y la descripción pueden llegar en null.
@@ -43,4 +54,52 @@ export function createStory(
 // pestaña (003/US3). Firma mínima de T041: la implementa T046.
 export function getStory(storyId: string): Promise<ApiResult<StoryDetail>> {
   throw new Error("not implemented");
+}
+
+// Reconoce un elemento del listado del backlog (StoryListItem); los Story Points pueden llegar en
+// null cuando la historia no está estimada.
+function isStoryListItem(value: unknown): value is StoryListItem {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.title === "string" &&
+    typeof value.priority === "string" &&
+    typeof value.status === "string" &&
+    (value.storyPoints === null || typeof value.storyPoints === "number") &&
+    typeof value.acceptanceCriteriaCount === "number" &&
+    typeof value.readyToPlan === "boolean"
+  );
+}
+
+// Reconoce la respuesta del listado (StoryListResponse): las historias, los filtros aplicados y el
+// motivo del vacío, sin confiar en el cuerpo recibido.
+function isStoryListResponse(value: unknown): value is StoryListResponse {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.stories) &&
+    value.stories.every(isStoryListItem) &&
+    isRecord(value.appliedFilters) &&
+    Array.isArray(value.appliedFilters.status) &&
+    Array.isArray(value.appliedFilters.priority) &&
+    (value.emptyReason === null || typeof value.emptyReason === "string")
+  );
+}
+
+// Pide el backlog del proyecto con GET /api/v1/projects/{projectId}/stories, usando la sesión de la
+// pestaña (003/US2). Cada valor elegido de un filtro viaja como parámetro repetido
+// (?status=pending&status=in_progress); sin filtros no se envía consulta. El orden, el filtrado y el
+// motivo del vacío los resuelve el backend (FR-032 a FR-037).
+export function listStories(
+  projectId: string,
+  filters: AppliedFilters,
+): Promise<ApiResult<StoryListResponse>> {
+  const query = new URLSearchParams();
+  filters.status.forEach((status) => query.append("status", status));
+  filters.priority.forEach((priority) => query.append("priority", priority));
+  const encoded = query.toString();
+  const search = encoded === "" ? "" : `?${encoded}`;
+  return getJson(
+    `/api/v1/projects/${projectId}/stories${search}`,
+    isStoryListResponse,
+  );
 }

@@ -174,7 +174,7 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T011 [P] [US1] Pruebas unitarias **obligatorias** de la escala en
+- [X] T011 [P] [US1] Pruebas unitarias **obligatorias** de la escala en
       `backend/internal/backlog/domain/story_points_test.go`, cubriendo RN-06 y RN-07:
       `IsValidStoryPoints` acepta exactamente **0, 1, 2, 3, 5, 8, 13, 20, 40 y 100** y rechaza 4, 6,
       7, 50, 101 y -1 (SC-007) — depende de T010

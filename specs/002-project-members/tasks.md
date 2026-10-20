@@ -750,7 +750,7 @@ calidad. Todas las tareas son **técnicas**.
 - [X] T080 [P] Actualizar `README.md` de la raíz en español documentando la variable `APP_TIMEZONE`
       y el paso a paso para usar la feature, manteniendo el criterio de aceptación de que alguien
       que no conoce el proyecto pueda ejecutarlo siguiendo el documento — depende de T003
-- [ ] T081 [P] Revisar que `.gitignore` siga excluyendo `.env`, `.env.test`, `node_modules/`,
+- [X] T081 [P] Revisar que `.gitignore` siga excluyendo `.env`, `.env.test`, `node_modules/`,
       `.next/`, `backend/docs/`, `coverage.out` y `coverage.html`, y que `backend/.env.example` esté
       sincronizado con `backend/.env` incluida la clave `APP_TIMEZONE`, sin secretos versionados
       (Principios VI y IX) — depende de T002

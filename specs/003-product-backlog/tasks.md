@@ -257,7 +257,7 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
       historia con UUID, estado `pending` y autor el actor; y el armado del detalle
       (`buildDetail`), que usa `Readiness` y `SprintAssignments.Find` para `everAssignedToSprint`.
       Lo reutilizan todas las historias siguientes — depende de T014, T018, T020 y T021
-- [ ] T023 [US1] Declarar en `backend/internal/backlog/delivery/dto.go` los esquemas de
+- [X] T023 [US1] Declarar en `backend/internal/backlog/delivery/dto.go` los esquemas de
       contracts/openapi.yaml `StoryInput`, `StoryDetail`, `Readiness` y `AuthorRef`, reutilizando
       `ErrorResponse`, `FieldError` y `ValidationErrorResponse` de la 001. `storyPoints` y
       `description` se serializan como `null` cuando no tienen valor y `acceptanceCriteria` como

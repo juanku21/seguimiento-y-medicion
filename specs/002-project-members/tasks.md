@@ -761,7 +761,7 @@ sin RED.
       `go test ./... -coverprofile=coverage.out` más `go tool cover -func=coverage.out` en
       `backend/`, y `npm run test:coverage` en `frontend/` — y revisar que el módulo
       `internal/projects/` esté cubierto
-- [ ] T099 Pruebas unitarias **obligatorias** de la validación de `APP_TIMEZONE` en
+- [X] T099 Pruebas unitarias **obligatorias** de la validación de `APP_TIMEZONE` en
       `backend/internal/platform/config/config_test.go`, configurando el entorno con `t.Setenv`
       y con el resto de las variables obligatorias completas: (a) sin `APP_TIMEZONE`, o solo con
       espacios, `Load` devuelve error y el mensaje la enumera entre las faltantes; (b) con un

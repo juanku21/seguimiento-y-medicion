@@ -789,7 +789,7 @@ sin RED.
       las acciones (SC-005); que las **cuatro** acciones de administración devuelvan `403` a un
       integrante que no es propietario (SC-006); y que ninguna respuesta incluya `password_hash` ni
       el correo de los integrantes para quien no es el propietario — depende de T072
-- [ ] T085 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluidas la
+- [X] T085 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluidas la
       comprobación de la zona horaria en `actual_end_date`, las pruebas de concurrencia y la
       verificación de que las pruebas corrieron contra `smye_test` en el puerto 5433 y no contra
       desarrollo — depende de T079, T080 y T084

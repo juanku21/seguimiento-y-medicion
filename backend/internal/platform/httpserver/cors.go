@@ -11,12 +11,11 @@ import (
 )
 
 // CORS devuelve el middleware que habilita las peticiones del navegador solo desde el origen del
-// frontend. Firma mínima de la etapa RED de T085: replica la configuración vigente en cmd/app, que
-// todavía no incluye PUT.
+// frontend, con los métodos que expone la API (incluido PUT, que usa la modificación de proyectos).
 func CORS(allowedOrigin string) gin.HandlerFunc {
 	return cors.New(cors.Config{
 		AllowOrigins: []string{allowedOrigin},
-		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPatch, http.MethodDelete, http.MethodOptions},
+		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions},
 		AllowHeaders: []string{"Origin", "Content-Type", "Authorization"},
 		MaxAge:       12 * time.Hour,
 	})

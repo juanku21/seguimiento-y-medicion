@@ -5,7 +5,7 @@ import { Alert } from "@/components/alert";
 import { removeProjectMember } from "@/features/projects/api";
 import { AddMemberForm } from "@/features/projects/components/add-member-form";
 import type { ProjectMemberView } from "@/types/project";
-import { formatDate } from "@/utils/format-date";
+import { formatInstant } from "@/utils/format-date";
 
 // Propiedades de la lista de integrantes: el proyecto, los integrantes tal como los devuelve la API
 // y si quien consulta es el propietario, que es quien ve los correos y las acciones de
@@ -23,7 +23,8 @@ export type MemberListProps = {
 // formulario de alta y la acción de quitar en las filas de los demás (FR-025, FR-030), y estas dos
 // acciones se ocultan si el proyecto es de solo lectura (FR-018); quien no es propietario solo ve
 // la lista. Las demás restricciones de dominio las resuelve el backend y su mensaje se muestra tal
-// cual llega.
+// cual llega. La fecha de incorporación es un instante UTC y se muestra con el día de la zona
+// horaria del navegador.
 export function MemberList({
   projectId,
   members,
@@ -90,7 +91,10 @@ export function MemberList({
               <span className="text-sm text-zinc-600 dark:text-zinc-400">
                 Integrante desde:{" "}
                 <time dateTime={member.joinedAt}>
-                  {formatDate(member.joinedAt)}
+                  {formatInstant(
+                    member.joinedAt,
+                    Intl.DateTimeFormat().resolvedOptions().timeZone,
+                  )}
                 </time>
               </span>
             </div>

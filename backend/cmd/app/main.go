@@ -28,7 +28,6 @@ import (
 	// la trae y sin ella time.LoadLocation fallaría solo dentro del contenedor.
 	_ "time/tzdata"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -39,6 +38,7 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/service"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/config"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/database"
+	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/httpserver"
 	projectsdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/delivery"
 	projectsrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/repository"
 	projectsservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/service"
@@ -94,12 +94,7 @@ func run() error {
 	// a RN-08 documentada en specs/001-user-auth/spec.md, porque el Principio VIII exige documentar
 	// la API con Swagger.
 	router := gin.Default()
-	router.Use(cors.New(cors.Config{
-		AllowOrigins: []string{cfg.CORSAllowedOrigin},
-		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPatch, http.MethodDelete, http.MethodOptions},
-		AllowHeaders: []string{"Origin", "Content-Type", "Authorization"},
-		MaxAge:       12 * time.Hour,
-	}))
+	router.Use(httpserver.CORS(cfg.CORSAllowedOrigin))
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	delivery.RegisterRoutes(router, handler)
 

@@ -770,7 +770,7 @@ RED.
       coincide con el valor configurado (Principio II, validación de entrada; FR-039). Prueba de
       caracterización: la validación existe desde T003, así que no tiene RED; el commit lo
       justifica — depende de T003
-- [ ] T084 Verificar la trazabilidad y las puertas de seguridad recorriendo
+- [X] T084 Verificar la trazabilidad y las puertas de seguridad recorriendo
       `backend/internal/projects/` y `frontend/src/features/projects/`: que buscar `002/US1`
       a `002/US6` en el código de pruebas devuelva los **55** escenarios; que las **16** reglas
       RN-01 a RN-16 tengan prueba (SC-012); que los **seis** endpoints tengan su prueba de `401`

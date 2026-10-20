@@ -233,7 +233,7 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
       `backend/internal/backlog/domain/readiness.go`, devolviendo `ready` y la lista `missing` con
       `story_points` y `acceptance_criteria` en ese orden. Es la **única** fuente de la regla
       (research.md sección 10) — depende de T012
-- [ ] T019 [US1] Implementar la normalización y validación de la creación en
+- [X] T019 [US1] Implementar la normalización y validación de la creación en
       `backend/internal/backlog/delivery/validation.go`, con los límites 150, 2000 y 500 declarados
       como **constantes nombradas en un único lugar**, los Story Points recibidos como `json.Number`
       y validados sobre el texto literal con `IsValidStoryPoints`, y un `FieldError` por cada campo

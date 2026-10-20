@@ -278,7 +278,7 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
       Alta, `medium` → Media, `low` → Baja) y del estado (`pending` → Pendiente, `in_progress` → En
       progreso, `completed` → Completada), y la escala `[0, 1, 2, 3, 5, 8, 13, 20, 40, 100]`.
       **Prohibido el tipo `any`** (Principio VIII)
-- [ ] T026 [US1] Implementar la llamada de creación en `frontend/src/features/backlog/api.ts` sobre el
+- [X] T026 [US1] Implementar la llamada de creación en `frontend/src/features/backlog/api.ts` sobre el
       cliente `fetch` de la 001, y las reglas del formulario en
       `frontend/src/features/backlog/validation.ts` con los límites 150, 2000 y 500 como constantes
       nombradas en un único lugar — depende de T016 y T025

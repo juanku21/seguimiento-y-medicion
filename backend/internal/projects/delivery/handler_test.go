@@ -22,6 +22,7 @@ import (
 	authdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/delivery"
 	authrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/repository"
 	authservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/service"
+	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/httpserver"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/testsupport"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/domain"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/repository"
@@ -110,7 +111,7 @@ type projectsTestEnv struct {
 
 // newProjectsTestEnv abre la base de test vacía y compone la cadena real de la 001 (para el
 // middleware de sesión) y del módulo de proyectos, con el servicio de proyectos, el de integrantes y
-// el de cambio de estado, igual que cmd/app, sin CORS ni Swagger.
+// el de cambio de estado, igual que cmd/app: con el límite global del cuerpo, sin CORS ni Swagger.
 func newProjectsTestEnv(t *testing.T) projectsTestEnv {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -132,6 +133,7 @@ func newProjectsTestEnv(t *testing.T) projectsTestEnv {
 	members := service.NewMemberService(projectRepository, projectMembers, repository.NewUserDirectory(db))
 	status := service.NewStatusService(projectRepository, repository.NewSprintDirectory(), cfg.Location, time.Now)
 	router := gin.New()
+	router.Use(httpserver.LimitRequestBody())
 	authHandler := authdelivery.NewHandler(auth)
 	authdelivery.RegisterRoutes(router, authHandler)
 	projectGroup, adminGroup := RegisterRoutes(router, authHandler.RequireSession, NewHandler(projects, members, status), projectMembers, projectRepository)
@@ -1427,6 +1429,7 @@ func newStatusTestEnv(t *testing.T, backlog domain.BacklogSummaryProvider, sprin
 	members := service.NewMemberService(projectRepository, projectMembers, repository.NewUserDirectory(serviceDB))
 	status := service.NewStatusService(projectRepository, sprints, cfg.Location, time.Now)
 	router := gin.New()
+	router.Use(httpserver.LimitRequestBody())
 	authHandler := authdelivery.NewHandler(auth)
 	authdelivery.RegisterRoutes(router, authHandler)
 	projectGroup, adminGroup := RegisterRoutes(router, authHandler.RequireSession, NewHandler(projects, members, status),
@@ -2411,4 +2414,63 @@ func TestUS6_SinSesion(t *testing.T) {
 			assert.Nil(t, stored.ActualEndDate, "no debería registrarse fecha de finalización real")
 		})
 	}
+}
+
+// Pruebas de integración del límite global del cuerpo de las solicitudes (T094, hallazgo de
+// seguridad detectado en la US3 de la 002): un JSON de más de 1 MiB se rechaza con 413 o 400 antes de
+// que el servicio lo procese. El cuerpo es por lo demás válido: los campos esperados van completos y
+// el exceso viaja en un campo que los DTO ignoran, de modo que sin el límite la solicitud llegaría al
+// servicio y produciría su efecto.
+
+// maxRequestBodyBytes es el tope del cuerpo de las solicitudes que fija el hallazgo: 1 MiB.
+const maxRequestBodyBytes = 1 << 20
+
+// oversizedPadding es el valor de relleno que, solo, ya supera el tope del cuerpo.
+func oversizedPadding() string {
+	return strings.Repeat("a", maxRequestBodyBytes+1)
+}
+
+// requireBodyTooLarge exige que la respuesta sea 413 o 400, los dos rechazos admitidos para un cuerpo
+// que excede el tope.
+func requireBodyTooLarge(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	assert.Contains(t, []int{http.StatusRequestEntityTooLarge, http.StatusBadRequest}, rec.Code,
+		"un cuerpo de más de 1 MiB debería rechazarse con 413 o 400, se obtuvo %d", rec.Code)
+}
+
+// El propietario envía a POST /api/v1/projects/{projectId}/members el correo de una cuenta registrada
+// dentro de un cuerpo de más de 1 MiB: la respuesta es 413 o 400 y la persona no queda como
+// integrante, porque la solicitud no llega al servicio de integrantes.
+func TestCreateMember_OversizedBody(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	ownerID, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, _ := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress)
+
+	payload, err := json.Marshal(map[string]string{"email": "bruno@example.com", "padding": oversizedPadding()})
+	require.NoError(t, err, "no se pudo serializar la solicitud")
+	require.Greater(t, len(payload), maxRequestBodyBytes, "el cuerpo debería superar 1 MiB")
+	req := httptest.NewRequest(http.MethodPost, membersPath(projectID), bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	rec := httptest.NewRecorder()
+	env.router.ServeHTTP(rec, req)
+
+	requireBodyTooLarge(t, rec)
+	assert.Zero(t, countMemberRows(t, env.db, "project_id = ? AND user_id = ?", projectID, brunoID),
+		"Bruno no debería haberse agregado como integrante")
+}
+
+// Una persona con sesión envía a POST /api/v1/projects un proyecto válido dentro de un cuerpo de más
+// de 1 MiB: la respuesta es 413 o 400 y no se crea ningún proyecto ni ninguna membresía.
+func TestCreateProject_OversizedBody(t *testing.T) {
+	env := newProjectsTestEnv(t)
+	_, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	body := validProjectInputBody()
+	body["padding"] = oversizedPadding()
+
+	rec := env.postProject(t, token, body)
+
+	requireBodyTooLarge(t, rec)
+	requireNothingCreated(t, env.db)
 }

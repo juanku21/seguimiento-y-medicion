@@ -417,7 +417,7 @@ idéntico byte a byte al de un identificador inventado.
       `backend/internal/backlog/repository/story_repository.go` con **una sola consulta**
       `user_stories JOIN project_members (project_id, user_id = titular) JOIN projects`, devolviendo
       `ErrStoryNotFound` si no hay fila (research.md sección 3) — depende de T039
-- [ ] T043 [US3] Implementar `RequireStoryAccess` en `backend/internal/backlog/delivery/middleware.go`
+- [X] T043 [US3] Implementar `RequireStoryAccess` en `backend/internal/backlog/delivery/middleware.go`
       con **una única salida `404`** para la historia inexistente, la ajena y el identificador mal
       formado, que deja el `StoryAccess` en el contexto; cualquier otro error responde `500`
       genérico registrado en el log — depende de T042

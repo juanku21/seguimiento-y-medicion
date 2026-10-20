@@ -457,7 +457,7 @@ en un sprint abierto.
 
 ### Pruebas de la Historia 4 ⚠️
 
-- [ ] T047 [P] [US4] Pruebas unitarias **obligatorias** de `Estimate` en
+- [X] T047 [P] [US4] Pruebas unitarias **obligatorias** de `Estimate` en
       `backend/internal/backlog/service/story_service_test.go`, con dobles: historia `completed` →
       `ErrStoryCompleted` (RN-14); proyecto Finalizado → `ErrBacklogReadOnly` (RN-15), evaluado
       **antes** que las demás reglas; historia comprometida en un sprint abierto con `nil` →

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -416,4 +417,128 @@ func TestUS2_ServicioListadoPropagaErrores(t *testing.T) {
 		assert.Nil(t, view)
 		d.stories.AssertExpectations(t)
 	})
+}
+
+// Pruebas unitarias obligatorias de la estimación en el servicio (T047): RN-14, RN-15 y RN-18. El
+// acceso llega ya resuelto por RequireStoryAccess; el estado de la historia lo informa el doble del
+// repositorio y el compromiso en un sprint abierto, el doble de SprintAssignments. En todos los
+// rechazos se verifica que UpdateStoryPoints no se llama.
+
+// expectStoryState prepara la lectura de una historia con el estado y los Story Points indicados y
+// la respuesta del puerto de sprints sobre su compromiso en un sprint abierto. Ambas lecturas son
+// opcionales, para no fijar en la prueba cuántas veces ni en qué orden las hace el servicio.
+func expectStoryState(d storyServiceDoubles, access *domain.StoryAccess, status domain.StoryStatus, storyPoints *int, committed bool) {
+	detail := &domain.StoryDetail{
+		Story: domain.UserStory{
+			ID:          access.StoryID,
+			ProjectID:   access.ProjectID,
+			Title:       "Exportar el reporte de velocidad",
+			Priority:    domain.StoryPriorityHigh,
+			Status:      status,
+			StoryPoints: storyPoints,
+		},
+		AcceptanceCriteria: []string{"El PDF incluye la velocidad."},
+	}
+	d.stories.On("FindDetail", mock.Anything, access.StoryID).Return(detail, nil).Maybe()
+	d.sprints.On("Find", mock.Anything, access.StoryID).
+		Return(domain.SprintAssignment{CommittedToOpenSprint: committed, EverAssigned: committed}, nil).Maybe()
+}
+
+// newStoryAccess arma el acceso que RequireStoryAccess deja en el contexto para una historia nueva.
+func newStoryAccess(projectFinished bool) *domain.StoryAccess {
+	return &domain.StoryAccess{StoryID: uuid.New(), ProjectID: uuid.New(), ProjectFinished: projectFinished}
+}
+
+// Escenario: Historia completada (003/US4)
+// RN-14: una historia completed no se reestima, ni con otro valor de la escala ni devolviéndola a
+// "sin estimar"; el servicio devuelve ErrStoryCompleted y no llama a UpdateStoryPoints.
+func TestUS4_ServicioHistoriaCompletada(t *testing.T) {
+	cases := []struct {
+		name        string
+		storyPoints *int
+	}{
+		{"con otro valor de la escala", intPtr(8)},
+		{"con nil", nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, d := newStoryServiceWithDoubles()
+			access := newStoryAccess(false)
+			expectStoryState(d, access, domain.StoryStatusCompleted, intPtr(5), false)
+
+			view, err := svc.Estimate(context.Background(), access, tc.storyPoints)
+
+			require.ErrorIs(t, err, domain.ErrStoryCompleted)
+			assert.Nil(t, view)
+			d.stories.AssertNotCalled(t, "UpdateStoryPoints", mock.Anything, mock.Anything, mock.Anything)
+		})
+	}
+}
+
+// Escenario: Proyecto finalizado (003/US4)
+// RN-15: con el proyecto Finalizado el servicio devuelve ErrBacklogReadOnly y no llama a
+// UpdateStoryPoints. La regla se evalúa antes que las demás: aunque la historia esté completed y
+// comprometida en un sprint abierto, y se pida devolverla a "sin estimar", el rechazo es el de solo
+// lectura.
+func TestUS4_ServicioProyectoFinalizado(t *testing.T) {
+	cases := []struct {
+		name        string
+		status      domain.StoryStatus
+		committed   bool
+		storyPoints *int
+	}{
+		{"historia pendiente con un valor de la escala", domain.StoryStatusPending, false, intPtr(13)},
+		{"historia completada y comprometida con nil", domain.StoryStatusCompleted, true, nil},
+		{"historia en progreso y comprometida con nil", domain.StoryStatusInProgress, true, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, d := newStoryServiceWithDoubles()
+			access := newStoryAccess(true)
+			expectStoryState(d, access, tc.status, intPtr(5), tc.committed)
+
+			view, err := svc.Estimate(context.Background(), access, tc.storyPoints)
+
+			require.ErrorIs(t, err, domain.ErrBacklogReadOnly)
+			assert.Nil(t, view)
+			d.stories.AssertNotCalled(t, "UpdateStoryPoints", mock.Anything, mock.Anything, mock.Anything)
+		})
+	}
+}
+
+// Escenario: Comprometida no vuelve a sin estimar (003/US4)
+// RN-18: una historia comprometida en un sprint abierto no puede quedar sin Story Points; con nil el
+// servicio devuelve ErrCommittedStoryMustStayReady y no llama a UpdateStoryPoints.
+func TestUS4_ServicioComprometidaNoVuelveASinEstimar(t *testing.T) {
+	svc, d := newStoryServiceWithDoubles()
+	access := newStoryAccess(false)
+	expectStoryState(d, access, domain.StoryStatusInProgress, intPtr(5), true)
+
+	view, err := svc.Estimate(context.Background(), access, nil)
+
+	require.ErrorIs(t, err, domain.ErrCommittedStoryMustStayReady)
+	assert.Nil(t, view)
+	d.stories.AssertNotCalled(t, "UpdateStoryPoints", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// RN-18: una historia comprometida en un sprint abierto sí admite cambiar un valor de la escala por
+// otro, el 0 incluido, porque sigue lista para planificar; el servicio guarda el valor pedido con
+// UpdateStoryPoints y devuelve el detalle.
+func TestUS4_ServicioComprometidaAceptaOtroValor(t *testing.T) {
+	for _, value := range []int{8, 0} {
+		t.Run(fmt.Sprintf("estimada en %d", value), func(t *testing.T) {
+			svc, d := newStoryServiceWithDoubles()
+			access := newStoryAccess(false)
+			expectStoryState(d, access, domain.StoryStatusInProgress, intPtr(5), true)
+			d.stories.On("UpdateStoryPoints", mock.Anything, access.StoryID, mock.MatchedBy(func(points *int) bool {
+				return points != nil && *points == value
+			})).Return(nil).Once()
+
+			view, err := svc.Estimate(context.Background(), access, intPtr(value))
+
+			require.NoError(t, err)
+			require.NotNil(t, view)
+			d.stories.AssertExpectations(t)
+		})
+	}
 }

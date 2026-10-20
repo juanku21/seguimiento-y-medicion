@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -100,6 +101,13 @@ func (s *StoryService) Create(ctx context.Context, projectID, actorID uuid.UUID,
 // error envuelve ErrStoryNotFound del repositorio.
 func (s *StoryService) Get(ctx context.Context, storyID uuid.UUID) (*StoryView, error) {
 	return s.buildDetail(ctx, storyID)
+}
+
+// Estimate registra los Story Points de la historia, o la devuelve a "sin estimar" con nil, y
+// devuelve su detalle actualizado (FR-016 a FR-018). Firma mínima de T047: la implementación con las
+// reglas RN-14, RN-15 y RN-18 corresponde a T053.
+func (s *StoryService) Estimate(ctx context.Context, access *domain.StoryAccess, storyPoints *int) (*StoryView, error) {
+	return nil, errors.New("not implemented")
 }
 
 // buildDetail arma la vista de detalle de una historia: lee la historia con sus criterios y su

@@ -366,7 +366,7 @@ y un proyecto sin historias responde `emptyReason: backlog_empty`.
       `frontend/src/features/backlog/components/backlog-filters.tsx` — depende de T031 y T036
 - [X] T038 [US2] Crear la pantalla `frontend/src/app/projects/[projectId]/backlog/page.tsx`, protegida
       con la guardia de sesión, con el acceso a "Nueva historia" — depende de T037
-- [ ] T089 [US2] Agregar pruebas unitarias de `StoryService.List` en
+- [X] T089 [US2] Agregar pruebas unitarias de `StoryService.List` en
       `backend/internal/backlog/service/story_service_test.go` con `mockStoryRepository`: con
       resultados, `emptyReason` nulo, `readyToPlan` calculado con `Readiness` y `HasStories` sin
       llamar; con resultado vacío y `HasStories` en `false`, `backlog_empty` con y sin filtros; con

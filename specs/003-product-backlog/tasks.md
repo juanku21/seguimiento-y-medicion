@@ -226,7 +226,7 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
 
 ### Implementación de la Historia 1
 
-- [ ] T017 [US1] Implementar la escala en `backend/internal/backlog/domain/story_points.go`: el
+- [X] T017 [US1] Implementar la escala en `backend/internal/backlog/domain/story_points.go`: el
       conjunto cerrado `{0, 1, 2, 3, 5, 8, 13, 20, 40, 100}` declarado **una sola vez** e
       `IsValidStoryPoints(int) bool` (RN-06) — depende de T011
 - [ ] T018 [US1] Implementar `Readiness(storyPoints *int, criteriaCount int)` en

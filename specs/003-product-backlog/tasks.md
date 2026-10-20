@@ -350,7 +350,7 @@ y un proyecto sin historias responde `emptyReason: backlog_empty`.
       `CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, created_at ASC, id ASC`
       (FR-032); `HasStories` es un `SELECT 1 ... LIMIT 1` (research.md sección 9) — depende de T030
       y T032
-- [ ] T035 [US2] Implementar `List(ctx, projectID, filter)` en
+- [X] T035 [US2] Implementar `List(ctx, projectID, filter)` en
       `backend/internal/backlog/service/story_service.go`, que calcula `readyToPlan` con `Readiness`
       y elige `emptyReason`: `null` con resultados, `backlog_empty` si el proyecto no tiene historias
       (aunque haya filtros) y `no_matches` si las tiene pero ninguna cumple los filtros, llamando a

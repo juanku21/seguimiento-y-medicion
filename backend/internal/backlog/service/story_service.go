@@ -118,3 +118,63 @@ func (s *StoryService) buildDetail(ctx context.Context, storyID uuid.UUID) (*Sto
 		EverAssignedToSprint: assignment.EverAssigned,
 	}, nil
 }
+
+// EmptyReason explica por qué el listado vino vacío, para que la pantalla distinga el backlog vacío
+// de los filtros sin coincidencias (FR-035, FR-036). Viaja como texto en el campo emptyReason del
+// contrato; su ausencia (nil) significa que hay resultados.
+type EmptyReason string
+
+// Motivos posibles de un listado vacío: el proyecto no tiene historias, aunque se haya filtrado, o
+// las tiene pero ninguna cumple los filtros.
+const (
+	EmptyReasonBacklogEmpty EmptyReason = "backlog_empty"
+	EmptyReasonNoMatches    EmptyReason = "no_matches"
+)
+
+// StoryListEntry es un elemento del listado que el servicio entrega a delivery: el tipo de lectura
+// del repositorio más si la historia está lista para planificar, calculado con Readiness (FR-033).
+type StoryListEntry struct {
+	Item        domain.StoryListItem
+	ReadyToPlan bool
+}
+
+// StoryListView es el resultado del listado: las historias en el orden de FR-032, nunca nil, y el
+// motivo del vacío, nil cuando hay resultados.
+type StoryListView struct {
+	Stories     []StoryListEntry
+	EmptyReason *EmptyReason
+}
+
+// List devuelve el backlog del proyecto filtrado y ordenado, con la condición de lista para
+// planificar de cada historia (FR-031 a FR-036, RN-12). Solo cuando el resultado filtrado viene
+// vacío consulta HasStories para elegir entre backlog_empty y no_matches: un proyecto sin historias
+// es backlog_empty aunque haya filtros (research.md sección 9).
+func (s *StoryService) List(ctx context.Context, projectID uuid.UUID, filter domain.StoryFilter) (*StoryListView, error) {
+	items, err := s.stories.List(ctx, projectID, filter)
+	if err != nil {
+		return nil, fmt.Errorf("listar historias: %w", err)
+	}
+
+	// Cada elemento se completa con la regla única de Readiness a partir de sus Story Points y de su
+	// conteo de criterios.
+	entries := make([]StoryListEntry, 0, len(items))
+	for _, item := range items {
+		ready, _ := domain.Readiness(item.StoryPoints, item.CriteriaCount)
+		entries = append(entries, StoryListEntry{Item: item, ReadyToPlan: ready})
+	}
+	if len(entries) > 0 {
+		return &StoryListView{Stories: entries}, nil
+	}
+
+	// Con el resultado vacío, la consulta de existencia distingue el backlog vacío del filtro sin
+	// coincidencias.
+	hasStories, err := s.stories.HasStories(ctx, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("consultar existencia de historias: %w", err)
+	}
+	reason := EmptyReasonBacklogEmpty
+	if hasStories {
+		reason = EmptyReasonNoMatches
+	}
+	return &StoryListView{Stories: entries, EmptyReason: &reason}, nil
+}

@@ -405,7 +405,7 @@ idéntico byte a byte al de un identificador inventado.
       de la 002, y el detalle consultado por Ana sigue devolviendo la historia con
       `createdBy.fullName` igual a "Bruno Gómez", mientras que Bruno recibe `404` (FR-050, caso
       límite "Integrante quitado del proyecto") — depende de T038
-- [ ] T041 [P] [US3] Pruebas de frontend en
+- [X] T041 [P] [US3] Pruebas de frontend en
       `frontend/src/features/backlog/components/story-detail-card.test.tsx`, con
       `describe("003/US3 - Consultar el detalle de una historia")` y un `it` por escenario, incluido
       que 0 se muestra como "0 Story Points" y `null` como "Sin estimar", y que se indica qué falta

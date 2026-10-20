@@ -38,3 +38,9 @@ export function createStory(
     isStoryDetail,
   );
 }
+
+// Consulta el detalle de una historia con GET /api/v1/stories/{storyId}, usando la sesión de la
+// pestaña (003/US3). Firma mínima de T041: la implementa T046.
+export function getStory(storyId: string): Promise<ApiResult<StoryDetail>> {
+  throw new Error("not implemented");
+}

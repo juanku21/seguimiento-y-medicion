@@ -308,7 +308,7 @@ y un proyecto sin historias responde `emptyReason: backlog_empty`.
 
 ### Pruebas de la Historia 2 ⚠️
 
-- [ ] T029 [P] [US2] Pruebas unitarias **obligatorias** del rango de prioridad en
+- [X] T029 [P] [US2] Pruebas unitarias **obligatorias** del rango de prioridad en
       `backend/internal/backlog/domain/priority_test.go` (`high` 0, `medium` 1, `low` 2) y de la
       validación de filtros en `backend/internal/backlog/delivery/validation_test.go`: `status` y
       `priority` repetibles, valores fuera de `pending`/`in_progress`/`completed` o

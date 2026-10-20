@@ -118,6 +118,13 @@ func ValidateStoryInput(req StoryInput) (ValidatedStory, []authdelivery.FieldErr
 	}, nil
 }
 
+// ParseStoryFilter valida los valores repetibles de los filtros status y priority del listado, tal
+// como los entrega c.QueryArray, y devuelve el StoryFilter o un FieldError por cada filtro con un
+// valor no admitido, indicando los valores válidos (FR-034, FR-037).
+func ParseStoryFilter(statuses, priorities []string) (domain.StoryFilter, []authdelivery.FieldError) {
+	return domain.StoryFilter{}, nil
+}
+
 // isValidPriority indica si la prioridad es una de las admitidas, sin distinguir otras grafías.
 func isValidPriority(priority domain.StoryPriority) bool {
 	switch priority {

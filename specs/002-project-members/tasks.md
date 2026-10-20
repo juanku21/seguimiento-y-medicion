@@ -737,30 +737,51 @@ sprint activo se prueba con un doble del puerto `SprintDirectory`.
 ## Fase 9: Polish (Cierre y asuntos transversales)
 
 **Propósito**: documentación viva, cobertura, vulnerabilidades y verificación de las puertas de
-calidad. Todas las tareas son **técnicas**.
+calidad. Todas las tareas son **técnicas**, salvo T099 y T100, que son pruebas de caracterización
+sin RED.
 
 **Rama**: `fase/002-polish`
 
-- [ ] T079 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
+- [X] T079 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
       `backend/docs/` coincida con [contracts/openapi.yaml](./contracts/openapi.yaml) en las seis
       rutas, sus códigos de respuesta y los catorce esquemas; corregir las anotaciones si difieren
       (Principio VIII). Criterio acordado: todos los endpoints declaran la respuesta `500` en el
       contrato. Si falta en `contracts/openapi.yaml`, agregarla en los seis endpoints y regenerar
       `backend/docs/` con `swag` para que coincidan — depende de T076
-- [ ] T080 [P] Actualizar `README.md` de la raíz en español documentando la variable `APP_TIMEZONE`
+- [X] T080 [P] Actualizar `README.md` de la raíz en español documentando la variable `APP_TIMEZONE`
       y el paso a paso para usar la feature, manteniendo el criterio de aceptación de que alguien
       que no conoce el proyecto pueda ejecutarlo siguiendo el documento — depende de T003
-- [ ] T081 [P] Revisar que `.gitignore` siga excluyendo `.env`, `.env.test`, `node_modules/`,
+- [X] T081 [P] Revisar que `.gitignore` siga excluyendo `.env`, `.env.test`, `node_modules/`,
       `.next/`, `backend/docs/`, `coverage.out` y `coverage.html`, y que `backend/.env.example` esté
       sincronizado con `backend/.env` incluida la clave `APP_TIMEZONE`, sin secretos versionados
       (Principios VI y IX) — depende de T002
-- [ ] T082 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
+- [X] T082 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
-- [ ] T083 [P] Ejecutar los comandos de cobertura de los dos lados —
+- [X] T083 [P] Ejecutar los comandos de cobertura de los dos lados —
       `go test ./... -coverprofile=coverage.out` más `go tool cover -func=coverage.out` en
       `backend/`, y `npm run test:coverage` en `frontend/` — y revisar que el módulo
       `internal/projects/` esté cubierto
-- [ ] T084 Verificar la trazabilidad y las puertas de seguridad recorriendo
+- [X] T099 Pruebas unitarias **obligatorias** de la validación de `APP_TIMEZONE` en
+      `backend/internal/platform/config/config_test.go`, configurando el entorno con `t.Setenv`
+      y con el resto de las variables obligatorias completas: (a) sin `APP_TIMEZONE`, o solo con
+      espacios, `Load` devuelve error y el mensaje la enumera entre las faltantes; (b) con un
+      valor que no es zona IANA (`Buenos_Aires`) devuelve el error de zona horaria inválida; y
+      (c) con `America/Argentina/Buenos_Aires` no devuelve error y `Config.Location.String()`
+      coincide con el valor configurado (Principio II, validación de entrada; FR-039). Prueba de
+      caracterización: la validación existe desde T003, así que no tiene RED; el commit lo
+      justifica — depende de T003
+- [X] T100 Pruebas de integración de caracterización en
+      `backend/internal/projects/delivery/handler_test.go`: (a) `TestUS5_SinSesion` y
+      `TestUS6_SinSesion`, con el comentario `// Escenario: Sin sesión (002/USn)` como
+      `TestUS3_SinSesion`, que envían `PUT /api/v1/projects/{projectId}` y
+      `PATCH /api/v1/projects/{projectId}/status` sin cabecera y con token adulterado, y asertan
+      `401` sin cambios en el proyecto (SC-004); y (b) en las pruebas que ya obtienen respuestas
+      con integrantes o propietario (`POST /api/v1/projects`, `GET`, `PUT` y `PATCH` sobre
+      `/api/v1/projects/{projectId}`, y `POST /api/v1/projects/{projectId}/members`), una
+      aserción de que el cuerpo no contiene `password_hash` ni `passwordHash` (Principio VI).
+      Prueba de caracterización: las rutas ya están dentro del grupo con sesión y los DTOs no
+      exponen la contraseña, así que no tiene RED; el commit lo justifica — depende de T076
+- [X] T084 Verificar la trazabilidad y las puertas de seguridad recorriendo
       `backend/internal/projects/` y `frontend/src/features/projects/`: que buscar `002/US1`
       a `002/US6` en el código de pruebas devuelva los **55** escenarios; que las **16** reglas
       RN-01 a RN-16 tengan prueba (SC-012); que los **seis** endpoints tengan su prueba de `401`
@@ -768,7 +789,7 @@ calidad. Todas las tareas son **técnicas**.
       las acciones (SC-005); que las **cuatro** acciones de administración devuelvan `403` a un
       integrante que no es propietario (SC-006); y que ninguna respuesta incluya `password_hash` ni
       el correo de los integrantes para quien no es el propietario — depende de T072
-- [ ] T085 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluidas la
+- [X] T085 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluidas la
       comprobación de la zona horaria en `actual_end_date`, las pruebas de concurrencia y la
       verificación de que las pruebas corrieron contra `smye_test` en el puerto 5433 y no contra
       desarrollo — depende de T079, T080 y T084

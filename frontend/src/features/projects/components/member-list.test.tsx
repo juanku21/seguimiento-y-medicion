@@ -382,3 +382,38 @@ describe("002/US3 - Gestionar los integrantes del proyecto", () => {
     expect(await memberItems()).toHaveLength(2);
   });
 });
+
+// Prueba de la fecha "Integrante desde" (T085). El backend devuelve joinedAt como instante UTC y la
+// lista debe mostrar el día que corresponde en Argentina, la zona del sistema. Se fija la zona del
+// proceso en America/Argentina/Buenos_Aires para que el resultado no dependa de la máquina. Es
+// cobertura adicional sin escenario de spec.md: el describe no lleva el prefijo 002/US3 para no
+// alterar el conteo de escenarios de T084.
+describe("Lista de integrantes - fecha de incorporación en la zona del sistema", () => {
+  beforeEach(() => {
+    vi.stubEnv("TZ", "America/Argentina/Buenos_Aires");
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllEnvs();
+  });
+
+  // Caso del defecto: Bruno se incorporó el 19/10 a las 23:00 de Argentina, que en UTC ya es el
+  // 20/10 a las 02:00.
+  it("muestra el día argentino de un integrante incorporado de noche", async () => {
+    const lateBruno: ProjectMemberView = {
+      ...bruno,
+      joinedAt: "2026-10-20T02:00:03Z",
+    };
+    render(
+      <MemberList
+        projectId={projectId}
+        members={[ana, lateBruno]}
+        viewerIsOwner={true}
+      />,
+    );
+
+    const row = await memberRow("Bruno Gómez");
+    expect(row.textContent).toContain("Integrante desde: 19/10/2026");
+  });
+});

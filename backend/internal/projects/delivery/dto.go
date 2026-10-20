@@ -20,13 +20,13 @@ type ProjectInput struct {
 	// Nombre del proyecto, entre 1 y 100 caracteres tras recortar los espacios extremos (FR-002).
 	Name string `json:"name" validate:"required" minLength:"1" maxLength:"100" example:"Portal de Clientes"`
 	// Descripción opcional de hasta 1000 caracteres; vacía o solo de espacios se guarda como ausente (FR-003).
-	Description *string `json:"description" maxLength:"1000" example:"Rediseño del portal de autogestión."`
+	Description *string `json:"description" maxLength:"1000" extensions:"x-nullable" example:"Rediseño del portal de autogestión."`
 	// Fecha de inicio como fecha de calendario sin hora (YYYY-MM-DD).
 	StartDate string `json:"startDate" validate:"required" format:"date" example:"2026-10-01"`
 	// Fecha de finalización prevista, nunca anterior a la de inicio; iguales es válido (FR-005, RN-06).
 	PlannedEndDate string `json:"plannedEndDate" validate:"required" format:"date" example:"2026-12-20"`
 	// Factor de horas por Story Point: mayor que 0, menor o igual a 40 y con hasta 2 decimales (FR-006, RN-07).
-	HoursPerStoryPoint json.Number `json:"hoursPerStoryPoint" validate:"required" swaggertype:"number" maximum:"40" example:"6.5"`
+	HoursPerStoryPoint json.Number `json:"hoursPerStoryPoint" validate:"required" swaggertype:"number" maximum:"40" multipleOf:"0.01" example:"6.5"`
 }
 
 // OwnerRef identifica al propietario del proyecto, único y no transferible (RC-04).
@@ -100,7 +100,7 @@ type ProjectDetail struct {
 	// Nombre del proyecto con la capitalización con que se escribió.
 	Name string `json:"name" validate:"required" example:"Portal de Clientes"`
 	// Descripción del proyecto, o null si no tiene.
-	Description *string `json:"description" example:"Rediseño del portal de autogestión."`
+	Description *string `json:"description" extensions:"x-nullable" example:"Rediseño del portal de autogestión."`
 	// Estado del proyecto en su ciclo de vida (FR-036).
 	Status domain.ProjectStatus `json:"status" validate:"required" enums:"planned,in_progress,finished" example:"planned"`
 	// Fecha de inicio (YYYY-MM-DD).
@@ -108,7 +108,7 @@ type ProjectDetail struct {
 	// Fecha de finalización prevista (YYYY-MM-DD).
 	PlannedEndDate string `json:"plannedEndDate" validate:"required" format:"date" example:"2026-12-20"`
 	// Fecha de finalización real, presente solo cuando el estado es finished (FR-039, FR-040).
-	ActualEndDate *string `json:"actualEndDate" format:"date" example:"2026-12-18"`
+	ActualEndDate *string `json:"actualEndDate" format:"date" extensions:"x-nullable" example:"2026-12-18"`
 	// Factor vigente del proyecto, con hasta 2 decimales (FR-006).
 	HoursPerStoryPoint float64 `json:"hoursPerStoryPoint" validate:"required" example:"6.5"`
 	// Verdadero cuando el estado es finished: admite consulta y rechaza la administración (FR-018).
@@ -120,7 +120,7 @@ type ProjectDetail struct {
 	// Indicación explícita de si hay sprint activo (FR-043).
 	HasActiveSprint bool `json:"hasActiveSprint" validate:"required" example:"false"`
 	// Sprint activo del proyecto, o null cuando no hay ninguno (FR-043).
-	ActiveSprint *ActiveSprintRef `json:"activeSprint"`
+	ActiveSprint *ActiveSprintRef `json:"activeSprint" extensions:"x-nullable"`
 	// Resumen del backlog del proyecto.
 	Backlog BacklogSummary `json:"backlog" validate:"required"`
 }

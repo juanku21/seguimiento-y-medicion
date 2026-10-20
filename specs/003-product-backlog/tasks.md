@@ -195,7 +195,7 @@ Story Points responde `400` con la escala, sin necesitar ninguna otra historia.
       1 y 500 runas**, con 1 y 500 válidos, vacío, solo espacios y 501 rechazados, el campo
       informado como `acceptanceCriteria[i]` y el orden de la lista conservado (RN-08). La validación
       devuelve **todos** los campos inválidos a la vez — depende de T010
-- [ ] T014 [P] [US1] Pruebas unitarias **obligatorias** de la creación en el servicio en
+- [X] T014 [P] [US1] Pruebas unitarias **obligatorias** de la creación en el servicio en
       `backend/internal/backlog/service/story_service_test.go`, con dobles de `testify/mock` de
       `StoryRepository` y de los cinco puertos: la historia nace `pending` (RN-09) con un UUID
       nuevo, el autor es el actor recibido y no un dato de la entrada (FR-049), un actor que no es

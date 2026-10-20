@@ -244,8 +244,8 @@ backend/
 ├── .env                                    # TOCA (no versionado)
 ├── .env.test                               # TOCA (no versionado)
 ├── Dockerfile                              # Sin cambios
-├── go.mod                                  # Sin cambios: ninguna dependencia nueva
-└── go.sum                                  # Sin cambios
+├── go.mod                                  # TOCA: agrega github.com/stretchr/objx v0.5.3 // indirect
+└── go.sum                                  # TOCA: agrega las sumas de objx v0.5.3
 
 frontend/
 ├── src/
@@ -277,6 +277,15 @@ README.md                                   # TOCA: documenta APP_TIMEZONE
 (`project_service_test.go`, `handler_test.go`, `validation_test.go`, `status_test.go`,
 `estimation_test.go`, `middleware_test.go`). En el frontend, junto al componente o módulo
 (`project-form.test.tsx`). No se crea un árbol `tests/` separado.
+
+**Dependencia indirecta de pruebas**: los dobles de los puertos de T055
+(`backend/internal/projects/service/project_view_test.go`) usan `testify/mock`, y ese paquete
+importa `github.com/stretchr/objx`. Por eso `go.mod` registra `github.com/stretchr/objx v0.5.3 //
+indirect` y `go.sum` incorpora sus sumas. No es una dependencia nueva frente al Principio IV:
+`objx` no se importa desde el código del proyecto, es una dependencia transitiva de
+`github.com/stretchr/testify` (dependencia autorizada para aserciones y mocks en pruebas), su
+versión la fija la resolución de módulos de Go a partir de `testify` v1.12.1 y es una versión
+estable publicada. No llega al binario de la aplicación, porque solo la usan archivos `_test.go`.
 
 **Decisión de estructura**: se mantiene la aplicación web con `backend/` y `frontend/` como
 directorios de primer nivel (Principio III). El backend agrega **un** módulo vertical,

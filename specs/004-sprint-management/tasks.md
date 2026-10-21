@@ -168,7 +168,7 @@ su plan, se corrigen las rutas de T007, T013 y T033 antes de ejecutarlas.
       `AcceptanceCriterion`, de modo que los índices —incluidos los dos parciales con su cláusula
       `WHERE`— queden creados por las etiquetas de GORM y no por un `CREATE INDEX` en crudo, y la
       columna `ever_committed` se agregue a `user_stories` — depende de T001, T002 y T007
-- [ ] T009 Extender el vaciado del ayudante de pruebas en
+- [X] T009 Extender el vaciado del ayudante de pruebas en
       `backend/internal/platform/testsupport/database.go` para incluir `sprints` y `sprint_stories`
       en el `TRUNCATE ... CASCADE`, manteniendo la verificación de que la base es `smye_test` y el
       lock de la base de test — depende de T008

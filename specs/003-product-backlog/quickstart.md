@@ -31,10 +31,18 @@ docker compose --env-file .env -p smye-dev up -d
 docker compose --env-file .env.test -p smye-test up -d
 ```
 
-Comprobación de aislamiento: debe responder `smye_test`.
+Si el puerto 5432 ya está ocupado (por ejemplo, por un contenedor levantado sin `-p smye-dev`), el
+contenedor de desarrollo no arranca: hay que detener el que ocupa el puerto y volver a ejecutar el
+comando.
+
+Comprobación de aislamiento: la primera consulta debe responder `smye_test` y la segunda debe
+mostrar el puerto 5433 del host (`0.0.0.0:5433` y, si hay IPv6, `[::]:5433`). El puerto se
+verifica con `docker port` porque `inet_server_port()` informa el puerto interno del contenedor
+(5432) y no el publicado en el host.
 
 ```powershell
-docker exec smye-test-postgres-1 psql -U smye -d smye_test -c "SELECT current_database(), inet_server_port();"
+docker exec smye-test-postgres-1 psql -U smye -d smye_test -c "SELECT current_database();"
+docker port smye-test-postgres-1 5432
 ```
 
 Las tablas `user_stories` y `acceptance_criteria` las crea `AutoMigrate` al arrancar la aplicación o
@@ -47,6 +55,11 @@ TRUNCATE users, sessions, auth_events, projects, project_members, user_stories, 
 ---
 
 ## 3. Ejecutar las pruebas
+
+Los comandos `swag` y `govulncheck` suponen las herramientas instaladas y en el `PATH` (con
+`go install`, quedan en `$(go env GOPATH)/bin`). Sin instalarlas, se reemplazan por
+`go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g cmd/app/main.go -o docs` y
+`go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...`, igual que en el `README.md`.
 
 ### Backend
 
@@ -91,6 +104,10 @@ cd backend
 govulncheck ./...
 ```
 
+Resultado esperado: ninguna vulnerabilidad que alcance al código. El aviso a nivel de módulo
+GO-2026-5932 (`golang.org/x/crypto/openpgp`, sin versión corregida) no se invoca y está justificado
+en la sección "Análisis de Vulnerabilidades" del [README](../../README.md#análisis-de-vulnerabilidades).
+
 ---
 
 ## 4. Levantar la aplicación
@@ -117,7 +134,9 @@ Con los endpoints de la 001 y la 002 (ver el quickstart de la 002, secciones 5 y
 
 1. Registrar a Ana (`ana@example.com`), Bruno (`bruno@example.com`) y Carla (`carla@example.com`), e
    iniciar sesión con los tres. En los bloques siguientes los tokens se llaman `$ANA`, `$BRUNO` y
-   `$CARLA`.
+   `$CARLA`. Si esas cuentas ya existen en la base de desarrollo (el registro responde `409` porque el
+   correo ya está registrado), se usan correos desechables, por ejemplo `ana+val1@example.com`,
+   `bruno+val1@example.com` y `carla+val1@example.com`, cambiando el sufijo en cada recorrido.
 2. Ana crea el proyecto "Portal de Clientes" y agrega a Bruno como integrante. Carla **no** es
    integrante. El identificador del proyecto se llama `$PROJECT`.
 
@@ -244,7 +263,17 @@ puertos.
 
 ### Proyecto Finalizado (FR-048, SC-012)
 
-Ana lleva el proyecto a `finished` con el endpoint de estado de la 002. Después:
+Ana lleva el proyecto a `finished` con el endpoint de estado de la 002. Un proyecto recién creado
+está en `planned` y no puede finalizarse directamente (responde `409`): primero pasa a `in_progress`.
+
+```powershell
+curl -X PATCH http://localhost:8080/api/v1/projects/$PROJECT/status `
+  -H "Authorization: Bearer $ANA" -H "Content-Type: application/json" -d '{"status":"in_progress"}'
+curl -X PATCH http://localhost:8080/api/v1/projects/$PROJECT/status `
+  -H "Authorization: Bearer $ANA" -H "Content-Type: application/json" -d '{"status":"finished"}'
+```
+
+Después:
 
 | Acción | Esperado |
 | --- | --- |
@@ -254,8 +283,10 @@ Ana lleva el proyecto a `finished` con el endpoint de estado de la 002. Después
 ### Vista de estado de la 002 (RC-07)
 
 Con historias creadas, `GET /api/v1/projects/$PROJECT` debe informar en `backlog.countsByState` la
-cantidad por `pending`, `in_progress` y `completed`, y en `backlog.estimatedStoryPoints` la suma de
-las estimadas (las "sin estimar" no suman).
+cantidad por estado (`pending`, `in_progress`, `completed`), y en `backlog.estimatedStoryPoints` la
+suma de las estimadas (las "sin estimar" no suman). `countsByState` es un mapa que solo incluye los
+estados que tienen historias, según el contrato de la 002: mientras no exista la feature de sprints,
+todas las historias están en `pending` y la respuesta es, por ejemplo, `{"pending": 6}`.
 
 ### Flujo en la interfaz
 
@@ -284,4 +315,6 @@ las estimadas (las "sin estimar" no suman).
 - [ ] Cada uno de los seis endpoints tiene su prueba sin sesión (SC-005).
 - [ ] Swagger publicado coincide con [contracts/openapi.yaml](./contracts/openapi.yaml).
 - [ ] `README.md` menciona el backlog en la introducción y en la lista de endpoints.
-- [ ] `govulncheck ./...` sin hallazgos; sin `any` en el frontend (`npx tsc --noEmit` y ESLint).
+- [ ] `govulncheck ./...` sin vulnerabilidades que alcancen al código (GO-2026-5932 está justificado
+      en el [README](../../README.md#análisis-de-vulnerabilidades)); sin `any` en el frontend
+      (`npx tsc --noEmit` y ESLint).

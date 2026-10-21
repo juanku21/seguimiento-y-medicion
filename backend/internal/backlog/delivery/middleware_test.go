@@ -153,12 +153,12 @@ func storyAccessSeedStory(t *testing.T, db *gorm.DB, projectID, authorID uuid.UU
 	return story.ID
 }
 
-// Escenario: Un integrante consulta el detalle de una historia (003/US3)
+// Prueba transversal de RequireStoryAccess (T039): un integrante accede a una historia.
 // Bruno, integrante que no es el propietario ni el autor, pide una historia de su proyecto: el
 // middleware hace una sola consulta, el manejador protegido se ejecuta una vez y encuentra en el
 // contexto el StoryAccess con la historia, su proyecto y si el proyecto está Finalizado (RN-01,
 // RN-02). El proyecto Finalizado también se puede consultar y llega marcado (FR-048).
-func TestUS3_AccesoIntegranteNoPropietarioPasa(t *testing.T) {
+func TestStoryAccess_IntegranteNoPropietarioPasa(t *testing.T) {
 	cases := []struct {
 		name     string
 		status   projectsdomain.ProjectStatus
@@ -189,13 +189,13 @@ func TestUS3_AccesoIntegranteNoPropietarioPasa(t *testing.T) {
 	}
 }
 
-// Escenario: Historia ajena idéntica a una inexistente (003/US3)
+// Prueba transversal de RequireStoryAccess (T039): una historia ajena responde como una inexistente.
 // La historia de un proyecto del que quien pide no es integrante, la de un proyecto del que fue
 // quitado y un identificador que no es UUID responden el mismo 404 que un identificador UUID que no
 // existe: idéntico byte a byte en estado, tipo de contenido y cuerpo ("La historia no existe."), sin
 // ejecutar el manejador protegido y con a lo sumo una consulta a la base (FR-044, FR-047, SC-006 y
 // caso límite "Integrante quitado del proyecto").
-func TestUS3_AccesoHistoriaAjenaIgualAInexistente(t *testing.T) {
+func TestStoryAccess_HistoriaAjenaIgualAInexistente(t *testing.T) {
 	env := newStoryAccessTestEnv(t)
 	ownerID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
 	removedID, removedToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
@@ -246,10 +246,10 @@ func TestUS3_AccesoHistoriaAjenaIgualAInexistente(t *testing.T) {
 	assert.Zero(t, env.probe.executions, "el manejador protegido no debería ejecutarse")
 }
 
-// Escenario: Sin sesión válida (003/US3)
+// Prueba transversal de RequireStoryAccess (T039): sin sesión válida responde 401.
 // Montado sin el middleware de sesión, de modo que no hay titular en el contexto, RequireStoryAccess
 // corta con el 401 de la 001 sin consultar la base y sin ejecutar el manejador protegido (FR-045).
-func TestUS3_AccesoSinSesion(t *testing.T) {
+func TestStoryAccess_SinSesion(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db, _ := testsupport.OpenDatabase(t)
 	queries := newQueryCounter()

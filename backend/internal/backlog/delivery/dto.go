@@ -25,7 +25,7 @@ type StoryInput struct {
 	StoryPoints *json.Number `json:"storyPoints" swaggertype:"integer" enums:"0,1,2,3,5,8,13,20,40,100" extensions:"x-nullable" example:"5"`
 	// Opcional. Lista ordenada; cada criterio tiene entre 1 y 500 caracteres tras recortar los
 	// espacios extremos (FR-006, FR-007).
-	AcceptanceCriteria []string `json:"acceptanceCriteria" example:"El PDF incluye la velocidad de los últimos cinco sprints."`
+	AcceptanceCriteria []string `json:"acceptanceCriteria" minLength:"1" maxLength:"500" example:"El PDF incluye la velocidad de los últimos cinco sprints."`
 }
 
 // StoryPointsInput es el cuerpo de la estimación de una historia (contracts/openapi.yaml, FR-016,
@@ -50,7 +50,7 @@ type StoryPatch struct {
 	Priority json.RawMessage `json:"priority" swaggertype:"string" enums:"high,medium,low" example:"medium"`
 	// Reemplaza la lista completa en el orden recibido; [] deja la historia sin criterios y null se
 	// rechaza (FR-022).
-	AcceptanceCriteria json.RawMessage `json:"acceptanceCriteria" swaggertype:"array,string" example:"El PDF incluye la velocidad de los últimos cinco sprints."`
+	AcceptanceCriteria json.RawMessage `json:"acceptanceCriteria" swaggertype:"array,string" minLength:"1" maxLength:"500" example:"El PDF incluye la velocidad de los últimos cinco sprints."`
 	// El estado no se cambia desde el backlog: si llega, se rechaza (FR-027).
 	Status json.RawMessage `json:"status" swaggerignore:"true"`
 	// La estimación tiene su propio endpoint: si llega, se rechaza (research.md sección 8).
@@ -230,7 +230,7 @@ type DeletionBlockedResponse struct {
 	// Mensaje general del rechazo.
 	Error string `json:"error" validate:"required" example:"La historia tiene historial asociado y no se puede eliminar."`
 	// Motivos del rechazo; al menos uno.
-	Reasons []DeletionBlockedReason `json:"reasons" validate:"required" minItems:"1"`
+	Reasons []DeletionBlockedReason `json:"reasons" validate:"required,min=1"`
 }
 
 // deletionBlockerMessages son los mensajes de cada motivo de bloqueo según la tabla de data-model.md

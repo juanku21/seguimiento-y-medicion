@@ -5,8 +5,8 @@
 # Ejecución, con las variables de backend/.env.example cargadas en el entorno:
 #   docker run --env-file .env -p 8080:8080 smye-backend
 
-# Etapa de compilación: Go 1.27.2, la misma versión que declara go.mod.
-FROM golang:1.27.2-alpine3.24 AS build
+# Etapa de compilación: Go 1.27.3, la misma versión que declara go.mod.
+FROM golang:1.27.3-alpine3.24 AS build
 WORKDIR /src
 
 # Se instala la CLI de swag en la misma versión que la librería de go.mod, para que la

@@ -702,7 +702,7 @@ calidad. Todas las tareas son **técnicas**, salvo T078, que es una prueba de ca
 
 **Rama**: `fase/003-polish`
 
-- [ ] T078 Pruebas de integración de caracterización en
+- [X] T078 Pruebas de integración de caracterización en
       `backend/internal/backlog/delivery/handler_test.go`, **sin** etiqueta `003/USn`:
       `TestStoryEndpoints_SinSesion`, con un subtest por cada uno de los **seis** endpoints sin
       cabecera y con token adulterado → `401` y ningún cambio (SC-005);
@@ -711,28 +711,28 @@ calidad. Todas las tareas son **técnicas**, salvo T078, que es una prueba de ca
       **dos** de colección (SC-006); y una aserción de que ninguna respuesta contiene
       `password_hash` ni `passwordHash` (Principio VI). Prueba de caracterización: las rutas ya están
       detrás de los middlewares, así que no tiene RED; el commit lo justifica — depende de T072
-- [ ] T079 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
+- [X] T079 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
       `backend/docs/` coincida con [contracts/openapi.yaml](./contracts/openapi.yaml) en las seis
       rutas, sus códigos de respuesta (todos declaran `500`) y los diecisiete esquemas; corregir las
       anotaciones si difieren (Principio VIII) — depende de T072
-- [ ] T080 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona el
+- [X] T080 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona el
       Product Backlog, y se agregan los seis endpoints y las cuatro pantallas nuevas, manteniendo el
       criterio de que alguien que no conoce el proyecto pueda ejecutarlo siguiendo el documento —
       depende de T072
-- [ ] T081 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
+- [X] T081 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
-- [ ] T082 [P] Ejecutar los comandos de cobertura de los dos lados —
+- [X] T082 [P] Ejecutar los comandos de cobertura de los dos lados —
       `go test ./... -coverprofile=coverage.out` más `go tool cover -func=coverage.out` en
       `backend/`, y `npm run test:coverage` en `frontend/` — y revisar que el módulo
       `internal/backlog/` y `frontend/src/features/backlog/` estén cubiertos — depende de T072
-- [ ] T083 Verificar la trazabilidad y las puertas de seguridad recorriendo `backend/internal/backlog/`
+- [X] T083 Verificar la trazabilidad y las puertas de seguridad recorriendo `backend/internal/backlog/`
       y `frontend/src/features/backlog/`: que buscar `003/US1` a `003/US6` en el código de pruebas
       devuelva los **58** escenarios; que las **18** reglas RN-01 a RN-18 tengan prueba unitaria
       (SC-014); que los **seis** endpoints tengan su prueba de `401` (SC-005); que los `404` sean
       indistinguibles (SC-006); que ninguna operación de esta feature escriba `user_stories.status`
       después de la creación (FR-027); y que ninguna respuesta incluya `password_hash` — depende de
       T078
-- [ ] T084 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluidas la
+- [X] T084 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluidas la
       vista de estado de la 002 con historias reales, las pruebas de concurrencia y la verificación
       de que las pruebas corrieron contra `smye_test` en el puerto 5433 y no contra desarrollo —
       depende de T075, T077, T079, T080 y T083
@@ -793,6 +793,15 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       `ErrBacklogReadOnly` en ese caso, para que `respondServiceError` lo traduzca al 409 de solo
       lectura per hallazgo de seguridad: regla de solo lectura del proyecto Finalizado verificada
       fuera de la escritura en la eliminación (security) — origen: seguridad, detectado en 003/US6
+- [X] T095 Corregir las etiquetas de trazabilidad en
+      `backend/internal/backlog/delivery/middleware_test.go`: quitar `003/US3` de los comentarios
+      `// Escenario:` de `TestUS3_AccesoIntegranteNoPropietarioPasa`,
+      `TestUS3_AccesoHistoriaAjenaIgualAInexistente` y `TestUS3_AccesoSinSesion`, y renombrarlas sin
+      el prefijo `TestUS3_` por ser pruebas transversales de T039 (plan.md: no alteran el conteo de
+      58); y unificar `it("Story Points fuera de escala")` de
+      `frontend/src/features/backlog/components/story-form.test.tsx` con el nombre del escenario
+      "Story Points fuera de la escala". Solo renombra: no tiene RED — origen: T083, trazabilidad
+      003/US3 con 9 nombres en lugar de 6
 
 ---
 

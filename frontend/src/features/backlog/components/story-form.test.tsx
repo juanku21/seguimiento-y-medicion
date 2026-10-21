@@ -531,7 +531,7 @@ describe("003/US1 - Registrar una historia en el backlog", () => {
 
   // Caso de error: el selector no permite elegir 4, 7, un negativo ni un decimal; si el backend
   // rechaza los Story Points con 400, el mensaje con la escala aparece junto al selector.
-  it("Story Points fuera de escala", async () => {
+  it("Story Points fuera de la escala", async () => {
     render(<StoryForm projectId={projectId} />);
     const values = Array.from(getFields().storyPoints.options).map(
       (o) => o.value,

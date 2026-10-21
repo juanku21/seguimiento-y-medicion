@@ -793,7 +793,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       `ErrBacklogReadOnly` en ese caso, para que `respondServiceError` lo traduzca al 409 de solo
       lectura per hallazgo de seguridad: regla de solo lectura del proyecto Finalizado verificada
       fuera de la escritura en la eliminación (security) — origen: seguridad, detectado en 003/US6
-- [ ] T095 Corregir las etiquetas de trazabilidad en
+- [X] T095 Corregir las etiquetas de trazabilidad en
       `backend/internal/backlog/delivery/middleware_test.go`: quitar `003/US3` de los comentarios
       `// Escenario:` de `TestUS3_AccesoIntegranteNoPropietarioPasa`,
       `TestUS3_AccesoHistoriaAjenaIgualAInexistente` y `TestUS3_AccesoSinSesion`, y renombrarlas sin

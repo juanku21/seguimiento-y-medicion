@@ -143,7 +143,7 @@ su plan, se corrigen las rutas de T007, T013 y T033 antes de ejecutarlas.
       `not_ready`, `completed` o `committed_elsewhere`, más `Missing []string` y
       `Sprint *ConflictingSprint`). Para la historia inexistente se reutiliza `ErrStoryNotFound` de
       la 003
-- [ ] T005 Declarar en `backend/internal/sprints/domain/repository.go` la interfaz
+- [X] T005 Declarar en `backend/internal/sprints/domain/repository.go` la interfaz
       `SprintRepository` con **exactamente** las trece operaciones de data-model.md sección 9
       (`FindAccessible`, `Create`, `Update`, `Delete`, `Start`, `Close`, `AssignStories`,
       `RemoveStories`, `ChangeStoryProgress`, `List`, `HasSprints`, `FindDetail`, `ListForStory`),

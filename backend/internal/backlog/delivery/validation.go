@@ -302,14 +302,21 @@ func ParseStoryFilter(statuses, priorities []string) (domain.StoryFilter, []auth
 }
 
 // parseFilterValues convierte los valores de un filtro repetible al tipo del dominio y devuelve
-// false si alguno no es admitido; la comparación es exacta, sin aceptar otras grafías.
+// false si alguno no es admitido; la comparación es exacta, sin aceptar otras grafías. Los valores
+// repetidos se descartan conservando el orden de su primera aparición, de modo que la cláusula IN
+// reciba cada valor admitido una sola vez (hallazgo de seguridad: filtros repetibles sin tope).
 func parseFilterValues[T ~string](values []string, isValid func(T) bool) ([]T, bool) {
-	parsed := make([]T, 0, len(values))
+	parsed := []T{}
+	seen := map[T]bool{}
 	for _, v := range values {
 		value := T(v)
 		if !isValid(value) {
 			return nil, false
 		}
+		if seen[value] {
+			continue
+		}
+		seen[value] = true
 		parsed = append(parsed, value)
 	}
 	return parsed, true

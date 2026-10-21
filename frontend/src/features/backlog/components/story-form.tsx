@@ -184,7 +184,7 @@ export function StoryForm(props: StoryFormProps) {
   const [criterionErrors, setCriterionErrors] = useState<CriterionErrors>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [createdStory, setCreatedStory] = useState<StoryDetail | null>(null);
+  const [savedStory, setSavedStory] = useState<StoryDetail | null>(null);
   const submittingRef = useRef(false);
 
   // Actualiza un campo simple del formulario a partir de lo que se escribió o eligió.
@@ -192,8 +192,8 @@ export function StoryForm(props: StoryFormProps) {
     setValues((current) => ({ ...current, [field]: value }));
   }
 
-  // Envía la creación o la modificación. La referencia descarta un segundo envío mientras el primero sigue en curso,
-  // aun antes de que el botón deshabilitado llegue a renderizarse.
+  // Envía la creación o la modificación. La referencia descarta un segundo envío mientras el primero
+  // sigue en curso, aun antes de que el botón deshabilitado llegue a renderizarse.
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submittingRef.current) {
@@ -232,7 +232,7 @@ export function StoryForm(props: StoryFormProps) {
     setIsSubmitting(false);
 
     if (result.ok) {
-      setCreatedStory(result.data);
+      setSavedStory(result.data);
       return;
     }
 
@@ -244,20 +244,20 @@ export function StoryForm(props: StoryFormProps) {
     setGeneralError(result.error.message);
   }
 
-  // Confirmación de la creación o de la modificación: se muestran los datos devueltos por el backend en el lugar del
-  // formulario.
-  if (createdStory) {
+  // Confirmación de la creación o de la modificación: se muestran los datos devueltos por el backend
+  // en el lugar del formulario.
+  if (savedStory) {
     return (
       <Alert variant="success">
         <p className="font-medium">
           {story ? "Historia actualizada" : "Historia creada"}
         </p>
-        <p>{createdStory.title}</p>
+        <p>{savedStory.title}</p>
         <p>
-          Estado: {STORY_STATUS_LABELS[createdStory.status]} · Story Points:{" "}
-          {createdStory.storyPoints ?? UNESTIMATED_LABEL}
+          Estado: {STORY_STATUS_LABELS[savedStory.status]} · Story Points:{" "}
+          {savedStory.storyPoints ?? UNESTIMATED_LABEL}
         </p>
-        <p>{readinessLabel(createdStory.readiness.ready)}</p>
+        <p>{readinessLabel(savedStory.readiness.ready)}</p>
       </Alert>
     );
   }

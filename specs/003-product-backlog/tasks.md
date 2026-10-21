@@ -581,7 +581,7 @@ el estado.
       con anotaciones `swag` en español y registrar `PATCH` en el grupo de la historia en
       `backend/internal/backlog/delivery/routes.go`. Respuestas: `200` con `StoryDetail`, `400`,
       `401`, `404` y `409` — depende de T061 y T063
-- [ ] T065 [US5] Implementar la llamada de modificación en `frontend/src/features/backlog/api.ts`,
+- [X] T065 [US5] Implementar la llamada de modificación en `frontend/src/features/backlog/api.ts`,
       el componente `StoryEditView` en
       `frontend/src/features/backlog/components/story-edit-view.tsx`, que reutiliza `StoryForm`
       precargado y **arma el cuerpo solo con los campos modificados**, y la pantalla

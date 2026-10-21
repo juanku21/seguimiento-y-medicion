@@ -159,7 +159,7 @@ su plan, se corrigen las rutas de T007, T013 y T033 antes de ejecutarlas.
       esfuerzo registrado**, con un comentario en español que indique que
       `specs/006-effort-tracking` reemplazará su cuerpo y deberá traducir la violación de su clave
       foránea hacia `sprints.id` al mismo `409` (research.md sección 16)
-- [ ] T007 Agregar el campo `EverCommitted bool` con la etiqueta `not null;default:false` al modelo
+- [X] T007 Agregar el campo `EverCommitted bool` con la etiqueta `not null;default:false` al modelo
       `UserStory` en `backend/internal/backlog/domain/user_story.go`, con un comentario en español
       que indique que **solo la feature de sprints lo escribe**, que pasa a `true` al primer
       compromiso y nunca vuelve a `false` (research.md sección 7; data-model.md sección 3)

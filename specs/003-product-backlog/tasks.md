@@ -660,7 +660,7 @@ momento después de US1.
 
 **Rama**: `fase/003-integration`
 
-- [ ] T073 Prueba de integración del proveedor del resumen en
+- [X] T073 Prueba de integración del proveedor del resumen en
       `backend/internal/projects/repository/backlog_summary_test.go`, contra la base de test con
       historias creadas con `StoryRepository.Create`: sin historias → `CountsByState` vacío (no
       nulo) y `EstimatedStoryPoints` 0; con historias `pending`, `in_progress` y `completed`

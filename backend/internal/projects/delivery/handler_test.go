@@ -127,7 +127,7 @@ func newProjectsTestEnv(t *testing.T) projectsTestEnv {
 	projects := service.NewProjectService(
 		projectRepository,
 		projectMembers,
-		repository.NewBacklogSummaryProvider(),
+		repository.NewBacklogSummaryProvider(db),
 		repository.NewSprintDirectory(),
 	)
 	members := service.NewMemberService(projectRepository, projectMembers, repository.NewUserDirectory(db))
@@ -1668,7 +1668,7 @@ func TestUS4_SinSesion(t *testing.T) {
 // servicio, sin la sesión de la 001 ni la verificación de membresía del middleware.
 func TestUS4_VistaDeEstadoSinNMasUno(t *testing.T) {
 	counter := &queryCounter{}
-	env := newStatusTestEnv(t, repository.NewBacklogSummaryProvider(), repository.NewSprintDirectory(), counter)
+	env := newStatusTestEnv(t, repository.NewBacklogSummaryProvider(nil), repository.NewSprintDirectory(), counter)
 	_, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
 	created := requireCreatedProject(t, env.postProject(t, ownerToken, validProjectInputBody()))
 	projectID := uuid.MustParse(created.ID)
@@ -2238,7 +2238,7 @@ func TestUS6_ArranqueSinCondiciones(t *testing.T) {
 	}{
 		{
 			name:    "con sprint activo",
-			backlog: repository.NewBacklogSummaryProvider(),
+			backlog: repository.NewBacklogSummaryProvider(nil),
 			sprints: fixedSprint{sprint: &domain.ActiveSprint{ID: uuid.New(), Name: "Sprint 1"}},
 		},
 		{
@@ -2364,7 +2364,7 @@ func TestUS6_NoEsPropietario(t *testing.T) {
 // SprintDirectory.
 func TestUS6_FinalizarConSprintActivo(t *testing.T) {
 	sprints := fixedSprint{sprint: &domain.ActiveSprint{ID: uuid.New(), Name: "Sprint 4"}}
-	env := newStatusTestEnv(t, repository.NewBacklogSummaryProvider(), sprints, nil)
+	env := newStatusTestEnv(t, repository.NewBacklogSummaryProvider(nil), sprints, nil)
 	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
 	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress)
 	before := findStoredProject(t, env.db, projectID.String())

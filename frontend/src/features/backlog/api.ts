@@ -2,6 +2,7 @@ import {
   getJson,
   isRecord,
   postAuthorizedJson,
+  putAuthorizedJson,
   type ApiResult,
 } from "@/lib/api-client";
 import type {
@@ -10,6 +11,7 @@ import type {
   StoryInput,
   StoryListItem,
   StoryListResponse,
+  StoryPoints,
 } from "@/types/story";
 
 // Reconoce el detalle de la historia (StoryDetail) que devuelven la creación exitosa (201) y la
@@ -58,6 +60,22 @@ export function createStory(
 export function getStory(storyId: string): Promise<ApiResult<StoryDetail>> {
   return getJson(
     `/api/v1/stories/${encodeURIComponent(storyId)}`,
+    isStoryDetail,
+  );
+}
+
+// Estima una historia con PUT /api/v1/stories/{storyId}/story-points, usando la sesión de la
+// pestaña (003/US4). null la devuelve a "sin estimar" y el 0 viaja como 0 (FR-015). Las reglas
+// (escala, historia Completada, comprometida y proyecto Finalizado) las resuelve el backend: los
+// rechazos (400 con el detalle por campo, 404 y 409) llegan con su mensaje y ante un 401 el cliente
+// HTTP descarta la sesión.
+export function estimateStory(
+  storyId: string,
+  storyPoints: StoryPoints,
+): Promise<ApiResult<StoryDetail>> {
+  return putAuthorizedJson(
+    `/api/v1/stories/${encodeURIComponent(storyId)}/story-points`,
+    { storyPoints },
     isStoryDetail,
   );
 }

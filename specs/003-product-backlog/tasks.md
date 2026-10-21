@@ -721,7 +721,7 @@ calidad. Todas las tareas son **técnicas**, salvo T078, que es una prueba de ca
       depende de T072
 - [X] T081 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
-- [ ] T082 [P] Ejecutar los comandos de cobertura de los dos lados —
+- [X] T082 [P] Ejecutar los comandos de cobertura de los dos lados —
       `go test ./... -coverprofile=coverage.out` más `go tool cover -func=coverage.out` en
       `backend/`, y `npm run test:coverage` en `frontend/` — y revisar que el módulo
       `internal/backlog/` y `frontend/src/features/backlog/` estén cubiertos — depende de T072

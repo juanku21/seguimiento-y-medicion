@@ -574,7 +574,7 @@ el estado.
       las columnas presentes** más `updated_at` (nunca un `Save` del registro entero) y, si
       `AcceptanceCriteria` está presente, borra los criterios de la historia e inserta la lista
       nueva con posiciones `0..n-1` (research.md sección 7) — depende de T058 y T059
-- [ ] T063 [US5] Implementar `Update(ctx, access, changes)` en
+- [X] T063 [US5] Implementar `Update(ctx, access, changes)` en
       `backend/internal/backlog/service/story_service.go` con las reglas de solo lectura, Completada
       y comprometida, en ese orden — depende de T057 y T062
 - [ ] T064 [US5] Implementar el manejador `updateStory` en `backend/internal/backlog/delivery/handler.go`

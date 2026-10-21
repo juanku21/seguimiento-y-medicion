@@ -109,28 +109,15 @@ func (s *StoryService) Get(ctx context.Context, storyID uuid.UUID) (*StoryView, 
 // por último, solo al pedir nil, el compromiso en un sprint abierto (RN-18). Es el punto de
 // integración que reutilizará Planning Poker para registrar el valor acordado (RC-06).
 func (s *StoryService) Estimate(ctx context.Context, access *domain.StoryAccess, storyPoints *int) (*StoryView, error) {
-	if access.ProjectFinished {
-		return nil, domain.ErrBacklogReadOnly
-	}
-
-	// El estado de la historia no viaja en StoryAccess, así que se lee el detalle para aplicar RN-14.
-	detail, err := s.stories.FindDetail(ctx, access.StoryID)
-	if err != nil {
-		return nil, fmt.Errorf("leer historia a estimar: %w", err)
-	}
-	if detail.Story.Status == domain.StoryStatusCompleted {
-		return nil, domain.ErrStoryCompleted
+	if err := s.ensureEditable(ctx, access); err != nil {
+		return nil, err
 	}
 
 	// Devolver la historia a "sin estimar" exige que no esté comprometida en un sprint abierto; un
 	// valor de la escala la mantiene lista para planificar y no necesita la consulta.
 	if storyPoints == nil {
-		assignment, err := s.sprints.Find(ctx, access.StoryID)
-		if err != nil {
-			return nil, fmt.Errorf("consultar asignación a sprints: %w", err)
-		}
-		if assignment.CommittedToOpenSprint {
-			return nil, domain.ErrCommittedStoryMustStayReady
+		if err := s.ensureNotCommitted(ctx, access.StoryID); err != nil {
+			return nil, err
 		}
 	}
 
@@ -147,28 +134,15 @@ func (s *StoryService) Estimate(ctx context.Context, access *domain.StoryAccess,
 // del proyecto Finalizado (RN-15); después la historia completed (RN-14), y por último, solo cuando
 // el PATCH vacía los criterios, el compromiso en un sprint abierto (RN-18).
 func (s *StoryService) Update(ctx context.Context, access *domain.StoryAccess, changes domain.StoryChanges) (*StoryView, error) {
-	if access.ProjectFinished {
-		return nil, domain.ErrBacklogReadOnly
-	}
-
-	// El estado de la historia no viaja en StoryAccess, así que se lee el detalle para aplicar RN-14.
-	detail, err := s.stories.FindDetail(ctx, access.StoryID)
-	if err != nil {
-		return nil, fmt.Errorf("leer historia a modificar: %w", err)
-	}
-	if detail.Story.Status == domain.StoryStatusCompleted {
-		return nil, domain.ErrStoryCompleted
+	if err := s.ensureEditable(ctx, access); err != nil {
+		return nil, err
 	}
 
 	// Dejar la historia sin criterios exige que no esté comprometida en un sprint abierto; una lista
 	// no vacía o un PATCH que no toca los criterios la mantienen lista y no necesitan la consulta.
 	if changes.AcceptanceCriteria != nil && len(*changes.AcceptanceCriteria) == 0 {
-		assignment, err := s.sprints.Find(ctx, access.StoryID)
-		if err != nil {
-			return nil, fmt.Errorf("consultar asignación a sprints: %w", err)
-		}
-		if assignment.CommittedToOpenSprint {
-			return nil, domain.ErrCommittedStoryMustStayReady
+		if err := s.ensureNotCommitted(ctx, access.StoryID); err != nil {
+			return nil, err
 		}
 	}
 
@@ -177,6 +151,39 @@ func (s *StoryService) Update(ctx context.Context, access *domain.StoryAccess, c
 	}
 
 	return s.buildDetail(ctx, access.StoryID)
+}
+
+// ensureEditable aplica, en el orden de research.md sección 16, las dos guardas que comparten las
+// operaciones que modifican una historia: la solo lectura del proyecto Finalizado (RN-15), que vuelve
+// irrelevante cualquier otra, y la historia completed (RN-14). El estado de la historia no viaja en
+// StoryAccess, así que se lee el detalle para aplicar RN-14.
+func (s *StoryService) ensureEditable(ctx context.Context, access *domain.StoryAccess) error {
+	if access.ProjectFinished {
+		return domain.ErrBacklogReadOnly
+	}
+
+	detail, err := s.stories.FindDetail(ctx, access.StoryID)
+	if err != nil {
+		return fmt.Errorf("leer historia a modificar: %w", err)
+	}
+	if detail.Story.Status == domain.StoryStatusCompleted {
+		return domain.ErrStoryCompleted
+	}
+	return nil
+}
+
+// ensureNotCommitted rechaza con ErrCommittedStoryMustStayReady un cambio que dejaría de estar lista
+// para planificar a una historia comprometida en un sprint abierto (RN-18). Cada operación decide
+// cuándo su cambio quita la condición de lista y solo entonces la invoca.
+func (s *StoryService) ensureNotCommitted(ctx context.Context, storyID uuid.UUID) error {
+	assignment, err := s.sprints.Find(ctx, storyID)
+	if err != nil {
+		return fmt.Errorf("consultar asignación a sprints: %w", err)
+	}
+	if assignment.CommittedToOpenSprint {
+		return domain.ErrCommittedStoryMustStayReady
+	}
+	return nil
 }
 
 // buildDetail arma la vista de detalle de una historia: lee la historia con sus criterios y su

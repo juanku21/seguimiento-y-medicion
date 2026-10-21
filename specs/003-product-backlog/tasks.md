@@ -476,7 +476,7 @@ en un sprint abierto.
       `TestUS4_ValorFueraDeEscala` (subtests 50, 4 y 6,5, valor intacto),
       `TestUS4_HistoriaCompletada` (estado sembrado) y `TestUS4_ProyectoFinalizado` — depende de
       T046
-- [ ] T050 [P] [US4] Pruebas de frontend en
+- [X] T050 [P] [US4] Pruebas de frontend en
       `frontend/src/features/backlog/components/estimate-control.test.tsx`, con
       `describe("003/US4 - Estimar una historia en Story Points")` y un `it` por escenario, incluido
       que el control ofrece **solo** los valores de la escala más "Sin estimar" y que la estimación

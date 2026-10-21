@@ -508,7 +508,7 @@ paths:
                 error: Hay campos inválidos en la solicitud.
                 fields:
                   - field: storyPoints
-                    message: Los valores admitidos de Story Points son 0, 1, 2, 3, 5, 8, 13, 20, 40 y 100, o sin estimar.
+                    message: Los valores admitidos son 0, 1, 2, 3, 5, 8, 13, 20, 40 y 100.
         '401':
           $ref: '#/components/responses/SesionInvalida'
         '404':
@@ -911,7 +911,7 @@ components:
         message:
           type: string
           description: Qué hay que corregir y por qué.
-          example: Los valores admitidos de Story Points son 0, 1, 2, 3, 5, 8, 13, 20, 40 y 100, o sin estimar.
+          example: Los valores admitidos son 0, 1, 2, 3, 5, 8, 13, 20, 40 y 100.
 
     ValidationErrorResponse:
       type: object

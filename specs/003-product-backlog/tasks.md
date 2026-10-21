@@ -564,7 +564,7 @@ el estado.
 
 ### Implementación de la Historia 5
 
-- [ ] T061 [US5] Declarar `StoryPatch` en `backend/internal/backlog/delivery/dto.go` con sus campos
+- [X] T061 [US5] Declarar `StoryPatch` en `backend/internal/backlog/delivery/dto.go` con sus campos
       como `json.RawMessage`, e implementar en `backend/internal/backlog/delivery/validation.go` su
       decodificación a `StoryChanges` reutilizando las validaciones de la creación de T019 — depende
       de T056

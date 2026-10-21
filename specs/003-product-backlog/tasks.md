@@ -496,7 +496,7 @@ en un sprint abierto.
       sección 16: solo lectura, Completada y comprometida (`SprintAssignments.Find`). Es el método que
       reutilizará `specs/005-planning-poker` para registrar el valor acordado (RC-06) — depende de
       T047 y T052
-- [ ] T054 [US4] Implementar el manejador `estimateStory` en
+- [X] T054 [US4] Implementar el manejador `estimateStory` en
       `backend/internal/backlog/delivery/handler.go` con anotaciones `swag` en español y registrar
       `PUT /story-points` en el grupo de la historia en `backend/internal/backlog/delivery/routes.go`.
       Respuestas: `200` con `StoryDetail`, `400`, `401`, `404` y `409` con los mensajes de

@@ -23,6 +23,8 @@ const (
 	msgSessionRequired = "Se requiere iniciar sesión."
 	msgStoryNotFound   = "La historia no existe."
 	msgBacklogReadOnly = "El proyecto está finalizado y su backlog es de solo lectura."
+	msgStoryCompleted  = "La historia está completada y no se puede modificar ni reestimar."
+	msgStoryCommitted  = "La historia está comprometida en un sprint abierto; primero hay que quitarla del sprint."
 	msgInternalError   = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
 )
 
@@ -128,6 +130,64 @@ func (h *Handler) getStory(c *gin.Context) {
 	c.JSON(http.StatusOK, newStoryDetail(view))
 }
 
+// estimateStory godoc
+//
+//	@Summary		Estima una historia en Story Points
+//	@Description	Asigna a la historia un valor de la escala (0, 1, 2, 3, 5, 8, 13, 20, 40, 100) o la
+//	@Description	devuelve a "sin estimar" con null (FR-014, FR-016, FR-018). El campo es obligatorio. El
+//	@Description	valor nuevo reemplaza al anterior y actualiza el momento de última actualización
+//	@Description	(FR-017). Todo valor fuera de la escala (intermedio, negativo o decimal) se rechaza con
+//	@Description	400 indicando la escala, sin alterar el valor vigente (FR-019). Se rechaza con 409 si la
+//	@Description	historia está completed (FR-030), si el proyecto está finished (FR-048) o si se intenta
+//	@Description	devolver a "sin estimar" una historia comprometida en un sprint abierto (FR-018, RN-18).
+//	@Description	Cambiar un valor de la escala por otro sí se admite en una historia comprometida.
+//	@Tags			Backlog
+//	@ID				estimateStory
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			storyId	path		string								true	"Identificador propio, estable, inmutable y no secuencial de la historia (FR-009)"	format(uuid)
+//	@Param			request	body		StoryPointsInput					true	"Story Points de la escala, o null para dejar la historia sin estimar"
+//	@Success		200		{object}	StoryDetail							"Historia estimada."
+//	@Failure		400		{object}	delivery.ValidationErrorResponse	"Campo ausente o valor fuera de la escala (FR-019); el valor vigente no cambia. El campo storyPoints lleva el mensaje \"Los valores admitidos son 0, 1, 2, 3, 5, 8, 13, 20, 40 y 100.\" si el valor está fuera de la escala, o \"Los Story Points son obligatorios; para dejar la historia sin estimar se envía null.\" si falta. Si el cuerpo no es un JSON válido o está vacío, la respuesta es ErrorResponse."
+//	@Failure		401		{object}	delivery.ErrorResponse				"Se requiere iniciar sesión (FR-045)."
+//	@Failure		404		{object}	delivery.ErrorResponse				"La historia no existe, fue eliminada o pertenece a un proyecto del que quien pide no es integrante; las tres situaciones devuelven el mismo cuerpo (FR-044, FR-047, SC-006)."
+//	@Failure		409		{object}	delivery.ErrorResponse				"La historia está completed, el proyecto está finished, o se intenta devolver a \"sin estimar\" una historia comprometida en un sprint abierto; la estimación no cambia (FR-018, FR-030, FR-048, RN-18)."
+//	@Failure		500		{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."
+//	@Router			/api/v1/stories/{storyId}/story-points [put]
+func (h *Handler) estimateStory(c *gin.Context) {
+	// RequireStoryAccess ya verificó la sesión y la membresía y dejó el acceso en el contexto. Si no
+	// está, la ruta se registró fuera de ese middleware: es un error de composición y responde 500.
+	access, ok := storyAccessFromContext(c)
+	if !ok {
+		respondInternalError(c, "estimateStory sin acceso a la historia en el contexto")
+		return
+	}
+
+	// Se decodifica y valida el cuerpo antes de llegar al servicio: un JSON mal formado responde 400
+	// con ErrorResponse y un campo ausente o fuera de la escala, 400 con el campo señalado (FR-019).
+	var req StoryPointsInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, authdelivery.ErrorResponse{Error: msgInvalidBody})
+		return
+	}
+	storyPoints, fields := ValidateStoryPointsInput(req)
+	if len(fields) > 0 {
+		c.JSON(http.StatusBadRequest, authdelivery.ValidationErrorResponse{Error: msgInvalidFields, Fields: fields})
+		return
+	}
+
+	// Se registra la estimación y se traducen los errores de dominio a 404 o 409 con
+	// respondServiceError; cualquier otro error es 500 genérico, registrado en el log.
+	view, err := h.stories.Estimate(c.Request.Context(), access, storyPoints)
+	if err != nil {
+		respondServiceError(c, err, "no se pudo estimar la historia")
+		return
+	}
+
+	c.JSON(http.StatusOK, newStoryDetail(view))
+}
+
 // listStories godoc
 //
 //	@Summary		Lista el backlog del proyecto, ordenado y opcionalmente filtrado
@@ -221,12 +281,19 @@ func bindStoryInput(c *gin.Context) (service.CreateStoryInput, bool) {
 }
 
 // respondServiceError traduce los errores de dominio del servicio de historias a la respuesta HTTP del
-// contrato. Lo que no es un error de dominio conocido se registra en el log con el mensaje recibido y
+// contrato: la historia inexistente es 404 y la solo lectura, la historia completada y la historia
+// comprometida que perdería su condición de lista son 409. Lo que no es un error de dominio conocido se registra en el log con el mensaje recibido y
 // se responde 500 genérico, sin exponer la causa (Principio VII).
 func respondServiceError(c *gin.Context, err error, logMessage string) {
 	switch {
+	case errors.Is(err, domain.ErrStoryNotFound):
+		c.JSON(http.StatusNotFound, authdelivery.ErrorResponse{Error: msgStoryNotFound})
 	case errors.Is(err, domain.ErrBacklogReadOnly):
 		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgBacklogReadOnly})
+	case errors.Is(err, domain.ErrStoryCompleted):
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgStoryCompleted})
+	case errors.Is(err, domain.ErrCommittedStoryMustStayReady):
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgStoryCommitted})
 	default:
 		respondInternalError(c, logMessage, "error", err)
 	}

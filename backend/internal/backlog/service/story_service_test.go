@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/google/uuid"
@@ -541,4 +542,219 @@ func TestUS4_ServicioComprometidaAceptaOtroValor(t *testing.T) {
 			d.stories.AssertExpectations(t)
 		})
 	}
+}
+
+// Pruebas unitarias obligatorias de la modificación en el servicio (T057): RN-10, RN-11, RN-14,
+// RN-15, RN-18 y FR-024. El acceso llega ya resuelto por RequireStoryAccess y los cambios ya
+// validados por delivery; el estado de la historia lo informa el doble del repositorio y el
+// compromiso en un sprint abierto, el doble de SprintAssignments. En todos los rechazos se verifica
+// que Update del repositorio no se llama.
+
+// criteriaPtr devuelve un puntero a la lista, para expresar acceptanceCriteria presente en el PATCH.
+func criteriaPtr(criteria ...string) *[]string {
+	list := append([]string{}, criteria...)
+	return &list
+}
+
+// priorityPtr devuelve un puntero a la prioridad, para expresar priority presente en el PATCH.
+func priorityPtr(priority domain.StoryPriority) *domain.StoryPriority {
+	return &priority
+}
+
+// patchCases son cambios válidos de distinto tipo, para comprobar que una regla de rechazo no
+// depende de qué campos trae el PATCH.
+var patchCases = []struct {
+	name    string
+	changes domain.StoryChanges
+}{
+	{"título", domain.StoryChanges{Title: strPtr("Exportar el reporte de velocidad a PDF")}},
+	{"descripción borrada", domain.StoryChanges{DescriptionSet: true}},
+	{"prioridad", domain.StoryChanges{Priority: priorityPtr(domain.StoryPriorityLow)}},
+	{"criterios vacíos", domain.StoryChanges{AcceptanceCriteria: criteriaPtr()}},
+	{"criterios nuevos", domain.StoryChanges{AcceptanceCriteria: criteriaPtr("El PDF incluye la velocidad.")}},
+}
+
+// expectSuccessfulUpdate prepara una modificación que llega a persistirse: Update del repositorio
+// recibe exactamente los cambios indicados y responde sin error.
+func expectSuccessfulUpdate(d storyServiceDoubles, access *domain.StoryAccess, changes domain.StoryChanges) {
+	d.stories.On("Update", mock.Anything, access.StoryID, changes).Return(nil).Once()
+}
+
+// Escenario: Historia completada (003/US5)
+// RN-14: una historia completed no se modifica, cualquiera sea el campo; el servicio devuelve
+// ErrStoryCompleted y no llama a Update del repositorio.
+func TestUS5_ServicioHistoriaCompletada(t *testing.T) {
+	for _, tc := range patchCases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, d := newStoryServiceWithDoubles()
+			access := newStoryAccess(false)
+			expectStoryState(d, access, domain.StoryStatusCompleted, intPtr(5), false)
+
+			view, err := svc.Update(context.Background(), access, tc.changes)
+
+			require.ErrorIs(t, err, domain.ErrStoryCompleted)
+			assert.Nil(t, view)
+			d.stories.AssertNotCalled(t, "Update", mock.Anything, mock.Anything, mock.Anything)
+		})
+	}
+}
+
+// Escenario: Proyecto finalizado (003/US5)
+// RN-15: con el proyecto Finalizado el servicio devuelve ErrBacklogReadOnly y no llama a Update del
+// repositorio. La regla se evalúa antes que las demás: aunque la historia esté completed, o
+// comprometida en un sprint abierto y se pida vaciar sus criterios, el rechazo es el de solo lectura.
+func TestUS5_ServicioProyectoFinalizado(t *testing.T) {
+	cases := []struct {
+		name      string
+		status    domain.StoryStatus
+		committed bool
+		changes   domain.StoryChanges
+	}{
+		{"historia pendiente con un título nuevo", domain.StoryStatusPending, false,
+			domain.StoryChanges{Title: strPtr("Ver el backlog filtrado")}},
+		{"historia completada", domain.StoryStatusCompleted, false,
+			domain.StoryChanges{Priority: priorityPtr(domain.StoryPriorityHigh)}},
+		{"historia comprometida con criterios vacíos", domain.StoryStatusInProgress, true,
+			domain.StoryChanges{AcceptanceCriteria: criteriaPtr()}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, d := newStoryServiceWithDoubles()
+			access := newStoryAccess(true)
+			expectStoryState(d, access, tc.status, intPtr(5), tc.committed)
+
+			view, err := svc.Update(context.Background(), access, tc.changes)
+
+			require.ErrorIs(t, err, domain.ErrBacklogReadOnly)
+			assert.Nil(t, view)
+			d.stories.AssertNotCalled(t, "Update", mock.Anything, mock.Anything, mock.Anything)
+		})
+	}
+}
+
+// Escenario: Comprometida no queda sin criterios (003/US5)
+// RN-18: una historia comprometida en un sprint abierto no puede quedar sin criterios de aceptación;
+// con acceptanceCriteria vacío el servicio devuelve ErrCommittedStoryMustStayReady y no llama a
+// Update del repositorio, aunque el PATCH traiga además otros cambios válidos.
+func TestUS5_ServicioComprometidaNoQuedaSinCriterios(t *testing.T) {
+	cases := []struct {
+		name    string
+		changes domain.StoryChanges
+	}{
+		{"solo criterios vacíos", domain.StoryChanges{AcceptanceCriteria: criteriaPtr()}},
+		{"criterios vacíos junto a un título nuevo", domain.StoryChanges{
+			Title:              strPtr("Registrar el esfuerzo diario"),
+			AcceptanceCriteria: criteriaPtr(),
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, d := newStoryServiceWithDoubles()
+			access := newStoryAccess(false)
+			expectStoryState(d, access, domain.StoryStatusInProgress, intPtr(5), true)
+
+			view, err := svc.Update(context.Background(), access, tc.changes)
+
+			require.ErrorIs(t, err, domain.ErrCommittedStoryMustStayReady)
+			assert.Nil(t, view)
+			d.stories.AssertNotCalled(t, "Update", mock.Anything, mock.Anything, mock.Anything)
+		})
+	}
+}
+
+// RN-18: una historia comprometida en un sprint abierto sí admite reemplazar sus criterios por una
+// lista no vacía, o cambiar otros campos sin tocar los criterios, porque sigue lista para planificar;
+// el servicio entrega los cambios a Update del repositorio y devuelve el detalle.
+func TestUS5_ServicioComprometidaAceptaCambios(t *testing.T) {
+	cases := []struct {
+		name    string
+		changes domain.StoryChanges
+	}{
+		{"criterios no vacíos", domain.StoryChanges{
+			AcceptanceCriteria: criteriaPtr("El PDF incluye la velocidad.", "El archivo lleva el nombre del proyecto."),
+		}},
+		{"descripción sin tocar los criterios", domain.StoryChanges{
+			DescriptionSet: true,
+			Description:    strPtr("Se comparte con la gerencia."),
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, d := newStoryServiceWithDoubles()
+			access := newStoryAccess(false)
+			expectStoryState(d, access, domain.StoryStatusInProgress, intPtr(5), true)
+			expectSuccessfulUpdate(d, access, tc.changes)
+
+			view, err := svc.Update(context.Background(), access, tc.changes)
+
+			require.NoError(t, err)
+			require.NotNil(t, view)
+			d.stories.AssertExpectations(t)
+		})
+	}
+}
+
+// Escenario: Vaciar criterios (003/US5)
+// Una historia que no está comprometida en ningún sprint sí puede quedar sin criterios: el servicio
+// entrega la lista vacía a Update del repositorio y devuelve el detalle.
+func TestUS5_ServicioVaciarCriterios(t *testing.T) {
+	svc, d := newStoryServiceWithDoubles()
+	access := newStoryAccess(false)
+	changes := domain.StoryChanges{AcceptanceCriteria: criteriaPtr()}
+	expectStoryState(d, access, domain.StoryStatusPending, intPtr(5), false)
+	expectSuccessfulUpdate(d, access, changes)
+
+	view, err := svc.Update(context.Background(), access, changes)
+
+	require.NoError(t, err)
+	require.NotNil(t, view)
+	d.stories.AssertExpectations(t)
+}
+
+// Escenario: Historia en progreso (003/US5)
+// RN-14: solo el estado completed cierra la historia a modificaciones; una historia in_progress
+// dentro de un sprint acepta la corrección de su descripción.
+func TestUS5_ServicioHistoriaEnProgreso(t *testing.T) {
+	svc, d := newStoryServiceWithDoubles()
+	access := newStoryAccess(false)
+	changes := domain.StoryChanges{DescriptionSet: true, Description: strPtr("Descripción corregida.")}
+	expectStoryState(d, access, domain.StoryStatusInProgress, intPtr(5), true)
+	expectSuccessfulUpdate(d, access, changes)
+
+	view, err := svc.Update(context.Background(), access, changes)
+
+	require.NoError(t, err)
+	require.NotNil(t, view)
+	d.stories.AssertExpectations(t)
+}
+
+// Escenario: Cambio de estado no disponible (003/US5)
+// FR-024, RN-10 y RN-11: StoryChanges solo tiene los campos editables, de modo que el estado, el
+// proyecto, el autor y el momento de creación no pueden viajar al repositorio por construcción; y el
+// servicio entrega a Update exactamente los cambios recibidos, sin agregar ninguno ni reestimar.
+func TestUS5_ServicioCambioDeEstadoNoDisponible(t *testing.T) {
+	t.Run("StoryChanges no incluye campos de solo lectura", func(t *testing.T) {
+		fields := reflect.TypeOf(domain.StoryChanges{})
+		names := make([]string, 0, fields.NumField())
+		for i := range fields.NumField() {
+			names = append(names, fields.Field(i).Name)
+		}
+		assert.ElementsMatch(t,
+			[]string{"Title", "DescriptionSet", "Description", "Priority", "AcceptanceCriteria"}, names)
+	})
+
+	t.Run("el servicio entrega solo los cambios recibidos", func(t *testing.T) {
+		svc, d := newStoryServiceWithDoubles()
+		access := newStoryAccess(false)
+		changes := domain.StoryChanges{Priority: priorityPtr(domain.StoryPriorityLow)}
+		expectStoryState(d, access, domain.StoryStatusPending, intPtr(5), false)
+		expectSuccessfulUpdate(d, access, changes)
+
+		view, err := svc.Update(context.Background(), access, changes)
+
+		require.NoError(t, err)
+		require.NotNil(t, view)
+		d.stories.AssertExpectations(t)
+		d.stories.AssertNotCalled(t, "UpdateStoryPoints", mock.Anything, mock.Anything, mock.Anything)
+	})
 }

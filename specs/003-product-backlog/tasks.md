@@ -524,7 +524,7 @@ el estado.
 
 ### Pruebas de la Historia 5 ⚠️
 
-- [ ] T056 [P] [US5] Pruebas unitarias **obligatorias** de la decodificación y validación del
+- [X] T056 [P] [US5] Pruebas unitarias **obligatorias** de la decodificación y validación del
       `PATCH` en `backend/internal/backlog/delivery/validation_test.go` (research.md sección 6):
       campo ausente → sin cambio; `title` y `priority` presentes validados como en la creación y
       **`null` o vacío rechazados**; `description` en `null`, `""` o solo espacios → se borra;
@@ -532,13 +532,13 @@ el estado.
       rechazado con `field: body`; y `status` y `storyPoints` presentes → rechazados con su campo
       (RN-03 a RN-05, RN-08, RN-10). Un campo inválido junto a otros válidos rechaza el cuerpo
       entero (FR-023) — depende de T055
-- [ ] T057 [P] [US5] Pruebas unitarias **obligatorias** de `Update` en el servicio en
+- [X] T057 [P] [US5] Pruebas unitarias **obligatorias** de `Update` en el servicio en
       `backend/internal/backlog/service/story_service_test.go`, con dobles: historia `completed` →
       `ErrStoryCompleted` (RN-14); proyecto Finalizado → `ErrBacklogReadOnly` (RN-15); historia
       comprometida con `acceptanceCriteria: []` → `ErrCommittedStoryMustStayReady`, y con una lista
       no vacía → aceptada (RN-18); `StoryChanges` **nunca** incluye el estado, el proyecto, el autor
       ni el momento de creación (FR-024, RN-10, RN-11) — depende de T055
-- [ ] T058 [US5] Pruebas de integración de la historia en
+- [X] T058 [US5] Pruebas de integración de la historia en
       `backend/internal/backlog/delivery/handler_test.go`, con `// Escenario: <nombre> (003/US5)`:
       `TestUS5_RefinamientoCompleto` (`id`, `status`, `createdBy` y `createdAt` sin cambios),
       `TestUS5_HistoriaDeOtroIntegrante`, `TestUS5_ReordenDeCriterios`, `TestUS5_VaciarCriterios`,
@@ -548,7 +548,7 @@ el estado.
       válido que **tampoco** se aplica), `TestUS5_HistoriaCompletada`, `TestUS5_ProyectoFinalizado`,
       `TestUS5_HistoriaAjena` y `TestUS5_CambioDeEstadoNoDisponible` (`PATCH` con `status` → `400`
       y estado `pending` intacto) — depende de T055
-- [ ] T059 [P] [US5] Pruebas de integración de concurrencia en
+- [X] T059 [P] [US5] Pruebas de integración de concurrencia en
       `backend/internal/backlog/delivery/story_concurrency_test.go`, con
       `// Escenario: <nombre> (003/US5)`: `TestUS5_EdicionSimultaneaCamposDistintos`, que envía a
       la vez desde dos goroutines un `PATCH` de prioridad y otro de descripción y verifica que la
@@ -556,7 +556,7 @@ el estado.
       intercalado sea real; y `TestUS5_EdicionSimultaneaDeCriterios`, que envía a la vez dos listas
       distintas y verifica que la historia queda con **una de las dos completa**, nunca con una
       mezcla ni con más criterios que la lista más larga — depende de T055
-- [ ] T060 [P] [US5] Pruebas de frontend en
+- [X] T060 [P] [US5] Pruebas de frontend en
       `frontend/src/features/backlog/components/story-edit-view.test.tsx`, con
       `describe("003/US5 - Refinar una historia")` y un `it` por escenario, incluido que el
       formulario de edición **envía solo los campos que la persona cambió**, que es lo que hace
@@ -564,24 +564,24 @@ el estado.
 
 ### Implementación de la Historia 5
 
-- [ ] T061 [US5] Declarar `StoryPatch` en `backend/internal/backlog/delivery/dto.go` con sus campos
+- [X] T061 [US5] Declarar `StoryPatch` en `backend/internal/backlog/delivery/dto.go` con sus campos
       como `json.RawMessage`, e implementar en `backend/internal/backlog/delivery/validation.go` su
       decodificación a `StoryChanges` reutilizando las validaciones de la creación de T019 — depende
       de T056
-- [ ] T062 [US5] Implementar `Update(ctx, storyID, changes)` en
+- [X] T062 [US5] Implementar `Update(ctx, storyID, changes)` en
       `backend/internal/backlog/repository/story_repository.go` en **una transacción** que toma un
       bloqueo de fila sobre la historia con `clause.Locking{Strength: "UPDATE"}`, actualiza **solo
       las columnas presentes** más `updated_at` (nunca un `Save` del registro entero) y, si
       `AcceptanceCriteria` está presente, borra los criterios de la historia e inserta la lista
       nueva con posiciones `0..n-1` (research.md sección 7) — depende de T058 y T059
-- [ ] T063 [US5] Implementar `Update(ctx, access, changes)` en
+- [X] T063 [US5] Implementar `Update(ctx, access, changes)` en
       `backend/internal/backlog/service/story_service.go` con las reglas de solo lectura, Completada
       y comprometida, en ese orden — depende de T057 y T062
-- [ ] T064 [US5] Implementar el manejador `updateStory` en `backend/internal/backlog/delivery/handler.go`
+- [X] T064 [US5] Implementar el manejador `updateStory` en `backend/internal/backlog/delivery/handler.go`
       con anotaciones `swag` en español y registrar `PATCH` en el grupo de la historia en
       `backend/internal/backlog/delivery/routes.go`. Respuestas: `200` con `StoryDetail`, `400`,
       `401`, `404` y `409` — depende de T061 y T063
-- [ ] T065 [US5] Implementar la llamada de modificación en `frontend/src/features/backlog/api.ts`,
+- [X] T065 [US5] Implementar la llamada de modificación en `frontend/src/features/backlog/api.ts`,
       el componente `StoryEditView` en
       `frontend/src/features/backlog/components/story-edit-view.tsx`, que reutiliza `StoryForm`
       precargado y **arma el cuerpo solo con los campos modificados**, y la pantalla

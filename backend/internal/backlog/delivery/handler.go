@@ -166,14 +166,8 @@ func (h *Handler) estimateStory(c *gin.Context) {
 
 	// Se decodifica y valida el cuerpo antes de llegar al servicio: un JSON mal formado responde 400
 	// con ErrorResponse y un campo ausente o fuera de la escala, 400 con el campo señalado (FR-019).
-	var req StoryPointsInput
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, authdelivery.ErrorResponse{Error: msgInvalidBody})
-		return
-	}
-	storyPoints, fields := ValidateStoryPointsInput(req)
-	if len(fields) > 0 {
-		c.JSON(http.StatusBadRequest, authdelivery.ValidationErrorResponse{Error: msgInvalidFields, Fields: fields})
+	storyPoints, ok := bindAndValidate(c, ValidateStoryPointsInput)
+	if !ok {
 		return
 	}
 
@@ -182,6 +176,67 @@ func (h *Handler) estimateStory(c *gin.Context) {
 	view, err := h.stories.Estimate(c.Request.Context(), access, storyPoints)
 	if err != nil {
 		respondServiceError(c, err, "no se pudo estimar la historia")
+		return
+	}
+
+	c.JSON(http.StatusOK, newStoryDetail(view))
+}
+
+// updateStory godoc
+//
+//	@Summary		Refina una historia
+//	@Description	Modifica el título, la descripción, la prioridad o los criterios de aceptación de la
+//	@Description	historia. Solo se aplican los campos incluidos: un campo ausente deja su valor vigente y
+//	@Description	un campo enviado vacío borra el valor cuando ese campo admite estar vacío (FR-020). La
+//	@Description	descripción en null, "" o solo espacios se borra; acceptanceCriteria en [] deja la
+//	@Description	historia sin criterios y la lista enviada reemplaza completa a la anterior, lo que
+//	@Description	resuelve agregar, quitar y reordenar (FR-022); title y priority no admiten quedar vacíos.
+//	@Description	Las validaciones son las mismas que en la creación (FR-021). La modificación es atómica:
+//	@Description	si algún campo es inválido no se aplica ninguno (FR-023). No altera el identificador, el
+//	@Description	estado, el proyecto, el autor ni el momento de creación (FR-024). Dos modificaciones
+//	@Description	simultáneas de campos distintos conservan los dos cambios; sobre el mismo campo prevalece
+//	@Description	la última, sin aviso, y la lista de criterios cuenta como un único campo (FR-025). Un
+//	@Description	cuerpo con status se rechaza con 400 (FR-027) y uno con storyPoints también, porque la
+//	@Description	estimación se cambia con PUT /api/v1/stories/{storyId}/story-points. Se rechaza con 409
+//	@Description	si la historia está completed (FR-030), si el proyecto está finished (FR-048) o si se
+//	@Description	intenta dejar sin criterios a una historia comprometida en un sprint abierto (FR-022,
+//	@Description	RN-18).
+//	@Tags			Backlog
+//	@ID				updateStory
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			storyId	path		string								true	"Identificador propio, estable, inmutable y no secuencial de la historia (FR-009)"	format(uuid)
+//	@Param			request	body		StoryPatch							true	"Campos a modificar; debe incluir al menos uno"
+//	@Success		200		{object}	StoryDetail							"Historia actualizada."
+//	@Failure		400		{object}	delivery.ValidationErrorResponse	"Entrada inválida, cuerpo sin campos a modificar (field body), o intento de cambiar status o storyPoints por esta vía. No se aplica ningún cambio (FR-023). Si el cuerpo no es un JSON válido o está vacío, la respuesta es ErrorResponse."
+//	@Failure		401		{object}	delivery.ErrorResponse				"Se requiere iniciar sesión (FR-045)."
+//	@Failure		404		{object}	delivery.ErrorResponse				"La historia no existe, fue eliminada o pertenece a un proyecto del que quien pide no es integrante; las tres situaciones devuelven el mismo cuerpo (FR-044, FR-047, SC-006)."
+//	@Failure		409		{object}	delivery.ErrorResponse				"La historia está completed, el proyecto está finished, o se intenta dejar sin criterios a una historia comprometida en un sprint abierto; la historia no cambia (FR-022, FR-030, FR-048, RN-18)."
+//	@Failure		500		{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."
+//	@Router			/api/v1/stories/{storyId} [patch]
+func (h *Handler) updateStory(c *gin.Context) {
+	// RequireStoryAccess ya verificó la sesión y la membresía y dejó el acceso en el contexto. Si no
+	// está, la ruta se registró fuera de ese middleware: es un error de composición y responde 500.
+	access, ok := storyAccessFromContext(c)
+	if !ok {
+		respondInternalError(c, "updateStory sin acceso a la historia en el contexto")
+		return
+	}
+
+	// Se decodifica y valida el cuerpo antes de llegar al servicio: un JSON mal formado responde 400
+	// con ErrorResponse y cualquier campo inválido, 400 con todos los campos señalados a la vez, sin
+	// aplicar ningún cambio (FR-023).
+	changes, ok := bindAndValidate(c, ValidateStoryPatch)
+	if !ok {
+		return
+	}
+
+	// Se aplican los cambios y se traducen los errores de dominio a 404 o 409 con
+	// respondServiceError; cualquier otro error es 500 genérico, registrado en el log.
+	view, err := h.stories.Update(c.Request.Context(), access, changes)
+	if err != nil {
+		respondServiceError(c, err, "no se pudo modificar la historia")
 		return
 	}
 
@@ -224,7 +279,7 @@ func (h *Handler) listStories(c *gin.Context) {
 	// 400 con el mismo formato que la creación (FR-037).
 	filter, fields := ParseStoryFilter(c.QueryArray("status"), c.QueryArray("priority"))
 	if len(fields) > 0 {
-		c.JSON(http.StatusBadRequest, authdelivery.ValidationErrorResponse{Error: msgInvalidFields, Fields: fields})
+		respondInvalidFields(c, fields)
 		return
 	}
 
@@ -256,19 +311,36 @@ func sessionAndProject(c *gin.Context, handlerName string) (uuid.UUID, uuid.UUID
 	return actorID, projectID, true
 }
 
-// bindStoryInput decodifica el cuerpo como StoryInput y lo valida con ValidateStoryInput. Un cuerpo
-// que no es JSON válido responde 400 con ErrorResponse, y los campos inválidos, 400 con
-// ValidationErrorResponse listando todos a la vez (FR-013). Si todo es válido, mapea los datos
-// normalizados a la entrada del servicio campo a campo.
-func bindStoryInput(c *gin.Context) (service.CreateStoryInput, bool) {
-	var req StoryInput
+// bindAndValidate decodifica el cuerpo JSON como Req y lo valida con validate antes de llegar al
+// servicio. Un cuerpo que no es JSON válido o está vacío responde 400 con ErrorResponse, y los campos
+// inválidos, 400 con ValidationErrorResponse listando todos a la vez. Si ya respondió, devuelve false
+// y el manejador solo tiene que cortar.
+func bindAndValidate[Req, Out any](c *gin.Context, validate func(Req) (Out, []authdelivery.FieldError)) (Out, bool) {
+	var req Req
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, authdelivery.ErrorResponse{Error: msgInvalidBody})
-		return service.CreateStoryInput{}, false
+		var zero Out
+		return zero, false
 	}
-	story, fields := ValidateStoryInput(req)
+	out, fields := validate(req)
 	if len(fields) > 0 {
-		c.JSON(http.StatusBadRequest, authdelivery.ValidationErrorResponse{Error: msgInvalidFields, Fields: fields})
+		respondInvalidFields(c, fields)
+		return out, false
+	}
+	return out, true
+}
+
+// respondInvalidFields responde el 400 del contrato con el mensaje general y el detalle de cada campo
+// inválido, común a los cuerpos de creación, estimación y refinamiento y a los filtros del listado.
+func respondInvalidFields(c *gin.Context, fields []authdelivery.FieldError) {
+	c.JSON(http.StatusBadRequest, authdelivery.ValidationErrorResponse{Error: msgInvalidFields, Fields: fields})
+}
+
+// bindStoryInput decodifica y valida el cuerpo de la creación con ValidateStoryInput (FR-013) y, si
+// todo es válido, mapea los datos normalizados a la entrada del servicio campo a campo.
+func bindStoryInput(c *gin.Context) (service.CreateStoryInput, bool) {
+	story, ok := bindAndValidate(c, ValidateStoryInput)
+	if !ok {
 		return service.CreateStoryInput{}, false
 	}
 	return service.CreateStoryInput{
@@ -282,8 +354,9 @@ func bindStoryInput(c *gin.Context) (service.CreateStoryInput, bool) {
 
 // respondServiceError traduce los errores de dominio del servicio de historias a la respuesta HTTP del
 // contrato: la historia inexistente es 404 y la solo lectura, la historia completada y la historia
-// comprometida que perdería su condición de lista son 409. Lo que no es un error de dominio conocido se registra en el log con el mensaje recibido y
-// se responde 500 genérico, sin exponer la causa (Principio VII).
+// comprometida que perdería su condición de lista son 409. Lo que no es un error de dominio conocido
+// se registra en el log con el mensaje recibido y se responde 500 genérico, sin exponer la causa
+// (Principio VII).
 func respondServiceError(c *gin.Context, err error, logMessage string) {
 	switch {
 	case errors.Is(err, domain.ErrStoryNotFound):

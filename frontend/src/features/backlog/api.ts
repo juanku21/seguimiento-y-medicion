@@ -1,6 +1,7 @@
 import {
   getJson,
   isRecord,
+  patchAuthorizedJson,
   postAuthorizedJson,
   putAuthorizedJson,
   type ApiResult,
@@ -11,6 +12,7 @@ import type {
   StoryInput,
   StoryListItem,
   StoryListResponse,
+  StoryPatch,
   StoryPoints,
 } from "@/types/story";
 
@@ -76,6 +78,22 @@ export function estimateStory(
   return putAuthorizedJson(
     `/api/v1/stories/${encodeURIComponent(storyId)}/story-points`,
     { storyPoints },
+    isStoryDetail,
+  );
+}
+
+// Refina una historia con PATCH /api/v1/stories/{storyId}, usando la sesión de la pestaña
+// (003/US5). El cuerpo trae solo los campos cambiados, para no pisar los que otro integrante haya
+// modificado mientras tanto (FR-025). Las reglas (historia Completada, comprometida sin criterios y
+// proyecto Finalizado) las resuelve el backend: los rechazos (400 con el detalle por campo, 404 y
+// 409) llegan con su mensaje y ante un 401 el cliente HTTP descarta la sesión.
+export function updateStory(
+  storyId: string,
+  patch: StoryPatch,
+): Promise<ApiResult<StoryDetail>> {
+  return patchAuthorizedJson(
+    `/api/v1/stories/${encodeURIComponent(storyId)}`,
+    patch,
     isStoryDetail,
   );
 }

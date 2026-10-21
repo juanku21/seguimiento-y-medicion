@@ -33,8 +33,15 @@ var (
 	msgCriterionRequired   = "Cada criterio de aceptación debe tener contenido."
 	msgCriterionTooLong    = fmt.Sprintf("Cada criterio de aceptación admite como máximo %d caracteres.",
 		maxCriterionLength)
-	msgInvalidStatusFilter   = "Los valores admitidos para el estado son pending, in_progress y completed."
-	msgInvalidPriorityFilter = "Los valores admitidos para la prioridad son high, medium y low."
+	msgTitleNotText           = "El título debe ser un texto."
+	msgDescriptionNotText     = "La descripción debe ser un texto o null."
+	msgCriteriaNotList        = "Los criterios de aceptación deben ser una lista de textos."
+	msgCriteriaNull           = "Los criterios de aceptación no admiten null; para quitarlos todos se envía una lista vacía."
+	msgStatusNotEditable      = "El estado de una historia no se cambia desde el backlog; lo cambia la gestión de sprints."
+	msgStoryPointsNotEditable = "Los Story Points no se cambian por esta vía; se usa la estimación de la historia."
+	msgPatchWithoutFields     = "La solicitud no incluye ningún campo a modificar."
+	msgInvalidStatusFilter    = "Los valores admitidos para el estado son pending, in_progress y completed."
+	msgInvalidPriorityFilter  = "Los valores admitidos para la prioridad son high, medium y low."
 )
 
 // ValidatedStory son los datos de una historia ya validados y normalizados: título y criterios
@@ -57,23 +64,17 @@ func ValidateStoryInput(req StoryInput) (ValidatedStory, []authdelivery.FieldErr
 	}
 
 	// Título obligatorio, recortado y con longitud acotada (RN-03).
-	title := strings.TrimSpace(req.Title)
-	switch {
-	case title == "":
-		addField("title", msgTitleRequired)
-	case utf8.RuneCountInString(title) > maxTitleLength:
-		addField("title", msgTitleTooLong)
+	title, msg := validateTitle(req.Title)
+	if msg != "" {
+		addField("title", msg)
 	}
 
 	// Descripción opcional: vacía o solo de espacios equivale a ausente (RN-04).
 	var description *string
 	if req.Description != nil {
-		trimmed := strings.TrimSpace(*req.Description)
-		switch {
-		case utf8.RuneCountInString(trimmed) > maxDescriptionLength:
-			addField("description", msgDescriptionTooLong)
-		case trimmed != "":
-			description = &trimmed
+		description, msg = validateDescription(*req.Description)
+		if msg != "" {
+			addField("description", msg)
 		}
 	}
 
@@ -95,19 +96,8 @@ func ValidateStoryInput(req StoryInput) (ValidatedStory, []authdelivery.FieldErr
 	}
 
 	// Criterios recortados en el orden recibido; cada uno informa su índice si es inválido (RN-08).
-	criteria := make([]string, 0, len(req.AcceptanceCriteria))
-	for i, raw := range req.AcceptanceCriteria {
-		criterion := strings.TrimSpace(raw)
-		field := fmt.Sprintf("acceptanceCriteria[%d]", i)
-		switch {
-		case criterion == "":
-			addField(field, msgCriterionRequired)
-		case utf8.RuneCountInString(criterion) > maxCriterionLength:
-			addField(field, msgCriterionTooLong)
-		default:
-			criteria = append(criteria, criterion)
-		}
-	}
+	criteria, criteriaFields := validateCriteria(req.AcceptanceCriteria)
+	fields = append(fields, criteriaFields...)
 
 	if len(fields) > 0 {
 		return ValidatedStory{}, fields
@@ -138,6 +128,155 @@ func ValidateStoryPointsInput(req StoryPointsInput) (*int, []authdelivery.FieldE
 		return nil, []authdelivery.FieldError{{Field: "storyPoints", Message: msgInvalidStoryPoints}}
 	}
 	return &points, nil
+}
+
+// ValidateStoryPatch decodifica y valida el cuerpo del PATCH y devuelve los cambios a aplicar, o un
+// FieldError por cada campo inválido, todos a la vez (FR-020, FR-021, FR-023). Un campo ausente no
+// genera cambio y los presentes se validan con las mismas reglas que la creación. Status y
+// StoryPoints se rechazan siempre, y un cuerpo sin campos editables se rechaza con field body
+// (research.md sección 6). Si hay algún campo inválido no se devuelve ningún cambio.
+func ValidateStoryPatch(req StoryPatch) (domain.StoryChanges, []authdelivery.FieldError) {
+	fields := []authdelivery.FieldError{}
+	addField := func(field, message string) {
+		fields = append(fields, authdelivery.FieldError{Field: field, Message: message})
+	}
+	var changes domain.StoryChanges
+
+	// Título presente: debe ser texto y cumplir RN-03; null cuenta como vacío y se rechaza.
+	if req.Title != nil {
+		raw, ok := decodePatchString(req.Title)
+		title, msg := validateTitle(raw)
+		switch {
+		case !ok:
+			addField("title", msgTitleNotText)
+		case msg != "":
+			addField("title", msg)
+		default:
+			changes.Title = &title
+		}
+	}
+
+	// Descripción presente: null, vacía o solo espacios la borran; si no, cumple RN-04.
+	if req.Description != nil {
+		raw, ok := decodePatchString(req.Description)
+		description, msg := validateDescription(raw)
+		switch {
+		case !ok:
+			addField("description", msgDescriptionNotText)
+		case msg != "":
+			addField("description", msg)
+		default:
+			changes.DescriptionSet = true
+			changes.Description = description
+		}
+	}
+
+	// Prioridad presente: debe ser uno de los valores del dominio; null o vacía se rechaza (RN-05).
+	if req.Priority != nil {
+		raw, ok := decodePatchString(req.Priority)
+		priority := domain.StoryPriority(raw)
+		if ok && isValidPriority(priority) {
+			changes.Priority = &priority
+		} else {
+			addField("priority", msgInvalidPriority)
+		}
+	}
+
+	// Criterios presentes: null se rechaza, [] vacía la lista y cada criterio cumple RN-08.
+	if req.AcceptanceCriteria != nil {
+		var raw []string
+		switch {
+		case string(req.AcceptanceCriteria) == "null":
+			addField("acceptanceCriteria", msgCriteriaNull)
+		case json.Unmarshal(req.AcceptanceCriteria, &raw) != nil:
+			addField("acceptanceCriteria", msgCriteriaNotList)
+		default:
+			criteria, criteriaFields := validateCriteria(raw)
+			fields = append(fields, criteriaFields...)
+			changes.AcceptanceCriteria = &criteria
+		}
+	}
+
+	// Estado y Story Points no se editan por esta vía, aunque lleguen en null (FR-027, RN-10).
+	if req.Status != nil {
+		addField("status", msgStatusNotEditable)
+	}
+	if req.StoryPoints != nil {
+		addField("storyPoints", msgStoryPointsNotEditable)
+	}
+
+	if len(fields) > 0 {
+		return domain.StoryChanges{}, fields
+	}
+
+	// Un cuerpo sin ningún campo editable no debe actualizar la historia.
+	noEditableFields := req.Title == nil && req.Description == nil &&
+		req.Priority == nil && req.AcceptanceCriteria == nil
+	if noEditableFields {
+		return domain.StoryChanges{}, []authdelivery.FieldError{{Field: "body", Message: msgPatchWithoutFields}}
+	}
+	return changes, nil
+}
+
+// decodePatchString decodifica un campo presente del PATCH como texto. El null se entrega como
+// texto vacío, para que cada campo aplique su propia regla de vacío; cualquier otro tipo JSON
+// devuelve false.
+func decodePatchString(raw json.RawMessage) (string, bool) {
+	if string(raw) == "null" {
+		return "", true
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return "", false
+	}
+	return value, true
+}
+
+// validateTitle recorta el título y devuelve el mensaje de error si queda vacío o supera el máximo,
+// o un mensaje vacío si es válido (RN-03). La comparten la creación y la modificación.
+func validateTitle(raw string) (string, string) {
+	title := strings.TrimSpace(raw)
+	switch {
+	case title == "":
+		return "", msgTitleRequired
+	case utf8.RuneCountInString(title) > maxTitleLength:
+		return "", msgTitleTooLong
+	}
+	return title, ""
+}
+
+// validateDescription recorta la descripción y devuelve nil si queda vacía, o el mensaje de error
+// si supera el máximo (RN-04). La comparten la creación y la modificación.
+func validateDescription(raw string) (*string, string) {
+	description := strings.TrimSpace(raw)
+	switch {
+	case utf8.RuneCountInString(description) > maxDescriptionLength:
+		return nil, msgDescriptionTooLong
+	case description == "":
+		return nil, ""
+	}
+	return &description, ""
+}
+
+// validateCriteria recorta los criterios en el orden recibido y devuelve un FieldError con el
+// índice de cada criterio vacío o demasiado largo (RN-08). La lista devuelta nunca es nil, de modo
+// que una lista vacía se distingue de una ausente. La comparten la creación y la modificación.
+func validateCriteria(raw []string) ([]string, []authdelivery.FieldError) {
+	criteria := make([]string, 0, len(raw))
+	fields := []authdelivery.FieldError{}
+	for i, value := range raw {
+		criterion := strings.TrimSpace(value)
+		field := fmt.Sprintf("acceptanceCriteria[%d]", i)
+		switch {
+		case criterion == "":
+			fields = append(fields, authdelivery.FieldError{Field: field, Message: msgCriterionRequired})
+		case utf8.RuneCountInString(criterion) > maxCriterionLength:
+			fields = append(fields, authdelivery.FieldError{Field: field, Message: msgCriterionTooLong})
+		default:
+			criteria = append(criteria, criterion)
+		}
+	}
+	return criteria, fields
 }
 
 // ParseStoryFilter valida los valores repetibles de los filtros status y priority del listado, tal

@@ -1689,3 +1689,311 @@ func TestUS4_ProyectoFinalizado(t *testing.T) {
 	backlogRequireConflict(t, rec, backlogReadOnlyMessage)
 	backlogRequireEstimateUnchanged(t, env.db, storyID, nil)
 }
+
+// Pruebas de integración de US5 (T058): PATCH /api/v1/stories/{storyId}. Las historias se siembran
+// con backlogSeedEstimable, con prioridad Alta, el título del caso normal, sin descripción y con el
+// momento fijo de US4 como creación y última actualización, para comprobar qué cambia y qué se
+// conserva. Los estados in_progress y completed se siembran directamente en la base (FR-027) y la
+// historia comprometida se prepara con el doble del puerto de sprints.
+
+// Datos nuevos con que se refina la historia en el caso normal de US5.
+const (
+	backlogRefinedTitle       = "Exportar a PDF el reporte de velocidad del equipo"
+	backlogRefinedDescription = "Incluye los sprints cerrados del último trimestre."
+)
+
+// patchStory envía el cuerpo JSON literal a PATCH /api/v1/stories/{storyId} con el token como Bearer.
+func (e backlogTestEnv) patchStory(t *testing.T, token, storyID, rawBody string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPatch, backlogStoryPath(storyID), strings.NewReader(rawBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, req)
+	return rec
+}
+
+// backlogCriteriaTexts devuelve los textos de los criterios guardados de la historia, en el orden de
+// su posición, y exige que las posiciones sean 0..n-1.
+func backlogCriteriaTexts(t *testing.T, db *gorm.DB, storyID string) []string {
+	t.Helper()
+	criteria := backlogStoredCriteria(t, db, storyID)
+	texts := make([]string, 0, len(criteria))
+	for i, criterion := range criteria {
+		assert.Equal(t, i, criterion.Position, "las posiciones de los criterios deberían ser 0..n-1")
+		texts = append(texts, criterion.Text)
+	}
+	return texts
+}
+
+// backlogRequireStoryUntouched exige que la fila sembrada con backlogSeedEstimable conserve el título,
+// la descripción vacía, la prioridad Alta, el estado indicado, los criterios indicados y el momento de
+// última actualización con que se sembró: ningún cambio, ni siquiera parcial, se aplicó (FR-023).
+func backlogRequireStoryUntouched(t *testing.T, db *gorm.DB, storyID uuid.UUID, status domain.StoryStatus, criteria []string) {
+	t.Helper()
+	stored := backlogStoredStory(t, db, storyID.String())
+	assert.Equal(t, backlogStoryTitle, stored.Title, "el título no debería cambiar")
+	assert.Nil(t, stored.Description, "la descripción no debería cambiar")
+	assert.Equal(t, domain.StoryPriorityHigh, stored.Priority, "la prioridad no debería cambiar")
+	assert.Equal(t, status, stored.Status, "el estado no debería cambiar")
+	assert.True(t, backlogEstimateUpdatedAt.Equal(stored.UpdatedAt),
+		"updated_at no debería cambiar: quedó en %s", stored.UpdatedAt)
+	assert.Equal(t, criteria, backlogCriteriaTexts(t, db, storyID.String()), "los criterios no deberían cambiar")
+}
+
+// Escenario: Refinamiento completo (003/US5)
+// Ana cambia el título, la descripción, la prioridad y los criterios de una historia Pendiente: la
+// respuesta y la base reflejan los valores nuevos, y el identificador, el estado, el proyecto, la
+// autora y el momento de creación no cambian, mientras que el de última actualización avanza (FR-020,
+// FR-022, FR-024).
+func TestUS5_RefinamientoCompleto(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, backlogPoints(5), 2)
+	body := validationPatchJSON(t, map[string]any{
+		"title":              backlogRefinedTitle,
+		"description":        backlogRefinedDescription,
+		"priority":           "medium",
+		"acceptanceCriteria": []string{backlogThirdCriterion, backlogFirstCriterion},
+	})
+
+	got := requireStoryDetail(t, env.patchStory(t, anaToken, storyID.String(), body))
+
+	// La respuesta trae los valores nuevos y conserva identidad, estado, autora y creación.
+	assert.Equal(t, storyID.String(), got.ID, "el identificador no cambia")
+	assert.Equal(t, projectID.String(), got.ProjectID, "el proyecto no cambia")
+	assert.Equal(t, backlogRefinedTitle, got.Title)
+	require.NotNil(t, got.Description, "la descripción no debería ser null")
+	assert.Equal(t, backlogRefinedDescription, *got.Description)
+	assert.Equal(t, "medium", got.Priority)
+	assert.Equal(t, []string{backlogThirdCriterion, backlogFirstCriterion}, got.AcceptanceCriteria)
+	assert.Equal(t, "pending", got.Status, "el estado no cambia")
+	require.NotNil(t, got.StoryPoints, "storyPoints no debería ser null")
+	assert.Equal(t, 5, *got.StoryPoints, "la estimación no cambia")
+	assert.Equal(t, anaID.String(), got.CreatedBy.ID, "la autora no cambia")
+	assert.Equal(t, "2026-10-01T12:00:00Z", got.CreatedAt, "el momento de creación no cambia")
+	updatedAt, err := time.Parse(time.RFC3339, got.UpdatedAt)
+	require.NoError(t, err, "updatedAt = %q no es una fecha y hora RFC 3339", got.UpdatedAt)
+	assert.True(t, updatedAt.After(backlogEstimateUpdatedAt), "updatedAt = %s debería ser posterior al anterior", got.UpdatedAt)
+
+	// La base guarda los valores nuevos y conserva las columnas que el backlog no modifica.
+	stored := backlogStoredStory(t, env.db, storyID.String())
+	assert.Equal(t, backlogRefinedTitle, stored.Title)
+	require.NotNil(t, stored.Description)
+	assert.Equal(t, backlogRefinedDescription, *stored.Description)
+	assert.Equal(t, domain.StoryPriorityMedium, stored.Priority)
+	assert.Equal(t, domain.StoryStatusPending, stored.Status)
+	assert.Equal(t, projectID, stored.ProjectID)
+	assert.Equal(t, anaID, stored.CreatedByID)
+	assert.True(t, backlogEstimateUpdatedAt.Equal(stored.CreatedAt), "created_at no debería cambiar: quedó en %s", stored.CreatedAt)
+	assert.Equal(t, []string{backlogThirdCriterion, backlogFirstCriterion}, backlogCriteriaTexts(t, env.db, storyID.String()))
+}
+
+// Escenario: Historia de otro integrante (003/US5)
+// Bruno, integrante que no es el autor, cambia la prioridad de una historia creada por Ana: el
+// cambio se acepta y la autora sigue siendo Ana (FR-020, RN-01).
+func TestUS5_HistoriaDeOtroIntegrante(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress, brunoID)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, nil, 1)
+
+	got := requireStoryDetail(t, env.patchStory(t, brunoToken, storyID.String(), `{"priority":"low"}`))
+
+	assert.Equal(t, "low", got.Priority)
+	assert.Equal(t, anaID.String(), got.CreatedBy.ID, "la autora sigue siendo Ana")
+	stored := backlogStoredStory(t, env.db, storyID.String())
+	assert.Equal(t, domain.StoryPriorityLow, stored.Priority)
+	assert.Equal(t, anaID, stored.CreatedByID)
+}
+
+// Escenario: Reorden de criterios (003/US5)
+// Una historia con tres criterios recibe los mismos tres en otro orden: queda con ese orden, sin
+// criterios duplicados, en la respuesta y en las posiciones guardadas (FR-022).
+func TestUS5_ReordenDeCriterios(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, backlogPoints(3), 3)
+	reordered := []string{backlogThirdCriterion, backlogFirstCriterion, backlogSecondCriterion}
+
+	got := requireStoryDetail(t, env.patchStory(t, anaToken, storyID.String(),
+		validationPatchJSON(t, map[string]any{"acceptanceCriteria": reordered})))
+
+	assert.Equal(t, reordered, got.AcceptanceCriteria)
+	assert.Equal(t, reordered, backlogCriteriaTexts(t, env.db, storyID.String()))
+}
+
+// Escenario: Vaciar criterios (003/US5)
+// Una historia estimada con dos criterios, no comprometida en ningún sprint, recibe una lista vacía:
+// queda sin criterios, la respuesta trae [] y deja de estar lista para planificar por la falta de
+// criterios (FR-022, FR-028).
+func TestUS5_VaciarCriterios(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, backlogPoints(5), 2)
+
+	rec := env.patchStory(t, anaToken, storyID.String(), `{"acceptanceCriteria":[]}`)
+
+	got := requireStoryDetail(t, rec)
+	assert.Equal(t, []any{}, backlogRawBody(t, rec)["acceptanceCriteria"], "acceptanceCriteria debería ser [] y no null")
+	assert.False(t, got.Readiness.Ready, "sin criterios la historia no está lista para planificar")
+	assert.Equal(t, []string{"acceptance_criteria"}, got.Readiness.Missing)
+	assert.Zero(t, backlogCountRows(t, env.db, &domain.AcceptanceCriterion{}, "story_id = ?", storyID),
+		"no deberían quedar criterios guardados")
+}
+
+// Escenario: Historia en progreso (003/US5)
+// Una historia sembrada como in_progress acepta la corrección de su descripción, porque solo el
+// estado Completada la cierra a modificaciones, y su estado sigue siendo in_progress (FR-030).
+func TestUS5_HistoriaEnProgreso(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusInProgress, backlogPoints(5), 1)
+
+	got := requireStoryDetail(t, env.patchStory(t, anaToken, storyID.String(),
+		validationPatchJSON(t, map[string]any{"description": backlogRefinedDescription})))
+
+	require.NotNil(t, got.Description, "la descripción no debería ser null")
+	assert.Equal(t, backlogRefinedDescription, *got.Description)
+	assert.Equal(t, "in_progress", got.Status, "el estado no cambia")
+	stored := backlogStoredStory(t, env.db, storyID.String())
+	require.NotNil(t, stored.Description)
+	assert.Equal(t, backlogRefinedDescription, *stored.Description)
+	assert.Equal(t, domain.StoryStatusInProgress, stored.Status)
+}
+
+// Escenario: Comprometida no queda sin criterios (003/US5)
+// Con el puerto de sprints reemplazado por un doble que informa que la historia está comprometida en
+// un sprint abierto, dejarla sin criterios se rechaza con 409 indicando que primero hay que quitarla
+// del sprint, y los criterios no cambian (FR-022, RN-18).
+func TestUS5_ComprometidaNoQuedaSinCriterios(t *testing.T) {
+	sprints := &backlogSprintAssignmentsDouble{}
+	env := newBacklogTestEnv(t, func(p *backlogTestPorts) { p.sprints = sprints })
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, backlogPoints(5), 2)
+	sprints.On("Find", mock.Anything, storyID).
+		Return(domain.SprintAssignment{CommittedToOpenSprint: true, EverAssigned: true}, nil)
+
+	rec := env.patchStory(t, anaToken, storyID.String(), `{"acceptanceCriteria":[]}`)
+
+	backlogRequireConflict(t, rec, backlogCommittedMessage)
+	backlogRequireStoryUntouched(t, env.db, storyID, domain.StoryStatusPending,
+		[]string{backlogFirstCriterion, backlogSecondCriterion})
+	sprints.AssertExpectations(t)
+}
+
+// Escenario: Entrada inválida sin cambio parcial (003/US5)
+// Cada dato inválido llega junto a un cambio válido: la modificación se rechaza con 400 indicando el
+// campo y el motivo, y ni el dato inválido ni el cambio válido que lo acompaña se aplican (FR-021,
+// FR-023, RN-03 a RN-05, RN-08).
+func TestUS5_EntradaInvalidaSinCambioParcial(t *testing.T) {
+	cases := []struct {
+		name  string
+		body  map[string]any
+		field string
+		parts []string
+	}{
+		{"título vacío", map[string]any{"title": "", "priority": "low"}, "title", []string{"obligatorio"}},
+		{"título de 151", map[string]any{"title": strings.Repeat("ñ", 151), "priority": "low"}, "title", []string{"150"}},
+		{"descripción de 2001", map[string]any{"description": strings.Repeat("d", 2001), "title": backlogRefinedTitle},
+			"description", []string{"2000"}},
+		{"prioridad inexistente", map[string]any{"priority": "urgent", "title": backlogRefinedTitle},
+			"priority", []string{"Alta", "Media", "Baja"}},
+		{"criterio de 501", map[string]any{
+			"acceptanceCriteria": []string{backlogThirdCriterion, strings.Repeat("c", 501)},
+			"priority":           "low",
+		}, "acceptanceCriteria[1]", []string{"500"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newBacklogTestEnv(t)
+			anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+			projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+			storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, backlogPoints(5), 2)
+
+			rec := env.patchStory(t, anaToken, storyID.String(), validationPatchJSON(t, tc.body))
+
+			backlogRequireFieldRejected(t, rec, tc.field, tc.parts...)
+			backlogRequireStoryUntouched(t, env.db, storyID, domain.StoryStatusPending,
+				[]string{backlogFirstCriterion, backlogSecondCriterion})
+		})
+	}
+}
+
+// Escenario: Historia completada (003/US5)
+// Una historia sembrada como completed no se modifica: el intento se rechaza con 409 porque una
+// historia completada no se modifica, y la historia no cambia (FR-030, RN-14).
+func TestUS5_HistoriaCompletada(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusCompleted, backlogPoints(5), 1)
+
+	rec := env.patchStory(t, anaToken, storyID.String(),
+		validationPatchJSON(t, map[string]any{"title": backlogRefinedTitle, "priority": "low"}))
+
+	backlogRequireConflict(t, rec, backlogCompletedMessage)
+	backlogRequireStoryUntouched(t, env.db, storyID, domain.StoryStatusCompleted, []string{backlogFirstCriterion})
+}
+
+// Escenario: Proyecto finalizado (003/US5)
+// En un proyecto Finalizado, Bruno, integrante, intenta refinar una historia de su backlog: se
+// rechaza con 409 porque el backlog es de solo lectura, y la historia no cambia (FR-048, RN-15).
+func TestUS5_ProyectoFinalizado(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusFinished, brunoID)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, nil, 1)
+
+	rec := env.patchStory(t, brunoToken, storyID.String(), `{"priority":"low"}`)
+
+	backlogRequireConflict(t, rec, backlogReadOnlyMessage)
+	backlogRequireStoryUntouched(t, env.db, storyID, domain.StoryStatusPending, []string{backlogFirstCriterion})
+}
+
+// Escenario: Historia ajena (003/US5)
+// Carla, que no es integrante del proyecto, intenta refinar una historia que existe: recibe el 404 de
+// historia inexistente, idéntico byte a byte al de un identificador que no existe, y la historia no
+// cambia (FR-047, SC-006).
+func TestUS5_HistoriaAjena(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	_, carlaToken := env.signUp(t, "Carla Díaz", "carla@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, nil, 1)
+	body := validationPatchJSON(t, map[string]any{"title": backlogRefinedTitle})
+
+	foreign := env.patchStory(t, carlaToken, storyID.String(), body)
+	missing := env.patchStory(t, anaToken, uuid.New().String(), body)
+
+	backlogRequireIdenticalNotFound(t, foreign, missing)
+	assert.NotContains(t, foreign.Body.String(), backlogStoryTitle, "la respuesta no debería revelar el título")
+	backlogRequireStoryUntouched(t, env.db, storyID, domain.StoryStatusPending, []string{backlogFirstCriterion})
+}
+
+// Escenario: Cambio de estado no disponible (003/US5)
+// Una historia Pendiente que no pertenece a ningún sprint no se puede pasar a En progreso ni a
+// Completada desde el backlog: el PATCH con status se rechaza con 400 señalando ese campo, y la
+// historia sigue pending y sin cambios (FR-027, RN-10).
+func TestUS5_CambioDeEstadoNoDisponible(t *testing.T) {
+	for _, status := range []string{"in_progress", "completed"} {
+		t.Run(status, func(t *testing.T) {
+			env := newBacklogTestEnv(t)
+			anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+			projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+			storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, backlogPoints(5), 1)
+
+			rec := env.patchStory(t, anaToken, storyID.String(), `{"status":"`+status+`"}`)
+
+			backlogRequireFieldRejected(t, rec, "status", "no se cambia desde el backlog")
+			backlogRequireStoryUntouched(t, env.db, storyID, domain.StoryStatusPending, []string{backlogFirstCriterion})
+		})
+	}
+}

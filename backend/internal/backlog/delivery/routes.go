@@ -21,5 +21,6 @@ func RegisterRoutes(projectGroup *gin.RouterGroup, handler *Handler) {
 func RegisterStoryRoutes(router *gin.Engine, requireSession gin.HandlerFunc, stories domain.StoryRepository, handler *Handler) {
 	storyGroup := router.Group("/api/v1/stories/:storyId", requireSession, RequireStoryAccess(stories))
 	storyGroup.GET("", handler.getStory)
+	storyGroup.PATCH("", handler.updateStory)
 	storyGroup.PUT("/story-points", handler.estimateStory)
 }

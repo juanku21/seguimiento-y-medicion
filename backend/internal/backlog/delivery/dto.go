@@ -214,3 +214,40 @@ func newStoryListResponse(view *service.StoryListView, filter domain.StoryFilter
 		EmptyReason:    view.EmptyReason,
 	}
 }
+
+// DeletionBlockedReason es un motivo que impide eliminar una historia, con su código estable y el
+// mensaje para la persona (data-model.md sección 7, FR-043).
+type DeletionBlockedReason struct {
+	// Código del motivo: sprint_history, effort, defects o estimation_sessions.
+	Code domain.DeletionBlocker `json:"code" validate:"required" enums:"sprint_history,effort,defects,estimation_sessions" example:"sprint_history"`
+	// Mensaje del motivo para la persona.
+	Message string `json:"message" validate:"required" example:"Estuvo asignada a un sprint."`
+}
+
+// DeletionBlockedResponse es el cuerpo del 409 que rechaza la eliminación de una historia con
+// historial asociado; Reasons lista todos los motivos que aplican, en el orden del contrato (FR-043).
+type DeletionBlockedResponse struct {
+	// Mensaje general del rechazo.
+	Error string `json:"error" validate:"required" example:"La historia tiene historial asociado y no se puede eliminar."`
+	// Motivos del rechazo; al menos uno.
+	Reasons []DeletionBlockedReason `json:"reasons" validate:"required" minItems:"1"`
+}
+
+// deletionBlockerMessages son los mensajes de cada motivo de bloqueo según la tabla de data-model.md
+// sección 7.
+var deletionBlockerMessages = map[domain.DeletionBlocker]string{
+	domain.DeletionBlockerSprintHistory:      "Estuvo asignada a un sprint.",
+	domain.DeletionBlockerEffort:             "Tiene esfuerzo registrado.",
+	domain.DeletionBlockerDefects:            "Tiene defectos asociados.",
+	domain.DeletionBlockerEstimationSessions: "Tiene sesiones de estimación por Planning Poker.",
+}
+
+// newDeletionBlockedResponse arma el cuerpo del 409 a partir de los motivos del servicio, conservando
+// su orden y agregando a cada uno su mensaje.
+func newDeletionBlockedResponse(message string, blockers []domain.DeletionBlocker) DeletionBlockedResponse {
+	reasons := make([]DeletionBlockedReason, 0, len(blockers))
+	for _, blocker := range blockers {
+		reasons = append(reasons, DeletionBlockedReason{Code: blocker, Message: deletionBlockerMessages[blocker]})
+	}
+	return DeletionBlockedResponse{Error: message, Reasons: reasons}
+}

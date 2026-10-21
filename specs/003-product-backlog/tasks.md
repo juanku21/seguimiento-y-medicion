@@ -636,7 +636,7 @@ el motivo `sprint_history`.
       solo lectura primero; después consulta los cuatro puertos y, si alguno informa historial,
       devuelve `DeletionBlockedError` con **todos** los motivos en el orden de T005 — depende de T066
       y T069
-- [ ] T071 [US6] Declarar `DeletionBlockedReason` y `DeletionBlockedResponse` en
+- [X] T071 [US6] Declarar `DeletionBlockedReason` y `DeletionBlockedResponse` en
       `backend/internal/backlog/delivery/dto.go`, implementar el manejador `deleteStory` en
       `backend/internal/backlog/delivery/handler.go` con anotaciones `swag` en español y registrar
       `DELETE` en el grupo de la historia en `backend/internal/backlog/delivery/routes.go`.

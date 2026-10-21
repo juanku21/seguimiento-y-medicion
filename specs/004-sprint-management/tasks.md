@@ -118,7 +118,7 @@ su plan, se corrigen las rutas de T007, T013 y T033 antes de ejecutarlas.
       `idx_sprints_one_active_per_project` sobre `(project_id) WHERE status = 'active'`, declarado
       con la opción `where` de la etiqueta de índice de GORM. **Sin** tabla ni columnas de totales
       planificados o completados: se derivan (research.md sección 11)
-- [ ] T002 [P] Declarar la entidad `SprintStory` en `backend/internal/sprints/domain/sprint_story.go`
+- [X] T002 [P] Declarar la entidad `SprintStory` en `backend/internal/sprints/domain/sprint_story.go`
       con los campos de data-model.md sección 2: `ID uuid` PK; `SprintID uuid NOT NULL` con FK a
       `sprints.id`; `StoryID uuid NOT NULL` con FK a `user_stories.id`;
       `CommittedAt timestamptz NOT NULL`; `CompletedAt timestamptz` **anulable**;

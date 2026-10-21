@@ -1425,3 +1425,267 @@ func TestStoryList_VariosValoresPorFiltro(t *testing.T) {
 		})
 	}
 }
+
+// Pruebas de integración de US4 (T049): PUT /api/v1/stories/{storyId}/story-points. Las historias se
+// siembran directamente en la base, con su estado, su estimación previa y un momento de última
+// actualización fijo en el pasado, para comprobar que el valor vigente y ese momento cambian o se
+// conservan según el escenario.
+
+// Mensajes exactos del 409 que fija el contrato para la estimación de una historia completada y para
+// devolver a "sin estimar" una historia comprometida en un sprint abierto.
+const (
+	backlogCompletedMessage = "La historia está completada y no se puede modificar ni reestimar."
+	backlogCommittedMessage = "La historia está comprometida en un sprint abierto; primero hay que quitarla del sprint."
+)
+
+// backlogEstimateUpdatedAt es el momento de creación y de última actualización con que se siembran
+// las historias de US4: queda en el pasado para que una estimación aceptada lo deba mover y una
+// rechazada no.
+var backlogEstimateUpdatedAt = time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+
+// putStoryPoints envía el cuerpo JSON literal a PUT /api/v1/stories/{storyId}/story-points con el
+// token como Bearer. El cuerpo va como texto para poder enviar null, decimales y valores intermedios
+// tal cual.
+func (e backlogTestEnv) putStoryPoints(t *testing.T, token, storyID, rawBody string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPut, backlogStoryPath(storyID)+"/story-points", strings.NewReader(rawBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, req)
+	return rec
+}
+
+// backlogSeedEstimable siembra en el proyecto una historia de la autora con el estado, la estimación
+// y la cantidad de criterios indicados (hasta tres), con el momento fijo de US4, y devuelve su
+// identificador.
+func backlogSeedEstimable(t *testing.T, db *gorm.DB, projectID, authorID uuid.UUID, status domain.StoryStatus, points *int, criteriaCount int) uuid.UUID {
+	t.Helper()
+	texts := []string{backlogFirstCriterion, backlogSecondCriterion, backlogThirdCriterion}
+	criteria := make([]domain.AcceptanceCriterion, 0, criteriaCount)
+	for i := 0; i < criteriaCount; i++ {
+		criteria = append(criteria, domain.AcceptanceCriterion{Position: i, Text: texts[i]})
+	}
+	return backlogSeedStory(t, db, domain.UserStory{
+		ProjectID:   projectID,
+		Title:       backlogStoryTitle,
+		Priority:    domain.StoryPriorityHigh,
+		Status:      status,
+		StoryPoints: points,
+		CreatedByID: authorID,
+		CreatedAt:   backlogEstimateUpdatedAt,
+		UpdatedAt:   backlogEstimateUpdatedAt,
+	}, criteria...)
+}
+
+// backlogRequireEstimateUnchanged exige que la fila de la historia conserve la estimación indicada y
+// el momento de última actualización con que se sembró (FR-019).
+func backlogRequireEstimateUnchanged(t *testing.T, db *gorm.DB, storyID uuid.UUID, want *int) {
+	t.Helper()
+	stored := backlogStoredStory(t, db, storyID.String())
+	assert.Equal(t, want, stored.StoryPoints, "la estimación vigente no debería cambiar")
+	assert.True(t, backlogEstimateUpdatedAt.Equal(stored.UpdatedAt),
+		"updated_at no debería cambiar: quedó en %s", stored.UpdatedAt)
+}
+
+// backlogRequireConflict exige un 409 con el cuerpo de error exacto del contrato.
+func backlogRequireConflict(t *testing.T, rec *httptest.ResponseRecorder, message string) {
+	t.Helper()
+	assert.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+	assert.JSONEq(t, `{"error":"`+message+`"}`, rec.Body.String())
+}
+
+// Escenario: Estimación inicial (003/US4)
+// Bruno, integrante que no es el propietario, estima en 13 una historia sin estimar con dos
+// criterios: la respuesta es el detalle con 13 Story Points y la historia lista para planificar, sin
+// cambiar su estado, y la base guarda 13 (FR-016, RN-12).
+func TestUS4_EstimacionInicial(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress, brunoID)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, nil, 2)
+
+	got := requireStoryDetail(t, env.putStoryPoints(t, brunoToken, storyID.String(), `{"storyPoints":13}`))
+
+	assert.Equal(t, storyID.String(), got.ID)
+	require.NotNil(t, got.StoryPoints, "storyPoints no debería ser null")
+	assert.Equal(t, 13, *got.StoryPoints)
+	assert.Equal(t, []string{backlogFirstCriterion, backlogSecondCriterion}, got.AcceptanceCriteria)
+	assert.True(t, got.Readiness.Ready, "la historia debería estar lista para planificar")
+	assert.Equal(t, []string{}, got.Readiness.Missing)
+	assert.Equal(t, "pending", got.Status, "estimar no cambia el estado")
+	stored := backlogStoredStory(t, env.db, storyID.String())
+	require.NotNil(t, stored.StoryPoints, "story_points no debería ser NULL")
+	assert.Equal(t, 13, *stored.StoryPoints)
+}
+
+// Escenario: Reestimación (003/US4)
+// Una historia estimada en 5 se reestima en 8: el valor anterior se reemplaza por 8 y el momento de
+// última actualización queda posterior al que tenía, en la respuesta y en la base (FR-017).
+func TestUS4_Reestimacion(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, backlogPoints(5), 1)
+
+	got := requireStoryDetail(t, env.putStoryPoints(t, anaToken, storyID.String(), `{"storyPoints":8}`))
+
+	// La respuesta trae el valor nuevo y un updatedAt posterior, con el createdAt intacto.
+	require.NotNil(t, got.StoryPoints, "storyPoints no debería ser null")
+	assert.Equal(t, 8, *got.StoryPoints)
+	updatedAt, err := time.Parse(time.RFC3339, got.UpdatedAt)
+	require.NoError(t, err, "updatedAt = %q no es una fecha y hora RFC 3339", got.UpdatedAt)
+	assert.True(t, updatedAt.After(backlogEstimateUpdatedAt), "updatedAt = %s debería ser posterior al anterior", got.UpdatedAt)
+	assert.Equal(t, "2026-10-01T12:00:00Z", got.CreatedAt, "el momento de creación no cambia")
+
+	// La base guarda el valor nuevo y el updated_at posterior.
+	stored := backlogStoredStory(t, env.db, storyID.String())
+	require.NotNil(t, stored.StoryPoints)
+	assert.Equal(t, 8, *stored.StoryPoints)
+	assert.True(t, stored.UpdatedAt.After(backlogEstimateUpdatedAt), "updated_at debería ser posterior al anterior")
+}
+
+// Escenario: Volver a sin estimar (003/US4)
+// Una historia estimada que no está comprometida en ningún sprint se devuelve a "sin estimar" con
+// null: el cambio se acepta, storyPoints vale null y la historia deja de estar lista para planificar
+// por la falta de Story Points (FR-018, RN-12).
+func TestUS4_VolverASinEstimar(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, backlogPoints(5), 2)
+
+	rec := env.putStoryPoints(t, anaToken, storyID.String(), `{"storyPoints":null}`)
+
+	got := requireStoryDetail(t, rec)
+	raw := backlogRawBody(t, rec)
+	value, present := raw["storyPoints"]
+	assert.True(t, present, "el campo storyPoints debería estar presente")
+	assert.Nil(t, value, "storyPoints debería ser null")
+	assert.False(t, got.Readiness.Ready, "la historia no debería estar lista para planificar")
+	assert.Equal(t, []string{"story_points"}, got.Readiness.Missing)
+	assert.Nil(t, backlogStoredStory(t, env.db, storyID.String()).StoryPoints, "story_points debería ser NULL")
+}
+
+// Escenario: Sin criterios (003/US4)
+// Una historia sin criterios se estima en 3: la estimación se registra, pero la historia sigue sin
+// estar lista para planificar porque le falta al menos un criterio (RN-12, FR-028).
+func TestUS4_SinCriterios(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, nil, 0)
+
+	got := requireStoryDetail(t, env.putStoryPoints(t, anaToken, storyID.String(), `{"storyPoints":3}`))
+
+	require.NotNil(t, got.StoryPoints, "storyPoints no debería ser null")
+	assert.Equal(t, 3, *got.StoryPoints)
+	assert.False(t, got.Readiness.Ready, "sin criterios la historia no está lista para planificar")
+	assert.Equal(t, []string{"acceptance_criteria"}, got.Readiness.Missing)
+	stored := backlogStoredStory(t, env.db, storyID.String())
+	require.NotNil(t, stored.StoryPoints)
+	assert.Equal(t, 3, *stored.StoryPoints)
+}
+
+// Escenario: Extremos de la escala (003/US4)
+// Una historia sin estimar acepta los dos extremos de la escala, 0 y 100; el 0 se informa como 0 y
+// no como null (FR-014, FR-015, RN-07).
+func TestUS4_ExtremosDeLaEscala(t *testing.T) {
+	for _, points := range []int{0, 100} {
+		t.Run(fmt.Sprint(points), func(t *testing.T) {
+			env := newBacklogTestEnv(t)
+			anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+			projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+			storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, nil, 1)
+
+			rec := env.putStoryPoints(t, anaToken, storyID.String(), fmt.Sprintf(`{"storyPoints":%d}`, points))
+
+			requireStoryDetail(t, rec)
+			assert.Equal(t, float64(points), backlogRawBody(t, rec)["storyPoints"], "storyPoints debería ser %d y no null", points)
+			stored := backlogStoredStory(t, env.db, storyID.String())
+			require.NotNil(t, stored.StoryPoints, "story_points no debería ser NULL")
+			assert.Equal(t, points, *stored.StoryPoints)
+		})
+	}
+}
+
+// Escenario: Comprometida no vuelve a sin estimar (003/US4)
+// Con el puerto de sprints reemplazado por un doble que informa que la historia está comprometida en
+// un sprint abierto, devolverla a "sin estimar" se rechaza con 409 indicando que primero hay que
+// quitarla del sprint, y la estimación no cambia (FR-018, RN-18).
+func TestUS4_ComprometidaNoVuelveASinEstimar(t *testing.T) {
+	sprints := &backlogSprintAssignmentsDouble{}
+	env := newBacklogTestEnv(t, func(p *backlogTestPorts) { p.sprints = sprints })
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, backlogPoints(5), 1)
+	sprints.On("Find", mock.Anything, storyID).
+		Return(domain.SprintAssignment{CommittedToOpenSprint: true, EverAssigned: true}, nil)
+
+	rec := env.putStoryPoints(t, anaToken, storyID.String(), `{"storyPoints":null}`)
+
+	backlogRequireConflict(t, rec, backlogCommittedMessage)
+	backlogRequireEstimateUnchanged(t, env.db, storyID, backlogPoints(5))
+	sprints.AssertExpectations(t)
+}
+
+// Escenario: Valor fuera de escala (003/US4)
+// Una historia estimada en 5 no acepta 50, 4 ni 6,5: cada intento se rechaza con 400 indicando la
+// escala admitida, y el valor anterior y su momento de última actualización no cambian (FR-014,
+// FR-019, RN-06).
+func TestUS4_ValorFueraDeEscala(t *testing.T) {
+	cases := []struct {
+		name    string
+		literal string
+	}{
+		{"50", "50"},
+		{"4", "4"},
+		{"6,5", "6.5"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newBacklogTestEnv(t)
+			anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+			projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+			storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, backlogPoints(5), 1)
+
+			rec := env.putStoryPoints(t, anaToken, storyID.String(), `{"storyPoints":`+tc.literal+`}`)
+
+			backlogRequireFieldRejected(t, rec, "storyPoints", backlogScale)
+			backlogRequireEstimateUnchanged(t, env.db, storyID, backlogPoints(5))
+		})
+	}
+}
+
+// Escenario: Historia completada (003/US4)
+// Una historia sembrada como completed no se reestima: el intento se rechaza con 409 porque una
+// historia completada no se reestima, y la estimación no cambia (FR-030, RN-14).
+func TestUS4_HistoriaCompletada(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusCompleted, backlogPoints(5), 1)
+
+	rec := env.putStoryPoints(t, anaToken, storyID.String(), `{"storyPoints":8}`)
+
+	backlogRequireConflict(t, rec, backlogCompletedMessage)
+	backlogRequireEstimateUnchanged(t, env.db, storyID, backlogPoints(5))
+}
+
+// Escenario: Proyecto finalizado (003/US4)
+// En un proyecto Finalizado, Bruno, integrante, intenta estimar una historia de su backlog: se
+// rechaza con 409 porque el backlog es de solo lectura, y la historia sigue sin estimar (FR-048,
+// RN-15).
+func TestUS4_ProyectoFinalizado(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusFinished, brunoID)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, nil, 1)
+
+	rec := env.putStoryPoints(t, brunoToken, storyID.String(), `{"storyPoints":8}`)
+
+	backlogRequireConflict(t, rec, backlogReadOnlyMessage)
+	backlogRequireEstimateUnchanged(t, env.db, storyID, nil)
+}

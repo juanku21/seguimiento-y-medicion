@@ -467,7 +467,7 @@ en un sprint abierto.
       `backend/internal/backlog/delivery/validation_test.go`: `storyPoints` **obligatorio** (cuerpo
       `{}` rechazado), `null` aceptado como "sin estimar" y los valores fuera de la escala
       rechazados con la escala en el mensaje (FR-016, FR-018, FR-019) — depende de T046
-- [ ] T049 [US4] Pruebas de integración de la historia en
+- [X] T049 [US4] Pruebas de integración de la historia en
       `backend/internal/backlog/delivery/handler_test.go`, con `// Escenario: <nombre> (003/US4)`:
       `TestUS4_EstimacionInicial` (13 y lista para planificar), `TestUS4_Reestimacion` (5 → 8 y
       `updatedAt` posterior), `TestUS4_VolverASinEstimar`, `TestUS4_SinCriterios`,

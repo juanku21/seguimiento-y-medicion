@@ -719,7 +719,7 @@ calidad. Todas las tareas son **técnicas**, salvo T078, que es una prueba de ca
       Product Backlog, y se agregan los seis endpoints y las cuatro pantallas nuevas, manteniendo el
       criterio de que alguien que no conoce el proyecto pueda ejecutarlo siguiendo el documento —
       depende de T072
-- [ ] T081 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
+- [X] T081 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
 - [ ] T082 [P] Ejecutar los comandos de cobertura de los dos lados —
       `go test ./... -coverprofile=coverage.out` más `go tool cover -func=coverage.out` en

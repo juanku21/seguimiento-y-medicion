@@ -121,7 +121,7 @@ El repositorio separa el backend y el frontend en dos directorios de primer nive
 
 | Ámbito | Tecnología y versión |
 | --- | --- |
-| Backend | Go 1.27.2, Gin, GORM, JWT (`golang-jwt/jwt/v5`), bcrypt |
+| Backend | Go 1.27.3, Gin, GORM, JWT (`golang-jwt/jwt/v5`), bcrypt |
 | Base de datos | PostgreSQL 18.6 (imagen `postgres:18.6-alpine`) |
 | Frontend | Node.js 24.21.0, Next.js 16.3.8, React 19.3.0, Tailwind CSS 4.3.3, TypeScript 5.9.3 |
 | Documentación de la API | Swagger generado con `swag` 1.16.6 |
@@ -146,12 +146,12 @@ Los comandos están escritos para una terminal tipo bash (Linux, macOS o Git Bas
 | Herramienta | Versión | Para qué |
 | --- | --- | --- |
 | Git | cualquiera reciente | Obtener el código |
-| Go | 1.27.2 | Compilar y probar el backend |
+| Go | 1.27.3 | Compilar y probar el backend |
 | Node.js | 24.21.0 (incluye npm 11) | Ejecutar y probar el frontend |
 | Docker | 29.x | Ejecutar PostgreSQL y las imágenes de la aplicación |
 | Docker Compose | v5.x (plugin `docker compose`) | Levantar las bases de datos |
 
-Con Go 1.21 o posterior instalado alcanza: si la versión local es anterior a la 1.27.2 que declara `backend/go.mod`, Go descarga automáticamente la versión correcta la primera vez que se ejecuta un comando dentro de `backend/` (comportamiento por defecto, `GOTOOLCHAIN=auto`). Se puede comprobar con `go version` dentro de `backend/`.
+Con Go 1.21 o posterior instalado alcanza: si la versión local es anterior a la 1.27.3 que declara `backend/go.mod`, Go descarga automáticamente la versión correcta la primera vez que se ejecuta un comando dentro de `backend/` (comportamiento por defecto, `GOTOOLCHAIN=auto`). Se puede comprobar con `go version` dentro de `backend/`.
 
 No hace falta instalar PostgreSQL en la máquina: corre en contenedores.
 
@@ -484,7 +484,7 @@ govulncheck ./...
 go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 ```
 
-El último análisis (2026-10-19) no reporta vulnerabilidades que alcancen al código. Queda un único aviso a nivel de módulo, justificado a continuación:
+El último análisis (2026-10-21) no reporta vulnerabilidades que alcancen al código. Para llegar a ese resultado se subió Go a 1.27.3, que corrige [GO-2026-6809](https://pkg.go.dev/vuln/GO-2026-6809) en `crypto/x509` de la biblioteca estándar. Queda un único aviso a nivel de módulo, justificado a continuación:
 
 | Aviso | Módulo | Justificación |
 | --- | --- | --- |

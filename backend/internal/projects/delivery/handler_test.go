@@ -1408,7 +1408,9 @@ func (q *queryCounter) Trace(context.Context, time.Time, func() (string, int64),
 // mismo puerto de sprints, para preparar el sprint activo de US6. Si recibe un contador, los
 // repositorios que usan los servicios trabajan sobre una sesión de GORM con ese Logger, mientras que
 // la sesión de la 001 y los middlewares de membresía y propiedad usan la conexión sin contar: así se
-// cuentan solo las consultas con que el servicio arma la vista de estado (SC-003).
+// cuentan solo las consultas con que el servicio arma la vista de estado (SC-003). Si backlog es nil,
+// usa el proveedor real del resumen del backlog sobre esa misma sesión, para que su consulta también
+// se cuente.
 func newStatusTestEnv(t *testing.T, backlog domain.BacklogSummaryProvider, sprints domain.SprintDirectory, counter *queryCounter) projectsTestEnv {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -1422,6 +1424,9 @@ func newStatusTestEnv(t *testing.T, backlog domain.BacklogSummaryProvider, sprin
 	serviceDB := db
 	if counter != nil {
 		serviceDB = db.Session(&gorm.Session{Logger: counter})
+	}
+	if backlog == nil {
+		backlog = repository.NewBacklogSummaryProvider(serviceDB)
 	}
 	projectRepository := repository.NewProjectRepository(serviceDB)
 	projectMembers := repository.NewProjectMemberRepository(serviceDB)
@@ -1668,7 +1673,7 @@ func TestUS4_SinSesion(t *testing.T) {
 // servicio, sin la sesión de la 001 ni la verificación de membresía del middleware.
 func TestUS4_VistaDeEstadoSinNMasUno(t *testing.T) {
 	counter := &queryCounter{}
-	env := newStatusTestEnv(t, repository.NewBacklogSummaryProvider(nil), repository.NewSprintDirectory(), counter)
+	env := newStatusTestEnv(t, nil, repository.NewSprintDirectory(), counter)
 	_, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
 	created := requireCreatedProject(t, env.postProject(t, ownerToken, validProjectInputBody()))
 	projectID := uuid.MustParse(created.ID)
@@ -2238,7 +2243,7 @@ func TestUS6_ArranqueSinCondiciones(t *testing.T) {
 	}{
 		{
 			name:    "con sprint activo",
-			backlog: repository.NewBacklogSummaryProvider(nil),
+			backlog: nil,
 			sprints: fixedSprint{sprint: &domain.ActiveSprint{ID: uuid.New(), Name: "Sprint 1"}},
 		},
 		{
@@ -2364,7 +2369,7 @@ func TestUS6_NoEsPropietario(t *testing.T) {
 // SprintDirectory.
 func TestUS6_FinalizarConSprintActivo(t *testing.T) {
 	sprints := fixedSprint{sprint: &domain.ActiveSprint{ID: uuid.New(), Name: "Sprint 4"}}
-	env := newStatusTestEnv(t, repository.NewBacklogSummaryProvider(nil), sprints, nil)
+	env := newStatusTestEnv(t, nil, sprints, nil)
 	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
 	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress)
 	before := findStoredProject(t, env.db, projectID.String())

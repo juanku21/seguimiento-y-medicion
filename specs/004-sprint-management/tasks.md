@@ -163,7 +163,7 @@ su plan, se corrigen las rutas de T007, T013 y T033 antes de ejecutarlas.
       `UserStory` en `backend/internal/backlog/domain/user_story.go`, con un comentario en español
       que indique que **solo la feature de sprints lo escribe**, que pasa a `true` al primer
       compromiso y nunca vuelve a `false` (research.md sección 7; data-model.md sección 3)
-- [ ] T008 Agregar `Sprint` y `SprintStory` al `AutoMigrate` de
+- [X] T008 Agregar `Sprint` y `SprintStory` al `AutoMigrate` de
       `backend/internal/platform/database/postgres.go`, **después** de `UserStory` y
       `AcceptanceCriterion`, de modo que los índices —incluidos los dos parciales con su cláusula
       `WHERE`— queden creados por las etiquetas de GORM y no por un `CREATE INDEX` en crudo, y la

@@ -1365,7 +1365,7 @@ func TestUS3_SinSesion(t *testing.T) {
 }
 
 // fixedBacklog es un doble del puerto BacklogSummaryProvider que informa siempre el mismo resumen,
-// para preparar el "Dado" de un backlog con historias sin depender de la spec 003.
+// para preparar el "Dado" de un backlog con historias sin sembrarlas en la base.
 type fixedBacklog struct {
 	summary domain.BacklogSummary
 }
@@ -1404,7 +1404,7 @@ func (q *queryCounter) Trace(context.Context, time.Time, func() (string, int64),
 }
 
 // newStatusTestEnv compone el router como newProjectsTestEnv, pero con los puertos del backlog y de
-// sprints recibidos en lugar de los adaptadores provisorios; el servicio de cambio de estado usa el
+// sprints recibidos en lugar de los de cmd/app; el servicio de cambio de estado usa el
 // mismo puerto de sprints, para preparar el sprint activo de US6. Si recibe un contador, los
 // repositorios que usan los servicios trabajan sobre una sesión de GORM con ese Logger, mientras que
 // la sesión de la 001 y los middlewares de membresía y propiedad usan la conexión sin contar: así se
@@ -1466,8 +1466,9 @@ func setProjectStatus(t *testing.T, db *gorm.DB, projectID string, status domain
 // Un proyecto En curso con tres integrantes, un sprint activo y un backlog con historias en
 // distintos estados: un integrante que no es el propietario obtiene en una sola respuesta todos los
 // campos de FR-042, con el propietario identificado, el sprint activo, los contadores por estado y
-// los Story Points estimados con su equivalente en horas. El sprint y el backlog los informan dobles
-// de los puertos, porque las specs 003 y 004 todavía no existen.
+// los Story Points estimados con su equivalente en horas. El sprint lo informa un doble del puerto,
+// porque la spec 004 todavía no existe, y el backlog otro doble, que fija el resumen sin sembrar
+// historias; el proveedor real se verifica en las pruebas de projects/repository.
 func TestUS4_EstadoCompleto(t *testing.T) {
 	sprintID := uuid.New()
 	env := newStatusTestEnv(t,

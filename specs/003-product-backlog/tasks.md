@@ -667,7 +667,7 @@ momento después de US1.
       sembradas → la cantidad por cada clave presente; las "sin estimar" se cuentan pero **no
       suman**, las estimadas en 0 suman 0 (FR-044 y FR-045 de la 002); y las historias de otro
       proyecto no cuentan — depende de T021
-- [ ] T074 Reemplazar el cuerpo de `backend/internal/projects/repository/backlog_summary.go` por una
+- [X] T074 Reemplazar el cuerpo de `backend/internal/projects/repository/backlog_summary.go` por una
       consulta agrupada sobre el modelo `backlogdomain.UserStory`
       (`SELECT status, COUNT(*), COALESCE(SUM(story_points), 0) ... GROUP BY status`), con
       `NewBacklogSummaryProvider(db *gorm.DB)`; actualizar la composición en

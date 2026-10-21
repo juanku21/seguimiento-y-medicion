@@ -681,7 +681,7 @@ momento después de US1.
       `specs/002-project-members/tasks.md`) siga dentro del límite de **4 consultas** de su SC-003
       ahora que el proveedor del backlog hace una consulta real, y ajustar su comentario si cuenta
       un número distinto — depende de T074
-- [ ] T076 [P] Pruebas de frontend en
+- [X] T076 [P] Pruebas de frontend en
       `frontend/src/features/projects/components/project-status-card.test.tsx` y
       `frontend/src/features/projects/components/project-overview.test.tsx`: la tarjeta muestra
       "Pendiente", "En progreso" y "Completada" en lugar de las claves crudas, y la vista del

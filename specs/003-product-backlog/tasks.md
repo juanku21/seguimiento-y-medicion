@@ -686,7 +686,7 @@ momento después de US1.
       `frontend/src/features/projects/components/project-overview.test.tsx`: la tarjeta muestra
       "Pendiente", "En progreso" y "Completada" en lugar de las claves crudas, y la vista del
       proyecto ofrece un enlace al backlog — depende de T025
-- [ ] T077 Usar las etiquetas de `frontend/src/utils/story-labels.ts` en
+- [X] T077 Usar las etiquetas de `frontend/src/utils/story-labels.ts` en
       `frontend/src/features/projects/components/project-status-card.tsx` y agregar el enlace al
       backlog en `frontend/src/features/projects/components/project-overview.tsx` — depende de T038 y
       T076

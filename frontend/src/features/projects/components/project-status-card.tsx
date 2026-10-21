@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { ProjectDetail } from "@/types/project";
 import { formatDate } from "@/utils/format-date";
 import { PROJECT_STATUS_LABELS } from "@/utils/project-status";
+import { STORY_STATUS_LABELS } from "@/utils/story-labels";
 
 // Propiedades de la tarjeta de estado: el estado completo del proyecto tal como lo devuelve la API.
 export type ProjectStatusCardProps = {
@@ -10,6 +11,11 @@ export type ProjectStatusCardProps = {
 
 // Formato de números en español (coma decimal), para el factor y las horas estimadas.
 const numberFormat = new Intl.NumberFormat("es-AR");
+
+// Etiquetas de los estados del backlog indexables por la clave que envía el backend; una clave
+// desconocida no tiene etiqueta y se muestra tal cual llega (003, FR-026).
+const backlogStateLabels: Readonly<Record<string, string | undefined>> =
+  STORY_STATUS_LABELS;
 
 // Arma la cantidad de historias en singular o plural.
 function formatStoryCount(count: number): string {
@@ -30,8 +36,8 @@ function DataRow({ label, children }: { label: string; children: ReactNode }) {
 
 // Tarjeta con el estado del proyecto (002/US4). Es de presentación: recibe el ProjectDetail que la
 // pantalla pide una sola vez y no hace pedidos. Los totales y el reparto del backlog los calcula el
-// backend (FR-042 a FR-045), así que se muestran tal cual llegan; los estados del backlog los
-// define la feature 003 y se muestran con el valor recibido.
+// backend (FR-042 a FR-045), así que se muestran tal cual llegan; los estados del backlog se
+// muestran con las etiquetas en español de la feature 003.
 export function ProjectStatusCard({
   project,
 }: ProjectStatusCardProps): ReactNode {
@@ -112,7 +118,7 @@ export function ProjectStatusCard({
                 key={state}
                 className="rounded-md bg-zinc-100 px-3 py-1 text-sm text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
               >
-                {state}:{" "}
+                {backlogStateLabels[state] ?? state}:{" "}
                 <span className="font-medium tabular-nums">{count}</span>
               </li>
             ))}

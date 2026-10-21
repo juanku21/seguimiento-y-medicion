@@ -755,7 +755,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       máximo los tres valores admitidos por filtro per hallazgo de seguridad: filtros repetibles sin
       tope que arman una cláusula IN con un parámetro por valor (security) — origen: seguridad,
       detectado en 003/US2
-- [ ] T087 Agregar pruebas de frontend en `frontend/src/features/backlog/api.test.ts` y
+- [X] T087 Agregar pruebas de frontend en `frontend/src/features/backlog/api.test.ts` y
       `frontend/src/features/projects/api.test.ts` que llamen a cada función de los clientes de API
       con un identificador que contenga `../` y `/`, y verifiquen que la URL pedida a `fetch`
       conserva la ruta esperada con el segmento codificado per hallazgo de seguridad: identificadores

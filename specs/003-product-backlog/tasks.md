@@ -770,7 +770,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       `backend/internal/backlog/delivery/validation.go` para indicar que la comparación es exacta y
       rechaza otras grafías per Constitución VIII (contradicts) — origen: converge, detectado en
       hu/003-us2-ver-el-backlog
-- [ ] T091 Agregar pruebas de integración en `backend/internal/backlog/delivery/handler_test.go`
+- [X] T091 Agregar pruebas de integración en `backend/internal/backlog/delivery/handler_test.go`
       que estimen una historia y creen una historia en un proyecto que pasa a `finished` después
       de resolver el acceso, y verifiquen que se rechazan con `409` de solo lectura y que la base
       no cambia per hallazgo de seguridad: regla de solo lectura del proyecto Finalizado verificada

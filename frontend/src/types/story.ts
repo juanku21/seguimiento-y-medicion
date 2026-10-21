@@ -20,6 +20,16 @@ export type StoryInput = {
   acceptanceCriteria?: string[];
 };
 
+// Cuerpo de PATCH /api/v1/stories/{storyId} (StoryPatch): solo viajan los campos que cambiaron y la
+// lista de criterios, si cambió, reemplaza la anterior completa (FR-020, FR-022). El estado y los
+// Story Points no forman parte del cuerpo (FR-027).
+export type StoryPatch = {
+  title?: string;
+  description?: string | null;
+  priority?: StoryPriority;
+  acceptanceCriteria?: string[];
+};
+
 // Condición que falta para que la historia quede lista para planificar.
 export type ReadinessMissing = "story_points" | "acceptance_criteria";
 

@@ -6,7 +6,7 @@ import { Button } from "@/components/button";
 import { FIELD_CONTROL_CLASS_NAME, FormField } from "@/components/form-field";
 import { Input } from "@/components/input";
 import { Textarea } from "@/components/textarea";
-import { createStory } from "@/features/backlog/api";
+import { createStory, updateStory } from "@/features/backlog/api";
 import {
   AcceptanceCriteriaEditor,
   type CriterionItem,
@@ -21,7 +21,7 @@ import {
   validateStoryTitle,
 } from "@/features/backlog/validation";
 import type { FieldError } from "@/types/auth";
-import type { StoryDetail } from "@/types/story";
+import type { StoryDetail, StoryPatch } from "@/types/story";
 import {
   STORY_POINTS_SCALE,
   STORY_PRIORITY_LABELS,
@@ -110,17 +110,76 @@ function toErrors(fields: FieldError[], items: CriterionItem[]) {
   return { fieldErrors, criterionErrors };
 }
 
-// Propiedades del formulario de historia: el proyecto en cuyo backlog se registra.
-export type StoryFormProps = {
-  projectId: string;
-};
+// Convierte la descripción escrita en la que se envía: vacía o solo espacios viaja como null.
+function toDescription(value: string): string | null {
+  return value.trim() === "" ? null : value;
+}
 
-// Formulario de registro de una historia en el backlog (003/US1). Valida antes de enviar y, al
-// crearse, confirma el título, el estado, los Story Points y si quedó lista para planificar. Ante un
-// 401 el cliente HTTP descarta la sesión.
-export function StoryForm({ projectId }: StoryFormProps) {
-  const [values, setValues] = useState<FormValues>(EMPTY_VALUES);
-  const [criteria, setCriteria] = useState<CriterionItem[]>([]);
+// Valores iniciales de los campos simples: vacíos al registrar o los vigentes de la historia al
+// refinarla.
+function initialValues(story: StoryDetail | null): FormValues {
+  if (!story) {
+    return EMPTY_VALUES;
+  }
+  return {
+    title: story.title,
+    description: story.description ?? "",
+    priority: story.priority,
+    storyPoints: "",
+  };
+}
+
+// Criterios iniciales en edición, con un id estable por posición que no choca con los que genera
+// el editor al agregar.
+function initialCriteria(story: StoryDetail | null): CriterionItem[] {
+  return (story?.acceptanceCriteria ?? []).map((text, index) => ({
+    id: `initial-${index}`,
+    text,
+  }));
+}
+
+// Arma el cuerpo de la modificación con solo los campos que difieren de la historia cargada, para
+// no pisar los cambios de otro integrante (FR-025). La lista de criterios, si cambió en contenido u
+// orden, viaja completa (FR-022).
+function toStoryPatch(
+  story: StoryDetail,
+  values: FormValues,
+  criteria: CriterionItem[],
+): StoryPatch {
+  const patch: StoryPatch = {};
+  if (values.title !== story.title) {
+    patch.title = values.title;
+  }
+  if (values.description !== (story.description ?? "")) {
+    patch.description = toDescription(values.description);
+  }
+  if (values.priority !== story.priority && isStoryPriority(values.priority)) {
+    patch.priority = values.priority;
+  }
+  const texts = criteria.map((item) => item.text);
+  const sameCriteria =
+    texts.length === story.acceptanceCriteria.length &&
+    texts.every((text, index) => text === story.acceptanceCriteria[index]);
+  if (!sameCriteria) {
+    patch.acceptanceCriteria = texts;
+  }
+  return patch;
+}
+
+// Propiedades del formulario de historia: el proyecto en cuyo backlog se registra una historia
+// nueva o la historia vigente que se refina.
+export type StoryFormProps = { projectId: string } | { story: StoryDetail };
+
+// Formulario de una historia del backlog. Al registrar (003/US1) envía todos los campos, incluidos
+// los Story Points; al refinar (003/US5) arranca precargado, no ofrece Story Points ni estado y
+// envía solo los campos cambiados. Valida antes de enviar y confirma el título, el estado, los Story
+// Points y si quedó lista para planificar. Ante un 401 el cliente HTTP descarta la sesión.
+export function StoryForm(props: StoryFormProps) {
+  const story = "story" in props ? props.story : null;
+  const [values, setValues] = useState<FormValues>(() => initialValues(story));
+  const [criteria, setCriteria] = useState<CriterionItem[]>(() =>
+    initialCriteria(story),
+  );
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [criterionErrors, setCriterionErrors] = useState<CriterionErrors>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
@@ -133,7 +192,7 @@ export function StoryForm({ projectId }: StoryFormProps) {
     setValues((current) => ({ ...current, [field]: value }));
   }
 
-  // Envía la creación. La referencia descarta un segundo envío mientras el primero sigue en curso,
+  // Envía la creación o la modificación. La referencia descarta un segundo envío mientras el primero sigue en curso,
   // aun antes de que el botón deshabilitado llegue a renderizarse.
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -152,17 +211,23 @@ export function StoryForm({ projectId }: StoryFormProps) {
       return;
     }
 
-    // Se envía lo escrito; la descripción vacía viaja como null y los Story Points sin estimar
-    // también, para distinguirlos del 0 (FR-015).
+    // Al registrar se envía lo escrito; la descripción vacía viaja como null y los Story Points sin
+    // estimar también, para distinguirlos del 0 (FR-015). Al refinar se envían solo los cambios.
     submittingRef.current = true;
     setIsSubmitting(true);
-    const result = await createStory(projectId, {
-      title: values.title,
-      description: values.description.trim() === "" ? null : values.description,
-      priority: values.priority,
-      storyPoints: toStoryPoints(values.storyPoints),
-      acceptanceCriteria: criteria.map((item) => item.text),
-    });
+    const result =
+      "story" in props
+        ? await updateStory(
+            props.story.id,
+            toStoryPatch(props.story, values, criteria),
+          )
+        : await createStory(props.projectId, {
+            title: values.title,
+            description: toDescription(values.description),
+            priority: values.priority,
+            storyPoints: toStoryPoints(values.storyPoints),
+            acceptanceCriteria: criteria.map((item) => item.text),
+          });
     submittingRef.current = false;
     setIsSubmitting(false);
 
@@ -179,12 +244,14 @@ export function StoryForm({ projectId }: StoryFormProps) {
     setGeneralError(result.error.message);
   }
 
-  // Confirmación de la creación: se muestran los datos devueltos por el backend en el lugar del
+  // Confirmación de la creación o de la modificación: se muestran los datos devueltos por el backend en el lugar del
   // formulario.
   if (createdStory) {
     return (
       <Alert variant="success">
-        <p className="font-medium">Historia creada</p>
+        <p className="font-medium">
+          {story ? "Historia actualizada" : "Historia creada"}
+        </p>
         <p>{createdStory.title}</p>
         <p>
           Estado: {STORY_STATUS_LABELS[createdStory.status]} · Story Points:{" "}
@@ -233,31 +300,35 @@ export function StoryForm({ projectId }: StoryFormProps) {
           </select>
         )}
       </FormField>
-      <FormField label="Story Points" error={fieldErrors.storyPoints}>
-        {(control) => (
-          <select
-            {...control}
-            name="storyPoints"
-            className={`h-11 ${FIELD_CONTROL_CLASS_NAME}`}
-            value={values.storyPoints}
-            onChange={(event) => updateField("storyPoints", event.target.value)}
-          >
-            <option value="">{UNESTIMATED_LABEL}</option>
-            {STORY_POINTS_SCALE.map((points) => (
-              <option key={points} value={String(points)}>
-                {points}
-              </option>
-            ))}
-          </select>
-        )}
-      </FormField>
+      {!story && (
+        <FormField label="Story Points" error={fieldErrors.storyPoints}>
+          {(control) => (
+            <select
+              {...control}
+              name="storyPoints"
+              className={`h-11 ${FIELD_CONTROL_CLASS_NAME}`}
+              value={values.storyPoints}
+              onChange={(event) =>
+                updateField("storyPoints", event.target.value)
+              }
+            >
+              <option value="">{UNESTIMATED_LABEL}</option>
+              {STORY_POINTS_SCALE.map((points) => (
+                <option key={points} value={String(points)}>
+                  {points}
+                </option>
+              ))}
+            </select>
+          )}
+        </FormField>
+      )}
       <AcceptanceCriteriaEditor
         items={criteria}
         errors={criterionErrors}
         onChange={setCriteria}
       />
       <Button type="submit" disabled={isSubmitting}>
-        Crear historia
+        {story ? "Guardar cambios" : "Crear historia"}
       </Button>
     </form>
   );

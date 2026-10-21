@@ -194,7 +194,7 @@ solapa un día responde `409` con el nombre del primero.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T010 [P] [US1] Pruebas unitarias **obligatorias** de `PeriodsOverlap` en
+- [X] T010 [P] [US1] Pruebas unitarias **obligatorias** de `PeriodsOverlap` en
       `backend/internal/sprints/domain/period_test.go`, cubriendo RN-05 y SC-004: comparten solo el
       día de borde (10-01→10-14 y 10-14→10-28) → **no** se superponen, en los dos órdenes; un día de
       solape (10-01→10-14 y 10-13→10-20) → sí; período idéntico → sí; contención total en los dos

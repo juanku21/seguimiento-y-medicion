@@ -128,7 +128,7 @@ su plan, se corrigen las rutas de T007, T013 y T033 antes de ejecutarlas.
       **Índice único** `idx_sprint_stories_sprint_story (sprint_id, story_id)`, **índice único
       parcial** `idx_sprint_stories_one_open_per_story` sobre `(story_id) WHERE outcome IS NULL` e
       índice `idx_sprint_stories_story (story_id, committed_at)`. Sin `ON DELETE CASCADE`
-- [ ] T003 [P] Declarar el tipo `SprintStatus` con sus tres constantes `planned`, `active` y `closed`
+- [X] T003 [P] Declarar el tipo `SprintStatus` con sus tres constantes `planned`, `active` y `closed`
       en `backend/internal/sprints/domain/status.go`, y el tipo `StoryOutcome` con `completed` y
       `not_completed` en `backend/internal/sprints/domain/sprint_story.go`, como constantes de Go y
       **no** como `enum` de PostgreSQL. Las transiciones son regla de negocio y se implementan en

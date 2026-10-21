@@ -556,7 +556,7 @@ el estado.
       intercalado sea real; y `TestUS5_EdicionSimultaneaDeCriterios`, que envía a la vez dos listas
       distintas y verifica que la historia queda con **una de las dos completa**, nunca con una
       mezcla ni con más criterios que la lista más larga — depende de T055
-- [ ] T060 [P] [US5] Pruebas de frontend en
+- [X] T060 [P] [US5] Pruebas de frontend en
       `frontend/src/features/backlog/components/story-edit-view.test.tsx`, con
       `describe("003/US5 - Refinar una historia")` y un `it` por escenario, incluido que el
       formulario de edición **envía solo los campos que la persona cambió**, que es lo que hace

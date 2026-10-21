@@ -199,7 +199,7 @@ solapa un día responde `409` con el nombre del primero.
       día de borde (10-01→10-14 y 10-14→10-28) → **no** se superponen, en los dos órdenes; un día de
       solape (10-01→10-14 y 10-13→10-20) → sí; período idéntico → sí; contención total en los dos
       sentidos → sí; disjuntos con un día de separación → no — depende de T009
-- [ ] T011 [P] [US1] Pruebas unitarias **obligatorias** de validación en
+- [X] T011 [P] [US1] Pruebas unitarias **obligatorias** de validación en
       `backend/internal/sprints/delivery/validation_test.go`, cubriendo RN-03 y RN-04: nombre
       **obligatorio, entre 1 y 100 runas tras `TrimSpace`**, con ausente o solo espacios rechazado y
       100 válido y 101 rechazado; Sprint Goal **obligatorio, entre 1 y 500 runas tras `TrimSpace`**,

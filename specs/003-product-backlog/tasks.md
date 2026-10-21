@@ -725,7 +725,7 @@ calidad. Todas las tareas son **técnicas**, salvo T078, que es una prueba de ca
       `go test ./... -coverprofile=coverage.out` más `go tool cover -func=coverage.out` en
       `backend/`, y `npm run test:coverage` en `frontend/` — y revisar que el módulo
       `internal/backlog/` y `frontend/src/features/backlog/` estén cubiertos — depende de T072
-- [ ] T083 Verificar la trazabilidad y las puertas de seguridad recorriendo `backend/internal/backlog/`
+- [X] T083 Verificar la trazabilidad y las puertas de seguridad recorriendo `backend/internal/backlog/`
       y `frontend/src/features/backlog/`: que buscar `003/US1` a `003/US6` en el código de pruebas
       devuelva los **58** escenarios; que las **18** reglas RN-01 a RN-18 tengan prueba unitaria
       (SC-014); que los **seis** endpoints tengan su prueba de `401` (SC-005); que los `404` sean

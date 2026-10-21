@@ -629,7 +629,7 @@ el motivo `sprint_history`.
 
 ### Implementación de la Historia 6
 
-- [ ] T069 [US6] Implementar `Delete` en `backend/internal/backlog/repository/story_repository.go`,
+- [X] T069 [US6] Implementar `Delete` en `backend/internal/backlog/repository/story_repository.go`,
       que borra los criterios de la historia y la historia en **una transacción**, sin borrado
       lógico (research.md sección 12) — depende de T067
 - [ ] T070 [US6] Implementar `Delete(ctx, access)` en `backend/internal/backlog/service/story_service.go`:

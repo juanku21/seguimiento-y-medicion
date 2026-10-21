@@ -632,7 +632,7 @@ el motivo `sprint_history`.
 - [X] T069 [US6] Implementar `Delete` en `backend/internal/backlog/repository/story_repository.go`,
       que borra los criterios de la historia y la historia en **una transacción**, sin borrado
       lógico (research.md sección 12) — depende de T067
-- [ ] T070 [US6] Implementar `Delete(ctx, access)` en `backend/internal/backlog/service/story_service.go`:
+- [X] T070 [US6] Implementar `Delete(ctx, access)` en `backend/internal/backlog/service/story_service.go`:
       solo lectura primero; después consulta los cuatro puertos y, si alguno informa historial,
       devuelve `DeletionBlockedError` con **todos** los motivos en el orden de T005 — depende de T066
       y T069

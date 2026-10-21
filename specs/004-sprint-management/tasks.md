@@ -103,7 +103,7 @@ devuelve commits y existen `backend/internal/backlog/domain/user_story.go`,
 no está integrada y esta fase **no empieza**. Si la 003 se integró con nombres distintos de los de
 su plan, se corrigen las rutas de T007, T013 y T033 antes de ejecutarlas.
 
-- [ ] T001 [P] Declarar la entidad `Sprint` en `backend/internal/sprints/domain/sprint.go` con los
+- [X] T001 [P] Declarar la entidad `Sprint` en `backend/internal/sprints/domain/sprint.go` con los
       campos de data-model.md sección 1: `ID uuid` PK generado con `google/uuid`;
       `ProjectID uuid NOT NULL` con FK a `projects.id` (campo `Project *projectsdomain.Project` solo
       para la FK, nunca precargado); `Name varchar(100) NOT NULL` **no único**;

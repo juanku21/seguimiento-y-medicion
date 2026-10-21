@@ -538,7 +538,7 @@ el estado.
       comprometida con `acceptanceCriteria: []` → `ErrCommittedStoryMustStayReady`, y con una lista
       no vacía → aceptada (RN-18); `StoryChanges` **nunca** incluye el estado, el proyecto, el autor
       ni el momento de creación (FR-024, RN-10, RN-11) — depende de T055
-- [ ] T058 [US5] Pruebas de integración de la historia en
+- [X] T058 [US5] Pruebas de integración de la historia en
       `backend/internal/backlog/delivery/handler_test.go`, con `// Escenario: <nombre> (003/US5)`:
       `TestUS5_RefinamientoCompleto` (`id`, `status`, `createdBy` y `createdAt` sin cambios),
       `TestUS5_HistoriaDeOtroIntegrante`, `TestUS5_ReordenDeCriterios`, `TestUS5_VaciarCriterios`,

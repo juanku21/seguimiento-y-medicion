@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -139,6 +140,12 @@ func (s *StoryService) Estimate(ctx context.Context, access *domain.StoryAccess,
 	}
 
 	return s.buildDetail(ctx, access.StoryID)
+}
+
+// Update aplica los cambios de un PATCH a la historia y devuelve su detalle actualizado. Firma
+// mínima: la implementación corresponde a T063.
+func (s *StoryService) Update(ctx context.Context, access *domain.StoryAccess, changes domain.StoryChanges) (*StoryView, error) {
+	return nil, errors.New("not implemented")
 }
 
 // buildDetail arma la vista de detalle de una historia: lee la historia con sus criterios y su

@@ -532,7 +532,7 @@ el estado.
       rechazado con `field: body`; y `status` y `storyPoints` presentes → rechazados con su campo
       (RN-03 a RN-05, RN-08, RN-10). Un campo inválido junto a otros válidos rechaza el cuerpo
       entero (FR-023) — depende de T055
-- [ ] T057 [P] [US5] Pruebas unitarias **obligatorias** de `Update` en el servicio en
+- [X] T057 [P] [US5] Pruebas unitarias **obligatorias** de `Update` en el servicio en
       `backend/internal/backlog/service/story_service_test.go`, con dobles: historia `completed` →
       `ErrStoryCompleted` (RN-14); proyecto Finalizado → `ErrBacklogReadOnly` (RN-15); historia
       comprometida con `acceptanceCriteria: []` → `ErrCommittedStoryMustStayReady`, y con una lista

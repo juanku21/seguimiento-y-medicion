@@ -83,22 +83,7 @@ func (r *StoryRepository) Create(ctx context.Context, story *domain.UserStory, c
 		if err := tx.Create(story).Error; err != nil {
 			return fmt.Errorf("insertar historia: %w", err)
 		}
-		if len(criteria) == 0 {
-			return nil
-		}
-		rows := make([]domain.AcceptanceCriterion, 0, len(criteria))
-		for i, text := range criteria {
-			rows = append(rows, domain.AcceptanceCriterion{
-				ID:       uuid.New(),
-				StoryID:  story.ID,
-				Position: i,
-				Text:     text,
-			})
-		}
-		if err := tx.Create(&rows).Error; err != nil {
-			return fmt.Errorf("insertar criterios de aceptación: %w", err)
-		}
-		return nil
+		return insertCriteria(tx, story.ID, criteria)
 	})
 }
 
@@ -235,8 +220,7 @@ func (r *StoryRepository) Update(ctx context.Context, storyID uuid.UUID, changes
 }
 
 // replaceCriteria borra los criterios de la historia e inserta la lista nueva dentro de la
-// transacción recibida, asignando a cada criterio un UUID nuevo y la posición de su índice (0..n-1).
-// Con la lista vacía solo borra.
+// transacción recibida. Con la lista vacía solo borra.
 func replaceCriteria(tx *gorm.DB, storyID uuid.UUID, criteria []string) error {
 	err := tx.
 		Where("story_id = ?", storyID).
@@ -244,6 +228,13 @@ func replaceCriteria(tx *gorm.DB, storyID uuid.UUID, criteria []string) error {
 	if err != nil {
 		return fmt.Errorf("borrar criterios de aceptación: %w", err)
 	}
+	return insertCriteria(tx, storyID, criteria)
+}
+
+// insertCriteria inserta los criterios de la historia dentro de la transacción recibida, asignando a
+// cada uno un UUID nuevo y la posición de su índice en la lista (0..n-1). Con la lista vacía no
+// ejecuta ningún INSERT. Lo comparten Create y replaceCriteria.
+func insertCriteria(tx *gorm.DB, storyID uuid.UUID, criteria []string) error {
 	if len(criteria) == 0 {
 		return nil
 	}

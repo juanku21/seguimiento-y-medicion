@@ -568,7 +568,7 @@ el estado.
       como `json.RawMessage`, e implementar en `backend/internal/backlog/delivery/validation.go` su
       decodificación a `StoryChanges` reutilizando las validaciones de la creación de T019 — depende
       de T056
-- [ ] T062 [US5] Implementar `Update(ctx, storyID, changes)` en
+- [X] T062 [US5] Implementar `Update(ctx, storyID, changes)` en
       `backend/internal/backlog/repository/story_repository.go` en **una transacción** que toma un
       bloqueo de fila sobre la historia con `clause.Locking{Strength: "UPDATE"}`, actualiza **solo
       las columnas presentes** más `updated_at` (nunca un `Save` del registro entero) y, si

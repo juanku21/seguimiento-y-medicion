@@ -491,7 +491,7 @@ en un sprint abierto.
 - [X] T052 [US4] Implementar `UpdateStoryPoints` en
       `backend/internal/backlog/repository/story_repository.go`, que escribe **solo**
       `story_points` y `updated_at` (FR-017) — depende de T049
-- [ ] T053 [US4] Implementar `Estimate(ctx, access, storyPoints *int)` en
+- [X] T053 [US4] Implementar `Estimate(ctx, access, storyPoints *int)` en
       `backend/internal/backlog/service/story_service.go` con las reglas en el orden de research.md
       sección 16: solo lectura, Completada y comprometida (`SprintAssignments.Find`). Es el método que
       reutilizará `specs/005-planning-poker` para registrar el valor acordado (RC-06) — depende de

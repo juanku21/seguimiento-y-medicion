@@ -5,7 +5,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -104,10 +103,42 @@ func (s *StoryService) Get(ctx context.Context, storyID uuid.UUID) (*StoryView, 
 }
 
 // Estimate registra los Story Points de la historia, o la devuelve a "sin estimar" con nil, y
-// devuelve su detalle actualizado (FR-016 a FR-018). Firma mínima de T047: la implementación con las
-// reglas RN-14, RN-15 y RN-18 corresponde a T053.
+// devuelve su detalle actualizado (FR-016 a FR-018). El valor ya llega validado contra la escala.
+// Las reglas se evalúan en el orden de research.md sección 16: primero la solo lectura del proyecto
+// Finalizado (RN-15), que vuelve irrelevante cualquier otra; después la historia completed (RN-14), y
+// por último, solo al pedir nil, el compromiso en un sprint abierto (RN-18). Es el punto de
+// integración que reutilizará Planning Poker para registrar el valor acordado (RC-06).
 func (s *StoryService) Estimate(ctx context.Context, access *domain.StoryAccess, storyPoints *int) (*StoryView, error) {
-	return nil, errors.New("not implemented")
+	if access.ProjectFinished {
+		return nil, domain.ErrBacklogReadOnly
+	}
+
+	// El estado de la historia no viaja en StoryAccess, así que se lee el detalle para aplicar RN-14.
+	detail, err := s.stories.FindDetail(ctx, access.StoryID)
+	if err != nil {
+		return nil, fmt.Errorf("leer historia a estimar: %w", err)
+	}
+	if detail.Story.Status == domain.StoryStatusCompleted {
+		return nil, domain.ErrStoryCompleted
+	}
+
+	// Devolver la historia a "sin estimar" exige que no esté comprometida en un sprint abierto; un
+	// valor de la escala la mantiene lista para planificar y no necesita la consulta.
+	if storyPoints == nil {
+		assignment, err := s.sprints.Find(ctx, access.StoryID)
+		if err != nil {
+			return nil, fmt.Errorf("consultar asignación a sprints: %w", err)
+		}
+		if assignment.CommittedToOpenSprint {
+			return nil, domain.ErrCommittedStoryMustStayReady
+		}
+	}
+
+	if err := s.stories.UpdateStoryPoints(ctx, access.StoryID, storyPoints); err != nil {
+		return nil, fmt.Errorf("guardar story points: %w", err)
+	}
+
+	return s.buildDetail(ctx, access.StoryID)
 }
 
 // buildDetail arma la vista de detalle de una historia: lee la historia con sus criterios y su

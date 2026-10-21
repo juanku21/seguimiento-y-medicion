@@ -732,7 +732,7 @@ calidad. Todas las tareas son **técnicas**, salvo T078, que es una prueba de ca
       indistinguibles (SC-006); que ninguna operación de esta feature escriba `user_stories.status`
       después de la creación (FR-027); y que ninguna respuesta incluya `password_hash` — depende de
       T078
-- [ ] T084 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluidas la
+- [X] T084 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluidas la
       vista de estado de la 002 con historias reales, las pruebas de concurrencia y la verificación
       de que las pruebas corrieron contra `smye_test` en el puerto 5433 y no contra desarrollo —
       depende de T075, T077, T079, T080 y T083

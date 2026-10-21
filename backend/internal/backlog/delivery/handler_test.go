@@ -1426,6 +1426,34 @@ func TestStoryList_VariosValoresPorFiltro(t *testing.T) {
 	}
 }
 
+// TestStoryList_EstadoRepetidoMilesDeVeces verifica que un listado con miles de status=pending
+// responde 200, no 500, con solo las historias pendientes y el filtro aplicado una sola vez, porque
+// la cláusula IN debe recibir cada valor admitido una vez y no un parámetro por repetición (T085,
+// hallazgo de seguridad: filtros repetibles sin tope). Las repeticiones quedan por debajo del tope de
+// 10000 parámetros de consulta de net/url, para que lleguen todas al manejador.
+func TestStoryList_EstadoRepetidoMilesDeVeces(t *testing.T) {
+	const repetitions = 9000
+	env := newBacklogTestEnv(t)
+	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, ownerID, projectsdomain.ProjectStatusInProgress)
+	ids := backlogSeedStories(t, env.db, projectID, ownerID,
+		backlogSeed{Priority: domain.StoryPriorityHigh, Status: domain.StoryStatusPending, Minute: 0},
+		backlogSeed{Priority: domain.StoryPriorityHigh, Status: domain.StoryStatusCompleted, Minute: 1},
+	)
+	rawQuery := strings.TrimSuffix(strings.Repeat("status=pending&", repetitions), "&")
+
+	body := requireStoryList(t, env.getStories(t, token, projectID, rawQuery))
+
+	// Solo se lista la pendiente y el filtro informado contiene pending una única vez.
+	assert.Equal(t, []string{ids[0]}, backlogListIDs(body))
+	appliedCounts := map[string]int{}
+	for _, status := range body.AppliedFilters.Status {
+		appliedCounts[status]++
+	}
+	assert.Equal(t, map[string]int{"pending": 1}, appliedCounts, "el filtro aplicado debe informar pending una sola vez")
+	assert.Empty(t, body.AppliedFilters.Priority)
+}
+
 // Pruebas de integración de US4 (T049): PUT /api/v1/stories/{storyId}/story-points. Las historias se
 // siembran directamente en la base, con su estado, su estimación previa y un momento de última
 // actualización fijo en el pasado, para comprobar que el valor vigente y ese momento cambian o se

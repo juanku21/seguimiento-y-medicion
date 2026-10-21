@@ -743,7 +743,7 @@ calidad. Todas las tareas son **técnicas**, salvo T078, que es una prueba de ca
 
 Propósito: ajustes transversales detectados por /speckit-converge y /revisar-seguridad.
 
-- [ ] T085 Agregar en `backend/internal/backlog/delivery/validation_test.go` una prueba unitaria de
+- [X] T085 Agregar en `backend/internal/backlog/delivery/validation_test.go` una prueba unitaria de
       `ParseStoryFilter` con miles de valores repetidos de `status` y de `priority` que verifique que
       el filtro resultante contiene cada valor admitido una sola vez, y en
       `backend/internal/backlog/delivery/handler_test.go` una prueba de integración de

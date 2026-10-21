@@ -560,6 +560,38 @@ func TestUS2_ValidacionFiltroInvalido(t *testing.T) {
 	})
 }
 
+// TestStoryFilter_ValoresRepetidosSinDuplicados verifica que miles de repeticiones de status y de
+// priority, mezclando los valores admitidos, producen un filtro con cada valor una sola vez, de modo
+// que la cláusula IN del listado nunca reciba más de tres parámetros por filtro (T085, hallazgo de
+// seguridad: filtros repetibles sin tope).
+func TestStoryFilter_ValoresRepetidosSinDuplicados(t *testing.T) {
+	const repetitions = 5000
+	statuses := make([]string, 0, repetitions)
+	priorities := make([]string, 0, repetitions)
+	for i := 0; i < repetitions; i++ {
+		statuses = append(statuses, validationFilterAdmittedStatuses[i%3])
+		priorities = append(priorities, validationFilterAdmittedPriorities[i%3])
+	}
+
+	filter, fields := ParseStoryFilter(statuses, priorities)
+
+	require.Empty(t, fields, "los valores admitidos repetidos deben aceptarse")
+	statusCounts := map[domain.StoryStatus]int{}
+	for _, s := range filter.Statuses {
+		statusCounts[s]++
+	}
+	priorityCounts := map[domain.StoryPriority]int{}
+	for _, p := range filter.Priorities {
+		priorityCounts[p]++
+	}
+	assert.Equal(t, map[domain.StoryStatus]int{
+		domain.StoryStatusPending: 1, domain.StoryStatusInProgress: 1, domain.StoryStatusCompleted: 1,
+	}, statusCounts, "cada estado admitido debe figurar una sola vez")
+	assert.Equal(t, map[domain.StoryPriority]int{
+		domain.StoryPriorityHigh: 1, domain.StoryPriorityMedium: 1, domain.StoryPriorityLow: 1,
+	}, priorityCounts, "cada prioridad admitida debe figurar una sola vez")
+}
+
 // Pruebas unitarias de la validación del cuerpo de la estimación (T048, FR-016, FR-018, FR-019). El
 // cuerpo se decodifica desde el JSON literal, igual que en el manejador, para que la prueba
 // distinga el campo ausente del null sin depender de cómo se declara el campo en StoryPointsInput.

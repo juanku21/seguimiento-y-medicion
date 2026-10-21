@@ -711,7 +711,7 @@ calidad. Todas las tareas son **técnicas**, salvo T078, que es una prueba de ca
       **dos** de colección (SC-006); y una aserción de que ninguna respuesta contiene
       `password_hash` ni `passwordHash` (Principio VI). Prueba de caracterización: las rutas ya están
       detrás de los middlewares, así que no tiene RED; el commit lo justifica — depende de T072
-- [ ] T079 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
+- [X] T079 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
       `backend/docs/` coincida con [contracts/openapi.yaml](./contracts/openapi.yaml) en las seis
       rutas, sus códigos de respuesta (todos declaran `500`) y los diecisiete esquemas; corregir las
       anotaciones si difieren (Principio VIII) — depende de T072

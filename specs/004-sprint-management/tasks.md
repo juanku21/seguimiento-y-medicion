@@ -103,7 +103,7 @@ devuelve commits y existen `backend/internal/backlog/domain/user_story.go`,
 no está integrada y esta fase **no empieza**. Si la 003 se integró con nombres distintos de los de
 su plan, se corrigen las rutas de T007, T013 y T033 antes de ejecutarlas.
 
-- [ ] T001 [P] Declarar la entidad `Sprint` en `backend/internal/sprints/domain/sprint.go` con los
+- [X] T001 [P] Declarar la entidad `Sprint` en `backend/internal/sprints/domain/sprint.go` con los
       campos de data-model.md sección 1: `ID uuid` PK generado con `google/uuid`;
       `ProjectID uuid NOT NULL` con FK a `projects.id` (campo `Project *projectsdomain.Project` solo
       para la FK, nunca precargado); `Name varchar(100) NOT NULL` **no único**;
@@ -118,7 +118,7 @@ su plan, se corrigen las rutas de T007, T013 y T033 antes de ejecutarlas.
       `idx_sprints_one_active_per_project` sobre `(project_id) WHERE status = 'active'`, declarado
       con la opción `where` de la etiqueta de índice de GORM. **Sin** tabla ni columnas de totales
       planificados o completados: se derivan (research.md sección 11)
-- [ ] T002 [P] Declarar la entidad `SprintStory` en `backend/internal/sprints/domain/sprint_story.go`
+- [X] T002 [P] Declarar la entidad `SprintStory` en `backend/internal/sprints/domain/sprint_story.go`
       con los campos de data-model.md sección 2: `ID uuid` PK; `SprintID uuid NOT NULL` con FK a
       `sprints.id`; `StoryID uuid NOT NULL` con FK a `user_stories.id`;
       `CommittedAt timestamptz NOT NULL`; `CompletedAt timestamptz` **anulable**;
@@ -128,12 +128,12 @@ su plan, se corrigen las rutas de T007, T013 y T033 antes de ejecutarlas.
       **Índice único** `idx_sprint_stories_sprint_story (sprint_id, story_id)`, **índice único
       parcial** `idx_sprint_stories_one_open_per_story` sobre `(story_id) WHERE outcome IS NULL` e
       índice `idx_sprint_stories_story (story_id, committed_at)`. Sin `ON DELETE CASCADE`
-- [ ] T003 [P] Declarar el tipo `SprintStatus` con sus tres constantes `planned`, `active` y `closed`
+- [X] T003 [P] Declarar el tipo `SprintStatus` con sus tres constantes `planned`, `active` y `closed`
       en `backend/internal/sprints/domain/status.go`, y el tipo `StoryOutcome` con `completed` y
       `not_completed` en `backend/internal/sprints/domain/sprint_story.go`, como constantes de Go y
       **no** como `enum` de PostgreSQL. Las transiciones son regla de negocio y se implementan en
       US3
-- [ ] T004 [P] Declarar los errores de dominio en `backend/internal/sprints/domain/errors.go` con la
+- [X] T004 [P] Declarar los errores de dominio en `backend/internal/sprints/domain/errors.go` con la
       tabla de data-model.md sección 9: `ErrSprintNotFound`, `ErrSprintsReadOnly`,
       `ErrInvalidSprintTransition`, `ErrSprintNotPlanned`, `ErrSprintNotActive`, `ErrSprintClosed`,
       `ErrSprintAlreadyStarted`, `ErrSprintHasEffort`, `ErrCompletedStoryRemoval`,
@@ -143,7 +143,7 @@ su plan, se corrigen las rutas de T007, T013 y T033 antes de ejecutarlas.
       `not_ready`, `completed` o `committed_elsewhere`, más `Missing []string` y
       `Sprint *ConflictingSprint`). Para la historia inexistente se reutiliza `ErrStoryNotFound` de
       la 003
-- [ ] T005 Declarar en `backend/internal/sprints/domain/repository.go` la interfaz
+- [X] T005 Declarar en `backend/internal/sprints/domain/repository.go` la interfaz
       `SprintRepository` con **exactamente** las trece operaciones de data-model.md sección 9
       (`FindAccessible`, `Create`, `Update`, `Delete`, `Start`, `Close`, `AssignStories`,
       `RemoveStories`, `ChangeStoryProgress`, `List`, `HasSprints`, `FindDetail`, `ListForStory`),
@@ -153,22 +153,22 @@ su plan, se corrigen las rutas de T007, T013 y T033 antes de ejecutarlas.
       `ConflictingSprint`. Las operaciones de escritura reciben el instante como parámetro. **Prohibido**
       declarar cambio de proyecto, reapertura o listados fuera de un proyecto (Principio III) —
       depende de T001 a T004
-- [ ] T006 Declarar el puerto `SprintEffort.HasEffort(ctx, sprintID) (bool, error)` en
+- [X] T006 Declarar el puerto `SprintEffort.HasEffort(ctx, sprintID) (bool, error)` en
       `backend/internal/sprints/domain/ports.go` e implementarlo en
       `backend/internal/sprints/repository/sprint_effort.go` informando que **ningún sprint tiene
       esfuerzo registrado**, con un comentario en español que indique que
       `specs/006-effort-tracking` reemplazará su cuerpo y deberá traducir la violación de su clave
       foránea hacia `sprints.id` al mismo `409` (research.md sección 16)
-- [ ] T007 Agregar el campo `EverCommitted bool` con la etiqueta `not null;default:false` al modelo
+- [X] T007 Agregar el campo `EverCommitted bool` con la etiqueta `not null;default:false` al modelo
       `UserStory` en `backend/internal/backlog/domain/user_story.go`, con un comentario en español
       que indique que **solo la feature de sprints lo escribe**, que pasa a `true` al primer
       compromiso y nunca vuelve a `false` (research.md sección 7; data-model.md sección 3)
-- [ ] T008 Agregar `Sprint` y `SprintStory` al `AutoMigrate` de
+- [X] T008 Agregar `Sprint` y `SprintStory` al `AutoMigrate` de
       `backend/internal/platform/database/postgres.go`, **después** de `UserStory` y
       `AcceptanceCriterion`, de modo que los índices —incluidos los dos parciales con su cláusula
       `WHERE`— queden creados por las etiquetas de GORM y no por un `CREATE INDEX` en crudo, y la
       columna `ever_committed` se agregue a `user_stories` — depende de T001, T002 y T007
-- [ ] T009 Extender el vaciado del ayudante de pruebas en
+- [X] T009 Extender el vaciado del ayudante de pruebas en
       `backend/internal/platform/testsupport/database.go` para incluir `sprints` y `sprint_stories`
       en el `TRUNCATE ... CASCADE`, manteniendo la verificación de que la base es `smye_test` y el
       lock de la base de test — depende de T008

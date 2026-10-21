@@ -19,21 +19,25 @@ import (
 // StoryStatus, que se guardan como texto con los valores de la API (high, medium, low y pending,
 // in_progress, completed) y no como enum de PostgreSQL. El índice
 // compuesto (project_id, priority, created_at, id) sirve al filtro por proyecto del listado y, en
-// parte, a su orden. Los campos Project y CreatedBy existen solo para que AutoMigrate cree las claves
-// foráneas hacia projects.id y users.id: no son columnas y nunca se precargan. No hay columnas de
-// lista para planificar, rango de prioridad, borrado lógico ni último modificador (plan.md,
-// reevaluación del Principio I), y CreatedAt y UpdatedAt los completa GORM.
+// parte, a su orden. EverCommitted (columna ever_committed, NOT NULL DEFAULT false) registra si la
+// historia estuvo alguna vez comprometida en un sprint: solo la feature de sprints la escribe, pasa a
+// true al primer compromiso y nunca vuelve a false, aunque se quite la historia o se elimine el
+// sprint (004, research.md sección 7). Los campos Project y CreatedBy existen solo para que
+// AutoMigrate cree las claves foráneas hacia projects.id y users.id: no son columnas y nunca se
+// precargan. No hay columnas de lista para planificar, rango de prioridad, borrado lógico ni último
+// modificador (plan.md, reevaluación del Principio I), y CreatedAt y UpdatedAt los completa GORM.
 type UserStory struct {
-	ID          uuid.UUID               `gorm:"type:uuid;primaryKey;index:idx_user_stories_project_order,priority:4"`
-	ProjectID   uuid.UUID               `gorm:"type:uuid;not null;index:idx_user_stories_project_order,priority:1"`
-	Project     *projectsdomain.Project `gorm:"foreignKey:ProjectID;references:ID"`
-	Title       string                  `gorm:"type:varchar(150);not null"`
-	Description *string                 `gorm:"type:varchar(2000)"`
-	Priority    StoryPriority           `gorm:"type:varchar(8);not null;index:idx_user_stories_project_order,priority:2"`
-	Status      StoryStatus             `gorm:"type:varchar(16);not null"`
-	StoryPoints *int                    `gorm:"type:smallint"`
-	CreatedByID uuid.UUID               `gorm:"type:uuid;not null"`
-	CreatedBy   *authdomain.User        `gorm:"foreignKey:CreatedByID;references:ID"`
-	CreatedAt   time.Time               `gorm:"type:timestamptz;not null;index:idx_user_stories_project_order,priority:3"`
-	UpdatedAt   time.Time               `gorm:"type:timestamptz;not null"`
+	ID            uuid.UUID               `gorm:"type:uuid;primaryKey;index:idx_user_stories_project_order,priority:4"`
+	ProjectID     uuid.UUID               `gorm:"type:uuid;not null;index:idx_user_stories_project_order,priority:1"`
+	Project       *projectsdomain.Project `gorm:"foreignKey:ProjectID;references:ID"`
+	Title         string                  `gorm:"type:varchar(150);not null"`
+	Description   *string                 `gorm:"type:varchar(2000)"`
+	Priority      StoryPriority           `gorm:"type:varchar(8);not null;index:idx_user_stories_project_order,priority:2"`
+	Status        StoryStatus             `gorm:"type:varchar(16);not null"`
+	StoryPoints   *int                    `gorm:"type:smallint"`
+	EverCommitted bool                    `gorm:"type:boolean;not null;default:false"`
+	CreatedByID   uuid.UUID               `gorm:"type:uuid;not null"`
+	CreatedBy     *authdomain.User        `gorm:"foreignKey:CreatedByID;references:ID"`
+	CreatedAt     time.Time               `gorm:"type:timestamptz;not null;index:idx_user_stories_project_order,priority:3"`
+	UpdatedAt     time.Time               `gorm:"type:timestamptz;not null"`
 }

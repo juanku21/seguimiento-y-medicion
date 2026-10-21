@@ -15,12 +15,13 @@ import (
 	backlogdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/domain"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/config"
 	projectsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/domain"
+	sprintsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
 
 // Open se conecta a la base indicada por la configuración con TranslateError activado, para que
 // las violaciones de restricciones lleguen como errores de GORM (por ejemplo gorm.ErrDuplicatedKey)
 // y no como códigos propios de PostgreSQL (research.md sección 3), y migra los modelos de las
-// features de autenticación, de proyectos y del backlog. Lo usan cmd/app al arrancar y el ayudante de las pruebas de integración.
+// features de autenticación, de proyectos, del backlog y de sprints. Lo usan cmd/app al arrancar y el ayudante de las pruebas de integración.
 func Open(cfg config.Config) (*gorm.DB, error) {
 	db, err := gorm.Open(postgres.Open(DSN(cfg)), &gorm.Config{TranslateError: true})
 	if err != nil {
@@ -28,11 +29,13 @@ func Open(cfg config.Config) (*gorm.DB, error) {
 	}
 
 	// El orden respeta las claves foráneas: User va primero porque sessions, auth_events, projects,
-	// project_members y user_stories apuntan a users.id; Project va antes que ProjectMember y que
-	// UserStory porque project_members y user_stories apuntan a projects.id, y UserStory va antes que
-	// AcceptanceCriterion porque acceptance_criteria apunta a user_stories.id. Los índices compuestos,
-	// únicos o no, los crean las etiquetas de GORM de cada modelo. Si la migración falla se cierra la
-	// conexión para no dejar el pool abierto.
+	// project_members, user_stories y sprints apuntan a users.id; Project va antes que ProjectMember,
+	// UserStory y Sprint porque project_members, user_stories y sprints apuntan a projects.id;
+	// UserStory va antes que AcceptanceCriterion porque acceptance_criteria apunta a user_stories.id,
+	// y Sprint y SprintStory van al final porque sprint_stories apunta a sprints.id y a
+	// user_stories.id. Migrar UserStory agrega además la columna ever_committed. Los índices
+	// compuestos, únicos o no, incluidos los parciales con cláusula WHERE, los crean las etiquetas de
+	// GORM de cada modelo. Si la migración falla se cierra la conexión para no dejar el pool abierto.
 	if err := db.AutoMigrate(
 		&authdomain.User{},
 		&authdomain.Session{},
@@ -41,6 +44,8 @@ func Open(cfg config.Config) (*gorm.DB, error) {
 		&projectsdomain.ProjectMember{},
 		&backlogdomain.UserStory{},
 		&backlogdomain.AcceptanceCriterion{},
+		&sprintsdomain.Sprint{},
+		&sprintsdomain.SprintStory{},
 	); err != nil {
 		migrateErr := fmt.Errorf("no se pudo migrar el esquema: %w", err)
 		sqlDB, dbErr := db.DB()

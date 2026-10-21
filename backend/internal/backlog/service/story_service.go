@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -151,6 +152,12 @@ func (s *StoryService) Update(ctx context.Context, access *domain.StoryAccess, c
 	}
 
 	return s.buildDetail(ctx, access.StoryID)
+}
+
+// Delete elimina definitivamente una historia sin historial asociado (FR-041 a FR-044, RN-15,
+// RN-16). Firma mínima de T066: la implementación corresponde a T070.
+func (s *StoryService) Delete(ctx context.Context, access *domain.StoryAccess) error {
+	return errors.New("not implemented")
 }
 
 // ensureEditable aplica, en el orden de research.md sección 16, las dos guardas que comparten las

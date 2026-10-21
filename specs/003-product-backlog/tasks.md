@@ -605,7 +605,7 @@ el motivo `sprint_history`.
 
 ### Pruebas de la Historia 6 ⚠️
 
-- [ ] T066 [P] [US6] Pruebas unitarias **obligatorias** de `Delete` en
+- [X] T066 [P] [US6] Pruebas unitarias **obligatorias** de `Delete` en
       `backend/internal/backlog/service/story_service_test.go`, con dobles de los cuatro puertos:
       cada motivo por separado (`sprint_history`, `effort`, `defects`, `estimation_sessions`), dos y
       cuatro motivos a la vez **en ese orden**, ningún motivo → `Delete` del repositorio llamado, y

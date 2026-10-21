@@ -463,7 +463,7 @@ en un sprint abierto.
       **antes** que las demás reglas; historia comprometida en un sprint abierto con `nil` →
       `ErrCommittedStoryMustStayReady`, y con otro valor de la escala → aceptada (RN-18); en todos
       los rechazos, `UpdateStoryPoints` no se llama — depende de T046
-- [ ] T048 [P] [US4] Pruebas unitarias de la validación del cuerpo de la estimación en
+- [X] T048 [P] [US4] Pruebas unitarias de la validación del cuerpo de la estimación en
       `backend/internal/backlog/delivery/validation_test.go`: `storyPoints` **obligatorio** (cuerpo
       `{}` rechazado), `null` aceptado como "sin estimar" y los valores fuera de la escala
       rechazados con la escala en el mensaje (FR-016, FR-018, FR-019) — depende de T046

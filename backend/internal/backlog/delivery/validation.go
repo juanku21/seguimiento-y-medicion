@@ -120,6 +120,13 @@ func ValidateStoryInput(req StoryInput) (ValidatedStory, []authdelivery.FieldErr
 	}, nil
 }
 
+// ValidateStoryPointsInput valida el cuerpo de la estimación y devuelve los Story Points, nil para
+// "sin estimar", o un FieldError si el campo falta o su valor está fuera de la escala (FR-016,
+// FR-018, FR-019). Firma mínima de T048; la implementa T051.
+func ValidateStoryPointsInput(req StoryPointsInput) (*int, []authdelivery.FieldError) {
+	return nil, nil
+}
+
 // ParseStoryFilter valida los valores repetibles de los filtros status y priority del listado, tal
 // como los entrega c.QueryArray, y devuelve el StoryFilter o un FieldError por cada filtro con un
 // valor no admitido, indicando los valores válidos (FR-034, FR-037).

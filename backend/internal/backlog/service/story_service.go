@@ -5,7 +5,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -142,10 +141,42 @@ func (s *StoryService) Estimate(ctx context.Context, access *domain.StoryAccess,
 	return s.buildDetail(ctx, access.StoryID)
 }
 
-// Update aplica los cambios de un PATCH a la historia y devuelve su detalle actualizado. Firma
-// mínima: la implementación corresponde a T063.
+// Update aplica los cambios de un PATCH a la historia y devuelve su detalle actualizado (FR-020 a
+// FR-030). Los cambios ya llegan validados y normalizados por delivery, y se entregan al repositorio
+// tal como vienen. Las reglas se evalúan en el mismo orden que en Estimate: primero la solo lectura
+// del proyecto Finalizado (RN-15); después la historia completed (RN-14), y por último, solo cuando
+// el PATCH vacía los criterios, el compromiso en un sprint abierto (RN-18).
 func (s *StoryService) Update(ctx context.Context, access *domain.StoryAccess, changes domain.StoryChanges) (*StoryView, error) {
-	return nil, errors.New("not implemented")
+	if access.ProjectFinished {
+		return nil, domain.ErrBacklogReadOnly
+	}
+
+	// El estado de la historia no viaja en StoryAccess, así que se lee el detalle para aplicar RN-14.
+	detail, err := s.stories.FindDetail(ctx, access.StoryID)
+	if err != nil {
+		return nil, fmt.Errorf("leer historia a modificar: %w", err)
+	}
+	if detail.Story.Status == domain.StoryStatusCompleted {
+		return nil, domain.ErrStoryCompleted
+	}
+
+	// Dejar la historia sin criterios exige que no esté comprometida en un sprint abierto; una lista
+	// no vacía o un PATCH que no toca los criterios la mantienen lista y no necesitan la consulta.
+	if changes.AcceptanceCriteria != nil && len(*changes.AcceptanceCriteria) == 0 {
+		assignment, err := s.sprints.Find(ctx, access.StoryID)
+		if err != nil {
+			return nil, fmt.Errorf("consultar asignación a sprints: %w", err)
+		}
+		if assignment.CommittedToOpenSprint {
+			return nil, domain.ErrCommittedStoryMustStayReady
+		}
+	}
+
+	if err := s.stories.Update(ctx, access.StoryID, changes); err != nil {
+		return nil, fmt.Errorf("guardar cambios de la historia: %w", err)
+	}
+
+	return s.buildDetail(ctx, access.StoryID)
 }
 
 // buildDetail arma la vista de detalle de una historia: lee la historia con sus criterios y su

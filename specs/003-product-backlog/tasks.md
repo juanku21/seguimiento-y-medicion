@@ -484,7 +484,7 @@ en un sprint abierto.
 
 ### Implementación de la Historia 4
 
-- [ ] T051 [US4] Declarar `StoryPointsInput` en `backend/internal/backlog/delivery/dto.go` con
+- [X] T051 [US4] Declarar `StoryPointsInput` en `backend/internal/backlog/delivery/dto.go` con
       `storyPoints` como `json.RawMessage`, para distinguir el campo ausente del `null`, e
       implementar su validación en `backend/internal/backlog/delivery/validation.go` reutilizando la
       validación de la escala de T019 (research.md sección 8) — depende de T048

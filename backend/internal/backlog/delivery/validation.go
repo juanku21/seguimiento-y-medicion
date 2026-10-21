@@ -27,10 +27,11 @@ var (
 	msgTitleTooLong       = fmt.Sprintf("El título admite como máximo %d caracteres.", maxTitleLength)
 	msgDescriptionTooLong = fmt.Sprintf("La descripción admite como máximo %d caracteres.",
 		maxDescriptionLength)
-	msgInvalidPriority    = "Los valores admitidos son Alta, Media y Baja."
-	msgInvalidStoryPoints = "Los valores admitidos son " + storyPointsScaleText() + "."
-	msgCriterionRequired  = "Cada criterio de aceptación debe tener contenido."
-	msgCriterionTooLong   = fmt.Sprintf("Cada criterio de aceptación admite como máximo %d caracteres.",
+	msgInvalidPriority     = "Los valores admitidos son Alta, Media y Baja."
+	msgInvalidStoryPoints  = "Los valores admitidos son " + storyPointsScaleText() + "."
+	msgStoryPointsRequired = "Los Story Points son obligatorios; para dejar la historia sin estimar se envía null."
+	msgCriterionRequired   = "Cada criterio de aceptación debe tener contenido."
+	msgCriterionTooLong    = fmt.Sprintf("Cada criterio de aceptación admite como máximo %d caracteres.",
 		maxCriterionLength)
 	msgInvalidStatusFilter   = "Los valores admitidos para el estado son pending, in_progress y completed."
 	msgInvalidPriorityFilter = "Los valores admitidos para la prioridad son high, medium y low."
@@ -122,9 +123,21 @@ func ValidateStoryInput(req StoryInput) (ValidatedStory, []authdelivery.FieldErr
 
 // ValidateStoryPointsInput valida el cuerpo de la estimación y devuelve los Story Points, nil para
 // "sin estimar", o un FieldError si el campo falta o su valor está fuera de la escala (FR-016,
-// FR-018, FR-019). Firma mínima de T048; la implementa T051.
+// FR-018, FR-019). El campo ausente llega como mensaje vacío y el null como su literal; cualquier
+// otro valor se valida sobre su texto con la misma regla de escala que la creación (research.md
+// sección 8).
 func ValidateStoryPointsInput(req StoryPointsInput) (*int, []authdelivery.FieldError) {
-	return nil, nil
+	switch string(req.StoryPoints) {
+	case "":
+		return nil, []authdelivery.FieldError{{Field: "storyPoints", Message: msgStoryPointsRequired}}
+	case "null":
+		return nil, nil
+	}
+	points, ok := parseStoryPoints(json.Number(req.StoryPoints))
+	if !ok {
+		return nil, []authdelivery.FieldError{{Field: "storyPoints", Message: msgInvalidStoryPoints}}
+	}
+	return &points, nil
 }
 
 // ParseStoryFilter valida los valores repetibles de los filtros status y priority del listado, tal

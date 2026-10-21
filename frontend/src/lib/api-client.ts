@@ -4,10 +4,13 @@ import type { FieldError } from "@/types/auth";
 
 // Error de una llamada a la API ya traducido a un mensaje en español. fields trae el detalle por
 // campo cuando el backend lo informa (ValidationErrorResponse) y queda vacío en cualquier otro caso.
+// reasons trae los mensajes de los motivos, en el orden recibido, solo cuando el cuerpo los informa
+// (DeletionBlockedResponse de la spec 003).
 export type ApiError = {
   status: number;
   message: string;
   fields: FieldError[];
+  reasons?: string[];
 };
 
 // Resultado de una llamada: los datos de la respuesta exitosa o el error, sin lanzar excepciones.
@@ -38,6 +41,11 @@ function isFieldError(value: unknown): value is FieldError {
   );
 }
 
+// Reconoce un motivo de rechazo con su mensaje, como DeletionBlockedReason de la spec 003.
+function isReason(value: unknown): value is { message: string } {
+  return isRecord(value) && typeof value.message === "string";
+}
+
 // Lee el cuerpo como JSON; si está vacío o no es JSON válido devuelve undefined en lugar de fallar.
 async function readJson(response: Response): Promise<unknown> {
   try {
@@ -47,9 +55,9 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
-// Traduce un cuerpo de error a ApiError. Distingue las dos formas del contrato: con "fields" es un
-// ValidationErrorResponse y sin él un ErrorResponse; si no coincide con ninguna, usa un mensaje
-// genérico para no mostrar nada técnico.
+// Traduce un cuerpo de error a ApiError. Distingue las formas del contrato: con "fields" es un
+// ValidationErrorResponse, con "reasons" un DeletionBlockedResponse y sin ninguno un ErrorResponse;
+// si no coincide con ninguna, usa un mensaje genérico para no mostrar nada técnico.
 function toApiError(status: number, body: unknown): ApiError {
   if (!isRecord(body) || typeof body.error !== "string") {
     return genericError(status, UNEXPECTED_ERROR_MESSAGE);
@@ -57,7 +65,11 @@ function toApiError(status: number, body: unknown): ApiError {
   const fields = Array.isArray(body.fields)
     ? body.fields.filter(isFieldError)
     : [];
-  return { status, message: body.error, fields };
+  if (!Array.isArray(body.reasons)) {
+    return { status, message: body.error, fields };
+  }
+  const reasons = body.reasons.filter(isReason).map((reason) => reason.message);
+  return { status, message: body.error, fields, reasons };
 }
 
 // Envía la petición a la ruta indicada de la API usando fetch nativo y traduce la respuesta a

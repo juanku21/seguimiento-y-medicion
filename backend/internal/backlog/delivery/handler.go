@@ -25,6 +25,7 @@ const (
 	msgBacklogReadOnly = "El proyecto está finalizado y su backlog es de solo lectura."
 	msgStoryCompleted  = "La historia está completada y no se puede modificar ni reestimar."
 	msgStoryCommitted  = "La historia está comprometida en un sprint abierto; primero hay que quitarla del sprint."
+	msgDeletionBlocked = "La historia tiene historial asociado y no se puede eliminar."
 	msgInternalError   = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
 )
 
@@ -241,6 +242,52 @@ func (h *Handler) updateStory(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, newStoryDetail(view))
+}
+
+// deleteStory godoc
+//
+//	@Summary		Elimina una historia que nunca se trabajó
+//	@Description	Elimina la historia de forma definitiva, junto con sus criterios de aceptación,
+//	@Description	únicamente si nunca fue asignada a un sprint, no tiene esfuerzo registrado, no tiene
+//	@Description	defectos asociados y no tiene sesiones de estimación por Planning Poker, Finalizadas o
+//	@Description	Canceladas (FR-041, RN-16). Cualquier integrante puede eliminarla (FR-042). Si alguna
+//	@Description	condición se cumple, responde 409 con DeletionBlockedResponse indicando todas las que
+//	@Description	aplican, en el orden sprint_history, effort, defects y estimation_sessions, y la
+//	@Description	historia no se toca (FR-043). Una historia eliminada desaparece de toda consulta
+//	@Description	posterior: operar sobre ella responde 404 como historia inexistente (FR-044). En un
+//	@Description	proyecto finished se rechaza con 409 y ErrorResponse (FR-048, RN-15).
+//	@Tags			Backlog
+//	@ID				deleteStory
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			storyId	path		string					true	"Identificador propio, estable, inmutable y no secuencial de la historia (FR-009)"	format(uuid)
+//	@Success		204		"Historia eliminada."
+//	@Failure		401		{object}	delivery.ErrorResponse	"Se requiere iniciar sesión (FR-045)."
+//	@Failure		404		{object}	delivery.ErrorResponse	"La historia no existe, fue eliminada o pertenece a un proyecto del que quien pide no es integrante; las tres situaciones devuelven el mismo cuerpo (FR-044, FR-047, SC-006)."
+//	@Failure		409		{object}	DeletionBlockedResponse	"La historia tiene historial asociado; el cuerpo lista todos los motivos (FR-043). Si el proyecto está finished, el cuerpo es ErrorResponse con el mensaje de solo lectura (FR-048, RN-15)."
+//	@Failure		500		{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/stories/{storyId} [delete]
+func (h *Handler) deleteStory(c *gin.Context) {
+	// RequireStoryAccess ya verificó la sesión y la membresía y dejó el acceso en el contexto. Si no
+	// está, la ruta se registró fuera de ese middleware: es un error de composición y responde 500.
+	access, ok := storyAccessFromContext(c)
+	if !ok {
+		respondInternalError(c, "deleteStory sin acceso a la historia en el contexto")
+		return
+	}
+
+	// Se elimina la historia. El rechazo por historial responde 409 con todos los motivos; el resto
+	// de los errores de dominio se traduce con respondServiceError.
+	err := h.stories.Delete(c.Request.Context(), access)
+	var blocked *domain.DeletionBlockedError
+	switch {
+	case errors.As(err, &blocked):
+		c.JSON(http.StatusConflict, newDeletionBlockedResponse(msgDeletionBlocked, blocked.Reasons))
+	case err != nil:
+		respondServiceError(c, err, "no se pudo eliminar la historia")
+	default:
+		c.Status(http.StatusNoContent)
+	}
 }
 
 // listStories godoc

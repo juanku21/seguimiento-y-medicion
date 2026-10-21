@@ -1997,3 +1997,280 @@ func TestUS5_CambioDeEstadoNoDisponible(t *testing.T) {
 		})
 	}
 }
+
+// Pruebas de integración de US6 (T067): DELETE /api/v1/stories/{storyId}. Las historias se siembran
+// con backlogSeedEstimable, y las que tienen historial de sprint, esfuerzo, defectos o sesiones de
+// Planning Poker se preparan reemplazando el puerto correspondiente por un doble de testify, porque
+// ninguna de esas features existe todavía (plan.md, cómo se preparan los escenarios). En los rechazos
+// se verifica que la historia, sus criterios y su momento de última actualización queden intactos.
+
+// backlogDeletionBlockedMessage es el mensaje exacto del 409 de eliminación bloqueada por historial.
+const backlogDeletionBlockedMessage = "La historia tiene historial asociado y no se puede eliminar."
+
+// backlogDeletionReasonMessages son los mensajes exactos de cada motivo de bloqueo según la tabla de
+// data-model.md sección 7.
+var backlogDeletionReasonMessages = map[string]string{
+	"sprint_history":      "Estuvo asignada a un sprint.",
+	"effort":              "Tiene esfuerzo registrado.",
+	"defects":             "Tiene defectos asociados.",
+	"estimation_sessions": "Tiene sesiones de estimación por Planning Poker.",
+}
+
+// backlogHistoryRecordsDouble es el doble de testify de los puertos EffortRecords, DefectRecords y
+// EstimationSessions: cada prueba usa una instancia por puerto y configura solo el método que ese
+// puerto expone, para preparar una historia con esfuerzo, defectos o sesiones de estimación sin
+// depender de las features 005 a 007.
+type backlogHistoryRecordsDouble struct {
+	mock.Mock
+}
+
+// HasEffort devuelve lo que la prueba configuró para el esfuerzo de la historia.
+func (m *backlogHistoryRecordsDouble) HasEffort(ctx context.Context, storyID uuid.UUID) (bool, error) {
+	args := m.Called(ctx, storyID)
+	return args.Bool(0), args.Error(1)
+}
+
+// HasDefects devuelve lo que la prueba configuró para los defectos de la historia.
+func (m *backlogHistoryRecordsDouble) HasDefects(ctx context.Context, storyID uuid.UUID) (bool, error) {
+	args := m.Called(ctx, storyID)
+	return args.Bool(0), args.Error(1)
+}
+
+// HasSessions devuelve lo que la prueba configuró para las sesiones de estimación de la historia.
+func (m *backlogHistoryRecordsDouble) HasSessions(ctx context.Context, storyID uuid.UUID) (bool, error) {
+	args := m.Called(ctx, storyID)
+	return args.Bool(0), args.Error(1)
+}
+
+// deleteStory envía DELETE /api/v1/stories/{storyId} con el token como Bearer.
+func (e backlogTestEnv) deleteStory(t *testing.T, token, storyID string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodDelete, backlogStoryPath(storyID), nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, req)
+	return rec
+}
+
+// backlogRequireDeleted exige un 204 sin cuerpo y que no quede en la base ni la historia ni ninguno
+// de sus criterios: el borrado es definitivo (FR-041, FR-044; research.md sección 12).
+func backlogRequireDeleted(t *testing.T, db *gorm.DB, rec *httptest.ResponseRecorder, storyID string) {
+	t.Helper()
+	require.Equal(t, http.StatusNoContent, rec.Code, "cuerpo: %s", rec.Body.String())
+	assert.Empty(t, rec.Body.String(), "el 204 no debería tener cuerpo")
+	assert.Zero(t, backlogCountRows(t, db, &domain.UserStory{}, "id = ?", storyID),
+		"la historia no debería seguir en user_stories")
+	assert.Zero(t, backlogCountRows(t, db, &domain.AcceptanceCriterion{}, "story_id = ?", storyID),
+		"no deberían quedar filas de la historia en acceptance_criteria")
+}
+
+// backlogRequireDeletionBlocked exige el 409 de DeletionBlockedResponse con exactamente los motivos
+// indicados, en ese orden y con sus mensajes del contrato (FR-043).
+func backlogRequireDeletionBlocked(t *testing.T, rec *httptest.ResponseRecorder, codes ...string) {
+	t.Helper()
+	reasons := make([]map[string]string, 0, len(codes))
+	for _, code := range codes {
+		reasons = append(reasons, map[string]string{"code": code, "message": backlogDeletionReasonMessages[code]})
+	}
+	want, err := json.Marshal(map[string]any{"error": backlogDeletionBlockedMessage, "reasons": reasons})
+	require.NoError(t, err, "no se pudo serializar el cuerpo esperado")
+	assert.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+	assert.JSONEq(t, string(want), rec.Body.String())
+}
+
+// Escenario: Eliminación exitosa (003/US6)
+// Ana elimina una historia recién creada que nunca estuvo en un sprint y no tiene esfuerzo ni
+// defectos: la respuesta es 204, la historia y sus criterios desaparecen de la base y el listado ya
+// no la muestra, mientras que otra historia del mismo backlog sigue en él (FR-041, FR-044).
+func TestUS6_EliminacionExitosa(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	created := requireCreatedStory(t, env.postStory(t, anaToken, projectID, backlogFullBody()))
+	otherID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, nil, 1)
+
+	rec := env.deleteStory(t, anaToken, created.ID)
+
+	backlogRequireDeleted(t, env.db, rec, created.ID)
+	list := requireStoryList(t, env.getStories(t, anaToken, projectID, ""))
+	assert.Equal(t, []string{otherID.String()}, backlogListIDs(list),
+		"el listado debería conservar solo la otra historia")
+	assert.Len(t, backlogStoredCriteria(t, env.db, otherID.String()), 1,
+		"los criterios de la otra historia no deberían tocarse")
+}
+
+// Escenario: Lista para planificar se elimina (003/US6)
+// Una historia estimada en 5 y con dos criterios, que nunca se asignó a un sprint, se elimina: estar
+// lista para planificar no es haberse planificado (FR-041, RN-16).
+func TestUS6_ListaParaPlanificarSeElimina(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, backlogPoints(5), 2)
+
+	rec := env.deleteStory(t, anaToken, storyID.String())
+
+	backlogRequireDeleted(t, env.db, rec, storyID.String())
+}
+
+// Escenario: Integrante no propietario (003/US6)
+// Bruno, integrante que no es el propietario ni el autor, elimina una historia creada por Ana sin
+// historial: la eliminación se acepta (FR-042, RN-01, RN-02).
+func TestUS6_IntegranteNoPropietario(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress, brunoID)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, nil, 1)
+
+	rec := env.deleteStory(t, brunoToken, storyID.String())
+
+	backlogRequireDeleted(t, env.db, rec, storyID.String())
+}
+
+// Escenario: Quitada de un sprint (003/US6)
+// Con el puerto de sprints reemplazado por un doble que informa que la historia estuvo en un sprint
+// pero ya no está comprometida en uno abierto, la eliminación se rechaza con 409 y el motivo
+// sprint_history, y la historia queda intacta (FR-041, FR-043, RN-16).
+func TestUS6_QuitadaDeUnSprint(t *testing.T) {
+	sprints := &backlogSprintAssignmentsDouble{}
+	env := newBacklogTestEnv(t, func(p *backlogTestPorts) { p.sprints = sprints })
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, backlogPoints(5), 1)
+	sprints.On("Find", mock.Anything, storyID).
+		Return(domain.SprintAssignment{CommittedToOpenSprint: false, EverAssigned: true}, nil)
+
+	rec := env.deleteStory(t, anaToken, storyID.String())
+
+	backlogRequireDeletionBlocked(t, rec, "sprint_history")
+	backlogRequireStoryUntouched(t, env.db, storyID, domain.StoryStatusPending, []string{backlogFirstCriterion})
+	sprints.AssertExpectations(t)
+}
+
+// Escenario: Única historia (003/US6)
+// En un backlog con una sola historia, Ana la elimina: el listado responde 200 sin historias y con
+// emptyReason backlog_empty, como backlog vacío y no como error (FR-035, FR-044).
+func TestUS6_UnicaHistoria(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, nil, 1)
+
+	backlogRequireDeleted(t, env.db, env.deleteStory(t, anaToken, storyID.String()), storyID.String())
+
+	list := requireStoryList(t, env.getStories(t, anaToken, projectID, ""))
+	assert.Empty(t, list.Stories, "el backlog debería quedar sin historias")
+	backlogRequireEmptyReason(t, list, "backlog_empty")
+}
+
+// Escenario: Esfuerzo o defectos (003/US6)
+// Con el puerto de esfuerzo, el de defectos o ambos reemplazados por dobles que informan historial,
+// la eliminación se rechaza con 409 indicando cada motivo que aplica, en el orden del contrato, y la
+// historia no se modifica (FR-043, RN-16).
+func TestUS6_EsfuerzoODefectos(t *testing.T) {
+	cases := []struct {
+		name       string
+		hasEffort  bool
+		hasDefects bool
+		codes      []string
+	}{
+		{"esfuerzo registrado", true, false, []string{"effort"}},
+		{"defectos asociados", false, true, []string{"defects"}},
+		{"esfuerzo y defectos", true, true, []string{"effort", "defects"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			effort := &backlogHistoryRecordsDouble{}
+			defects := &backlogHistoryRecordsDouble{}
+			env := newBacklogTestEnv(t, func(p *backlogTestPorts) {
+				p.effort = effort
+				p.defects = defects
+			})
+			anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+			projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+			storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, backlogPoints(3), 2)
+			effort.On("HasEffort", mock.Anything, storyID).Return(tc.hasEffort, nil)
+			defects.On("HasDefects", mock.Anything, storyID).Return(tc.hasDefects, nil)
+
+			rec := env.deleteStory(t, anaToken, storyID.String())
+
+			backlogRequireDeletionBlocked(t, rec, tc.codes...)
+			backlogRequireStoryUntouched(t, env.db, storyID, domain.StoryStatusPending,
+				[]string{backlogFirstCriterion, backlogSecondCriterion})
+			effort.AssertExpectations(t)
+			defects.AssertExpectations(t)
+		})
+	}
+}
+
+// Escenario: Sesiones de estimación (003/US6)
+// Una historia que nunca estuvo en un sprint, con el puerto de Planning Poker reemplazado por un doble
+// que informa sesiones de estimación, no se elimina: 409 con el motivo estimation_sessions y la
+// historia intacta (FR-043, RN-16, RC-10).
+func TestUS6_SesionesDeEstimacion(t *testing.T) {
+	sessions := &backlogHistoryRecordsDouble{}
+	env := newBacklogTestEnv(t, func(p *backlogTestPorts) { p.sessions = sessions })
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, backlogPoints(8), 1)
+	sessions.On("HasSessions", mock.Anything, storyID).Return(true, nil)
+
+	rec := env.deleteStory(t, anaToken, storyID.String())
+
+	backlogRequireDeletionBlocked(t, rec, "estimation_sessions")
+	backlogRequireStoryUntouched(t, env.db, storyID, domain.StoryStatusPending, []string{backlogFirstCriterion})
+	sessions.AssertExpectations(t)
+}
+
+// Escenario: Proyecto finalizado (003/US6)
+// En un proyecto Finalizado, Bruno, integrante, intenta eliminar una historia sin historial: se
+// rechaza con 409 porque el backlog es de solo lectura, y la historia sigue en la base sin cambios
+// (FR-048, RN-15).
+func TestUS6_ProyectoFinalizado(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusFinished, brunoID)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, nil, 1)
+
+	rec := env.deleteStory(t, brunoToken, storyID.String())
+
+	backlogRequireConflict(t, rec, backlogReadOnlyMessage)
+	backlogRequireStoryUntouched(t, env.db, storyID, domain.StoryStatusPending, []string{backlogFirstCriterion})
+}
+
+// Escenario: Historia ajena (003/US6)
+// Carla, que no es integrante del proyecto, intenta eliminar una historia que existe: recibe el 404 de
+// historia inexistente, idéntico byte a byte al de un identificador que no existe, y la historia no
+// se toca (FR-047, SC-006).
+func TestUS6_HistoriaAjena(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	_, carlaToken := env.signUp(t, "Carla Díaz", "carla@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, nil, 1)
+
+	foreign := env.deleteStory(t, carlaToken, storyID.String())
+	missing := env.deleteStory(t, anaToken, uuid.New().String())
+
+	backlogRequireIdenticalNotFound(t, foreign, missing)
+	assert.NotContains(t, foreign.Body.String(), backlogStoryTitle, "la respuesta no debería revelar el título")
+	backlogRequireStoryUntouched(t, env.db, storyID, domain.StoryStatusPending, []string{backlogFirstCriterion})
+}
+
+// Escenario: Ya eliminada (003/US6)
+// Ana elimina una historia y vuelve a intentarlo: el segundo intento recibe el 404 de historia
+// inexistente, idéntico al de un identificador que nunca existió (FR-044, FR-047).
+func TestUS6_YaEliminada(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, nil, 1)
+	backlogRequireDeleted(t, env.db, env.deleteStory(t, anaToken, storyID.String()), storyID.String())
+
+	again := env.deleteStory(t, anaToken, storyID.String())
+	missing := env.deleteStory(t, anaToken, uuid.New().String())
+
+	backlogRequireIdenticalNotFound(t, again, missing)
+}

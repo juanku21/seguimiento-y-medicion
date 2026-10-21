@@ -758,3 +758,174 @@ func TestUS5_ServicioCambioDeEstadoNoDisponible(t *testing.T) {
 		d.stories.AssertNotCalled(t, "UpdateStoryPoints", mock.Anything, mock.Anything, mock.Anything)
 	})
 }
+
+// Pruebas unitarias obligatorias de la eliminación en el servicio (T066): RN-15, RN-16 y FR-041 a
+// FR-043. El acceso llega ya resuelto por RequireStoryAccess; el historial de la historia lo
+// informan los dobles de los cuatro puertos (sprints, esfuerzo, defectos y sesiones de estimación).
+// En todos los rechazos se verifica que Delete del repositorio no se llama.
+
+// storyHistory describe qué historial informa cada uno de los cuatro puertos sobre la historia.
+type storyHistory struct {
+	everAssigned bool
+	effort       bool
+	defects      bool
+	sessions     bool
+}
+
+// expectStoryHistory prepara la respuesta de los cuatro puertos para la historia del acceso. La
+// historia quitada de un sprint figura como asignada alguna vez pero no comprometida en un sprint
+// abierto, porque la condición de RN-16 es no haber estado nunca en un sprint.
+func expectStoryHistory(d storyServiceDoubles, access *domain.StoryAccess, history storyHistory) {
+	d.sprints.On("Find", mock.Anything, access.StoryID).
+		Return(domain.SprintAssignment{EverAssigned: history.everAssigned}, nil)
+	d.effort.On("HasEffort", mock.Anything, access.StoryID).Return(history.effort, nil)
+	d.defects.On("HasDefects", mock.Anything, access.StoryID).Return(history.defects, nil)
+	d.sessions.On("HasSessions", mock.Anything, access.StoryID).Return(history.sessions, nil)
+}
+
+// assertDeletionBlocked comprueba que el error es DeletionBlockedError con exactamente los motivos
+// esperados, en el orden de T005, y que Delete del repositorio no se llamó.
+func assertDeletionBlocked(t *testing.T, d storyServiceDoubles, err error, expected ...domain.DeletionBlocker) {
+	t.Helper()
+	var blocked *domain.DeletionBlockedError
+	require.ErrorAs(t, err, &blocked)
+	assert.Equal(t, expected, blocked.Reasons)
+	d.stories.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything)
+}
+
+// Escenario: Eliminación exitosa (003/US6)
+// RN-16: una historia que nunca estuvo en un sprint, sin esfuerzo, defectos ni sesiones de
+// estimación se elimina: el servicio consulta los cuatro puertos y llama a Delete del repositorio
+// con su identificador.
+func TestUS6_ServicioEliminacionExitosa(t *testing.T) {
+	svc, d := newStoryServiceWithDoubles()
+	access := newStoryAccess(false)
+	expectStoryHistory(d, access, storyHistory{})
+	d.stories.On("Delete", mock.Anything, access.StoryID).Return(nil).Once()
+
+	err := svc.Delete(context.Background(), access)
+
+	require.NoError(t, err)
+	d.stories.AssertExpectations(t)
+	d.sprints.AssertExpectations(t)
+	d.effort.AssertExpectations(t)
+	d.defects.AssertExpectations(t)
+	d.sessions.AssertExpectations(t)
+}
+
+// Escenario: Quitada de un sprint (003/US6)
+// RN-16: una historia que estuvo en un sprint y ya no está comprometida en ninguno abierto se rechaza
+// con el motivo sprint_history.
+func TestUS6_ServicioQuitadaDeUnSprint(t *testing.T) {
+	svc, d := newStoryServiceWithDoubles()
+	access := newStoryAccess(false)
+	expectStoryHistory(d, access, storyHistory{everAssigned: true})
+
+	err := svc.Delete(context.Background(), access)
+
+	assertDeletionBlocked(t, d, err, domain.DeletionBlockerSprintHistory)
+}
+
+// Escenario: Esfuerzo o defectos (003/US6)
+// RN-16 y FR-043: una historia con esfuerzo registrado o con defectos asociados se rechaza indicando
+// cuál de los dos historiales lo impide, y con ambos indica los dos en el orden de T005.
+func TestUS6_ServicioEsfuerzoODefectos(t *testing.T) {
+	cases := []struct {
+		name     string
+		history  storyHistory
+		expected []domain.DeletionBlocker
+	}{
+		{"con esfuerzo", storyHistory{effort: true},
+			[]domain.DeletionBlocker{domain.DeletionBlockerEffort}},
+		{"con defectos", storyHistory{defects: true},
+			[]domain.DeletionBlocker{domain.DeletionBlockerDefects}},
+		{"con esfuerzo y defectos", storyHistory{effort: true, defects: true},
+			[]domain.DeletionBlocker{domain.DeletionBlockerEffort, domain.DeletionBlockerDefects}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, d := newStoryServiceWithDoubles()
+			access := newStoryAccess(false)
+			expectStoryHistory(d, access, tc.history)
+
+			err := svc.Delete(context.Background(), access)
+
+			assertDeletionBlocked(t, d, err, tc.expected...)
+		})
+	}
+}
+
+// Escenario: Sesiones de estimación (003/US6)
+// RN-16 y RC-10: una historia que nunca estuvo en un sprint pero tiene una sesión de Planning Poker,
+// Finalizada o Cancelada, se rechaza con el motivo estimation_sessions.
+func TestUS6_ServicioSesionesDeEstimacion(t *testing.T) {
+	svc, d := newStoryServiceWithDoubles()
+	access := newStoryAccess(false)
+	expectStoryHistory(d, access, storyHistory{sessions: true})
+
+	err := svc.Delete(context.Background(), access)
+
+	assertDeletionBlocked(t, d, err, domain.DeletionBlockerEstimationSessions)
+}
+
+// FR-043: con varios historiales a la vez el rechazo lleva todos los motivos, siempre en el orden de
+// T005 (sprint_history, effort, defects, estimation_sessions), sin importar cuáles se combinen.
+func TestUS6_ServicioVariosMotivos(t *testing.T) {
+	cases := []struct {
+		name     string
+		history  storyHistory
+		expected []domain.DeletionBlocker
+	}{
+		{"sprint y sesiones", storyHistory{everAssigned: true, sessions: true},
+			[]domain.DeletionBlocker{domain.DeletionBlockerSprintHistory, domain.DeletionBlockerEstimationSessions}},
+		{"defectos y sesiones", storyHistory{defects: true, sessions: true},
+			[]domain.DeletionBlocker{domain.DeletionBlockerDefects, domain.DeletionBlockerEstimationSessions}},
+		{"los cuatro motivos", storyHistory{everAssigned: true, effort: true, defects: true, sessions: true},
+			[]domain.DeletionBlocker{
+				domain.DeletionBlockerSprintHistory,
+				domain.DeletionBlockerEffort,
+				domain.DeletionBlockerDefects,
+				domain.DeletionBlockerEstimationSessions,
+			}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, d := newStoryServiceWithDoubles()
+			access := newStoryAccess(false)
+			expectStoryHistory(d, access, tc.history)
+
+			err := svc.Delete(context.Background(), access)
+
+			assertDeletionBlocked(t, d, err, tc.expected...)
+		})
+	}
+}
+
+// Escenario: Proyecto finalizado (003/US6)
+// RN-15: con el proyecto Finalizado el servicio devuelve ErrBacklogReadOnly antes de consultar los
+// cuatro puertos y no llama a Delete del repositorio, tenga o no historial la historia.
+func TestUS6_ServicioProyectoFinalizado(t *testing.T) {
+	cases := []struct {
+		name    string
+		history storyHistory
+	}{
+		{"historia sin historial", storyHistory{}},
+		{"historia con los cuatro historiales", storyHistory{everAssigned: true, effort: true, defects: true, sessions: true}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, d := newStoryServiceWithDoubles()
+			access := newStoryAccess(true)
+			expectStoryHistory(d, access, tc.history)
+
+			err := svc.Delete(context.Background(), access)
+
+			require.ErrorIs(t, err, domain.ErrBacklogReadOnly)
+			d.sprints.AssertNotCalled(t, "Find", mock.Anything, mock.Anything)
+			d.effort.AssertNotCalled(t, "HasEffort", mock.Anything, mock.Anything)
+			d.defects.AssertNotCalled(t, "HasDefects", mock.Anything, mock.Anything)
+			d.sessions.AssertNotCalled(t, "HasSessions", mock.Anything, mock.Anything)
+			d.stories.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything)
+		})
+	}
+}

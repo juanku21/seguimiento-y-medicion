@@ -153,6 +153,72 @@ func (s *StoryService) Update(ctx context.Context, access *domain.StoryAccess, c
 	return s.buildDetail(ctx, access.StoryID)
 }
 
+// Delete elimina definitivamente una historia sin historial asociado (FR-041 a FR-044, RN-15,
+// RN-16). Primero aplica la solo lectura del proyecto Finalizado (RN-15), que vuelve irrelevante el
+// historial; después consulta siempre los cuatro puertos y, si alguno informa historial, devuelve
+// DeletionBlockedError con todos los motivos en el orden de T005 (FR-043). Sin motivos, el
+// repositorio borra la historia y sus criterios en una transacción.
+func (s *StoryService) Delete(ctx context.Context, access *domain.StoryAccess) error {
+	if access.ProjectFinished {
+		return domain.ErrBacklogReadOnly
+	}
+
+	reasons, err := s.deletionBlockers(ctx, access.StoryID)
+	if err != nil {
+		return err
+	}
+	if len(reasons) > 0 {
+		return &domain.DeletionBlockedError{Reasons: reasons}
+	}
+
+	if err := s.stories.Delete(ctx, access.StoryID); err != nil {
+		return fmt.Errorf("eliminar historia: %w", err)
+	}
+	return nil
+}
+
+// deletionBlockers consulta los cuatro puertos de historial y devuelve los motivos que impiden
+// eliminar la historia, en el orden de T005: sprint, esfuerzo, defectos y sesiones de estimación.
+// La historia quitada de un sprint cuenta como historial, porque RN-16 exige no haber estado nunca
+// en uno.
+func (s *StoryService) deletionBlockers(ctx context.Context, storyID uuid.UUID) ([]domain.DeletionBlocker, error) {
+	var reasons []domain.DeletionBlocker
+
+	assignment, err := s.sprints.Find(ctx, storyID)
+	if err != nil {
+		return nil, fmt.Errorf("consultar asignación a sprints: %w", err)
+	}
+	if assignment.EverAssigned {
+		reasons = append(reasons, domain.DeletionBlockerSprintHistory)
+	}
+
+	hasEffort, err := s.effort.HasEffort(ctx, storyID)
+	if err != nil {
+		return nil, fmt.Errorf("consultar esfuerzo registrado: %w", err)
+	}
+	if hasEffort {
+		reasons = append(reasons, domain.DeletionBlockerEffort)
+	}
+
+	hasDefects, err := s.defects.HasDefects(ctx, storyID)
+	if err != nil {
+		return nil, fmt.Errorf("consultar defectos asociados: %w", err)
+	}
+	if hasDefects {
+		reasons = append(reasons, domain.DeletionBlockerDefects)
+	}
+
+	hasSessions, err := s.sessions.HasSessions(ctx, storyID)
+	if err != nil {
+		return nil, fmt.Errorf("consultar sesiones de estimación: %w", err)
+	}
+	if hasSessions {
+		reasons = append(reasons, domain.DeletionBlockerEstimationSessions)
+	}
+
+	return reasons, nil
+}
+
 // ensureEditable aplica, en el orden de research.md sección 16, las dos guardas que comparten las
 // operaciones que modifican una historia: la solo lectura del proyecto Finalizado (RN-15), que vuelve
 // irrelevante cualquier otra, y la historia completed (RN-14). El estado de la historia no viaja en

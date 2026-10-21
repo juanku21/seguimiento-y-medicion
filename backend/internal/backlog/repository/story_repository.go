@@ -15,9 +15,7 @@ import (
 )
 
 // StoryRepository implementa domain.StoryRepository con GORM sobre user_stories y
-// acceptance_criteria. Create, FindDetail, List, HasStories, FindAccessible, Update y
-// UpdateStoryPoints están implementadas; las demás operaciones las implementan las historias que las
-// usan.
+// acceptance_criteria. Implementa todas las operaciones que declara la interfaz del dominio.
 type StoryRepository struct {
 	db *gorm.DB
 }
@@ -275,7 +273,28 @@ func (r *StoryRepository) UpdateStoryPoints(ctx context.Context, storyID uuid.UU
 	return nil
 }
 
-// Delete borra la historia y sus criterios en una transacción. Firma mínima.
+// Delete elimina definitivamente la historia en una transacción (research.md sección 12): primero
+// borra sus criterios de aceptación y después la historia, sin borrado lógico ni ON DELETE CASCADE,
+// de modo que si falla cualquiera de los dos DELETE no se borra nada. Si el DELETE de la historia no
+// afecta ninguna fila, la historia no existe y se devuelve ErrStoryNotFound.
 func (r *StoryRepository) Delete(ctx context.Context, storyID uuid.UUID) error {
-	return errors.New("not implemented")
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.
+			Where("story_id = ?", storyID).
+			Delete(&domain.AcceptanceCriterion{}).Error
+		if err != nil {
+			return fmt.Errorf("borrar criterios de aceptación: %w", err)
+		}
+
+		result := tx.
+			Where("id = ?", storyID).
+			Delete(&domain.UserStory{})
+		if result.Error != nil {
+			return fmt.Errorf("borrar la historia: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return domain.ErrStoryNotFound
+		}
+		return nil
+	})
 }

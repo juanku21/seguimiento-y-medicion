@@ -605,13 +605,13 @@ el motivo `sprint_history`.
 
 ### Pruebas de la Historia 6 ⚠️
 
-- [ ] T066 [P] [US6] Pruebas unitarias **obligatorias** de `Delete` en
+- [X] T066 [P] [US6] Pruebas unitarias **obligatorias** de `Delete` en
       `backend/internal/backlog/service/story_service_test.go`, con dobles de los cuatro puertos:
       cada motivo por separado (`sprint_history`, `effort`, `defects`, `estimation_sessions`), dos y
       cuatro motivos a la vez **en ese orden**, ningún motivo → `Delete` del repositorio llamado, y
       proyecto Finalizado → `ErrBacklogReadOnly` sin consultar los puertos (RN-15, RN-16); en todo
       rechazo, `Delete` del repositorio no se llama — depende de T065
-- [ ] T067 [US6] Pruebas de integración de la historia en
+- [X] T067 [US6] Pruebas de integración de la historia en
       `backend/internal/backlog/delivery/handler_test.go`, con `// Escenario: <nombre> (003/US6)`:
       `TestUS6_EliminacionExitosa` (`204`, ausente del listado y sin filas en
       `acceptance_criteria`), `TestUS6_ListaParaPlanificarSeElimina`,
@@ -621,7 +621,7 @@ el motivo `sprint_history`.
       cada doble → `409` con su motivo e historia intacta), `TestUS6_SesionesDeEstimacion`,
       `TestUS6_ProyectoFinalizado`, `TestUS6_HistoriaAjena` y `TestUS6_YaEliminada` (`404`) —
       depende de T065
-- [ ] T068 [P] [US6] Pruebas de frontend en
+- [X] T068 [P] [US6] Pruebas de frontend en
       `frontend/src/features/backlog/components/delete-story-button.test.tsx`, con
       `describe("003/US6 - Eliminar una historia que nunca se trabajó")` y un `it` por escenario,
       incluido que pide confirmación antes de eliminar y que muestra **cada** motivo del rechazo —
@@ -629,20 +629,20 @@ el motivo `sprint_history`.
 
 ### Implementación de la Historia 6
 
-- [ ] T069 [US6] Implementar `Delete` en `backend/internal/backlog/repository/story_repository.go`,
+- [X] T069 [US6] Implementar `Delete` en `backend/internal/backlog/repository/story_repository.go`,
       que borra los criterios de la historia y la historia en **una transacción**, sin borrado
       lógico (research.md sección 12) — depende de T067
-- [ ] T070 [US6] Implementar `Delete(ctx, access)` en `backend/internal/backlog/service/story_service.go`:
+- [X] T070 [US6] Implementar `Delete(ctx, access)` en `backend/internal/backlog/service/story_service.go`:
       solo lectura primero; después consulta los cuatro puertos y, si alguno informa historial,
       devuelve `DeletionBlockedError` con **todos** los motivos en el orden de T005 — depende de T066
       y T069
-- [ ] T071 [US6] Declarar `DeletionBlockedReason` y `DeletionBlockedResponse` en
+- [X] T071 [US6] Declarar `DeletionBlockedReason` y `DeletionBlockedResponse` en
       `backend/internal/backlog/delivery/dto.go`, implementar el manejador `deleteStory` en
       `backend/internal/backlog/delivery/handler.go` con anotaciones `swag` en español y registrar
       `DELETE` en el grupo de la historia en `backend/internal/backlog/delivery/routes.go`.
       Respuestas: `204`, `401`, `404` y `409` con `DeletionBlockedResponse` o `ErrorResponse` — depende
       de T070
-- [ ] T072 [US6] Implementar la llamada de eliminación en `frontend/src/features/backlog/api.ts` y el
+- [X] T072 [US6] Implementar la llamada de eliminación en `frontend/src/features/backlog/api.ts` y el
       componente `DeleteStoryButton` en
       `frontend/src/features/backlog/components/delete-story-button.tsx`, con confirmación, integrado
       en la pantalla de detalle y con regreso al listado al eliminar — depende de T068 y T071
@@ -781,6 +781,18 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       del proyecto dentro de la transacción), devolviendo `ErrBacklogReadOnly` cuando corresponda
       per hallazgo de seguridad: regla de solo lectura del proyecto Finalizado verificada fuera de
       la escritura (security) — origen: seguridad, detectado en 003/US4
+- [ ] T093 Agregar prueba de integración en `backend/internal/backlog/delivery/handler_test.go` que
+      elimina con DELETE /api/v1/stories/{storyId} una historia de un proyecto que pasa a `finished`
+      después de que se resuelve el acceso, y verifica que responde 409 con el mensaje de solo lectura
+      y que la historia y sus criterios siguen en la base per hallazgo de seguridad: regla de solo
+      lectura del proyecto Finalizado verificada fuera de la escritura en la eliminación (security)
+      — origen: seguridad, detectado en 003/US6
+- [ ] T094 Hacer que `Delete` de `backend/internal/backlog/repository/story_repository.go` compruebe
+      dentro de su transacción que el proyecto de la historia no está Finalizado (bloqueo `FOR SHARE`
+      de la fila de `projects` o condición en el `DELETE` de `user_stories`) y devuelva
+      `ErrBacklogReadOnly` en ese caso, para que `respondServiceError` lo traduzca al 409 de solo
+      lectura per hallazgo de seguridad: regla de solo lectura del proyecto Finalizado verificada
+      fuera de la escritura en la eliminación (security) — origen: seguridad, detectado en 003/US6
 
 ---
 

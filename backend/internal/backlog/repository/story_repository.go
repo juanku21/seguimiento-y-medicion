@@ -313,8 +313,8 @@ func (r *StoryRepository) UpdateStoryPoints(ctx context.Context, storyID uuid.UU
 }
 
 // ensureProjectWritable rechaza con ErrBacklogReadOnly la escritura sobre el backlog de un proyecto
-// Finalizado (FR-048, RN-15). Lo comparten Create y UpdateStoryPoints después de bloquear la fila
-// del proyecto dentro de su transacción.
+// Finalizado (FR-048, RN-15). Lo comparten Create, UpdateStoryPoints y Delete después de bloquear
+// la fila del proyecto dentro de su transacción.
 func ensureProjectWritable(status projectsdomain.ProjectStatus) error {
 	if status == projectsdomain.ProjectStatusFinished {
 		return domain.ErrBacklogReadOnly
@@ -322,13 +322,34 @@ func ensureProjectWritable(status projectsdomain.ProjectStatus) error {
 	return nil
 }
 
-// Delete elimina definitivamente la historia en una transacción (research.md sección 12): primero
-// borra sus criterios de aceptación y después la historia, sin borrado lógico ni ON DELETE CASCADE,
-// de modo que si falla cualquiera de los dos DELETE no se borra nada. Si el DELETE de la historia no
-// afecta ninguna fila, la historia no existe y se devuelve ErrStoryNotFound.
+// Delete elimina definitivamente la historia en una transacción (research.md sección 12). Primero
+// lee el estado del proyecto de la historia con un bloqueo FOR SHARE sobre la fila de projects, igual
+// que UpdateStoryPoints, que impide que el proyecto pase a Finalizado hasta terminar el borrado; si
+// no hay fila devuelve ErrStoryNotFound, y si el proyecto está Finalizado devuelve ErrBacklogReadOnly
+// (FR-048, RN-15). Después borra sus criterios de aceptación y la historia, sin borrado lógico ni
+// ON DELETE CASCADE, de modo que si falla cualquiera de los dos DELETE no se borra nada. Si el DELETE
+// de la historia no afecta ninguna fila, la historia no existe y se devuelve ErrStoryNotFound.
 func (r *StoryRepository) Delete(ctx context.Context, storyID uuid.UUID) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var project projectsdomain.Project
 		err := tx.
+			Table("user_stories").
+			Select("projects.status").
+			Joins("JOIN projects ON projects.id = user_stories.project_id").
+			Where("user_stories.id = ?", storyID).
+			Clauses(clause.Locking{Strength: "SHARE", Table: clause.Table{Name: "projects"}}).
+			Take(&project).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domain.ErrStoryNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("bloquear el proyecto de la historia: %w", err)
+		}
+		if err := ensureProjectWritable(project.Status); err != nil {
+			return err
+		}
+
+		err = tx.
 			Where("story_id = ?", storyID).
 			Delete(&domain.AcceptanceCriterion{}).Error
 		if err != nil {

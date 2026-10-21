@@ -2274,3 +2274,173 @@ func TestUS6_YaEliminada(t *testing.T) {
 
 	backlogRequireIdenticalNotFound(t, again, missing)
 }
+
+// Pruebas de caracterización de la fase Polish (T078). No llevan etiqueta 003/USn porque derivan de
+// los criterios de éxito SC-005 y SC-006 y del Principio VI, no de un escenario: recorren las seis
+// rutas del backlog ya protegidas por el middleware de sesión, RequireMembership y
+// RequireStoryAccess, y fijan su comportamiento para que una regresión en la composición se detecte.
+
+// backlogEndpointCall describe una de las seis acciones del backlog: su nombre para el subtest, su
+// método, su ruta y el cuerpo válido que se envía, que produciría un cambio si llegara al manejador.
+type backlogEndpointCall struct {
+	name   string
+	method string
+	path   string
+	body   string
+}
+
+// backlogSend envía la solicitud con el valor indicado en la cabecera Authorization; si el valor es
+// vacío, la solicitud viaja sin esa cabecera.
+func (e backlogTestEnv) backlogSend(t *testing.T, call backlogEndpointCall, authorization string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(call.method, call.path, strings.NewReader(call.body))
+	if call.body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if authorization != "" {
+		req.Header.Set("Authorization", authorization)
+	}
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, req)
+	return rec
+}
+
+// backlogCollectionCalls devuelve las dos acciones de colección sobre el proyecto indicado: crear y
+// listar historias.
+func backlogCollectionCalls(t *testing.T, projectID uuid.UUID) []backlogEndpointCall {
+	t.Helper()
+	payload, err := json.Marshal(backlogFullBody())
+	require.NoError(t, err, "no se pudo serializar la solicitud")
+	return []backlogEndpointCall{
+		{name: "POST stories", method: http.MethodPost, path: backlogStoriesPath(projectID), body: string(payload)},
+		{name: "GET stories", method: http.MethodGet, path: backlogStoriesPath(projectID)},
+	}
+}
+
+// backlogItemCalls devuelve las cuatro acciones de ítem sobre la historia indicada: detalle,
+// refinamiento, eliminación y estimación.
+func backlogItemCalls(t *testing.T, storyID string) []backlogEndpointCall {
+	t.Helper()
+	return []backlogEndpointCall{
+		{name: "GET story", method: http.MethodGet, path: backlogStoryPath(storyID)},
+		{name: "PATCH story", method: http.MethodPatch, path: backlogStoryPath(storyID),
+			body: validationPatchJSON(t, map[string]any{"title": backlogRefinedTitle})},
+		{name: "DELETE story", method: http.MethodDelete, path: backlogStoryPath(storyID)},
+		{name: "PUT story-points", method: http.MethodPut, path: backlogStoryPath(storyID) + "/story-points",
+			body: `{"storyPoints":13}`},
+	}
+}
+
+// backlogTamperToken altera un carácter en medio de la firma del JWT, de modo que el token conserva
+// su forma pero su firma deja de ser válida.
+func backlogTamperToken(t *testing.T, token string) string {
+	t.Helper()
+	parts := strings.Split(token, ".")
+	require.Len(t, parts, 3, "el token de prueba debería tener tres segmentos")
+	signature := []byte(parts[2])
+	middle := len(signature) / 2
+	if signature[middle] == 'A' {
+		signature[middle] = 'B'
+	} else {
+		signature[middle] = 'A'
+	}
+	parts[2] = string(signature)
+	return strings.Join(parts, ".")
+}
+
+// backlogRequireNoPasswordHash exige que la respuesta no exponga el hash de contraseña en ninguna de
+// sus dos grafías (Principio VI).
+func backlogRequireNoPasswordHash(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	assert.NotContains(t, rec.Body.String(), "password_hash", "la respuesta no debería exponer password_hash")
+	assert.NotContains(t, rec.Body.String(), "passwordHash", "la respuesta no debería exponer passwordHash")
+}
+
+// Sin cabecera de autorización y con un token de firma adulterada, cada una de las seis acciones del
+// backlog responde el 401 de la 001 y no aplica ningún cambio: no se crea ninguna historia y la
+// sembrada conserva sus datos, sus criterios y su momento de última actualización (SC-005, FR-045).
+func TestStoryEndpoints_SinSesion(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, nil, 1)
+	calls := append(backlogCollectionCalls(t, projectID), backlogItemCalls(t, storyID.String())...)
+	variants := []struct {
+		name          string
+		authorization string
+	}{
+		{name: "sin cabecera", authorization: ""},
+		{name: "token adulterado", authorization: "Bearer " + backlogTamperToken(t, anaToken)},
+	}
+
+	// Cada acción se prueba con las dos variantes y, después de cada solicitud, se comprueba que la
+	// base sigue exactamente como se sembró.
+	for _, call := range calls {
+		t.Run(call.name, func(t *testing.T) {
+			for _, variant := range variants {
+				t.Run(variant.name, func(t *testing.T) {
+					rec := env.backlogSend(t, call, variant.authorization)
+
+					assert.Equal(t, http.StatusUnauthorized, rec.Code, "cuerpo: %s", rec.Body.String())
+					assert.Equal(t, storyAccessSessionBody, rec.Body.String(), "el cuerpo debería ser el 401 de la 001")
+					assert.NotContains(t, rec.Body.String(), backlogStoryTitle, "la respuesta no debería revelar el título")
+					backlogRequireNoPasswordHash(t, rec)
+					assert.Equal(t, int64(1), backlogCountRows(t, env.db, &domain.UserStory{}, ""),
+						"no debería crearse ni eliminarse ninguna historia")
+					backlogRequireStoryUntouched(t, env.db, storyID, domain.StoryStatusPending, []string{backlogFirstCriterion})
+				})
+			}
+		})
+	}
+}
+
+// Para cada acción, la respuesta a quien no es integrante es idéntica byte a byte a la de un
+// identificador inexistente: en las cuatro acciones de ítem, el 404 de historia ajena frente al de
+// historia inexistente; en las dos de colección, el 404 de proyecto ajeno frente al de proyecto
+// inexistente. Ninguna respuesta revela datos ni aplica cambios (SC-006, FR-047).
+func TestStoryEndpoints_NotFoundIndistinguible(t *testing.T) {
+	env := newBacklogTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	_, carlaToken := env.signUp(t, "Carla Díaz", "carla@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, nil, 1)
+
+	// Acciones de ítem: Carla pide la historia de Ana y Ana pide un identificador que no existe.
+	foreignItems := backlogItemCalls(t, storyID.String())
+	missingItems := backlogItemCalls(t, uuid.New().String())
+	for i := range foreignItems {
+		t.Run(foreignItems[i].name, func(t *testing.T) {
+			foreign := env.backlogSend(t, foreignItems[i], "Bearer "+carlaToken)
+			missing := env.backlogSend(t, missingItems[i], "Bearer "+anaToken)
+
+			backlogRequireIdenticalNotFound(t, foreign, missing)
+			assert.NotContains(t, foreign.Body.String(), backlogStoryTitle, "la respuesta no debería revelar el título")
+			backlogRequireNoPasswordHash(t, foreign)
+			backlogRequireNoPasswordHash(t, missing)
+			backlogRequireStoryUntouched(t, env.db, storyID, domain.StoryStatusPending, []string{backlogFirstCriterion})
+		})
+	}
+
+	// Acciones de colección: Carla pide el proyecto de Ana y un proyecto que no existe.
+	foreignCollection := backlogCollectionCalls(t, projectID)
+	missingCollection := backlogCollectionCalls(t, uuid.New())
+	for i := range foreignCollection {
+		t.Run(foreignCollection[i].name, func(t *testing.T) {
+			foreign := env.backlogSend(t, foreignCollection[i], "Bearer "+carlaToken)
+			missing := env.backlogSend(t, missingCollection[i], "Bearer "+carlaToken)
+
+			assert.Equal(t, http.StatusNotFound, foreign.Code, "cuerpo: %s", foreign.Body.String())
+			assert.JSONEq(t, `{"error":"`+backlogProjectNotFound+`"}`, foreign.Body.String())
+			assert.Equal(t, missing.Code, foreign.Code, "los códigos de estado deberían ser idénticos")
+			assert.Equal(t, missing.Header().Get("Content-Type"), foreign.Header().Get("Content-Type"),
+				"los tipos de contenido deberían ser idénticos")
+			assert.Equal(t, missing.Body.Bytes(), foreign.Body.Bytes(), "los cuerpos deberían ser idénticos byte a byte")
+			assert.NotContains(t, foreign.Body.String(), backlogStoryTitle, "la respuesta no debería revelar el título")
+			backlogRequireNoPasswordHash(t, foreign)
+			backlogRequireNoPasswordHash(t, missing)
+			assert.Equal(t, int64(1), backlogCountRows(t, env.db, &domain.UserStory{}, ""),
+				"no debería crearse ninguna historia")
+			backlogRequireStoryUntouched(t, env.db, storyID, domain.StoryStatusPending, []string{backlogFirstCriterion})
+		})
+	}
+}

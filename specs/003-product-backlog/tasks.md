@@ -702,7 +702,7 @@ calidad. Todas las tareas son **técnicas**, salvo T078, que es una prueba de ca
 
 **Rama**: `fase/003-polish`
 
-- [ ] T078 Pruebas de integración de caracterización en
+- [X] T078 Pruebas de integración de caracterización en
       `backend/internal/backlog/delivery/handler_test.go`, **sin** etiqueta `003/USn`:
       `TestStoryEndpoints_SinSesion`, con un subtest por cada uno de los **seis** endpoints sin
       cabecera y con token adulterado → `401` y ningún cambio (SC-005);

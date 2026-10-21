@@ -1671,7 +1671,9 @@ func TestUS4_SinSesion(t *testing.T) {
 // inestable, así que se verifica lo que el diseño exige para cumplirlo: el servicio arma la vista en
 // a lo sumo 4 consultas (proyecto, integrantes con JOIN, resumen del backlog y sprint activo) y esa
 // cantidad no crece al agregar integrantes. Se cuentan solo las consultas de los repositorios del
-// servicio, sin la sesión de la 001 ni la verificación de membresía del middleware.
+// servicio, sin la sesión de la 001 ni la verificación de membresía del middleware. Hoy se cuentan
+// 3 (proyecto, integrantes y resumen del backlog), porque el directorio de sprints todavía no
+// consulta la base: la cuarta llega con la spec 004.
 func TestUS4_VistaDeEstadoSinNMasUno(t *testing.T) {
 	counter := &queryCounter{}
 	env := newStatusTestEnv(t, nil, repository.NewSprintDirectory(), counter)

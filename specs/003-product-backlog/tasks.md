@@ -677,7 +677,7 @@ momento después de US1.
       los repositorios del servicio, para que la prueba de conteo de consultas de la 002 cuente
       también la consulta del backlog y T075 verifique de verdad el límite de 4. **No** se toca
       `projects/service` — depende de T073
-- [ ] T075 Verificar que la prueba de conteo de consultas de la vista de estado de la 002 (T056 de
+- [X] T075 Verificar que la prueba de conteo de consultas de la vista de estado de la 002 (T056 de
       `specs/002-project-members/tasks.md`) siga dentro del límite de **4 consultas** de su SC-003
       ahora que el proveedor del backlog hace una consulta real, y ajustar su comentario si cuenta
       un número distinto — depende de T074

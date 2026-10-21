@@ -660,14 +660,14 @@ momento después de US1.
 
 **Rama**: `fase/003-integration`
 
-- [ ] T073 Prueba de integración del proveedor del resumen en
+- [X] T073 Prueba de integración del proveedor del resumen en
       `backend/internal/projects/repository/backlog_summary_test.go`, contra la base de test con
       historias creadas con `StoryRepository.Create`: sin historias → `CountsByState` vacío (no
       nulo) y `EstimatedStoryPoints` 0; con historias `pending`, `in_progress` y `completed`
       sembradas → la cantidad por cada clave presente; las "sin estimar" se cuentan pero **no
       suman**, las estimadas en 0 suman 0 (FR-044 y FR-045 de la 002); y las historias de otro
       proyecto no cuentan — depende de T021
-- [ ] T074 Reemplazar el cuerpo de `backend/internal/projects/repository/backlog_summary.go` por una
+- [X] T074 Reemplazar el cuerpo de `backend/internal/projects/repository/backlog_summary.go` por una
       consulta agrupada sobre el modelo `backlogdomain.UserStory`
       (`SELECT status, COUNT(*), COALESCE(SUM(story_points), 0) ... GROUP BY status`), con
       `NewBacklogSummaryProvider(db *gorm.DB)`; actualizar la composición en
@@ -677,16 +677,16 @@ momento después de US1.
       los repositorios del servicio, para que la prueba de conteo de consultas de la 002 cuente
       también la consulta del backlog y T075 verifique de verdad el límite de 4. **No** se toca
       `projects/service` — depende de T073
-- [ ] T075 Verificar que la prueba de conteo de consultas de la vista de estado de la 002 (T056 de
+- [X] T075 Verificar que la prueba de conteo de consultas de la vista de estado de la 002 (T056 de
       `specs/002-project-members/tasks.md`) siga dentro del límite de **4 consultas** de su SC-003
       ahora que el proveedor del backlog hace una consulta real, y ajustar su comentario si cuenta
       un número distinto — depende de T074
-- [ ] T076 [P] Pruebas de frontend en
+- [X] T076 [P] Pruebas de frontend en
       `frontend/src/features/projects/components/project-status-card.test.tsx` y
       `frontend/src/features/projects/components/project-overview.test.tsx`: la tarjeta muestra
       "Pendiente", "En progreso" y "Completada" en lugar de las claves crudas, y la vista del
       proyecto ofrece un enlace al backlog — depende de T025
-- [ ] T077 Usar las etiquetas de `frontend/src/utils/story-labels.ts` en
+- [X] T077 Usar las etiquetas de `frontend/src/utils/story-labels.ts` en
       `frontend/src/features/projects/components/project-status-card.tsx` y agregar el enlace al
       backlog en `frontend/src/features/projects/components/project-overview.tsx` — depende de T038 y
       T076

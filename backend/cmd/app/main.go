@@ -114,7 +114,7 @@ func run() error {
 	projects := projectsservice.NewProjectService(
 		projectRepository,
 		projectMembers,
-		projectsrepository.NewBacklogSummaryProvider(),
+		projectsrepository.NewBacklogSummaryProvider(db),
 		projectsrepository.NewSprintDirectory(),
 	)
 	members := projectsservice.NewMemberService(projectRepository, projectMembers, projectsrepository.NewUserDirectory(db))

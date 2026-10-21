@@ -142,3 +142,34 @@ describe("Pantalla de estado - acciones de administración según los correos", 
     expect(screen.queryByRole("button", { name: /quitar/i })).toBeNull();
   });
 });
+
+describe("003/RC-07 - Navegación de la vista del proyecto al backlog", () => {
+  let fetchMock: FetchMock;
+
+  // Cada prueba arranca con una sesión válida en la pestaña y un fetch sustituido.
+  beforeEach(() => {
+    sessionStorage.clear();
+    writeToken(sessionToken);
+    fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  // Desmonta lo renderizado y restaura fetch para no contaminar otras pruebas.
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  // Integración con la 002 (T076): la vista del proyecto ofrece un enlace que lleva a la pantalla
+  // del backlog de ese mismo proyecto, tanto al propietario como a un integrante.
+  it("La vista del proyecto ofrece un enlace al backlog", async () => {
+    for (const members of [membersWithEmail, membersWithoutEmail]) {
+      const project = projectWith(members);
+      await renderOverview(fetchMock, project);
+
+      const link = screen.getByRole("link", { name: /backlog/i });
+      expect(link.getAttribute("href")).toBe(`/projects/${project.id}/backlog`);
+      cleanup();
+    }
+  });
+});

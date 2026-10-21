@@ -300,3 +300,32 @@ describe("002/US4 - Consultar el estado del proyecto", () => {
     expect(sentRequest(fetchMock).authorization).toBe(`Bearer ${sessionToken}`);
   });
 });
+
+describe("003/RC-07 - Estados del backlog en la vista de estado del proyecto", () => {
+  // Desmonta lo renderizado para no contaminar otras pruebas.
+  afterEach(() => {
+    cleanup();
+  });
+
+  // Integración con la 002 (T076): la tarjeta informa cada estado de historia con su etiqueta en
+  // español (Pendiente, En progreso, Completada) y nunca con la clave cruda que envía el backend.
+  it("La tarjeta muestra los estados del backlog en español", () => {
+    render(<ProjectStatusCard project={inProgressProject} />);
+
+    const byState = document.querySelector(
+      '[aria-label="Historias por estado"]',
+    );
+    expect(byState).not.toBeNull();
+    const items = Array.from(byState?.querySelectorAll("li") ?? []).map(
+      (item) => (item.textContent ?? "").replace(/\s+/g, " ").trim(),
+    );
+
+    expect(items).toHaveLength(3);
+    expect(items.some((item) => /^Pendiente\b.*\b5$/.test(item))).toBe(true);
+    expect(items.some((item) => /^En progreso\b.*\b2$/.test(item))).toBe(true);
+    expect(items.some((item) => /^Completada\b.*\b7$/.test(item))).toBe(true);
+    for (const rawKey of ["pending", "in_progress", "completed"]) {
+      expect(items.some((item) => item.includes(rawKey))).toBe(false);
+    }
+  });
+});

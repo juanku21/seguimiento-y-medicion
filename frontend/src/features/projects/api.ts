@@ -87,6 +87,12 @@ function isProjectMemberView(value: unknown): value is ProjectMemberView {
   );
 }
 
+// Arma la ruta /api/v1/projects/{projectId} codificando el identificador, para que un valor con
+// "/" o "../" no altere la ruta pedida al backend. Toda ruta de un proyecto concreto parte de acá.
+function projectPath(projectId: string): string {
+  return `/api/v1/projects/${encodeURIComponent(projectId)}`;
+}
+
 // Crea un proyecto con POST /api/v1/projects usando la sesión de la pestaña. Quien crea queda como
 // propietario e integrante (FR-001); ante un 401 el cliente HTTP descarta la sesión (FR-016).
 export function createProject(
@@ -103,11 +109,7 @@ export function updateProject(
   projectId: string,
   input: ProjectInput,
 ): Promise<ApiResult<ProjectDetail>> {
-  return putAuthorizedJson(
-    `/api/v1/projects/${projectId}`,
-    input,
-    isProjectDetail,
-  );
+  return putAuthorizedJson(projectPath(projectId), input, isProjectDetail);
 }
 
 // Lista los proyectos de los que participa quien consulta con GET /api/v1/projects, usando la
@@ -126,20 +128,22 @@ export function addProjectMember(
   email: string,
 ): Promise<ApiResult<ProjectMemberView>> {
   return postAuthorizedJson(
-    `/api/v1/projects/${projectId}/members`,
+    `${projectPath(projectId)}/members`,
     { email },
     isProjectMemberView,
   );
 }
 
 // Quita al integrante indicado con DELETE /api/v1/projects/{projectId}/members/{userId}, usando la
-// sesión de la pestaña. La baja exitosa (204) no trae contenido; los rechazos (403, 404, 409)
-// llegan con el mensaje del backend.
+// sesión de la pestaña. El identificador del integrante también se codifica. La baja exitosa (204)
+// no trae contenido; los rechazos (403, 404, 409) llegan con el mensaje del backend.
 export function removeProjectMember(
   projectId: string,
   userId: string,
 ): Promise<ApiResult<undefined>> {
-  return deleteEmpty(`/api/v1/projects/${projectId}/members/${userId}`);
+  return deleteEmpty(
+    `${projectPath(projectId)}/members/${encodeURIComponent(userId)}`,
+  );
 }
 
 // Pide el estado completo del proyecto con GET /api/v1/projects/{projectId}, usando la sesión de la
@@ -148,7 +152,7 @@ export function removeProjectMember(
 export function getProjectDetail(
   projectId: string,
 ): Promise<ApiResult<ProjectDetail>> {
-  return getJson(`/api/v1/projects/${projectId}`, isProjectDetail);
+  return getJson(projectPath(projectId), isProjectDetail);
 }
 
 // Hace avanzar el proyecto al estado indicado con PATCH /api/v1/projects/{projectId}/status, usando
@@ -160,7 +164,7 @@ export function changeProjectStatus(
   status: ProjectStatus,
 ): Promise<ApiResult<ProjectDetail>> {
   return patchAuthorizedJson(
-    `/api/v1/projects/${projectId}/status`,
+    `${projectPath(projectId)}/status`,
     { status },
     isProjectDetail,
   );

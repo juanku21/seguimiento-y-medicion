@@ -743,51 +743,51 @@ calidad. Todas las tareas son **técnicas**, salvo T078, que es una prueba de ca
 
 Propósito: ajustes transversales detectados por /speckit-converge y /revisar-seguridad.
 
-- [ ] T085 Agregar en `backend/internal/backlog/delivery/validation_test.go` una prueba unitaria de
+- [X] T085 Agregar en `backend/internal/backlog/delivery/validation_test.go` una prueba unitaria de
       `ParseStoryFilter` con miles de valores repetidos de `status` y de `priority` que verifique que
       el filtro resultante contiene cada valor admitido una sola vez, y en
       `backend/internal/backlog/delivery/handler_test.go` una prueba de integración de
       `GET /api/v1/projects/{projectId}/stories` con miles de `status=pending` que espere `200` y no
       `500` per hallazgo de seguridad: filtros repetibles sin tope que arman una cláusula IN con un
       parámetro por valor (security) — origen: seguridad, detectado en 003/US2
-- [ ] T086 Eliminar los valores duplicados de cada filtro en `ParseStoryFilter` de
+- [X] T086 Eliminar los valores duplicados de cada filtro en `ParseStoryFilter` de
       `backend/internal/backlog/delivery/validation.go`, de modo que la cláusula `IN` reciba como
       máximo los tres valores admitidos por filtro per hallazgo de seguridad: filtros repetibles sin
       tope que arman una cláusula IN con un parámetro por valor (security) — origen: seguridad,
       detectado en 003/US2
-- [ ] T087 Agregar pruebas de frontend en `frontend/src/features/backlog/api.test.ts` y
+- [X] T087 Agregar pruebas de frontend en `frontend/src/features/backlog/api.test.ts` y
       `frontend/src/features/projects/api.test.ts` que llamen a cada función de los clientes de API
       con un identificador que contenga `../` y `/`, y verifiquen que la URL pedida a `fetch`
       conserva la ruta esperada con el segmento codificado per hallazgo de seguridad: identificadores
       interpolados sin codificar en las rutas de los clientes de API (security) — origen: seguridad,
       detectado en 003/US2
-- [ ] T088 Codificar con `encodeURIComponent` cada segmento de ruta interpolado en
+- [X] T088 Codificar con `encodeURIComponent` cada segmento de ruta interpolado en
       `frontend/src/features/backlog/api.ts` y `frontend/src/features/projects/api.ts`, incluidas las
       llamadas de `DELETE` y `PATCH` per hallazgo de seguridad: identificadores interpolados sin
       codificar en las rutas de los clientes de API (security) — origen: seguridad, detectado en
       003/US2
-- [ ] T090 Corregir los comentarios de `isValidStatus` e `isValidPriority` en
+- [X] T090 Corregir los comentarios de `isValidStatus` e `isValidPriority` en
       `backend/internal/backlog/delivery/validation.go` para indicar que la comparación es exacta y
       rechaza otras grafías per Constitución VIII (contradicts) — origen: converge, detectado en
       hu/003-us2-ver-el-backlog
-- [ ] T091 Agregar pruebas de integración en `backend/internal/backlog/delivery/handler_test.go`
+- [X] T091 Agregar pruebas de integración en `backend/internal/backlog/delivery/handler_test.go`
       que estimen una historia y creen una historia en un proyecto que pasa a `finished` después
       de resolver el acceso, y verifiquen que se rechazan con `409` de solo lectura y que la base
       no cambia per hallazgo de seguridad: regla de solo lectura del proyecto Finalizado verificada
       fuera de la escritura (security) — origen: seguridad, detectado en 003/US4
-- [ ] T092 Hacer que `UpdateStoryPoints` y `Create` de
+- [X] T092 Hacer que `UpdateStoryPoints` y `Create` de
       `backend/internal/backlog/repository/story_repository.go` comprueben en la propia escritura
       que el proyecto no está Finalizado (condición en el `UPDATE` o bloqueo `FOR SHARE` de la fila
       del proyecto dentro de la transacción), devolviendo `ErrBacklogReadOnly` cuando corresponda
       per hallazgo de seguridad: regla de solo lectura del proyecto Finalizado verificada fuera de
       la escritura (security) — origen: seguridad, detectado en 003/US4
-- [ ] T093 Agregar prueba de integración en `backend/internal/backlog/delivery/handler_test.go` que
+- [X] T093 Agregar prueba de integración en `backend/internal/backlog/delivery/handler_test.go` que
       elimina con DELETE /api/v1/stories/{storyId} una historia de un proyecto que pasa a `finished`
       después de que se resuelve el acceso, y verifica que responde 409 con el mensaje de solo lectura
       y que la historia y sus criterios siguen en la base per hallazgo de seguridad: regla de solo
       lectura del proyecto Finalizado verificada fuera de la escritura en la eliminación (security)
       — origen: seguridad, detectado en 003/US6
-- [ ] T094 Hacer que `Delete` de `backend/internal/backlog/repository/story_repository.go` compruebe
+- [X] T094 Hacer que `Delete` de `backend/internal/backlog/repository/story_repository.go` compruebe
       dentro de su transacción que el proyecto de la historia no está Finalizado (bloqueo `FOR SHARE`
       de la fila de `projects` o condición en el `DELETE` de `user_stories`) y devuelva
       `ErrBacklogReadOnly` en ese caso, para que `respondServiceError` lo traduzca al 409 de solo

@@ -302,20 +302,28 @@ func ParseStoryFilter(statuses, priorities []string) (domain.StoryFilter, []auth
 }
 
 // parseFilterValues convierte los valores de un filtro repetible al tipo del dominio y devuelve
-// false si alguno no es admitido; la comparación es exacta, sin aceptar otras grafías.
+// false si alguno no es admitido; la comparación es exacta, sin aceptar otras grafías. Los valores
+// repetidos se descartan conservando el orden de su primera aparición, de modo que la cláusula IN
+// reciba cada valor admitido una sola vez (hallazgo de seguridad: filtros repetibles sin tope).
 func parseFilterValues[T ~string](values []string, isValid func(T) bool) ([]T, bool) {
-	parsed := make([]T, 0, len(values))
+	parsed := []T{}
+	seen := map[T]bool{}
 	for _, v := range values {
 		value := T(v)
 		if !isValid(value) {
 			return nil, false
 		}
+		if seen[value] {
+			continue
+		}
+		seen[value] = true
 		parsed = append(parsed, value)
 	}
 	return parsed, true
 }
 
-// isValidStatus indica si el estado es uno de los admitidos, sin distinguir otras grafías.
+// isValidStatus indica si el estado es uno de los admitidos; la comparación es exacta, sin aceptar
+// otras grafías, de modo que un valor con distinta capitalización o espacios se rechaza.
 func isValidStatus(status domain.StoryStatus) bool {
 	switch status {
 	case domain.StoryStatusPending, domain.StoryStatusInProgress, domain.StoryStatusCompleted:
@@ -324,7 +332,8 @@ func isValidStatus(status domain.StoryStatus) bool {
 	return false
 }
 
-// isValidPriority indica si la prioridad es una de las admitidas, sin distinguir otras grafías.
+// isValidPriority indica si la prioridad es una de las admitidas; la comparación es exacta, sin
+// aceptar otras grafías, de modo que un valor con distinta capitalización o espacios se rechaza.
 func isValidPriority(priority domain.StoryPriority) bool {
 	switch priority {
 	case domain.StoryPriorityHigh, domain.StoryPriorityMedium, domain.StoryPriorityLow:

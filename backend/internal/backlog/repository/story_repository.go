@@ -73,11 +73,27 @@ func (r *StoryRepository) FindAccessible(ctx context.Context, storyID, userID uu
 }
 
 // Create persiste la historia y sus criterios en una sola transacción, de modo que si falla
-// cualquier INSERT no queda ni la historia ni ninguno de sus criterios (FR-013). Cada criterio
-// recibe un UUID nuevo y la posición de su índice en la lista (0..n-1); si no hay criterios solo se
-// inserta la historia. CreatedAt y UpdatedAt los completa GORM.
+// cualquier INSERT no queda ni la historia ni ninguno de sus criterios (FR-013). Antes de insertar
+// toma un bloqueo FOR SHARE sobre la fila del proyecto y rechaza la escritura con
+// ErrBacklogReadOnly si está Finalizado, de modo que un cambio de estado concurrente no se cuela
+// entre la comprobación del servicio y el INSERT (FR-048, RN-15). Cada criterio recibe un UUID
+// nuevo y la posición de su índice en la lista (0..n-1); si no hay criterios solo se inserta la
+// historia. CreatedAt y UpdatedAt los completa GORM.
 func (r *StoryRepository) Create(ctx context.Context, story *domain.UserStory, criteria []string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var project projectsdomain.Project
+		err := tx.
+			Clauses(clause.Locking{Strength: "SHARE"}).
+			Select("status").
+			Where("id = ?", story.ProjectID).
+			Take(&project).Error
+		if err != nil {
+			return fmt.Errorf("bloquear el proyecto de la historia: %w", err)
+		}
+		if err := ensureProjectWritable(project.Status); err != nil {
+			return err
+		}
+
 		if err := tx.Create(story).Error; err != nil {
 			return fmt.Errorf("insertar historia: %w", err)
 		}
@@ -251,34 +267,80 @@ func insertCriteria(tx *gorm.DB, storyID uuid.UUID, criteria []string) error {
 	return nil
 }
 
-// UpdateStoryPoints guarda la estimación de la historia con un único UPDATE que escribe solo
-// story_points y updated_at (FR-017), de modo que ninguna otra columna se toca. Un storyPoints nil
-// se guarda como NULL, que significa "sin estimar". UpdateColumns evita los hooks y la escritura
-// automática de GORM, por eso updated_at se fija acá de forma explícita. Si ninguna fila cambia, la
-// historia no existe y se devuelve ErrStoryNotFound.
+// UpdateStoryPoints guarda la estimación de la historia en una transacción. Primero comprueba con
+// lockWritableStoryProject que la historia existe y que su proyecto admite escrituras (FR-048,
+// RN-15). Después un único UPDATE escribe solo story_points y updated_at (FR-017), de modo
+// que ninguna otra columna se toca. Un storyPoints nil se guarda como NULL, que significa "sin
+// estimar". UpdateColumns evita los hooks y la escritura automática de GORM, por eso updated_at se
+// fija acá de forma explícita.
 func (r *StoryRepository) UpdateStoryPoints(ctx context.Context, storyID uuid.UUID, storyPoints *int) error {
-	result := r.db.WithContext(ctx).
-		Model(&domain.UserStory{}).
-		Where("id = ?", storyID).
-		UpdateColumns(map[string]any{
-			"story_points": storyPoints,
-			"updated_at":   time.Now(),
-		})
-	if result.Error != nil {
-		return fmt.Errorf("guardar la estimación de la historia: %w", result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return domain.ErrStoryNotFound
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockWritableStoryProject(tx, storyID); err != nil {
+			return err
+		}
+
+		result := tx.
+			Model(&domain.UserStory{}).
+			Where("id = ?", storyID).
+			UpdateColumns(map[string]any{
+				"story_points": storyPoints,
+				"updated_at":   time.Now(),
+			})
+		if result.Error != nil {
+			return fmt.Errorf("guardar la estimación de la historia: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return domain.ErrStoryNotFound
+		}
+		return nil
+	})
+}
+
+// ensureProjectWritable rechaza con ErrBacklogReadOnly la escritura sobre el backlog de un proyecto
+// Finalizado (FR-048, RN-15). Lo comparten Create y lockWritableStoryProject después de bloquear
+// la fila del proyecto dentro de su transacción.
+func ensureProjectWritable(status projectsdomain.ProjectStatus) error {
+	if status == projectsdomain.ProjectStatusFinished {
+		return domain.ErrBacklogReadOnly
 	}
 	return nil
 }
 
-// Delete elimina definitivamente la historia en una transacción (research.md sección 12): primero
-// borra sus criterios de aceptación y después la historia, sin borrado lógico ni ON DELETE CASCADE,
-// de modo que si falla cualquiera de los dos DELETE no se borra nada. Si el DELETE de la historia no
-// afecta ninguna fila, la historia no existe y se devuelve ErrStoryNotFound.
+// lockWritableStoryProject lee, dentro de la transacción recibida, el estado del proyecto de la
+// historia con un bloqueo FOR SHARE sobre la fila de projects, que impide que el proyecto pase a
+// Finalizado hasta que termine la transacción, de modo que un cambio de estado concurrente no se
+// cuela entre la comprobación del servicio y la escritura (FR-048, RN-15). Si no hay fila, la
+// historia no existe y devuelve ErrStoryNotFound; si el proyecto está Finalizado devuelve
+// ErrBacklogReadOnly. Lo comparten UpdateStoryPoints y Delete.
+func lockWritableStoryProject(tx *gorm.DB, storyID uuid.UUID) error {
+	var project projectsdomain.Project
+	err := tx.
+		Table("user_stories").
+		Select("projects.status").
+		Joins("JOIN projects ON projects.id = user_stories.project_id").
+		Where("user_stories.id = ?", storyID).
+		Clauses(clause.Locking{Strength: "SHARE", Table: clause.Table{Name: "projects"}}).
+		Take(&project).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return domain.ErrStoryNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("bloquear el proyecto de la historia: %w", err)
+	}
+	return ensureProjectWritable(project.Status)
+}
+
+// Delete elimina definitivamente la historia en una transacción (research.md sección 12). Primero
+// comprueba con lockWritableStoryProject que la historia existe y que su proyecto admite escrituras
+// (FR-048, RN-15). Después borra sus criterios de aceptación y la historia, sin borrado lógico ni
+// ON DELETE CASCADE, de modo que si falla cualquiera de los dos DELETE no se borra nada. Si el DELETE
+// de la historia no afecta ninguna fila, la historia no existe y se devuelve ErrStoryNotFound.
 func (r *StoryRepository) Delete(ctx context.Context, storyID uuid.UUID) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockWritableStoryProject(tx, storyID); err != nil {
+			return err
+		}
+
 		err := tx.
 			Where("story_id = ?", storyID).
 			Delete(&domain.AcceptanceCriterion{}).Error

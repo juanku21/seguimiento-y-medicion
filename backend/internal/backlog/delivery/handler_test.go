@@ -99,14 +99,20 @@ type backlogValidationBody struct {
 	} `json:"fields"`
 }
 
-// backlogTestPorts son los cuatro puertos hacia features que todavía no existen. Por defecto son las
-// implementaciones de backlog/repository; una prueba los reemplaza por dobles para preparar
-// historias comprometidas o con historial (plan.md, cómo se preparan los escenarios).
+// backlogTestPorts son los cuatro puertos hacia features que todavía no existen, más el repositorio
+// de historias y el puerto de proyectos. Por defecto son las implementaciones de backlog/repository;
+// una prueba los reemplaza por dobles para preparar historias comprometidas o con historial (plan.md,
+// cómo se preparan los escenarios), o los envuelve para cambiar la base entre la resolución del
+// acceso y la escritura (T091). db es la base de test, de solo lectura para los overrides, para que
+// un envoltorio pueda escribir en ella.
 type backlogTestPorts struct {
 	sprints  domain.SprintAssignments
 	effort   domain.EffortRecords
 	defects  domain.DefectRecords
 	sessions domain.EstimationSessions
+	stories  domain.StoryRepository
+	projects domain.ProjectDirectory
+	db       *gorm.DB
 }
 
 // backlogTestEnv reúne el router compuesto como en cmd/app, la base de test y el servicio de
@@ -159,24 +165,26 @@ func newBacklogTestEnv(t *testing.T, overrides ...func(*backlogTestPorts)) backl
 		effort:   repository.NewEffortRecords(),
 		defects:  repository.NewDefectRecords(),
 		sessions: repository.NewEstimationSessions(),
+		stories:  repository.NewStoryRepository(db),
+		projects: repository.NewProjectDirectory(db),
+		db:       db,
 	}
 	for _, override := range overrides {
 		override(&ports)
 	}
 	// La misma instancia del repositorio de historias sirve al servicio y a RequireStoryAccess del
 	// grupo plano /api/v1/stories/:storyId, igual que en cmd/app.
-	storyRepository := repository.NewStoryRepository(db)
 	stories := service.NewStoryService(
-		storyRepository,
+		ports.stories,
 		ports.sprints,
 		ports.effort,
 		ports.defects,
 		ports.sessions,
-		repository.NewProjectDirectory(db),
+		ports.projects,
 	)
 	handler := NewHandler(stories)
 	RegisterRoutes(projectGroup, handler)
-	RegisterStoryRoutes(router, authHandler.RequireSession, storyRepository, handler)
+	RegisterStoryRoutes(router, authHandler.RequireSession, ports.stories, handler)
 	return backlogTestEnv{router: router, db: db, auth: auth}
 }
 
@@ -1426,6 +1434,34 @@ func TestStoryList_VariosValoresPorFiltro(t *testing.T) {
 	}
 }
 
+// TestStoryList_EstadoRepetidoMilesDeVeces verifica que un listado con miles de status=pending
+// responde 200, no 500, con solo las historias pendientes y el filtro aplicado una sola vez, porque
+// la cláusula IN debe recibir cada valor admitido una vez y no un parámetro por repetición (T085,
+// hallazgo de seguridad: filtros repetibles sin tope). Las repeticiones quedan por debajo del tope de
+// 10000 parámetros de consulta de net/url, para que lleguen todas al manejador.
+func TestStoryList_EstadoRepetidoMilesDeVeces(t *testing.T) {
+	const repetitions = 9000
+	env := newBacklogTestEnv(t)
+	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, ownerID, projectsdomain.ProjectStatusInProgress)
+	ids := backlogSeedStories(t, env.db, projectID, ownerID,
+		backlogSeed{Priority: domain.StoryPriorityHigh, Status: domain.StoryStatusPending, Minute: 0},
+		backlogSeed{Priority: domain.StoryPriorityHigh, Status: domain.StoryStatusCompleted, Minute: 1},
+	)
+	rawQuery := strings.TrimSuffix(strings.Repeat("status=pending&", repetitions), "&")
+
+	body := requireStoryList(t, env.getStories(t, token, projectID, rawQuery))
+
+	// Solo se lista la pendiente y el filtro informado contiene pending una única vez.
+	assert.Equal(t, []string{ids[0]}, backlogListIDs(body))
+	appliedCounts := map[string]int{}
+	for _, status := range body.AppliedFilters.Status {
+		appliedCounts[status]++
+	}
+	assert.Equal(t, map[string]int{"pending": 1}, appliedCounts, "el filtro aplicado debe informar pending una sola vez")
+	assert.Empty(t, body.AppliedFilters.Priority)
+}
+
 // Pruebas de integración de US4 (T049): PUT /api/v1/stories/{storyId}/story-points. Las historias se
 // siembran directamente en la base, con su estado, su estimación previa y un momento de última
 // actualización fijo en el pasado, para comprobar que el valor vigente y ese momento cambian o se
@@ -1688,6 +1724,139 @@ func TestUS4_ProyectoFinalizado(t *testing.T) {
 
 	backlogRequireConflict(t, rec, backlogReadOnlyMessage)
 	backlogRequireEstimateUnchanged(t, env.db, storyID, nil)
+}
+
+// Pruebas de integración de T091 (hallazgo de seguridad detectado en 003/US4: regla de solo lectura
+// del proyecto Finalizado verificada fuera de la escritura). Reproducen de forma determinista la
+// carrera en la que el proyecto pasa a finished después de que se resolvió el acceso y se comprobó su
+// estado, pero antes de escribir: un envoltorio del puerto correspondiente delega en la
+// implementación real y, en cuanto esta responde que el proyecto no está Finalizado, lo marca como
+// finished en la base. Así la comprobación previa ve el estado viejo y solo una verificación hecha en
+// la propia escritura puede rechazar el cambio.
+
+// backlogFinishProject marca el proyecto como finished directamente en la base, con una conexión
+// propia y fuera de cualquier transacción de la solicitud, como lo haría la 002 en otra solicitud.
+func backlogFinishProject(ctx context.Context, db *gorm.DB, projectID uuid.UUID) error {
+	err := db.WithContext(ctx).
+		Model(&projectsdomain.Project{}).
+		Where("id = ?", projectID).
+		UpdateColumn("status", projectsdomain.ProjectStatusFinished).Error
+	if err != nil {
+		return fmt.Errorf("marcar el proyecto como finished: %w", err)
+	}
+	return nil
+}
+
+// backlogFinishingStories envuelve el repositorio real de historias: FindAccessible resuelve el
+// acceso con la implementación real, que informa el proyecto como no Finalizado, y recién después
+// marca el proyecto como finished. Las demás operaciones, incluida UpdateStoryPoints, son las reales.
+type backlogFinishingStories struct {
+	domain.StoryRepository
+	db *gorm.DB
+}
+
+// FindAccessible delega en el repositorio real y, si el acceso se resolvió, finaliza el proyecto.
+func (r backlogFinishingStories) FindAccessible(ctx context.Context, storyID, userID uuid.UUID) (*domain.StoryAccess, error) {
+	access, err := r.StoryRepository.FindAccessible(ctx, storyID, userID)
+	if err != nil {
+		return access, err
+	}
+	if err := backlogFinishProject(ctx, r.db, access.ProjectID); err != nil {
+		return nil, err
+	}
+	return access, nil
+}
+
+// backlogFinishingProjects envuelve el puerto real de proyectos: IsFinished consulta el estado con la
+// implementación real y, si el proyecto todavía no está Finalizado, lo marca como finished antes de
+// devolver ese estado viejo al servicio.
+type backlogFinishingProjects struct {
+	domain.ProjectDirectory
+	db *gorm.DB
+}
+
+// IsFinished delega en el puerto real y finaliza el proyecto cuando la respuesta es "no Finalizado".
+func (d backlogFinishingProjects) IsFinished(ctx context.Context, projectID uuid.UUID) (bool, error) {
+	finished, err := d.ProjectDirectory.IsFinished(ctx, projectID)
+	if err != nil || finished {
+		return finished, err
+	}
+	if err := backlogFinishProject(ctx, d.db, projectID); err != nil {
+		return false, err
+	}
+	return false, nil
+}
+
+// backlogRequireProjectFinished exige que el proyecto haya quedado finished en la base, para
+// confirmar que el envoltorio cambió el estado durante la solicitud y que la prueba reprodujo la
+// carrera.
+func backlogRequireProjectFinished(t *testing.T, db *gorm.DB, projectID uuid.UUID) {
+	t.Helper()
+	var project projectsdomain.Project
+	require.NoError(t, db.Select("status").Where("id = ?", projectID).Take(&project).Error,
+		"no se pudo leer el estado del proyecto")
+	require.Equal(t, projectsdomain.ProjectStatusFinished, project.Status,
+		"el proyecto debería haber pasado a finished durante la solicitud")
+}
+
+// TestStoryEstimate_ProyectoFinalizadoTrasResolverAcceso verifica que una estimación se rechaza con
+// el 409 de solo lectura cuando el proyecto pasa a finished después de que RequireStoryAccess
+// resolvió el acceso con el proyecto en curso y antes de guardar los Story Points, y que la historia
+// sigue sin estimar con su momento de última actualización intacto (T091, FR-048, RN-15).
+func TestStoryEstimate_ProyectoFinalizadoTrasResolverAcceso(t *testing.T) {
+	env := newBacklogTestEnv(t, func(p *backlogTestPorts) {
+		p.stories = backlogFinishingStories{StoryRepository: p.stories, db: p.db}
+	})
+	anaID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress, brunoID)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, nil, 1)
+
+	rec := env.putStoryPoints(t, brunoToken, storyID.String(), `{"storyPoints":8}`)
+
+	backlogRequireProjectFinished(t, env.db, projectID)
+	backlogRequireConflict(t, rec, backlogReadOnlyMessage)
+	backlogRequireEstimateUnchanged(t, env.db, storyID, nil)
+}
+
+// TestStoryCreate_ProyectoFinalizadoTrasResolverAcceso verifica que una creación se rechaza con el
+// 409 de solo lectura cuando el proyecto pasa a finished después de que RequireMembership resolvió el
+// acceso y el servicio comprobó que el proyecto no estaba Finalizado, pero antes de insertar la
+// historia, y que no se crea ninguna historia ni ningún criterio (T091, FR-048, RN-15).
+func TestStoryCreate_ProyectoFinalizadoTrasResolverAcceso(t *testing.T) {
+	env := newBacklogTestEnv(t, func(p *backlogTestPorts) {
+		p.projects = backlogFinishingProjects{ProjectDirectory: p.projects, db: p.db}
+	})
+	anaID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress, brunoID)
+
+	rec := env.postStory(t, brunoToken, projectID, backlogFullBody())
+
+	backlogRequireProjectFinished(t, env.db, projectID)
+	backlogRequireConflict(t, rec, backlogReadOnlyMessage)
+	backlogRequireNothingCreated(t, env.db)
+}
+
+// TestStoryDelete_ProyectoFinalizadoTrasResolverAcceso verifica que una eliminación se rechaza con el
+// 409 de solo lectura cuando el proyecto pasa a finished después de que RequireStoryAccess resolvió
+// el acceso con el proyecto en curso y antes de borrar, y que la historia, sin historial y por lo
+// tanto eliminable, sigue en la base con sus criterios intactos (T093, FR-048, RN-15).
+func TestStoryDelete_ProyectoFinalizadoTrasResolverAcceso(t *testing.T) {
+	env := newBacklogTestEnv(t, func(p *backlogTestPorts) {
+		p.stories = backlogFinishingStories{StoryRepository: p.stories, db: p.db}
+	})
+	anaID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress, brunoID)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, nil, 2)
+
+	rec := env.deleteStory(t, brunoToken, storyID.String())
+
+	backlogRequireProjectFinished(t, env.db, projectID)
+	backlogRequireConflict(t, rec, backlogReadOnlyMessage)
+	backlogRequireStoryUntouched(t, env.db, storyID, domain.StoryStatusPending,
+		[]string{backlogFirstCriterion, backlogSecondCriterion})
 }
 
 // Pruebas de integración de US5 (T058): PATCH /api/v1/stories/{storyId}. Las historias se siembran

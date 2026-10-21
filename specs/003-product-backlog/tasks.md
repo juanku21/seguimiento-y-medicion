@@ -715,7 +715,7 @@ calidad. Todas las tareas son **técnicas**, salvo T078, que es una prueba de ca
       `backend/docs/` coincida con [contracts/openapi.yaml](./contracts/openapi.yaml) en las seis
       rutas, sus códigos de respuesta (todos declaran `500`) y los diecisiete esquemas; corregir las
       anotaciones si difieren (Principio VIII) — depende de T072
-- [ ] T080 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona el
+- [X] T080 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona el
       Product Backlog, y se agregan los seis endpoints y las cuatro pantallas nuevas, manteniendo el
       criterio de que alguien que no conoce el proyecto pueda ejecutarlo siguiendo el documento —
       depende de T072

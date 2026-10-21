@@ -1,6 +1,6 @@
 # Software Metrics & Estimation
 
-Software Metrics & Estimation es un sistema diseñado para la estimación, seguimiento, medición y control de proyectos de software. La plataforma centraliza la administración del flujo de trabajo, la estimación del volumen de tareas, el registro del tiempo invertido, la trazabilidad de defectos y el cálculo automático de indicadores de rendimiento y calidad.
+Software Metrics & Estimation es un sistema diseñado para la estimación, seguimiento, medición y control de proyectos de software. La plataforma centraliza la administración del flujo de trabajo a partir del Product Backlog de cada proyecto, la estimación del volumen de tareas en Story Points, el registro del tiempo invertido, la trazabilidad de defectos y el cálculo automático de indicadores de rendimiento y calidad.
 
 ---
 
@@ -45,10 +45,11 @@ El sistema ofrece una solución integral para gestionar el ciclo de vida de proy
 
 ## Estado Actual
 
-El sistema se construye por funcionalidades, cada una especificada en su carpeta de [`specs/`](./specs). Hoy están implementadas las dos primeras:
+El sistema se construye por funcionalidades, cada una especificada en su carpeta de [`specs/`](./specs). Hoy están implementadas las tres primeras:
 
 - **Autenticación y cuentas de usuario** ([`specs/001-user-auth`](./specs/001-user-auth)): registro de cuentas, inicio y cierre de sesión con JWT, protección de las funciones del sistema, consulta del propio perfil y registro de eventos de autenticación.
 - **Gestión de proyectos e integrantes** ([`specs/002-project-members`](./specs/002-project-members)): creación y modificación de proyectos con su factor de horas por Story Point, listado de los proyectos propios aislado de los ajenos, alta y baja de integrantes por correo electrónico, consulta del estado del proyecto en una sola pantalla y avance del estado (`planned` → `in_progress` → `finished`) con registro de la fecha de finalización real.
+- **Product Backlog** ([`specs/003-product-backlog`](./specs/003-product-backlog)): registro de historias de usuario con título, descripción, prioridad (Alta, Media o Baja) y criterios de aceptación ordenados; listado del backlog ordenado por prioridad y antigüedad, con filtros por prioridad y estado; estimación en Story Points con la escala 0, 1, 2, 3, 5, 8, 13, 20, 40 y 100 (o "sin estimar"); indicación de si cada historia está lista para planificar; refinamiento y eliminación de las historias que nunca se trabajaron. Cualquier integrante del proyecto puede hacer todas estas acciones; cuando el proyecto está finalizado, su backlog queda de solo lectura. El estado de una historia (Pendiente, En progreso, Completada) se muestra pero no se cambia desde el backlog: lo cambiará la gestión de sprints.
 
 Las funcionalidades descritas en las secciones siguientes son el alcance completo del sistema y se incorporan en las próximas specs.
 
@@ -238,7 +239,7 @@ Para confirmar que el contenedor de test apunta a la base correcta:
 docker exec smye-test-postgres-1 psql -U smye -d smye_test -c "SELECT current_database();"
 ```
 
-Debe responder `smye_test`. No hace falta crear tablas: el backend crea y migra el esquema automáticamente al conectarse (`AutoMigrate` de GORM), incluidas las tablas `projects` y `project_members` de la gestión de proyectos.
+Debe responder `smye_test`. No hace falta crear tablas: el backend crea y migra el esquema automáticamente al conectarse (`AutoMigrate` de GORM), incluidas las tablas `projects` y `project_members` de la gestión de proyectos y las tablas `user_stories` y `acceptance_criteria` del Product Backlog.
 
 ### 5. Generar la documentación Swagger
 
@@ -289,8 +290,12 @@ El frontend queda en <http://localhost:3000> y lee `frontend/.env.local`. Para u
 | <http://localhost:3000/profile> | Perfil del usuario con sesión iniciada (sin sesión redirige a `/login`) |
 | <http://localhost:3000/projects> | Listado de los proyectos de los que se es integrante, con su estado, fechas, cantidad de integrantes y la marca "Propietario" en los propios (sin sesión redirige a `/login`) |
 | <http://localhost:3000/projects/new> | Formulario de creación de proyecto (sin sesión redirige a `/login`) |
-| `http://localhost:3000/projects/<projectId>` | Estado del proyecto e integrantes en una sola pantalla; el propietario ve además los correos, el alta y la baja de integrantes y el botón para avanzar el estado (sin sesión redirige a `/login`; un proyecto inexistente o ajeno muestra "El proyecto no existe.") |
+| `http://localhost:3000/projects/<projectId>` | Estado del proyecto e integrantes en una sola pantalla, con el reparto del backlog por estado y el enlace **Backlog**; el propietario ve además los correos, el alta y la baja de integrantes y el botón para avanzar el estado (sin sesión redirige a `/login`; un proyecto inexistente o ajeno muestra "El proyecto no existe.") |
 | `http://localhost:3000/projects/<projectId>/edit` | Modificación de nombre, descripción, fechas y horas por Story Point; solo el propietario ve el formulario y el resto de los integrantes ve "Solo el propietario del proyecto puede realizar esta acción." (sin sesión redirige a `/login`; un proyecto inexistente o ajeno muestra "El proyecto no existe.") |
+| `http://localhost:3000/projects/<projectId>/backlog` | Backlog del proyecto ordenado por prioridad y antigüedad, con filtros por prioridad y estado, la marca de las historias listas para planificar y el acceso a **Nueva historia** (sin sesión redirige a `/login`) |
+| `http://localhost:3000/projects/<projectId>/backlog/new` | Formulario de alta de una historia: título, descripción, prioridad, Story Points y criterios de aceptación (sin sesión redirige a `/login`) |
+| `http://localhost:3000/projects/<projectId>/backlog/<storyId>` | Detalle de la historia con sus criterios en orden, autor y fechas; desde ahí se estima en Story Points y se elimina con confirmación (sin sesión redirige a `/login`; una historia inexistente o de un proyecto ajeno muestra "La historia no existe.") |
+| `http://localhost:3000/projects/<projectId>/backlog/<storyId>/edit` | Refinamiento de título, descripción, prioridad y criterios de aceptación, que se pueden agregar, quitar y reordenar (sin sesión redirige a `/login`; una historia inexistente o de un proyecto ajeno muestra "La historia no existe.") |
 | <http://localhost:8080/swagger/index.html> | Documentación interactiva de la API |
 
 Recorrido mínimo: crear una cuenta en `/register`, iniciar sesión en `/login`, ver el perfil en `/profile` y cerrar sesión desde ahí.
@@ -305,6 +310,16 @@ Recorrido de la gestión de proyectos, con el backend y el frontend en ejecució
 6. Abrir `/projects/<projectId>/edit` para modificar los datos del proyecto. Solo la propietaria ve el formulario.
 7. En `/projects/<projectId>`, usar **Pasar a En curso** y después **Finalizar proyecto**. Al finalizar se registra la fecha de finalización real con la fecha del día en la zona de `APP_TIMEZONE`, y el proyecto queda de solo lectura: ya no admite modificaciones, cambios de integrantes ni cambios de estado.
 8. Iniciar sesión como Bruno: ve el proyecto en `/projects` y su detalle, pero no los correos de los integrantes ni las acciones de administración. Si Ana lo quita del proyecto antes de finalizarlo, para Bruno el proyecto pasa a comportarse como inexistente.
+
+Recorrido del Product Backlog, con un proyecto que todavía no está finalizado y una sesión de cualquiera de sus integrantes:
+
+1. Abrir `/projects/<projectId>` y seguir el enlace **Backlog**, que lleva a `/projects/<projectId>/backlog`. La primera vez muestra "El backlog todavía no tiene historias.".
+2. Usar **Nueva historia** para registrar una historia con título, prioridad, Story Points y dos criterios de aceptación. Solo el título y la prioridad son obligatorios; una historia sin Story Points queda "sin estimar". La pantalla confirma "Historia creada" con su estado Pendiente; al volver a `/projects/<projectId>/backlog`, la historia aparece marcada como lista para planificar, porque tiene Story Points y al menos un criterio.
+3. En el backlog, filtrar por prioridad y por estado, y quitar los filtros. Si ninguna historia coincide se ve "Ninguna historia coincide con los filtros", distinto del mensaje de backlog vacío.
+4. Hacer clic en una historia para abrir su detalle en `/projects/<projectId>/backlog/<storyId>`. Desde ahí se la estima eligiendo un valor de la escala (0, 1, 2, 3, 5, 8, 13, 20, 40 o 100) o se la devuelve a "sin estimar".
+5. Para refinarla, agregar `/edit` a la dirección del detalle (`/projects/<projectId>/backlog/<storyId>/edit`): se pueden cambiar el título, la descripción y la prioridad, y agregar, quitar o reordenar criterios. El estado y los Story Points no se cambian desde este formulario.
+6. Volver al detalle y usar **Eliminar historia**; la historia se elimina recién al confirmar, y la pantalla regresa al backlog. Solo se pueden eliminar historias que nunca se trabajaron.
+7. Si el proyecto pasa a **Finalizado**, el backlog y los detalles se siguen pudiendo consultar, pero crear, refinar, estimar y eliminar se rechazan con "El proyecto está finalizado y su backlog es de solo lectura.".
 
 La API expone estos endpoints bajo `/api/v1`; solo el registro y el inicio de sesión son públicos, los demás exigen la cabecera `Authorization: Bearer <token>`. Fuera de `/api/v1`, la documentación Swagger (`/swagger/index.html`) también es pública, como excepción documentada a la regla RN-08 de `specs/001-user-auth/spec.md`:
 
@@ -321,10 +336,16 @@ La API expone estos endpoints bajo `/api/v1`; solo el registro y el inicio de se
 | `PATCH` | `/api/v1/projects/{projectId}/status` | Avance del estado del proyecto (solo el propietario) |
 | `POST` | `/api/v1/projects/{projectId}/members` | Alta de un integrante por correo electrónico (solo el propietario) |
 | `DELETE` | `/api/v1/projects/{projectId}/members/{userId}` | Baja de un integrante (solo el propietario) |
+| `POST` | `/api/v1/projects/{projectId}/stories` | Creación de una historia en el backlog del proyecto (cualquier integrante) |
+| `GET` | `/api/v1/projects/{projectId}/stories` | Listado del backlog ordenado por prioridad y antigüedad; admite los filtros opcionales `priority` (`high`, `medium`, `low`) y `status` (`pending`, `in_progress`, `completed`) |
+| `GET` | `/api/v1/stories/{storyId}` | Detalle de una historia con sus criterios de aceptación (cualquier integrante) |
+| `PATCH` | `/api/v1/stories/{storyId}` | Refinamiento de título, descripción, prioridad o criterios de aceptación; solo cambian los campos enviados |
+| `DELETE` | `/api/v1/stories/{storyId}` | Eliminación de una historia que nunca se trabajó (cualquier integrante) |
+| `PUT` | `/api/v1/stories/{storyId}/story-points` | Estimación en Story Points con la escala 0, 1, 2, 3, 5, 8, 13, 20, 40 y 100, o `null` para dejarla sin estimar |
 
-Un proyecto inexistente y un proyecto del que no se es integrante responden el mismo `404`, para no revelar qué proyectos existen. Las acciones de administración devuelven `403` a un integrante que no es el propietario.
+Un proyecto inexistente y un proyecto del que no se es integrante responden el mismo `404`, para no revelar qué proyectos existen. Las acciones de administración devuelven `403` a un integrante que no es el propietario. Del mismo modo, una historia inexistente y una historia de un proyecto del que no se es integrante responden el mismo `404`. Cuando el proyecto está finalizado, las acciones que modifican el backlog (crear, refinar, estimar y eliminar) responden `409`.
 
-Las guías de validación de punta a punta, con ejemplos de `curl` para cada historia, están en [`specs/001-user-auth/quickstart.md`](./specs/001-user-auth/quickstart.md) y [`specs/002-project-members/quickstart.md`](./specs/002-project-members/quickstart.md).
+Las guías de validación de punta a punta, con ejemplos de `curl` para cada historia, están en [`specs/001-user-auth/quickstart.md`](./specs/001-user-auth/quickstart.md), [`specs/002-project-members/quickstart.md`](./specs/002-project-members/quickstart.md) y [`specs/003-product-backlog/quickstart.md`](./specs/003-product-backlog/quickstart.md).
 
 ### 9. Ejecutar las pruebas
 
@@ -335,8 +356,9 @@ cd backend
 go vet ./...
 go test ./...
 
-# Solo las pruebas de un módulo (por ejemplo, la gestión de proyectos)
+# Solo las pruebas de un módulo (por ejemplo, la gestión de proyectos o el backlog)
 go test ./internal/projects/...
+go test ./internal/backlog/...
 
 # Solo las pruebas de una historia de usuario (por ejemplo, US1)
 go test ./... -run TestUS1
@@ -354,7 +376,7 @@ npx next typegen && npx tsc --noEmit   # Comprobación de tipos
 
 `next typegen` genera los tipos de las rutas de Next.js (por ejemplo, `LayoutProps`) que `tsc` necesita; sin él, la comprobación de tipos falla en un clon recién hecho. `npm run dev` y `npm run build` también los generan.
 
-Cada escenario de las specs tiene una prueba rastreable: buscar `001/US1` (o `002/US3`, etc.) en el código de pruebas muestra cuáles lo cubren. El prefijo es el número de la spec y `USn`, la historia de usuario. Los comandos de cobertura están en [Cobertura de Pruebas](#cobertura-de-pruebas).
+Cada escenario de las specs tiene una prueba rastreable: buscar `001/US1` (o `002/US3`, `003/US5`, etc.) en el código de pruebas muestra cuáles lo cubren. El prefijo es el número de la spec y `USn`, la historia de usuario. Los comandos de cobertura están en [Cobertura de Pruebas](#cobertura-de-pruebas).
 
 ### 10. Ejecución con Docker
 

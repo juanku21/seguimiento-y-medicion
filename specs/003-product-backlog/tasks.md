@@ -766,7 +766,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       llamadas de `DELETE` y `PATCH` per hallazgo de seguridad: identificadores interpolados sin
       codificar en las rutas de los clientes de API (security) — origen: seguridad, detectado en
       003/US2
-- [ ] T090 Corregir los comentarios de `isValidStatus` e `isValidPriority` en
+- [X] T090 Corregir los comentarios de `isValidStatus` e `isValidPriority` en
       `backend/internal/backlog/delivery/validation.go` para indicar que la comparación es exacta y
       rechaza otras grafías per Constitución VIII (contradicts) — origen: converge, detectado en
       hu/003-us2-ver-el-backlog

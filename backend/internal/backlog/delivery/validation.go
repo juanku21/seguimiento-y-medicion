@@ -322,7 +322,8 @@ func parseFilterValues[T ~string](values []string, isValid func(T) bool) ([]T, b
 	return parsed, true
 }
 
-// isValidStatus indica si el estado es uno de los admitidos, sin distinguir otras grafías.
+// isValidStatus indica si el estado es uno de los admitidos; la comparación es exacta, sin aceptar
+// otras grafías, de modo que un valor con distinta capitalización o espacios se rechaza.
 func isValidStatus(status domain.StoryStatus) bool {
 	switch status {
 	case domain.StoryStatusPending, domain.StoryStatusInProgress, domain.StoryStatusCompleted:
@@ -331,7 +332,8 @@ func isValidStatus(status domain.StoryStatus) bool {
 	return false
 }
 
-// isValidPriority indica si la prioridad es una de las admitidas, sin distinguir otras grafías.
+// isValidPriority indica si la prioridad es una de las admitidas; la comparación es exacta, sin
+// aceptar otras grafías, de modo que un valor con distinta capitalización o espacios se rechaza.
 func isValidPriority(priority domain.StoryPriority) bool {
 	switch priority {
 	case domain.StoryPriorityHigh, domain.StoryPriorityMedium, domain.StoryPriorityLow:

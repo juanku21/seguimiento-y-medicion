@@ -133,7 +133,7 @@ su plan, se corrigen las rutas de T007, T013 y T033 antes de ejecutarlas.
       `not_completed` en `backend/internal/sprints/domain/sprint_story.go`, como constantes de Go y
       **no** como `enum` de PostgreSQL. Las transiciones son regla de negocio y se implementan en
       US3
-- [ ] T004 [P] Declarar los errores de dominio en `backend/internal/sprints/domain/errors.go` con la
+- [X] T004 [P] Declarar los errores de dominio en `backend/internal/sprints/domain/errors.go` con la
       tabla de data-model.md sección 9: `ErrSprintNotFound`, `ErrSprintsReadOnly`,
       `ErrInvalidSprintTransition`, `ErrSprintNotPlanned`, `ErrSprintNotActive`, `ErrSprintClosed`,
       `ErrSprintAlreadyStarted`, `ErrSprintHasEffort`, `ErrCompletedStoryRemoval`,

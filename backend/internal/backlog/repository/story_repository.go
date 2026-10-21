@@ -8,14 +8,16 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/domain"
 	projectsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/domain"
 )
 
 // StoryRepository implementa domain.StoryRepository con GORM sobre user_stories y
-// acceptance_criteria. Create, FindDetail, List, HasStories, FindAccessible y UpdateStoryPoints están
-// implementadas; las demás operaciones las implementan las historias que las usan.
+// acceptance_criteria. Create, FindDetail, List, HasStories, FindAccessible, Update y
+// UpdateStoryPoints están implementadas; las demás operaciones las implementan las historias que las
+// usan.
 type StoryRepository struct {
 	db *gorm.DB
 }
@@ -185,9 +187,79 @@ func (r *StoryRepository) HasStories(ctx context.Context, projectID uuid.UUID) (
 	return found == 1, nil
 }
 
-// Update aplica los cambios presentes de un PATCH. Firma mínima.
+// Update aplica los cambios presentes de un PATCH en una transacción (research.md sección 7). Primero
+// toma un bloqueo de fila sobre la historia con SELECT ... FOR UPDATE, que serializa dos ediciones
+// simultáneas de la misma historia; si no hay fila devuelve ErrStoryNotFound. Después escribe con
+// UpdateColumns solo las columnas presentes más updated_at, nunca el registro entero, para no pisar
+// el cambio de otro integrante en otro campo (FR-025). Una descripción presente con valor nil se
+// guarda como NULL. Si vienen criterios, reemplaza la lista completa: borra los de la historia e
+// inserta los nuevos con posiciones 0..n-1 (research.md sección 5); la lista vacía solo borra.
 func (r *StoryRepository) Update(ctx context.Context, storyID uuid.UUID, changes domain.StoryChanges) error {
-	return errors.New("not implemented")
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var locked domain.UserStory
+		err := tx.
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id").
+			Where("id = ?", storyID).
+			Take(&locked).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domain.ErrStoryNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("bloquear la historia: %w", err)
+		}
+
+		columns := map[string]any{"updated_at": time.Now()}
+		if changes.Title != nil {
+			columns["title"] = *changes.Title
+		}
+		if changes.DescriptionSet {
+			columns["description"] = changes.Description
+		}
+		if changes.Priority != nil {
+			columns["priority"] = *changes.Priority
+		}
+		err = tx.
+			Model(&domain.UserStory{}).
+			Where("id = ?", storyID).
+			UpdateColumns(columns).Error
+		if err != nil {
+			return fmt.Errorf("actualizar la historia: %w", err)
+		}
+
+		if changes.AcceptanceCriteria == nil {
+			return nil
+		}
+		return replaceCriteria(tx, storyID, *changes.AcceptanceCriteria)
+	})
+}
+
+// replaceCriteria borra los criterios de la historia e inserta la lista nueva dentro de la
+// transacción recibida, asignando a cada criterio un UUID nuevo y la posición de su índice (0..n-1).
+// Con la lista vacía solo borra.
+func replaceCriteria(tx *gorm.DB, storyID uuid.UUID, criteria []string) error {
+	err := tx.
+		Where("story_id = ?", storyID).
+		Delete(&domain.AcceptanceCriterion{}).Error
+	if err != nil {
+		return fmt.Errorf("borrar criterios de aceptación: %w", err)
+	}
+	if len(criteria) == 0 {
+		return nil
+	}
+	rows := make([]domain.AcceptanceCriterion, 0, len(criteria))
+	for i, text := range criteria {
+		rows = append(rows, domain.AcceptanceCriterion{
+			ID:       uuid.New(),
+			StoryID:  storyID,
+			Position: i,
+			Text:     text,
+		})
+	}
+	if err := tx.Create(&rows).Error; err != nil {
+		return fmt.Errorf("insertar criterios de aceptación: %w", err)
+	}
+	return nil
 }
 
 // UpdateStoryPoints guarda la estimación de la historia con un único UPDATE que escribe solo

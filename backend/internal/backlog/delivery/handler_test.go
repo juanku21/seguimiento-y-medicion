@@ -1838,6 +1838,27 @@ func TestStoryCreate_ProyectoFinalizadoTrasResolverAcceso(t *testing.T) {
 	backlogRequireNothingCreated(t, env.db)
 }
 
+// TestStoryDelete_ProyectoFinalizadoTrasResolverAcceso verifica que una eliminación se rechaza con el
+// 409 de solo lectura cuando el proyecto pasa a finished después de que RequireStoryAccess resolvió
+// el acceso con el proyecto en curso y antes de borrar, y que la historia, sin historial y por lo
+// tanto eliminable, sigue en la base con sus criterios intactos (T093, FR-048, RN-15).
+func TestStoryDelete_ProyectoFinalizadoTrasResolverAcceso(t *testing.T) {
+	env := newBacklogTestEnv(t, func(p *backlogTestPorts) {
+		p.stories = backlogFinishingStories{StoryRepository: p.stories, db: p.db}
+	})
+	anaID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Gómez", "bruno@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress, brunoID)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, nil, 2)
+
+	rec := env.deleteStory(t, brunoToken, storyID.String())
+
+	backlogRequireProjectFinished(t, env.db, projectID)
+	backlogRequireConflict(t, rec, backlogReadOnlyMessage)
+	backlogRequireStoryUntouched(t, env.db, storyID, domain.StoryStatusPending,
+		[]string{backlogFirstCriterion, backlogSecondCriterion})
+}
+
 // Pruebas de integración de US5 (T058): PATCH /api/v1/stories/{storyId}. Las historias se siembran
 // con backlogSeedEstimable, con prioridad Alta, el título del caso normal, sin descripción y con el
 // momento fijo de US4 como creación y última actualización, para comprobar qué cambia y qué se

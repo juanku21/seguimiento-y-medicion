@@ -781,7 +781,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       del proyecto dentro de la transacción), devolviendo `ErrBacklogReadOnly` cuando corresponda
       per hallazgo de seguridad: regla de solo lectura del proyecto Finalizado verificada fuera de
       la escritura (security) — origen: seguridad, detectado en 003/US4
-- [ ] T093 Agregar prueba de integración en `backend/internal/backlog/delivery/handler_test.go` que
+- [X] T093 Agregar prueba de integración en `backend/internal/backlog/delivery/handler_test.go` que
       elimina con DELETE /api/v1/stories/{storyId} una historia de un proyecto que pasa a `finished`
       después de que se resuelve el acceso, y verifica que responde 409 con el mensaje de solo lectura
       y que la historia y sus criterios siguen en la base per hallazgo de seguridad: regla de solo

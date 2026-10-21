@@ -621,7 +621,7 @@ el motivo `sprint_history`.
       cada doble → `409` con su motivo e historia intacta), `TestUS6_SesionesDeEstimacion`,
       `TestUS6_ProyectoFinalizado`, `TestUS6_HistoriaAjena` y `TestUS6_YaEliminada` (`404`) —
       depende de T065
-- [ ] T068 [P] [US6] Pruebas de frontend en
+- [X] T068 [P] [US6] Pruebas de frontend en
       `frontend/src/features/backlog/components/delete-story-button.test.tsx`, con
       `describe("003/US6 - Eliminar una historia que nunca se trabajó")` y un `it` por escenario,
       incluido que pide confirmación antes de eliminar y que muestra **cada** motivo del rechazo —

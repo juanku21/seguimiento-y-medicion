@@ -787,7 +787,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       y que la historia y sus criterios siguen en la base per hallazgo de seguridad: regla de solo
       lectura del proyecto Finalizado verificada fuera de la escritura en la eliminación (security)
       — origen: seguridad, detectado en 003/US6
-- [ ] T094 Hacer que `Delete` de `backend/internal/backlog/repository/story_repository.go` compruebe
+- [X] T094 Hacer que `Delete` de `backend/internal/backlog/repository/story_repository.go` compruebe
       dentro de su transacción que el proyecto de la historia no está Finalizado (bloqueo `FOR SHARE`
       de la fila de `projects` o condición en el `DELETE` de `user_stories`) y devuelva
       `ErrBacklogReadOnly` en ese caso, para que `respondServiceError` lo traduzca al 409 de solo

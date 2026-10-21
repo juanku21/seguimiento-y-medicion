@@ -611,7 +611,7 @@ el motivo `sprint_history`.
       cuatro motivos a la vez **en ese orden**, ningún motivo → `Delete` del repositorio llamado, y
       proyecto Finalizado → `ErrBacklogReadOnly` sin consultar los puertos (RN-15, RN-16); en todo
       rechazo, `Delete` del repositorio no se llama — depende de T065
-- [ ] T067 [US6] Pruebas de integración de la historia en
+- [X] T067 [US6] Pruebas de integración de la historia en
       `backend/internal/backlog/delivery/handler_test.go`, con `// Escenario: <nombre> (003/US6)`:
       `TestUS6_EliminacionExitosa` (`204`, ausente del listado y sin filas en
       `acceptance_criteria`), `TestUS6_ListaParaPlanificarSeElimina`,

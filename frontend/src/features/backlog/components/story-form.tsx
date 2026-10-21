@@ -21,12 +21,14 @@ import {
   validateStoryTitle,
 } from "@/features/backlog/validation";
 import type { FieldError } from "@/types/auth";
-import type { StoryDetail, StoryPoints } from "@/types/story";
+import type { StoryDetail } from "@/types/story";
 import {
   STORY_POINTS_SCALE,
   STORY_PRIORITY_LABELS,
   STORY_STATUS_LABELS,
+  UNESTIMATED_LABEL,
   readinessLabel,
+  toStoryPoints,
 } from "@/utils/story-labels";
 
 // Valores de los campos simples tal como se eligen: prioridad y Story Points son el valor del
@@ -53,7 +55,6 @@ const EMPTY_VALUES: FormValues = {
 // usa la validación (FR-002, FR-003).
 const TITLE_HINT = `Hasta ${MAX_STORY_TITLE_LENGTH} caracteres.`;
 const DESCRIPTION_HINT = `Opcional, hasta ${MAX_STORY_DESCRIPTION_LENGTH} caracteres.`;
-const UNESTIMATED_LABEL = "Sin estimar";
 
 // Clave con la que el backend informa el error de un criterio, por ejemplo acceptanceCriteria[1].
 const CRITERION_FIELD_PATTERN = /^acceptanceCriteria\[(\d+)\]$/;
@@ -62,11 +63,6 @@ const CRITERION_FIELD_PATTERN = /^acceptanceCriteria\[(\d+)\]$/;
 // formulario.
 function isFieldName(value: string): value is FieldName {
   return Object.hasOwn(EMPTY_VALUES, value);
-}
-
-// Convierte el valor del selector en Story Points de la escala; "" queda sin estimar (null).
-function toStoryPoints(value: string): StoryPoints {
-  return STORY_POINTS_SCALE.find((points) => String(points) === value) ?? null;
 }
 
 // Aplica las reglas del formulario a los campos simples y devuelve solo los que tienen error.

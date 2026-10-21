@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Alert } from "@/components/alert";
 import { getStory } from "@/features/backlog/api";
+import { EstimateControl } from "@/features/backlog/components/estimate-control";
 import { StoryDetailCard } from "@/features/backlog/components/story-detail-card";
 import { useRequireSession } from "@/hooks/use-session";
 import type { StoryDetail } from "@/types/story";
@@ -19,9 +20,10 @@ type DetailState =
   | { status: "error"; message: string };
 
 // Vista del detalle de una historia (003/US3): pide la historia con un token vigente y la muestra en
-// la tarjeta de detalle. La historia ajena y la inexistente llegan con el mismo 404 y se muestra
-// solo su mensaje, sin ningún dato (FR-047); ante un 401 el cliente HTTP borra el token y la guardia
-// lleva a /login.
+// la tarjeta de detalle, junto al control de estimación (003/US4), que reemplaza la historia
+// mostrada por la que devuelve el backend al estimar. La historia ajena y la inexistente llegan con
+// el mismo 404 y se muestra solo su mensaje, sin ningún dato (FR-047); ante un 401 el cliente HTTP
+// borra el token y la guardia lleva a /login.
 export function StoryDetailView({ storyId }: StoryDetailViewProps) {
   const token = useRequireSession();
   const [state, setState] = useState<DetailState>({ status: "loading" });
@@ -58,5 +60,14 @@ export function StoryDetailView({ storyId }: StoryDetailViewProps) {
       </p>
     );
   }
-  return <StoryDetailCard story={state.story} />;
+  return (
+    <div className="flex flex-col gap-6">
+      <StoryDetailCard story={state.story} />
+      <EstimateControl
+        storyId={state.story.id}
+        storyPoints={state.story.storyPoints}
+        onEstimated={(story) => setState({ status: "loaded", story })}
+      />
+    </div>
+  );
 }

@@ -559,3 +559,94 @@ func TestUS2_ValidacionFiltroInvalido(t *testing.T) {
 		assert.Contains(t, names, "priority", "debe informarse el filtro de prioridad")
 	})
 }
+
+// Pruebas unitarias de la validación del cuerpo de la estimación (T048, FR-016, FR-018, FR-019). El
+// cuerpo se decodifica desde el JSON literal, igual que en el manejador, para que la prueba
+// distinga el campo ausente del null sin depender de cómo se declara el campo en StoryPointsInput.
+
+// validationDecodeEstimate decodifica el cuerpo JSON de la estimación en StoryPointsInput y falla
+// la prueba si el JSON no es sintácticamente válido.
+func validationDecodeEstimate(t *testing.T, body string) StoryPointsInput {
+	t.Helper()
+	var req StoryPointsInput
+	require.NoError(t, json.Unmarshal([]byte(body), &req), "el cuerpo de prueba debe ser JSON válido")
+	return req
+}
+
+// Escenario: Estimación inicial (003/US4)
+// Cada valor de la escala, incluido el 13 del caso normal, se acepta y se devuelve como el entero
+// recibido (FR-016).
+func TestUS4_ValidacionEstimacionInicial(t *testing.T) {
+	for _, points := range domain.StoryPointsScale {
+		t.Run(fmt.Sprintf("%d", points), func(t *testing.T) {
+			req := validationDecodeEstimate(t, fmt.Sprintf(`{"storyPoints": %d}`, points))
+
+			got, fields := ValidateStoryPointsInput(req)
+
+			require.Empty(t, fields, "el valor %d de la escala debería aceptarse", points)
+			require.NotNil(t, got, "los Story Points aceptados no pueden quedar sin estimar")
+			assert.Equal(t, points, *got)
+		})
+	}
+}
+
+// Escenario: Extremos de la escala (003/US4)
+// Los extremos 0 y 100 se aceptan, y el 0 queda como estimación y no como "sin estimar" (FR-015).
+func TestUS4_ValidacionExtremosDeLaEscala(t *testing.T) {
+	for _, points := range []int{0, 100} {
+		t.Run(fmt.Sprintf("%d", points), func(t *testing.T) {
+			req := validationDecodeEstimate(t, fmt.Sprintf(`{"storyPoints": %d}`, points))
+
+			got, fields := ValidateStoryPointsInput(req)
+
+			require.Empty(t, fields, "el extremo %d debería aceptarse", points)
+			require.NotNil(t, got, "el extremo %d no puede confundirse con sin estimar", points)
+			assert.Equal(t, points, *got)
+		})
+	}
+}
+
+// Escenario: Volver a sin estimar (003/US4)
+// Un storyPoints null se acepta como "sin estimar": no hay campos inválidos y el valor devuelto es
+// nil (FR-018).
+func TestUS4_ValidacionVolverASinEstimar(t *testing.T) {
+	req := validationDecodeEstimate(t, `{"storyPoints": null}`)
+
+	got, fields := ValidateStoryPointsInput(req)
+
+	assert.Empty(t, fields, "null debería aceptarse como sin estimar")
+	assert.Nil(t, got, "null debe devolver la historia a sin estimar")
+}
+
+// Escenario: Valor fuera de escala (003/US4)
+// El campo storyPoints es obligatorio: un cuerpo sin él se rechaza informando el campo, para no
+// confundirlo con "sin estimar" (FR-016, research.md sección 8).
+func TestUS4_ValidacionStoryPointsObligatorio(t *testing.T) {
+	for _, body := range []string{`{}`, `{"points": 13}`} {
+		t.Run(body, func(t *testing.T) {
+			req := validationDecodeEstimate(t, body)
+
+			got, fields := ValidateStoryPointsInput(req)
+
+			validationRequireOnlyField(t, fields, "storyPoints")
+			assert.Nil(t, got, "un cuerpo rechazado no devuelve Story Points")
+		})
+	}
+}
+
+// Escenario: Valor fuera de escala (003/US4)
+// Los enteros intermedios o fuera de la escala (50, 4), los negativos, los decimales (6,5 y 5.0),
+// la notación exponencial y los valores de otro tipo se rechazan con el mensaje que enumera la
+// escala completa (FR-019).
+func TestUS4_ValidacionValorFueraDeEscala(t *testing.T) {
+	for _, literal := range []string{"50", "4", "6.5", "5.0", "-1", "101", "1e1", `"13"`, "true", "[13]", "{}"} {
+		t.Run(literal, func(t *testing.T) {
+			req := validationDecodeEstimate(t, `{"storyPoints": `+literal+`}`)
+
+			got, fields := ValidateStoryPointsInput(req)
+
+			validationRequireOnlyField(t, fields, "storyPoints", validationScale)
+			assert.Nil(t, got, "un valor rechazado no devuelve Story Points")
+		})
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -13,8 +14,8 @@ import (
 )
 
 // StoryRepository implementa domain.StoryRepository con GORM sobre user_stories y
-// acceptance_criteria. Create, FindDetail, List, HasStories y FindAccessible están implementadas;
-// las demás operaciones las implementan las historias que las usan.
+// acceptance_criteria. Create, FindDetail, List, HasStories, FindAccessible y UpdateStoryPoints están
+// implementadas; las demás operaciones las implementan las historias que las usan.
 type StoryRepository struct {
 	db *gorm.DB
 }
@@ -189,9 +190,26 @@ func (r *StoryRepository) Update(ctx context.Context, storyID uuid.UUID, changes
 	return errors.New("not implemented")
 }
 
-// UpdateStoryPoints guarda la estimación de la historia. Firma mínima.
+// UpdateStoryPoints guarda la estimación de la historia con un único UPDATE que escribe solo
+// story_points y updated_at (FR-017), de modo que ninguna otra columna se toca. Un storyPoints nil
+// se guarda como NULL, que significa "sin estimar". UpdateColumns evita los hooks y la escritura
+// automática de GORM, por eso updated_at se fija acá de forma explícita. Si ninguna fila cambia, la
+// historia no existe y se devuelve ErrStoryNotFound.
 func (r *StoryRepository) UpdateStoryPoints(ctx context.Context, storyID uuid.UUID, storyPoints *int) error {
-	return errors.New("not implemented")
+	result := r.db.WithContext(ctx).
+		Model(&domain.UserStory{}).
+		Where("id = ?", storyID).
+		UpdateColumns(map[string]any{
+			"story_points": storyPoints,
+			"updated_at":   time.Now(),
+		})
+	if result.Error != nil {
+		return fmt.Errorf("guardar la estimación de la historia: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return domain.ErrStoryNotFound
+	}
+	return nil
 }
 
 // Delete borra la historia y sus criterios en una transacción. Firma mínima.

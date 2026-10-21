@@ -7,14 +7,11 @@ import { listStories } from "@/features/backlog/api";
 import { ReadinessBadge } from "@/features/backlog/components/readiness-badge";
 import { useRequireSession } from "@/hooks/use-session";
 import type { ApiError } from "@/lib/api-client";
-import type {
-  AppliedFilters,
-  StoryListItem,
-  StoryListResponse,
-} from "@/types/story";
+import type { AppliedFilters, StoryListResponse } from "@/types/story";
 import {
   STORY_PRIORITY_LABELS,
   STORY_STATUS_LABELS,
+  formatStoryPoints,
 } from "@/utils/story-labels";
 
 // Propiedades del listado: el proyecto cuyo backlog se consulta y los filtros elegidos.
@@ -31,12 +28,6 @@ type ListState =
 
 const EMPTY_MESSAGE_CLASS_NAME =
   "rounded-md border border-dashed border-zinc-300 px-5 py-6 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400";
-
-// Arma los Story Points de la historia; null es "Sin estimar" y el 0 es una estimación válida
-// (FR-014, FR-015).
-function formatStoryPoints(points: StoryListItem["storyPoints"]): string {
-  return points === null ? "Sin estimar" : `${points} SP`;
-}
 
 // Arma la cantidad de criterios de aceptación en singular o plural.
 function formatCriteriaCount(count: number): string {
@@ -146,7 +137,7 @@ export function StoryList({ projectId, filters }: StoryListProps) {
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
             {STORY_PRIORITY_LABELS[story.priority]} ·{" "}
             {STORY_STATUS_LABELS[story.status]} ·{" "}
-            {formatStoryPoints(story.storyPoints)} ·{" "}
+            {formatStoryPoints(story.storyPoints, "SP")} ·{" "}
             {formatCriteriaCount(story.acceptanceCriteriaCount)}
           </p>
         </li>

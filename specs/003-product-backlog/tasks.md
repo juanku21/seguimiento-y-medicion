@@ -457,17 +457,17 @@ en un sprint abierto.
 
 ### Pruebas de la Historia 4 ⚠️
 
-- [ ] T047 [P] [US4] Pruebas unitarias **obligatorias** de `Estimate` en
+- [X] T047 [P] [US4] Pruebas unitarias **obligatorias** de `Estimate` en
       `backend/internal/backlog/service/story_service_test.go`, con dobles: historia `completed` →
       `ErrStoryCompleted` (RN-14); proyecto Finalizado → `ErrBacklogReadOnly` (RN-15), evaluado
       **antes** que las demás reglas; historia comprometida en un sprint abierto con `nil` →
       `ErrCommittedStoryMustStayReady`, y con otro valor de la escala → aceptada (RN-18); en todos
       los rechazos, `UpdateStoryPoints` no se llama — depende de T046
-- [ ] T048 [P] [US4] Pruebas unitarias de la validación del cuerpo de la estimación en
+- [X] T048 [P] [US4] Pruebas unitarias de la validación del cuerpo de la estimación en
       `backend/internal/backlog/delivery/validation_test.go`: `storyPoints` **obligatorio** (cuerpo
       `{}` rechazado), `null` aceptado como "sin estimar" y los valores fuera de la escala
       rechazados con la escala en el mensaje (FR-016, FR-018, FR-019) — depende de T046
-- [ ] T049 [US4] Pruebas de integración de la historia en
+- [X] T049 [US4] Pruebas de integración de la historia en
       `backend/internal/backlog/delivery/handler_test.go`, con `// Escenario: <nombre> (003/US4)`:
       `TestUS4_EstimacionInicial` (13 y lista para planificar), `TestUS4_Reestimacion` (5 → 8 y
       `updatedAt` posterior), `TestUS4_VolverASinEstimar`, `TestUS4_SinCriterios`,
@@ -476,7 +476,7 @@ en un sprint abierto.
       `TestUS4_ValorFueraDeEscala` (subtests 50, 4 y 6,5, valor intacto),
       `TestUS4_HistoriaCompletada` (estado sembrado) y `TestUS4_ProyectoFinalizado` — depende de
       T046
-- [ ] T050 [P] [US4] Pruebas de frontend en
+- [X] T050 [P] [US4] Pruebas de frontend en
       `frontend/src/features/backlog/components/estimate-control.test.tsx`, con
       `describe("003/US4 - Estimar una historia en Story Points")` y un `it` por escenario, incluido
       que el control ofrece **solo** los valores de la escala más "Sin estimar" y que la estimación
@@ -484,24 +484,24 @@ en un sprint abierto.
 
 ### Implementación de la Historia 4
 
-- [ ] T051 [US4] Declarar `StoryPointsInput` en `backend/internal/backlog/delivery/dto.go` con
+- [X] T051 [US4] Declarar `StoryPointsInput` en `backend/internal/backlog/delivery/dto.go` con
       `storyPoints` como `json.RawMessage`, para distinguir el campo ausente del `null`, e
       implementar su validación en `backend/internal/backlog/delivery/validation.go` reutilizando la
       validación de la escala de T019 (research.md sección 8) — depende de T048
-- [ ] T052 [US4] Implementar `UpdateStoryPoints` en
+- [X] T052 [US4] Implementar `UpdateStoryPoints` en
       `backend/internal/backlog/repository/story_repository.go`, que escribe **solo**
       `story_points` y `updated_at` (FR-017) — depende de T049
-- [ ] T053 [US4] Implementar `Estimate(ctx, access, storyPoints *int)` en
+- [X] T053 [US4] Implementar `Estimate(ctx, access, storyPoints *int)` en
       `backend/internal/backlog/service/story_service.go` con las reglas en el orden de research.md
       sección 16: solo lectura, Completada y comprometida (`SprintAssignments.Find`). Es el método que
       reutilizará `specs/005-planning-poker` para registrar el valor acordado (RC-06) — depende de
       T047 y T052
-- [ ] T054 [US4] Implementar el manejador `estimateStory` en
+- [X] T054 [US4] Implementar el manejador `estimateStory` en
       `backend/internal/backlog/delivery/handler.go` con anotaciones `swag` en español y registrar
       `PUT /story-points` en el grupo de la historia en `backend/internal/backlog/delivery/routes.go`.
       Respuestas: `200` con `StoryDetail`, `400`, `401`, `404` y `409` con los mensajes de
       contracts/openapi.yaml — depende de T051 y T053
-- [ ] T055 [US4] Implementar la llamada de estimación en `frontend/src/features/backlog/api.ts` y el
+- [X] T055 [US4] Implementar la llamada de estimación en `frontend/src/features/backlog/api.ts` y el
       componente `EstimateControl` en
       `frontend/src/features/backlog/components/estimate-control.tsx`, integrado en la pantalla de
       detalle — depende de T050 y T054
@@ -770,6 +770,17 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       `backend/internal/backlog/delivery/validation.go` para indicar que la comparación es exacta y
       rechaza otras grafías per Constitución VIII (contradicts) — origen: converge, detectado en
       hu/003-us2-ver-el-backlog
+- [ ] T091 Agregar pruebas de integración en `backend/internal/backlog/delivery/handler_test.go`
+      que estimen una historia y creen una historia en un proyecto que pasa a `finished` después
+      de resolver el acceso, y verifiquen que se rechazan con `409` de solo lectura y que la base
+      no cambia per hallazgo de seguridad: regla de solo lectura del proyecto Finalizado verificada
+      fuera de la escritura (security) — origen: seguridad, detectado en 003/US4
+- [ ] T092 Hacer que `UpdateStoryPoints` y `Create` de
+      `backend/internal/backlog/repository/story_repository.go` comprueben en la propia escritura
+      que el proyecto no está Finalizado (condición en el `UPDATE` o bloqueo `FOR SHARE` de la fila
+      del proyecto dentro de la transacción), devolviendo `ErrBacklogReadOnly` cuando corresponda
+      per hallazgo de seguridad: regla de solo lectura del proyecto Finalizado verificada fuera de
+      la escritura (security) — origen: seguridad, detectado en 003/US4
 
 ---
 

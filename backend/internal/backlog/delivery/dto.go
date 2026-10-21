@@ -28,6 +28,14 @@ type StoryInput struct {
 	AcceptanceCriteria []string `json:"acceptanceCriteria" example:"El PDF incluye la velocidad de los últimos cinco sprints."`
 }
 
+// StoryPointsInput es el cuerpo de la estimación de una historia (contracts/openapi.yaml, FR-016,
+// FR-018). StoryPoints llega como json.RawMessage para distinguir el campo ausente, que se rechaza,
+// del null, que significa "sin estimar" (research.md sección 8).
+type StoryPointsInput struct {
+	// Story Points de la escala, o null para "sin estimar"; el campo es obligatorio.
+	StoryPoints json.RawMessage `json:"storyPoints" validate:"required" swaggertype:"integer" enums:"0,1,2,3,5,8,13,20,40,100" extensions:"x-nullable" example:"13"`
+}
+
 // Readiness indica si la historia está lista para planificar y qué condiciones le faltan
 // (FR-028, FR-029). Missing se serializa siempre como lista, vacía cuando Ready es verdadero.
 type Readiness struct {

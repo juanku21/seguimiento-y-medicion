@@ -488,7 +488,7 @@ en un sprint abierto.
       `storyPoints` como `json.RawMessage`, para distinguir el campo ausente del `null`, e
       implementar su validación en `backend/internal/backlog/delivery/validation.go` reutilizando la
       validación de la escala de T019 (research.md sección 8) — depende de T048
-- [ ] T052 [US4] Implementar `UpdateStoryPoints` en
+- [X] T052 [US4] Implementar `UpdateStoryPoints` en
       `backend/internal/backlog/repository/story_repository.go`, que escribe **solo**
       `story_points` y `updated_at` (FR-017) — depende de T049
 - [ ] T053 [US4] Implementar `Estimate(ctx, access, storyPoints *int)` en

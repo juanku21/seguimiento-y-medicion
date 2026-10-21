@@ -140,6 +140,13 @@ func ValidateStoryPointsInput(req StoryPointsInput) (*int, []authdelivery.FieldE
 	return &points, nil
 }
 
+// ValidateStoryPatch decodifica y valida el cuerpo del PATCH y devuelve los cambios a aplicar, o un
+// FieldError por cada campo inválido, todos a la vez (FR-020, FR-021, FR-023). Firma mínima de
+// T056: la decodificación y las validaciones son de T061.
+func ValidateStoryPatch(req StoryPatch) (domain.StoryChanges, []authdelivery.FieldError) {
+	return domain.StoryChanges{}, nil
+}
+
 // ParseStoryFilter valida los valores repetibles de los filtros status y priority del listado, tal
 // como los entrega c.QueryArray, y devuelve el StoryFilter o un FieldError por cada filtro con un
 // valor no admitido, indicando los valores válidos (FR-034, FR-037).

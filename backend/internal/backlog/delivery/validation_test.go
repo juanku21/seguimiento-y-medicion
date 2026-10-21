@@ -650,3 +650,288 @@ func TestUS4_ValidacionValorFueraDeEscala(t *testing.T) {
 		})
 	}
 }
+
+// Pruebas unitarias de la decodificación y validación del cuerpo de la modificación parcial (T056,
+// research.md sección 6, RN-03 a RN-05, RN-08, RN-10). El cuerpo se decodifica desde el JSON
+// literal, igual que en el manejador, para distinguir el campo ausente del null.
+
+// validationDecodePatch decodifica el cuerpo JSON del PATCH en StoryPatch y falla la prueba si el
+// JSON no es sintácticamente válido.
+func validationDecodePatch(t *testing.T, body string) StoryPatch {
+	t.Helper()
+	var req StoryPatch
+	require.NoError(t, json.Unmarshal([]byte(body), &req), "el cuerpo de prueba debe ser JSON válido")
+	return req
+}
+
+// validationPatchJSON serializa un mapa como cuerpo JSON, para armar textos largos sin escaparlos a
+// mano.
+func validationPatchJSON(t *testing.T, body map[string]any) string {
+	t.Helper()
+	raw, err := json.Marshal(body)
+	require.NoError(t, err)
+	return string(raw)
+}
+
+// validationRequirePatchRejected exige que el PATCH se rechace con exactamente el campo indicado,
+// con un mensaje que mencione las piezas recibidas, y que no devuelva ningún cambio (FR-023).
+func validationRequirePatchRejected(t *testing.T, body, field string, parts ...string) {
+	t.Helper()
+	got, fields := ValidateStoryPatch(validationDecodePatch(t, body))
+	validationRequireOnlyField(t, fields, field, parts...)
+	assert.Equal(t, domain.StoryChanges{}, got, "un cuerpo rechazado no devuelve cambios")
+}
+
+// Escenario: Refinamiento completo (003/US5)
+// Título, descripción, prioridad y criterios válidos se aceptan juntos, recortados, y los criterios
+// conservan el orden recibido (FR-020, FR-021).
+func TestUS5_ValidacionRefinamientoCompleto(t *testing.T) {
+	body := `{"title": "  Exportar a PDF el reporte de velocidad del equipo  ",
+		"description": "  Incluye los sprints cerrados del último trimestre.  ",
+		"priority": "medium",
+		"acceptanceCriteria": ["  El PDF incluye la velocidad.  ", "El archivo lleva el nombre del proyecto."]}`
+
+	got, fields := ValidateStoryPatch(validationDecodePatch(t, body))
+
+	require.Empty(t, fields, "el refinamiento completo debería aceptarse")
+	require.NotNil(t, got.Title)
+	assert.Equal(t, "Exportar a PDF el reporte de velocidad del equipo", *got.Title)
+	assert.True(t, got.DescriptionSet, "la descripción enviada debe marcarse como presente")
+	require.NotNil(t, got.Description)
+	assert.Equal(t, "Incluye los sprints cerrados del último trimestre.", *got.Description)
+	require.NotNil(t, got.Priority)
+	assert.Equal(t, domain.StoryPriorityMedium, *got.Priority)
+	require.NotNil(t, got.AcceptanceCriteria)
+	assert.Equal(t, []string{"El PDF incluye la velocidad.", "El archivo lleva el nombre del proyecto."},
+		*got.AcceptanceCriteria)
+}
+
+// Escenario: Refinamiento completo (003/US5)
+// Los límites del título (150) y de la descripción (2000) se aceptan como en la creación (RN-03,
+// RN-04).
+func TestUS5_ValidacionLimitesAceptados(t *testing.T) {
+	title := strings.Repeat("a", 150)
+	description := strings.Repeat("d", 2000)
+	body := validationPatchJSON(t, map[string]any{"title": title, "description": description})
+
+	got, fields := ValidateStoryPatch(validationDecodePatch(t, body))
+
+	require.Empty(t, fields, "los límites deberían aceptarse")
+	require.NotNil(t, got.Title)
+	assert.Equal(t, title, *got.Title)
+	require.NotNil(t, got.Description)
+	assert.Equal(t, description, *got.Description)
+}
+
+// Escenario: Refinamiento completo (003/US5)
+// La descripción enviada como null, vacía o solo de espacios se borra: queda presente y sin valor
+// (FR-020, RN-04).
+func TestUS5_ValidacionBorrarDescripcion(t *testing.T) {
+	for _, literal := range []string{`null`, `""`, `"   "`} {
+		t.Run(literal, func(t *testing.T) {
+			got, fields := ValidateStoryPatch(validationDecodePatch(t, `{"description": `+literal+`}`))
+
+			require.Empty(t, fields, "la descripción %s debería aceptarse como borrado", literal)
+			assert.True(t, got.DescriptionSet, "la descripción %s debe marcarse como presente", literal)
+			assert.Nil(t, got.Description, "la descripción %s debe borrarse", literal)
+			assert.Nil(t, got.Title, "el título ausente no cambia")
+			assert.Nil(t, got.Priority, "la prioridad ausente no cambia")
+			assert.Nil(t, got.AcceptanceCriteria, "los criterios ausentes no cambian")
+		})
+	}
+}
+
+// Escenario: Historia en progreso (003/US5)
+// Un cuerpo que solo corrige la descripción deja ausentes los demás campos, que no cambian (FR-020).
+func TestUS5_ValidacionHistoriaEnProgreso(t *testing.T) {
+	got, fields := ValidateStoryPatch(validationDecodePatch(t, `{"description": "Aclara el alcance."}`))
+
+	require.Empty(t, fields)
+	assert.True(t, got.DescriptionSet)
+	require.NotNil(t, got.Description)
+	assert.Equal(t, "Aclara el alcance.", *got.Description)
+	assert.Nil(t, got.Title, "el título ausente no cambia")
+	assert.Nil(t, got.Priority, "la prioridad ausente no cambia")
+	assert.Nil(t, got.AcceptanceCriteria, "los criterios ausentes no cambian")
+}
+
+// Escenario: Edición simultánea de campos distintos (003/US5)
+// Un cuerpo con solo la prioridad lleva únicamente ese cambio: la descripción y el resto quedan
+// ausentes, que es lo que permite que dos ediciones de campos distintos no se pisen (FR-020, FR-025).
+func TestUS5_ValidacionSoloLosCamposEnviados(t *testing.T) {
+	got, fields := ValidateStoryPatch(validationDecodePatch(t, `{"priority": "low"}`))
+
+	require.Empty(t, fields)
+	require.NotNil(t, got.Priority)
+	assert.Equal(t, domain.StoryPriorityLow, *got.Priority)
+	assert.Nil(t, got.Title, "el título ausente no cambia")
+	assert.False(t, got.DescriptionSet, "la descripción ausente no cambia")
+	assert.Nil(t, got.Description)
+	assert.Nil(t, got.AcceptanceCriteria, "los criterios ausentes no cambian")
+}
+
+// Escenario: Reorden de criterios (003/US5)
+// La lista enviada reemplaza a la anterior en el orden recibido (FR-022).
+func TestUS5_ValidacionReordenDeCriterios(t *testing.T) {
+	got, fields := ValidateStoryPatch(validationDecodePatch(t,
+		`{"acceptanceCriteria": ["Tercero", "Primero", "Segundo"]}`))
+
+	require.Empty(t, fields)
+	require.NotNil(t, got.AcceptanceCriteria)
+	assert.Equal(t, []string{"Tercero", "Primero", "Segundo"}, *got.AcceptanceCriteria)
+}
+
+// Escenario: Vaciar criterios (003/US5)
+// Una lista vacía queda presente y vacía, distinta de ausente (FR-020, FR-022).
+func TestUS5_ValidacionVaciarCriterios(t *testing.T) {
+	got, fields := ValidateStoryPatch(validationDecodePatch(t, `{"acceptanceCriteria": []}`))
+
+	require.Empty(t, fields, "la lista vacía debería aceptarse")
+	require.NotNil(t, got.AcceptanceCriteria, "la lista vacía debe quedar presente")
+	assert.Empty(t, *got.AcceptanceCriteria, "la lista vacía deja la historia sin criterios")
+}
+
+// Escenario: Entrada inválida sin cambio parcial (003/US5)
+// El título presente se valida como en la creación, y null, vacío o solo espacios se rechazan
+// (RN-03, research.md sección 6).
+func TestUS5_ValidacionTituloInvalido(t *testing.T) {
+	t.Run("vacíos y null", func(t *testing.T) {
+		for _, literal := range []string{`null`, `""`, `"   "`} {
+			t.Run(literal, func(t *testing.T) {
+				validationRequirePatchRejected(t, `{"title": `+literal+`}`, "title", "obligatorio")
+			})
+		}
+	})
+	t.Run("151 caracteres", func(t *testing.T) {
+		body := validationPatchJSON(t, map[string]any{"title": strings.Repeat("a", 151)})
+		validationRequirePatchRejected(t, body, "title", "150")
+	})
+	t.Run("tipo no texto", func(t *testing.T) {
+		validationRequirePatchRejected(t, `{"title": 5}`, "title")
+	})
+}
+
+// Escenario: Entrada inválida sin cambio parcial (003/US5)
+// Una descripción de más de 2000 caracteres o que no es texto se rechaza (RN-04).
+func TestUS5_ValidacionDescripcionInvalida(t *testing.T) {
+	t.Run("2001 caracteres", func(t *testing.T) {
+		body := validationPatchJSON(t, map[string]any{"description": strings.Repeat("d", 2001)})
+		validationRequirePatchRejected(t, body, "description", "2000")
+	})
+	t.Run("tipo no texto", func(t *testing.T) {
+		validationRequirePatchRejected(t, `{"description": 5}`, "description")
+	})
+}
+
+// Escenario: Entrada inválida sin cambio parcial (003/US5)
+// La prioridad presente se valida como en la creación, y null o vacía se rechaza (RN-05).
+func TestUS5_ValidacionPrioridadInvalida(t *testing.T) {
+	for _, literal := range []string{`null`, `""`, `"urgent"`, `"High"`, `"Alta"`, `1`} {
+		t.Run(literal, func(t *testing.T) {
+			validationRequirePatchRejected(t, `{"priority": `+literal+`}`, "priority", "Alta", "Media", "Baja")
+		})
+	}
+}
+
+// Escenario: Entrada inválida sin cambio parcial (003/US5)
+// Los criterios en null se rechazan (para vaciar se envía []), y cada criterio vacío o de más de
+// 500 caracteres se informa con su índice (RN-08, research.md sección 6).
+func TestUS5_ValidacionCriteriosInvalidos(t *testing.T) {
+	t.Run("null", func(t *testing.T) {
+		validationRequirePatchRejected(t, `{"acceptanceCriteria": null}`, "acceptanceCriteria")
+	})
+	t.Run("criterio vacío", func(t *testing.T) {
+		validationRequirePatchRejected(t, `{"acceptanceCriteria": ["Válido", "   "]}`,
+			"acceptanceCriteria[1]", "contenido")
+	})
+	t.Run("criterio de 501", func(t *testing.T) {
+		body := validationPatchJSON(t, map[string]any{
+			"acceptanceCriteria": []string{strings.Repeat("c", 501), "Válido"},
+		})
+		validationRequirePatchRejected(t, body, "acceptanceCriteria[0]", "500")
+	})
+	t.Run("tipo no lista", func(t *testing.T) {
+		validationRequirePatchRejected(t, `{"acceptanceCriteria": "Un criterio"}`, "acceptanceCriteria")
+	})
+}
+
+// Escenario: Entrada inválida sin cambio parcial (003/US5)
+// Un campo inválido junto a otros válidos rechaza el cuerpo entero: se informa solo el inválido y
+// no se devuelve ninguno de los cambios válidos (FR-023).
+func TestUS5_ValidacionEntradaInvalidaSinCambioParcial(t *testing.T) {
+	long := func(n int) string { return strings.Repeat("x", n) }
+	cases := []struct {
+		name  string
+		body  map[string]any
+		field string
+	}{
+		{"título vacío", map[string]any{"title": "", "priority": "low"}, "title"},
+		{"título de 151", map[string]any{"title": long(151), "description": "Nueva"}, "title"},
+		{"descripción de 2001", map[string]any{"description": long(2001), "title": "Nuevo"}, "description"},
+		{"prioridad inexistente", map[string]any{"priority": "urgent", "title": "Nuevo"}, "priority"},
+		{"criterio de 501", map[string]any{"acceptanceCriteria": []string{long(501)}, "priority": "low"},
+			"acceptanceCriteria[0]"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			validationRequirePatchRejected(t, validationPatchJSON(t, tc.body), tc.field)
+		})
+	}
+
+	// Todos los campos inválidos se informan a la vez (FR-013).
+	t.Run("todos los campos inválidos", func(t *testing.T) {
+		body := validationPatchJSON(t, map[string]any{
+			"title": "", "description": long(2001), "priority": "urgent",
+			"acceptanceCriteria": []string{"", long(501)},
+		})
+		got, fields := ValidateStoryPatch(validationDecodePatch(t, body))
+		assert.ElementsMatch(t,
+			[]string{"title", "description", "priority", "acceptanceCriteria[0]", "acceptanceCriteria[1]"},
+			validationFieldNames(fields))
+		assert.Equal(t, domain.StoryChanges{}, got)
+	})
+}
+
+// Escenario: Entrada inválida sin cambio parcial (003/US5)
+// Un cuerpo sin ningún campo editable se rechaza con field body, para que una petición vacía no
+// actualice la historia (research.md sección 6).
+func TestUS5_ValidacionCuerpoSinCampos(t *testing.T) {
+	for _, body := range []string{`{}`, `{"id": "7c4e2a19-3b8d-4f60-a1c5-9e2d0b6f8a73"}`, `{"createdBy": "x"}`} {
+		t.Run(body, func(t *testing.T) {
+			validationRequirePatchRejected(t, body, "body", "ningún campo a modificar")
+		})
+	}
+}
+
+// Escenario: Cambio de estado no disponible (003/US5)
+// El campo status se rechaza con su campo aunque llegue junto a cambios válidos, que tampoco se
+// devuelven: el backlog nunca cambia el estado (FR-027, RN-10).
+func TestUS5_ValidacionCambioDeEstadoNoDisponible(t *testing.T) {
+	for _, status := range []string{`"in_progress"`, `"completed"`, `"pending"`, `null`} {
+		t.Run(status, func(t *testing.T) {
+			validationRequirePatchRejected(t, `{"priority": "high", "status": `+status+`}`,
+				"status", "no se cambia desde el backlog")
+		})
+	}
+	t.Run("solo status", func(t *testing.T) {
+		got, fields := ValidateStoryPatch(validationDecodePatch(t, `{"status": "completed"}`))
+		assert.Contains(t, validationFieldNames(fields), "status")
+		assert.Equal(t, domain.StoryChanges{}, got)
+	})
+}
+
+// Escenario: Entrada inválida sin cambio parcial (003/US5)
+// El campo storyPoints se rechaza con su campo aunque llegue junto a cambios válidos, porque la
+// estimación tiene su propio endpoint (research.md secciones 6 y 8).
+func TestUS5_ValidacionStoryPointsNoDisponible(t *testing.T) {
+	for _, points := range []string{`5`, `null`, `0`} {
+		t.Run(points, func(t *testing.T) {
+			validationRequirePatchRejected(t, `{"title": "Nuevo", "storyPoints": `+points+`}`, "storyPoints")
+		})
+	}
+	t.Run("solo storyPoints", func(t *testing.T) {
+		got, fields := ValidateStoryPatch(validationDecodePatch(t, `{"storyPoints": 8}`))
+		assert.Contains(t, validationFieldNames(fields), "storyPoints")
+		assert.Equal(t, domain.StoryChanges{}, got)
+	})
+}

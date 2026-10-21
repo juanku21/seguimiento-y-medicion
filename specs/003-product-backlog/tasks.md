@@ -524,7 +524,7 @@ el estado.
 
 ### Pruebas de la Historia 5 ⚠️
 
-- [ ] T056 [P] [US5] Pruebas unitarias **obligatorias** de la decodificación y validación del
+- [X] T056 [P] [US5] Pruebas unitarias **obligatorias** de la decodificación y validación del
       `PATCH` en `backend/internal/backlog/delivery/validation_test.go` (research.md sección 6):
       campo ausente → sin cambio; `title` y `priority` presentes validados como en la creación y
       **`null` o vacío rechazados**; `description` en `null`, `""` o solo espacios → se borra;

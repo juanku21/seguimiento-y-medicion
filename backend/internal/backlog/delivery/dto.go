@@ -36,6 +36,19 @@ type StoryPointsInput struct {
 	StoryPoints json.RawMessage `json:"storyPoints" validate:"required" swaggertype:"integer" enums:"0,1,2,3,5,8,13,20,40,100" extensions:"x-nullable" example:"13"`
 }
 
+// StoryPatch es el cuerpo de la modificación parcial de una historia (contracts/openapi.yaml,
+// FR-020). Cada campo llega como json.RawMessage para distinguir el campo ausente del null
+// (research.md sección 6). Status y StoryPoints se decodifican solo para rechazarlos.
+// Firma mínima de T056; la declaración completa con su documentación de Swagger es de T061.
+type StoryPatch struct {
+	Title              json.RawMessage `json:"title"`
+	Description        json.RawMessage `json:"description"`
+	Priority           json.RawMessage `json:"priority"`
+	AcceptanceCriteria json.RawMessage `json:"acceptanceCriteria"`
+	Status             json.RawMessage `json:"status"`
+	StoryPoints        json.RawMessage `json:"storyPoints"`
+}
+
 // Readiness indica si la historia está lista para planificar y qué condiciones le faltan
 // (FR-028, FR-029). Missing se serializa siempre como lista, vacía cuando Ready es verdadero.
 type Readiness struct {

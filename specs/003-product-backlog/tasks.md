@@ -577,7 +577,7 @@ el estado.
 - [X] T063 [US5] Implementar `Update(ctx, access, changes)` en
       `backend/internal/backlog/service/story_service.go` con las reglas de solo lectura, Completada
       y comprometida, en ese orden — depende de T057 y T062
-- [ ] T064 [US5] Implementar el manejador `updateStory` en `backend/internal/backlog/delivery/handler.go`
+- [X] T064 [US5] Implementar el manejador `updateStory` en `backend/internal/backlog/delivery/handler.go`
       con anotaciones `swag` en español y registrar `PATCH` en el grupo de la historia en
       `backend/internal/backlog/delivery/routes.go`. Respuestas: `200` con `StoryDetail`, `400`,
       `401`, `404` y `409` — depende de T061 y T063

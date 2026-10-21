@@ -775,7 +775,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       de resolver el acceso, y verifiquen que se rechazan con `409` de solo lectura y que la base
       no cambia per hallazgo de seguridad: regla de solo lectura del proyecto Finalizado verificada
       fuera de la escritura (security) — origen: seguridad, detectado en 003/US4
-- [ ] T092 Hacer que `UpdateStoryPoints` y `Create` de
+- [X] T092 Hacer que `UpdateStoryPoints` y `Create` de
       `backend/internal/backlog/repository/story_repository.go` comprueben en la propia escritura
       que el proyecto no está Finalizado (condición en el `UPDATE` o bloqueo `FOR SHARE` de la fila
       del proyecto dentro de la transacción), devolviendo `ErrBacklogReadOnly` cuando corresponda

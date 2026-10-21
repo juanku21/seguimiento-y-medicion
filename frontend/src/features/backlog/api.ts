@@ -41,31 +41,36 @@ function isStoryDetail(value: unknown): value is StoryDetail {
   );
 }
 
+// Arman las rutas de las historias de un proyecto y de una historia concreta codificando el
+// identificador, para que un valor con "/" o "../" no altere la ruta pedida al backend.
+function projectStoriesPath(projectId: string): string {
+  return `/api/v1/projects/${encodeURIComponent(projectId)}/stories`;
+}
+
+function storyPath(storyId: string): string {
+  return `/api/v1/stories/${encodeURIComponent(storyId)}`;
+}
+
 // Registra una historia en el backlog con POST /api/v1/projects/{projectId}/stories, usando la
 // sesión de la pestaña (003/US1). Las reglas de negocio las resuelve el backend: los rechazos (400
 // con el detalle por campo, 404 y 409) llegan con su mensaje y ante un 401 el cliente HTTP descarta
-// la sesión (FR-016 de la 001). El identificador del proyecto se codifica para que no altere la
-// ruta pedida.
+// la sesión (FR-016 de la 001).
 export function createStory(
   projectId: string,
   input: StoryInput,
 ): Promise<ApiResult<StoryDetail>> {
   return postAuthorizedJson(
-    `/api/v1/projects/${encodeURIComponent(projectId)}/stories`,
+    projectStoriesPath(projectId),
     input,
     isStoryDetail,
   );
 }
 
 // Consulta el detalle de una historia con GET /api/v1/stories/{storyId}, usando la sesión de la
-// pestaña (003/US3). El identificador se codifica para que no altere la ruta pedida. La historia
-// ajena y la inexistente llegan con el mismo 404 y su mensaje, sin datos de la historia (FR-047), y
-// ante un 401 el cliente HTTP descarta la sesión.
+// pestaña (003/US3). La historia ajena y la inexistente llegan con el mismo 404 y su mensaje, sin
+// datos de la historia (FR-047), y ante un 401 el cliente HTTP descarta la sesión.
 export function getStory(storyId: string): Promise<ApiResult<StoryDetail>> {
-  return getJson(
-    `/api/v1/stories/${encodeURIComponent(storyId)}`,
-    isStoryDetail,
-  );
+  return getJson(storyPath(storyId), isStoryDetail);
 }
 
 // Estima una historia con PUT /api/v1/stories/{storyId}/story-points, usando la sesión de la
@@ -78,7 +83,7 @@ export function estimateStory(
   storyPoints: StoryPoints,
 ): Promise<ApiResult<StoryDetail>> {
   return putAuthorizedJson(
-    `/api/v1/stories/${encodeURIComponent(storyId)}/story-points`,
+    `${storyPath(storyId)}/story-points`,
     { storyPoints },
     isStoryDetail,
   );
@@ -93,11 +98,7 @@ export function updateStory(
   storyId: string,
   patch: StoryPatch,
 ): Promise<ApiResult<StoryDetail>> {
-  return patchAuthorizedJson(
-    `/api/v1/stories/${encodeURIComponent(storyId)}`,
-    patch,
-    isStoryDetail,
-  );
+  return patchAuthorizedJson(storyPath(storyId), patch, isStoryDetail);
 }
 
 // Elimina una historia con DELETE /api/v1/stories/{storyId}, usando la sesión de la pestaña
@@ -106,7 +107,7 @@ export function updateStory(
 // motivo en reasons, el de solo lectura y el 404 solo con su mensaje, y ante un 401 el cliente HTTP
 // descarta la sesión.
 export function deleteStory(storyId: string): Promise<ApiResult<undefined>> {
-  return deleteEmpty(`/api/v1/stories/${encodeURIComponent(storyId)}`);
+  return deleteEmpty(storyPath(storyId));
 }
 
 // Reconoce un elemento del listado del backlog (StoryListItem); los Story Points pueden llegar en
@@ -141,8 +142,7 @@ function isStoryListResponse(value: unknown): value is StoryListResponse {
 // Pide el backlog del proyecto con GET /api/v1/projects/{projectId}/stories, usando la sesión de la
 // pestaña (003/US2). Cada valor elegido de un filtro viaja como parámetro repetido
 // (?status=pending&status=in_progress); sin filtros no se envía consulta. El orden, el filtrado y el
-// motivo del vacío los resuelve el backend (FR-032 a FR-037). El identificador del proyecto se
-// codifica para que no altere la ruta pedida.
+// motivo del vacío los resuelve el backend (FR-032 a FR-037).
 export function listStories(
   projectId: string,
   filters: AppliedFilters,
@@ -153,7 +153,7 @@ export function listStories(
   const encoded = query.toString();
   const search = encoded === "" ? "" : `?${encoded}`;
   return getJson(
-    `/api/v1/projects/${encodeURIComponent(projectId)}/stories${search}`,
+    `${projectStoriesPath(projectId)}${search}`,
     isStoryListResponse,
   );
 }

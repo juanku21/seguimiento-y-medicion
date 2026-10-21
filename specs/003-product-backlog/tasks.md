@@ -761,7 +761,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       conserva la ruta esperada con el segmento codificado per hallazgo de seguridad: identificadores
       interpolados sin codificar en las rutas de los clientes de API (security) — origen: seguridad,
       detectado en 003/US2
-- [ ] T088 Codificar con `encodeURIComponent` cada segmento de ruta interpolado en
+- [X] T088 Codificar con `encodeURIComponent` cada segmento de ruta interpolado en
       `frontend/src/features/backlog/api.ts` y `frontend/src/features/projects/api.ts`, incluidas las
       llamadas de `DELETE` y `PATCH` per hallazgo de seguridad: identificadores interpolados sin
       codificar en las rutas de los clientes de API (security) — origen: seguridad, detectado en

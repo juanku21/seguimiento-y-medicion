@@ -37,16 +37,24 @@ type StoryPointsInput struct {
 }
 
 // StoryPatch es el cuerpo de la modificación parcial de una historia (contracts/openapi.yaml,
-// FR-020). Cada campo llega como json.RawMessage para distinguir el campo ausente del null
-// (research.md sección 6). Status y StoryPoints se decodifican solo para rechazarlos.
-// Firma mínima de T056; la declaración completa con su documentación de Swagger es de T061.
+// FR-020). Todos los campos son opcionales y solo se aplican los incluidos; debe incluir al menos
+// uno. Cada campo llega como json.RawMessage para distinguir el campo ausente, que queda nil, del
+// null, que llega como su literal (research.md sección 6). Status y StoryPoints no forman parte del
+// contrato: se decodifican solo para rechazarlos. La validación real la hace ValidateStoryPatch.
 type StoryPatch struct {
-	Title              json.RawMessage `json:"title"`
-	Description        json.RawMessage `json:"description"`
-	Priority           json.RawMessage `json:"priority"`
-	AcceptanceCriteria json.RawMessage `json:"acceptanceCriteria"`
-	Status             json.RawMessage `json:"status"`
-	StoryPoints        json.RawMessage `json:"storyPoints"`
+	// Entre 1 y 150 caracteres tras recortar los espacios extremos; no admite null (FR-021).
+	Title json.RawMessage `json:"title" swaggertype:"string" minLength:"1" maxLength:"150" example:"Exportar a PDF el reporte de velocidad del equipo"`
+	// Hasta 2000 caracteres; null, vacía o solo espacios borran la descripción (FR-020).
+	Description json.RawMessage `json:"description" swaggertype:"string" maxLength:"2000" extensions:"x-nullable" example:"Incluye los sprints cerrados del último trimestre."`
+	// Prioridad de la historia: high (Alta), medium (Media) o low (Baja); no admite null.
+	Priority json.RawMessage `json:"priority" swaggertype:"string" enums:"high,medium,low" example:"medium"`
+	// Reemplaza la lista completa en el orden recibido; [] deja la historia sin criterios y null se
+	// rechaza (FR-022).
+	AcceptanceCriteria json.RawMessage `json:"acceptanceCriteria" swaggertype:"array,string" example:"El PDF incluye la velocidad de los últimos cinco sprints."`
+	// El estado no se cambia desde el backlog: si llega, se rechaza (FR-027).
+	Status json.RawMessage `json:"status" swaggerignore:"true"`
+	// La estimación tiene su propio endpoint: si llega, se rechaza (research.md sección 8).
+	StoryPoints json.RawMessage `json:"storyPoints" swaggerignore:"true"`
 }
 
 // Readiness indica si la historia está lista para planificar y qué condiciones le faltan

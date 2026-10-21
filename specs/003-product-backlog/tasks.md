@@ -750,7 +750,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       `GET /api/v1/projects/{projectId}/stories` con miles de `status=pending` que espere `200` y no
       `500` per hallazgo de seguridad: filtros repetibles sin tope que arman una cláusula IN con un
       parámetro por valor (security) — origen: seguridad, detectado en 003/US2
-- [ ] T086 Eliminar los valores duplicados de cada filtro en `ParseStoryFilter` de
+- [X] T086 Eliminar los valores duplicados de cada filtro en `ParseStoryFilter` de
       `backend/internal/backlog/delivery/validation.go`, de modo que la cláusula `IN` reciba como
       máximo los tres valores admitidos por filtro per hallazgo de seguridad: filtros repetibles sin
       tope que arman una cláusula IN con un parámetro por valor (security) — origen: seguridad,

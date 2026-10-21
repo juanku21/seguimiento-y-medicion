@@ -153,7 +153,7 @@ su plan, se corrigen las rutas de T007, T013 y T033 antes de ejecutarlas.
       `ConflictingSprint`. Las operaciones de escritura reciben el instante como parámetro. **Prohibido**
       declarar cambio de proyecto, reapertura o listados fuera de un proyecto (Principio III) —
       depende de T001 a T004
-- [ ] T006 Declarar el puerto `SprintEffort.HasEffort(ctx, sprintID) (bool, error)` en
+- [X] T006 Declarar el puerto `SprintEffort.HasEffort(ctx, sprintID) (bool, error)` en
       `backend/internal/sprints/domain/ports.go` e implementarlo en
       `backend/internal/sprints/repository/sprint_effort.go` informando que **ningún sprint tiene
       esfuerzo registrado**, con un comentario en español que indique que

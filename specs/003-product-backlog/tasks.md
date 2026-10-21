@@ -548,7 +548,7 @@ el estado.
       válido que **tampoco** se aplica), `TestUS5_HistoriaCompletada`, `TestUS5_ProyectoFinalizado`,
       `TestUS5_HistoriaAjena` y `TestUS5_CambioDeEstadoNoDisponible` (`PATCH` con `status` → `400`
       y estado `pending` intacto) — depende de T055
-- [ ] T059 [P] [US5] Pruebas de integración de concurrencia en
+- [X] T059 [P] [US5] Pruebas de integración de concurrencia en
       `backend/internal/backlog/delivery/story_concurrency_test.go`, con
       `// Escenario: <nombre> (003/US5)`: `TestUS5_EdicionSimultaneaCamposDistintos`, que envía a
       la vez desde dos goroutines un `PATCH` de prioridad y otro de descripción y verifica que la

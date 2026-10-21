@@ -98,13 +98,14 @@ export function createProject(
 // Modifica los datos editables del proyecto con PUT /api/v1/projects/{projectId}, usando la sesión
 // de la pestaña. Se envían solo los cinco campos de ProjectInput: el estado y la fecha de
 // finalización real no son editables (FR-012, FR-016); los rechazos (400, 403, 404, 409) llegan con
-// el mensaje del backend y ante un 401 el cliente HTTP descarta la sesión.
+// el mensaje del backend y ante un 401 el cliente HTTP descarta la sesión. El identificador se
+// codifica para que no altere la ruta pedida.
 export function updateProject(
   projectId: string,
   input: ProjectInput,
 ): Promise<ApiResult<ProjectDetail>> {
   return putAuthorizedJson(
-    `/api/v1/projects/${projectId}`,
+    `/api/v1/projects/${encodeURIComponent(projectId)}`,
     input,
     isProjectDetail,
   );
@@ -120,47 +121,56 @@ export function listProjects(): Promise<ApiResult<ProjectListResponse>> {
 // Agrega como integrante a la persona con el correo indicado con POST
 // /api/v1/projects/{projectId}/members, usando la sesión de la pestaña. El correo se envía tal como
 // se escribió: la normalización y las reglas de negocio las resuelve el backend (FR-020 a FR-022),
-// y sus errores llegan con el mensaje del backend para mostrarlo.
+// y sus errores llegan con el mensaje del backend para mostrarlo. El identificador del proyecto se
+// codifica para que no altere la ruta pedida.
 export function addProjectMember(
   projectId: string,
   email: string,
 ): Promise<ApiResult<ProjectMemberView>> {
   return postAuthorizedJson(
-    `/api/v1/projects/${projectId}/members`,
+    `/api/v1/projects/${encodeURIComponent(projectId)}/members`,
     { email },
     isProjectMemberView,
   );
 }
 
 // Quita al integrante indicado con DELETE /api/v1/projects/{projectId}/members/{userId}, usando la
-// sesión de la pestaña. La baja exitosa (204) no trae contenido; los rechazos (403, 404, 409)
-// llegan con el mensaje del backend.
+// sesión de la pestaña. Ambos identificadores se codifican para que no alteren la ruta pedida. La
+// baja exitosa (204) no trae contenido; los rechazos (403, 404, 409) llegan con el mensaje del
+// backend.
 export function removeProjectMember(
   projectId: string,
   userId: string,
 ): Promise<ApiResult<undefined>> {
-  return deleteEmpty(`/api/v1/projects/${projectId}/members/${userId}`);
+  return deleteEmpty(
+    `/api/v1/projects/${encodeURIComponent(projectId)}/members/${encodeURIComponent(userId)}`,
+  );
 }
 
 // Pide el estado completo del proyecto con GET /api/v1/projects/{projectId}, usando la sesión de la
 // pestaña (FR-042). Un proyecto del que no se es integrante llega como 404 sin datos (FR-049); ante
-// un 401 el cliente HTTP descarta la sesión (FR-016).
+// un 401 el cliente HTTP descarta la sesión (FR-016). El identificador se codifica para que no
+// altere la ruta pedida.
 export function getProjectDetail(
   projectId: string,
 ): Promise<ApiResult<ProjectDetail>> {
-  return getJson(`/api/v1/projects/${projectId}`, isProjectDetail);
+  return getJson(
+    `/api/v1/projects/${encodeURIComponent(projectId)}`,
+    isProjectDetail,
+  );
 }
 
 // Hace avanzar el proyecto al estado indicado con PATCH /api/v1/projects/{projectId}/status, usando
 // la sesión de la pestaña (002/US6). Las reglas de la máquina de estados las resuelve el backend
 // (FR-037 a FR-040): sus rechazos (400, 403, 404, 409) llegan con el mensaje recibido y ante un 401
-// el cliente HTTP descarta la sesión (FR-016).
+// el cliente HTTP descarta la sesión (FR-016). El identificador se codifica para que no altere la
+// ruta pedida.
 export function changeProjectStatus(
   projectId: string,
   status: ProjectStatus,
 ): Promise<ApiResult<ProjectDetail>> {
   return patchAuthorizedJson(
-    `/api/v1/projects/${projectId}/status`,
+    `/api/v1/projects/${encodeURIComponent(projectId)}/status`,
     { status },
     isProjectDetail,
   );

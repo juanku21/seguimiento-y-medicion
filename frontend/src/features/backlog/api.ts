@@ -44,13 +44,14 @@ function isStoryDetail(value: unknown): value is StoryDetail {
 // Registra una historia en el backlog con POST /api/v1/projects/{projectId}/stories, usando la
 // sesión de la pestaña (003/US1). Las reglas de negocio las resuelve el backend: los rechazos (400
 // con el detalle por campo, 404 y 409) llegan con su mensaje y ante un 401 el cliente HTTP descarta
-// la sesión (FR-016 de la 001).
+// la sesión (FR-016 de la 001). El identificador del proyecto se codifica para que no altere la
+// ruta pedida.
 export function createStory(
   projectId: string,
   input: StoryInput,
 ): Promise<ApiResult<StoryDetail>> {
   return postAuthorizedJson(
-    `/api/v1/projects/${projectId}/stories`,
+    `/api/v1/projects/${encodeURIComponent(projectId)}/stories`,
     input,
     isStoryDetail,
   );
@@ -140,7 +141,8 @@ function isStoryListResponse(value: unknown): value is StoryListResponse {
 // Pide el backlog del proyecto con GET /api/v1/projects/{projectId}/stories, usando la sesión de la
 // pestaña (003/US2). Cada valor elegido de un filtro viaja como parámetro repetido
 // (?status=pending&status=in_progress); sin filtros no se envía consulta. El orden, el filtrado y el
-// motivo del vacío los resuelve el backend (FR-032 a FR-037).
+// motivo del vacío los resuelve el backend (FR-032 a FR-037). El identificador del proyecto se
+// codifica para que no altere la ruta pedida.
 export function listStories(
   projectId: string,
   filters: AppliedFilters,
@@ -151,7 +153,7 @@ export function listStories(
   const encoded = query.toString();
   const search = encoded === "" ? "" : `?${encoded}`;
   return getJson(
-    `/api/v1/projects/${projectId}/stories${search}`,
+    `/api/v1/projects/${encodeURIComponent(projectId)}/stories${search}`,
     isStoryListResponse,
   );
 }

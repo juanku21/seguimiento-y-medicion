@@ -1,0 +1,1173 @@
+# Contrato de la API de Gestión de Sprints (spec 004).
+# Fuente de verdad del diseño: specs/004-sprint-management/spec.md
+# Este archivo es el contrato acordado en la Fase 1 del plan. La documentación publicada en
+# /swagger/index.html se genera con `swag init` a partir de las anotaciones del código y DEBE
+# coincidir con este contrato (Principio VIII).
+openapi: 3.0.3
+
+info:
+  title: Software Metrics & Estimation — Gestión de Sprints
+  description: |
+    Planificación de sprints, compromiso de historias, inicio, registro del avance de las historias,
+    cierre con instantánea congelada, consulta del historial y corrección o eliminación de sprints
+    que todavía no arrancaron.
+
+    **Todas** las operaciones exigen una sesión válida, sin excepciones (FR-056). La sesión se envía
+    en la cabecera `Authorization: Bearer <token>` emitida por `/api/v1/auth/login` de la spec 001.
+
+    Reglas que gobiernan todas las respuestas:
+
+    - Cualquier **integrante** del proyecto puede operar sus sprints, sin importar quién los creó ni
+      si es el propietario (RN-01).
+    - Ante una solicitud sobre un proyecto, un sprint o una historia de un proyecto del que quien
+      pide no es integrante, la respuesta es `404` con **el mismo cuerpo** que ante un identificador
+      inexistente (FR-058, SC-014).
+    - En un proyecto `finished` los sprints son de **solo lectura**: se pueden listar y consultar, y
+      toda escritura se rechaza con `409` (FR-059, RN-19).
+    - **Ninguna** operación de esta API cambia el estado del proyecto (FR-049, RN-07).
+    - Los estados del sprint solo avanzan `planned → active → closed` (FR-047, RN-02).
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Entorno de desarrollo local
+
+tags:
+  - name: Sprints
+    description: Sprints de un proyecto, sus historias comprometidas y su instantánea de cierre
+
+paths:
+  /api/v1/projects/{projectId}/sprints:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+
+    post:
+      tags: [Sprints]
+      summary: Crea un sprint en el proyecto
+      description: |
+        Crea un sprint a partir de nombre, fecha de inicio, fecha de fin y Sprint Goal (FR-001).
+
+        El sprint nace `planned`, sin historias y sin instantánea (FR-006), atribuido al titular de
+        la sesión (FR-009). El nombre no es único (supuesto de la spec). La fecha de fin debe ser
+        **estrictamente** posterior a la de inicio (FR-004).
+
+        Se rechaza con `409` si el período se superpone con el de **cualquier** otro sprint del
+        proyecto, en cualquier estado; compartir solo el día de borde no es superposición (FR-005,
+        US1-4). Crear un sprint no cambia el estado del proyecto (US1-2, FR-049).
+      operationId: createSprint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SprintInput'
+            example:
+              name: Sprint 1
+              goal: Cerrar el alta de clientes
+              startDate: '2026-10-01'
+              endDate: '2026-10-14'
+      responses:
+        '201':
+          description: Sprint creado. El cuerpo es el detalle del sprint.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SprintDetail'
+        '400':
+          $ref: '#/components/responses/EntradaInvalida'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/ProyectoInexistente'
+        '409':
+          description: El período se superpone con otro sprint, o el proyecto está `finished`.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SprintConflictResponse'
+                  - $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                superposicion:
+                  summary: Superposición de fechas (US1-9)
+                  value:
+                    error: El período se superpone con el del sprint «Sprint 1».
+                    sprint:
+                      id: 7c1d2e9a-5b8f-4b7e-9c0a-1f2e3d4c5b6a
+                      name: Sprint 1
+                soloLectura:
+                  summary: Proyecto finalizado (US1-10)
+                  value:
+                    error: El proyecto está finalizado y sus sprints son de solo lectura.
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+    get:
+      tags: [Sprints]
+      summary: Lista los sprints del proyecto o su historial de cerrados
+      description: |
+        Devuelve los sprints del proyecto en orden de fecha de inicio descendente y, a igual fecha,
+        por identificador (FR-050, FR-052).
+
+        Con `?status=closed` devuelve el **historial de sprints cerrados** (FR-051): cada ítem trae
+        en `results` los totales congelados en su instantánea. En los sprints que no están cerrados,
+        `results` es `null`.
+
+        Un proyecto sin sprints devuelve una lista vacía con `emptyReason: no_sprints`, no un error
+        (FR-054, US6-10). Si hay sprints pero ninguno cumple el filtro, `emptyReason: no_matches`.
+      operationId: listSprints
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Filtro por estado; puede repetirse (`?status=planned&status=active`).
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/SprintStatus'
+          style: form
+          explode: true
+      responses:
+        '200':
+          description: Lista de sprints, posiblemente vacía.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SprintListResponse'
+              examples:
+                historial:
+                  summary: Historial de cerrados (US6-1, US6-9)
+                  value:
+                    sprints:
+                      - id: 7c1d2e9a-5b8f-4b7e-9c0a-1f2e3d4c5b6a
+                        name: Sprint 1
+                        goal: Cerrar el alta de clientes
+                        status: closed
+                        startDate: '2026-10-01'
+                        endDate: '2026-10-14'
+                        startedAt: '2026-10-03T12:00:00Z'
+                        closedAt: '2026-10-10T20:30:00Z'
+                        storyCount: 4
+                        results:
+                          committedStoryPoints: 20
+                          plannedStoryPoints: 21
+                          completedStoryPoints: 13
+                          plannedStoryCount: 4
+                          completedStoryCount: 2
+                    appliedFilters:
+                      status: [closed]
+                    emptyReason: null
+                vacio:
+                  summary: Proyecto sin sprints (US6-10)
+                  value:
+                    sprints: []
+                    appliedFilters:
+                      status: []
+                    emptyReason: no_sprints
+        '400':
+          $ref: '#/components/responses/EntradaInvalida'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/ProyectoInexistente'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/v1/sprints/{sprintId}:
+    parameters:
+      - $ref: '#/components/parameters/SprintId'
+
+    get:
+      tags: [Sprints]
+      summary: Consulta el detalle de un sprint
+      description: |
+        Devuelve los datos del sprint, su estado y sus historias (FR-053).
+
+        - En un sprint `planned` o `active`, las historias muestran sus datos **vigentes**.
+        - En un sprint `closed`, las historias muestran el título, la prioridad y los Story Points
+          que tenían **al cerrarse**, tomados de la instantánea, y `results` trae los totales y
+          `hoursPerStoryPoint` el factor congelado (FR-043, US6-8).
+        - Solo en un sprint `active`, `schedule` informa los días restantes hasta la fecha de fin
+          prevista, con el día de fin incluido; si ya pasó, informa `overdueDays` en lugar de un
+          número negativo (FR-053, RN-23). En los demás estados `schedule` es `null`.
+      operationId: getSprint
+      responses:
+        '200':
+          description: Detalle del sprint.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SprintDetail'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/SprintInexistente'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+    put:
+      tags: [Sprints]
+      summary: Modifica un sprint Planificado
+      description: |
+        Reemplaza nombre, fechas y Sprint Goal de un sprint `planned` con las mismas validaciones que
+        la creación; la superposición se verifica excluyendo al propio sprint (FR-012, FR-013).
+
+        La modificación es atómica (FR-014) y no altera el estado, las historias comprometidas ni la
+        instantánea (FR-015). Un sprint `active` o `closed` responde `409` (FR-016).
+      operationId: updateSprint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SprintInput'
+      responses:
+        '200':
+          description: Sprint actualizado. El cuerpo es el detalle del sprint.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SprintDetail'
+        '400':
+          $ref: '#/components/responses/EntradaInvalida'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/SprintInexistente'
+        '409':
+          description: Proyecto `finished`, sprint no `planned` o período superpuesto.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SprintConflictResponse'
+                  - $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                activo:
+                  summary: Sprint Activo (US7-11)
+                  value:
+                    error: Solo se puede modificar un sprint Planificado.
+                cerrado:
+                  summary: Sprint Cerrado (US7-12)
+                  value:
+                    error: El sprint está cerrado y no admite cambios.
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+    delete:
+      tags: [Sprints]
+      summary: Elimina un sprint Planificado que nunca fue iniciado
+      description: |
+        Elimina el sprint de forma definitiva, libera su período y devuelve sus historias
+        comprometidas al backlog como `pending` y sin sprint (FR-048). Esas historias quedan marcadas
+        como que estuvieron en un sprint, así que ya no se pueden eliminar del backlog (RC-06, US7-7).
+
+        Se rechaza con `409` si el sprint es `active` o `closed`, o si tiene esfuerzo registrado
+        asociado (FR-048, RN-20).
+      operationId: deleteSprint
+      responses:
+        '204':
+          description: Sprint eliminado.
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/SprintInexistente'
+        '409':
+          description: Proyecto `finished`, sprint ya iniciado o con esfuerzo registrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                iniciado:
+                  summary: Sprint Activo o Cerrado (US7-13)
+                  value:
+                    error: Solo se puede eliminar un sprint que nunca fue iniciado.
+                esfuerzo:
+                  summary: Sprint con esfuerzo registrado (US7-14)
+                  value:
+                    error: El sprint tiene esfuerzo registrado. Primero hay que eliminar esos registros.
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/v1/sprints/{sprintId}/stories:
+    parameters:
+      - $ref: '#/components/parameters/SprintId'
+
+    post:
+      tags: [Sprints]
+      summary: Compromete historias del backlog en el sprint
+      description: |
+        Asigna una o más historias del backlog del mismo proyecto a un sprint `planned` o `active`
+        (FR-017). La operación es **atómica**: si alguna historia no es admisible, ninguna se asigna
+        (FR-023, US2-11).
+
+        Cada historia debe estar lista para planificar (Story Points y al menos un criterio), no
+        estar `completed` y no estar comprometida en otro sprint abierto (FR-018 a FR-020). Si
+        alguna falla, el `409` lista **todas** las historias con problemas y sus motivos.
+
+        Una historia inexistente o de otro proyecto responde `404` de historia inexistente (US2-12).
+      operationId: assignSprintStories
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoryIdsInput'
+      responses:
+        '200':
+          description: Historias comprometidas. El cuerpo es el detalle actualizado del sprint.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SprintDetail'
+        '400':
+          $ref: '#/components/responses/EntradaInvalida'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          description: El sprint no existe o es ajeno, **o** alguna historia no existe o es de otro proyecto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                sprint:
+                  value:
+                    error: El sprint no existe.
+                historia:
+                  value:
+                    error: La historia no existe.
+        '409':
+          description: Proyecto `finished`, sprint `closed` o historias no admisibles.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/StoriesNotAdmittedResponse'
+                  - $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                noAdmitidas:
+                  summary: Lote con historias no admisibles (US2-7, US2-8, US2-9, US2-11)
+                  value:
+                    error: Algunas historias no se pueden comprometer en el sprint; no se asignó ninguna.
+                    stories:
+                      - storyId: 0b8f3a1e-2c4d-4e5f-8a9b-0c1d2e3f4a5b
+                        reason: not_ready
+                        missing: [acceptance_criteria]
+                        message: 'No está lista para planificar: le faltan Story Points o criterios de aceptación.'
+                      - storyId: 1c9e4b2f-3d5e-4f6a-9b0c-1d2e3f4a5b6c
+                        reason: committed_elsewhere
+                        sprint:
+                          id: 7c1d2e9a-5b8f-4b7e-9c0a-1f2e3d4c5b6a
+                          name: Sprint 1
+                        message: Ya está comprometida en el sprint «Sprint 1».
+                cerrado:
+                  summary: Sprint Cerrado (US2-10)
+                  value:
+                    error: El sprint está cerrado y no admite cambios.
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+    delete:
+      tags: [Sprints]
+      summary: Quita historias del sprint
+      description: |
+        Quita una o más historias de un sprint `planned` o `active` y las devuelve al backlog como
+        `pending` y sin sprint (FR-021, FR-022). La operación es atómica (FR-023).
+
+        Se rechaza con `409` si el sprint está `closed` (FR-024) o si alguna historia está
+        `completed`: primero hay que devolverla a En progreso (FR-025, US2-13). Una historia que no
+        está comprometida en este sprint responde `404` de historia inexistente.
+      operationId: removeSprintStories
+      parameters:
+        - name: storyId
+          in: query
+          required: true
+          description: Identificador de una historia a quitar; se repite para quitar varias (entre 1 y 100).
+          schema:
+            type: array
+            minItems: 1
+            maxItems: 100
+            items:
+              type: string
+              format: uuid
+          style: form
+          explode: true
+      responses:
+        '200':
+          description: Historias quitadas. El cuerpo es el detalle actualizado del sprint.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SprintDetail'
+        '400':
+          $ref: '#/components/responses/EntradaInvalida'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          description: El sprint no existe o es ajeno, **o** alguna historia no está en este sprint.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Proyecto `finished`, sprint `closed` o historia `completed`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                completada:
+                  summary: Historia Completada (US2-13)
+                  value:
+                    error: No se puede quitar una historia Completada. Primero devolvela a En progreso.
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/v1/sprints/{sprintId}/start:
+    parameters:
+      - $ref: '#/components/parameters/SprintId'
+
+    post:
+      tags: [Sprints]
+      summary: Inicia un sprint Planificado
+      description: |
+        Pasa el sprint de `planned` a `active`, registra el momento real de inicio y congela los
+        Story Points comprometidos al inicio (FR-026, FR-028). Se admite sin historias (FR-030) y
+        antes de la fecha de inicio prevista (FR-031).
+
+        **No** cambia el estado del proyecto (FR-029, US3-2). Se rechaza con `409` si ya hay otro
+        sprint `active` en el proyecto, indicando cuál (FR-027), o si el sprint no está `planned`
+        (FR-032).
+      operationId: startSprint
+      responses:
+        '200':
+          description: Sprint iniciado. El cuerpo es el detalle del sprint.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SprintDetail'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/SprintInexistente'
+        '409':
+          description: Proyecto `finished`, otro sprint activo, o sprint no `planned`.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SprintConflictResponse'
+                  - $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                otroActivo:
+                  summary: Ya hay un sprint Activo (US3-6)
+                  value:
+                    error: El proyecto ya tiene el sprint activo «Sprint 1». Cerralo antes de iniciar otro.
+                    sprint:
+                      id: 7c1d2e9a-5b8f-4b7e-9c0a-1f2e3d4c5b6a
+                      name: Sprint 1
+                yaActivo:
+                  summary: Sprint ya Activo (US3-7)
+                  value:
+                    error: 'Transición no permitida: solo se inicia un sprint Planificado.'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/v1/sprints/{sprintId}/close:
+    parameters:
+      - $ref: '#/components/parameters/SprintId'
+
+    post:
+      tags: [Sprints]
+      summary: Cierra el sprint Activo y congela su instantánea
+      description: |
+        Pasa el sprint de `active` a `closed` en cualquier momento, antes o después de la fecha de
+        fin prevista, registrando el momento real de cierre y quién cerró (FR-039, FR-040).
+
+        En la misma operación: congela de cada historia comprometida su título, prioridad, Story
+        Points y resultado; copia el factor de horas por Story Point vigente del proyecto; y devuelve
+        al backlog como `pending` y sin sprint las historias no completadas (FR-041 a FR-043). Un
+        sprint sin historias cierra con la instantánea en cero (FR-045).
+
+        Desde el cierre, nada de lo congelado cambia (FR-044, RN-16).
+      operationId: closeSprint
+      responses:
+        '200':
+          description: Sprint cerrado. El cuerpo es el detalle con la instantánea.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SprintDetail'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/SprintInexistente'
+        '409':
+          description: Proyecto `finished` o sprint no `active`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                planificado:
+                  summary: Sprint Planificado (US5-9)
+                  value:
+                    error: Solo se puede cerrar un sprint Activo.
+                cerrado:
+                  summary: Sprint ya Cerrado (US5-10)
+                  value:
+                    error: El sprint ya está cerrado; el estado Cerrado es definitivo.
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/v1/stories/{storyId}/status:
+    parameters:
+      - $ref: '#/components/parameters/StoryId'
+
+    put:
+      tags: [Sprints]
+      summary: Registra el avance de una historia del sprint Activo
+      description: |
+        Cambia el estado de una historia comprometida en el sprint `active` de su proyecto
+        (FR-033). Transiciones admitidas: `pending → in_progress`, `in_progress → completed` y
+        `completed → in_progress`. Al completar se registra la fecha y hora; al devolverla a En
+        progreso se borra (FR-034, FR-035).
+
+        Se rechaza con `409` si la historia no está en el sprint Activo (FR-036, FR-037) o si la
+        transición no está admitida, incluido el salto de `pending` a `completed` (FR-038).
+      operationId: changeStoryStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoryStatusInput'
+            example:
+              status: in_progress
+      responses:
+        '200':
+          description: Estado registrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryProgressResponse'
+        '400':
+          $ref: '#/components/responses/EntradaInvalida'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/HistoriaInexistente'
+        '409':
+          description: Proyecto `finished`, historia fuera del sprint Activo o transición no admitida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                fueraDelActivo:
+                  summary: Historia de un sprint Planificado o sin sprint (US4-6, US4-7)
+                  value:
+                    error: Solo se registra avance sobre historias del sprint activo.
+                cerrado:
+                  summary: Historia de un sprint Cerrado (US4-8)
+                  value:
+                    error: El sprint está cerrado y no admite cambios.
+                salto:
+                  summary: De Pendiente a Completada (US4-9)
+                  value:
+                    error: 'Transición no permitida. Las admitidas son: Pendiente → En progreso, En progreso → Completada y Completada → En progreso.'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/v1/stories/{storyId}/sprints:
+    parameters:
+      - $ref: '#/components/parameters/StoryId'
+
+    get:
+      tags: [Sprints]
+      summary: Lista los sprints en los que estuvo una historia
+      description: |
+        Devuelve todos los sprints en los que la historia estuvo planificada y el resultado que tuvo
+        en cada uno, en orden de fecha de inicio ascendente (FR-055, RN-17). En los sprints cerrados,
+        `outcome` es `completed` o `not_completed`; en el sprint abierto en el que está, `null`. Una
+        historia quitada de un sprint antes del cierre no figura en ese sprint.
+      operationId: listStorySprints
+      responses:
+        '200':
+          description: Historial de sprints de la historia, posiblemente vacío.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorySprintHistoryResponse'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/HistoriaInexistente'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Token emitido por `/api/v1/auth/login` de la spec 001, enviado como
+        `Authorization: Bearer <token>`.
+
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      description: Identificador del proyecto de la spec 002.
+      schema:
+        type: string
+        format: uuid
+    SprintId:
+      name: sprintId
+      in: path
+      required: true
+      description: Identificador propio, estable, inmutable y no secuencial del sprint (FR-007).
+      schema:
+        type: string
+        format: uuid
+    StoryId:
+      name: storyId
+      in: path
+      required: true
+      description: Identificador de la historia de la spec 003.
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    SesionInvalida:
+      description: |
+        Se requiere iniciar sesión. Misma respuesta para sesión ausente, vencida, cerrada por su
+        titular o adulterada, definida por la spec 001 (FR-056). La acción no se ejecuta.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Se requiere iniciar sesión.
+
+    ProyectoInexistente:
+      description: |
+        El proyecto no existe, **o** existe y quien pide no es integrante. Las dos situaciones
+        devuelven exactamente el mismo cuerpo, definido por la spec 002 (FR-058, SC-014).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: El proyecto no existe.
+
+    SprintInexistente:
+      description: |
+        El sprint no existe, fue eliminado, **o** pertenece a un proyecto del que quien pide no es
+        integrante. Las tres situaciones devuelven exactamente el mismo cuerpo (FR-058, SC-014).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: El sprint no existe.
+
+    HistoriaInexistente:
+      description: |
+        La historia no existe, fue eliminada, **o** pertenece a un proyecto del que quien pide no es
+        integrante. Es la misma respuesta de la spec 003 (FR-058).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: La historia no existe.
+
+    EntradaInvalida:
+      description: |
+        Entrada inválida. Indica qué campo corregir y por qué, y no crea ni modifica nada (FR-011).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+          example:
+            error: Hay campos inválidos en la solicitud.
+            fields:
+              - field: goal
+                message: El Sprint Goal es obligatorio.
+              - field: endDate
+                message: La fecha de fin debe ser posterior a la fecha de inicio.
+
+    ErrorInterno:
+      description: |
+        Error interno inesperado. La respuesta no expone ningún detalle de la causa (Principio VII).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Ocurrió un error inesperado. Intentá de nuevo más tarde.
+
+  schemas:
+    SprintStatus:
+      type: string
+      description: Estado del sprint; `planned` es Planificado, `active` Activo y `closed` Cerrado (RN-02).
+      enum: [planned, active, closed]
+      example: active
+
+    StoryStatus:
+      type: string
+      description: Estado de la historia de la spec 003; `pending`, `in_progress` o `completed`.
+      enum: [pending, in_progress, completed]
+      example: in_progress
+
+    StoryPriority:
+      type: string
+      description: Prioridad de la historia de la spec 003.
+      enum: [high, medium, low]
+      example: high
+
+    StoryOutcome:
+      type: string
+      nullable: true
+      description: |
+        Resultado de la historia en un sprint cerrado: `completed` o `not_completed`. `null`
+        mientras el sprint está abierto.
+      enum: [completed, not_completed, null]
+      example: completed
+
+    UserRef:
+      type: object
+      required: [id, fullName]
+      properties:
+        id:
+          type: string
+          format: uuid
+        fullName:
+          type: string
+          example: Ana Pérez
+
+    SprintRef:
+      type: object
+      description: Identificación mínima de un sprint, usada en los mensajes de conflicto.
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Sprint 1
+
+    SprintInput:
+      type: object
+      description: Cuerpo de la creación y de la modificación de un sprint (FR-001 a FR-004, FR-012).
+      required: [name, goal, startDate, endDate]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Entre 1 y 100 caracteres tras recortar los espacios extremos (FR-002).
+          example: Sprint 1
+        goal:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Sprint Goal; entre 1 y 500 caracteres tras recortar los espacios extremos (FR-003).
+          example: Cerrar el alta de clientes
+        startDate:
+          type: string
+          format: date
+          description: Fecha de inicio prevista, sin hora (RC-07).
+          example: '2026-10-01'
+        endDate:
+          type: string
+          format: date
+          description: Fecha de fin prevista; estrictamente posterior a `startDate` (FR-004).
+          example: '2026-10-14'
+
+    StoryIdsInput:
+      type: object
+      required: [storyIds]
+      properties:
+        storyIds:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          description: Historias del backlog del mismo proyecto que se comprometen en el sprint.
+          items:
+            type: string
+            format: uuid
+
+    StoryStatusInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: '#/components/schemas/StoryStatus'
+
+    SprintResults:
+      type: object
+      description: |
+        Totales congelados en la instantánea de un sprint cerrado (FR-043, FR-051). La diferencia
+        entre `plannedStoryPoints` y `committedStoryPoints` es el cambio de alcance (US5-3).
+      required: [committedStoryPoints, plannedStoryPoints, completedStoryPoints, plannedStoryCount, completedStoryCount]
+      properties:
+        committedStoryPoints:
+          type: integer
+          description: Story Points comprometidos al iniciar el sprint (FR-028).
+          example: 20
+        plannedStoryPoints:
+          type: integer
+          description: Story Points de las historias del sprint al cerrarse.
+          example: 36
+        completedStoryPoints:
+          type: integer
+          example: 13
+        plannedStoryCount:
+          type: integer
+          example: 4
+        completedStoryCount:
+          type: integer
+          example: 2
+
+    SprintSchedule:
+      type: object
+      description: |
+        Días restantes del sprint Activo, contados en la zona horaria del sistema con el día de fin
+        incluido. Exactamente uno de los dos campos es distinto de `null` (FR-053, RN-23).
+      required: [remainingDays, overdueDays]
+      properties:
+        remainingDays:
+          type: integer
+          nullable: true
+          minimum: 0
+          description: Días que faltan hasta la fecha de fin; 0 el último día (US6-5).
+          example: 10
+        overdueDays:
+          type: integer
+          nullable: true
+          minimum: 1
+          description: Días transcurridos desde la fecha de fin, cuando el sprint está vencido (US6-6).
+          example: null
+
+    SprintListItem:
+      type: object
+      required: [id, name, goal, status, startDate, endDate, startedAt, closedAt, storyCount, results]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        goal:
+          type: string
+        status:
+          $ref: '#/components/schemas/SprintStatus'
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Momento real de inicio; `null` si nunca se inició.
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Momento real de cierre; `null` si no está cerrado.
+        storyCount:
+          type: integer
+          description: Historias comprometidas (en un sprint cerrado, las planificadas al cierre).
+          example: 4
+        results:
+          allOf:
+            - $ref: '#/components/schemas/SprintResults'
+          nullable: true
+          description: Totales de la instantánea; `null` si el sprint no está cerrado.
+
+    SprintListResponse:
+      type: object
+      required: [sprints, appliedFilters, emptyReason]
+      properties:
+        sprints:
+          type: array
+          items:
+            $ref: '#/components/schemas/SprintListItem'
+        appliedFilters:
+          type: object
+          required: [status]
+          properties:
+            status:
+              type: array
+              items:
+                $ref: '#/components/schemas/SprintStatus'
+        emptyReason:
+          type: string
+          nullable: true
+          enum: [no_sprints, no_matches, null]
+          description: |
+            `null` si hay resultados; `no_sprints` si el proyecto no tiene sprints (FR-054);
+            `no_matches` si los tiene pero ninguno cumple el filtro.
+
+    SprintStoryItem:
+      type: object
+      description: |
+        Historia comprometida en el sprint. En un sprint abierto refleja los datos vigentes; en uno
+        cerrado, los congelados al cierre (US6-8).
+      required: [storyId, title, priority, storyPoints, status, completedAt, outcome]
+      properties:
+        storyId:
+          type: string
+          format: uuid
+        title:
+          type: string
+          example: Exportar el reporte de velocidad a PDF
+        priority:
+          $ref: '#/components/schemas/StoryPriority'
+        storyPoints:
+          type: integer
+          description: Story Points vigentes, o los del cierre en un sprint cerrado.
+          example: 5
+        status:
+          allOf:
+            - $ref: '#/components/schemas/StoryStatus'
+          description: Estado vigente de la historia en el backlog.
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Fecha y hora del último completado dentro de este sprint.
+        outcome:
+          $ref: '#/components/schemas/StoryOutcome'
+
+    SprintDetail:
+      type: object
+      required:
+        - id
+        - projectId
+        - name
+        - goal
+        - status
+        - startDate
+        - endDate
+        - startedAt
+        - closedAt
+        - createdBy
+        - closedBy
+        - createdAt
+        - updatedAt
+        - stories
+        - results
+        - hoursPerStoryPoint
+        - schedule
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        goal:
+          type: string
+        status:
+          $ref: '#/components/schemas/SprintStatus'
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdBy:
+          $ref: '#/components/schemas/UserRef'
+        closedBy:
+          allOf:
+            - $ref: '#/components/schemas/UserRef'
+          nullable: true
+          description: Quien cerró el sprint (FR-040); `null` si no está cerrado.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        stories:
+          type: array
+          items:
+            $ref: '#/components/schemas/SprintStoryItem'
+        results:
+          allOf:
+            - $ref: '#/components/schemas/SprintResults'
+          nullable: true
+          description: Totales de la instantánea; `null` si el sprint no está cerrado.
+        hoursPerStoryPoint:
+          type: number
+          nullable: true
+          description: |
+            Factor de horas por Story Point congelado al cierre, con la misma representación que el
+            factor del proyecto en la spec 002; `null` si el sprint no está cerrado.
+          example: 6.5
+        schedule:
+          allOf:
+            - $ref: '#/components/schemas/SprintSchedule'
+          nullable: true
+          description: Solo en un sprint `active`; `null` en los demás.
+
+    StoryProgressResponse:
+      type: object
+      required: [storyId, sprintId, status, completedAt]
+      properties:
+        storyId:
+          type: string
+          format: uuid
+        sprintId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/StoryStatus'
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    StorySprintHistoryItem:
+      type: object
+      required: [sprintId, sprintName, sprintStatus, startDate, endDate, outcome, completedAt]
+      properties:
+        sprintId:
+          type: string
+          format: uuid
+        sprintName:
+          type: string
+        sprintStatus:
+          $ref: '#/components/schemas/SprintStatus'
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        outcome:
+          $ref: '#/components/schemas/StoryOutcome'
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    StorySprintHistoryResponse:
+      type: object
+      required: [sprints]
+      properties:
+        sprints:
+          type: array
+          items:
+            $ref: '#/components/schemas/StorySprintHistoryItem'
+
+    SprintConflictResponse:
+      type: object
+      description: Conflicto con otro sprint del proyecto (superposición o sprint activo).
+      required: [error, sprint]
+      properties:
+        error:
+          type: string
+        sprint:
+          $ref: '#/components/schemas/SprintRef'
+
+    AdmissionProblem:
+      type: object
+      required: [storyId, reason, message]
+      properties:
+        storyId:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          enum: [not_ready, completed, committed_elsewhere]
+        missing:
+          type: array
+          description: Solo con `not_ready`; qué le falta a la historia.
+          items:
+            type: string
+            enum: [story_points, acceptance_criteria]
+        sprint:
+          allOf:
+            - $ref: '#/components/schemas/SprintRef'
+          description: Solo con `committed_elsewhere`; el sprint en el que está comprometida.
+        message:
+          type: string
+
+    StoriesNotAdmittedResponse:
+      type: object
+      required: [error, stories]
+      properties:
+        error:
+          type: string
+        stories:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/AdmissionProblem'
+
+    ErrorResponse:
+      type: object
+      description: Esquema de error de la spec 001, reutilizado sin cambios.
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Mensaje en español dirigido a la persona (Principio VIII).
+          example: El sprint no existe.
+
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+          description: Nombre del campo inválido, tal como se envió (`storyIds[2]` para un elemento).
+          example: endDate
+        message:
+          type: string
+          description: Qué hay que corregir y por qué.
+          example: La fecha de fin debe ser posterior a la fecha de inicio.
+
+    ValidationErrorResponse:
+      type: object
+      description: Rechazo por entrada inválida, con el detalle por campo (FR-011).
+      required: [error, fields]
+      properties:
+        error:
+          type: string
+          example: Hay campos inválidos en la solicitud.
+        fields:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/FieldError'
+
+# Todas las operaciones de esta feature exigen sesión válida, sin excepciones (FR-056).
+# Ninguna declara `security: []`.
+security:
+  - BearerAuth: []

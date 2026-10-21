@@ -4,6 +4,7 @@ import { formatInstant } from "@/utils/format-date";
 import {
   STORY_PRIORITY_LABELS,
   STORY_STATUS_LABELS,
+  formatStoryPoints,
 } from "@/utils/story-labels";
 
 // Propiedades de la tarjeta de detalle: la historia completa tal como la devuelve la API.
@@ -17,12 +18,6 @@ const MISSING_LABELS: Record<ReadinessMissing, string> = {
   story_points: "Estimarla en Story Points.",
   acceptance_criteria: "Cargar al menos un criterio de aceptación.",
 };
-
-// Arma los Story Points de la historia; null es "Sin estimar" y el 0 es una estimación válida
-// (FR-014, FR-015).
-function formatStoryPoints(points: StoryDetail["storyPoints"]): string {
-  return points === null ? "Sin estimar" : `${points} Story Points`;
-}
 
 // Tarjeta con el detalle de una historia (003/US3). Es de presentación: muestra los datos recibidos
 // tal cual, con la prioridad y el estado en español, los criterios en el orden en que se cargaron y
@@ -56,7 +51,7 @@ export function StoryDetailCard({ story }: StoryDetailCardProps) {
           separados por puntos medios. */}
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
         {STORY_PRIORITY_LABELS[story.priority]} ·{" "}
-        {formatStoryPoints(story.storyPoints)} ·{" "}
+        {formatStoryPoints(story.storyPoints, "Story Points")} ·{" "}
         {STORY_STATUS_LABELS[story.status]}
       </p>
 

@@ -7,7 +7,11 @@ import { FIELD_CONTROL_CLASS_NAME, FormField } from "@/components/form-field";
 import { estimateStory } from "@/features/backlog/api";
 import type { ApiError } from "@/lib/api-client";
 import type { StoryDetail, StoryPoints } from "@/types/story";
-import { STORY_POINTS_SCALE } from "@/utils/story-labels";
+import {
+  STORY_POINTS_SCALE,
+  UNESTIMATED_LABEL,
+  toStoryPoints,
+} from "@/utils/story-labels";
 
 // Propiedades del control de estimación: la historia que se estima, su valor vigente y el aviso a
 // la pantalla de detalle con el StoryDetail que devuelve el backend tras estimar.
@@ -16,13 +20,6 @@ export type EstimateControlProps = {
   storyPoints: StoryPoints;
   onEstimated: (story: StoryDetail) => void;
 };
-
-const UNESTIMATED_LABEL = "Sin estimar";
-
-// Convierte el valor del selector en Story Points de la escala; "" queda sin estimar (null).
-function toStoryPoints(value: string): StoryPoints {
-  return STORY_POINTS_SCALE.find((points) => String(points) === value) ?? null;
-}
 
 // Elige el motivo del rechazo que se muestra: en un 400, el detalle del campo storyPoints, que
 // indica la escala admitida; en cualquier otro caso, el mensaje general del backend.

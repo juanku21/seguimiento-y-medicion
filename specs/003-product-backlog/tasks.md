@@ -501,7 +501,7 @@ en un sprint abierto.
       `PUT /story-points` en el grupo de la historia en `backend/internal/backlog/delivery/routes.go`.
       Respuestas: `200` con `StoryDetail`, `400`, `401`, `404` y `409` con los mensajes de
       contracts/openapi.yaml — depende de T051 y T053
-- [ ] T055 [US4] Implementar la llamada de estimación en `frontend/src/features/backlog/api.ts` y el
+- [X] T055 [US4] Implementar la llamada de estimación en `frontend/src/features/backlog/api.ts` y el
       componente `EstimateControl` en
       `frontend/src/features/backlog/components/estimate-control.tsx`, integrado en la pantalla de
       detalle — depende de T050 y T054

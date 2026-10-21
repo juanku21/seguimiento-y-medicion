@@ -1,4 +1,5 @@
 import {
+  deleteEmpty,
   getJson,
   isRecord,
   patchAuthorizedJson,
@@ -96,6 +97,15 @@ export function updateStory(
     patch,
     isStoryDetail,
   );
+}
+
+// Elimina una historia con DELETE /api/v1/stories/{storyId}, usando la sesión de la pestaña
+// (003/US6). La eliminación es definitiva y el 204 no trae contenido. Las reglas (historial
+// asociado y proyecto Finalizado) las resuelve el backend: el 409 por historial llega con cada
+// motivo en reasons, el de solo lectura y el 404 solo con su mensaje, y ante un 401 el cliente HTTP
+// descarta la sesión.
+export function deleteStory(storyId: string): Promise<ApiResult<undefined>> {
+  return deleteEmpty(`/api/v1/stories/${encodeURIComponent(storyId)}`);
 }
 
 // Reconoce un elemento del listado del backlog (StoryListItem); los Story Points pueden llegar en

@@ -642,7 +642,7 @@ el motivo `sprint_history`.
       `DELETE` en el grupo de la historia en `backend/internal/backlog/delivery/routes.go`.
       Respuestas: `204`, `401`, `404` y `409` con `DeletionBlockedResponse` o `ErrorResponse` — depende
       de T070
-- [ ] T072 [US6] Implementar la llamada de eliminación en `frontend/src/features/backlog/api.ts` y el
+- [X] T072 [US6] Implementar la llamada de eliminación en `frontend/src/features/backlog/api.ts` y el
       componente `DeleteStoryButton` en
       `frontend/src/features/backlog/components/delete-story-button.tsx`, con confirmación, integrado
       en la pantalla de detalle y con regreso al listado al eliminar — depende de T068 y T071

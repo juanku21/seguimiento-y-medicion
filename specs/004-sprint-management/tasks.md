@@ -294,7 +294,7 @@ solapa un día responde `409` con el nombre del primero.
       el cliente `fetch` de la 001, y las reglas del formulario en
       `frontend/src/features/sprints/validation.ts` con los límites 100 y 500 como constantes
       nombradas en un único lugar — depende de T014 y T021
-- [ ] T023 [US1] Implementar `SprintForm` en
+- [X] T023 [US1] Implementar `SprintForm` en
       `frontend/src/features/sprints/components/sprint-form.tsx` con los mensajes en español, los
       límites visibles antes de enviar y la indicación del sprint en conflicto cuando la respuesta es
       `409`. Antes de escribir código, leer la documentación de Next.js de

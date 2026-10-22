@@ -615,7 +615,7 @@ completadas por 13, `POST /api/v1/sprints/{sprintId}/close` devuelve `results` c
 
 ### Pruebas de la Historia 5 ⚠️
 
-- [ ] T062 [P] [US5] Pruebas unitarias **obligatorias** de `Outcome` en
+- [X] T062 [P] [US5] Pruebas unitarias **obligatorias** de `Outcome` en
       `backend/internal/sprints/domain/progress_test.go` (`completed` → `completed`; `pending` e
       `in_progress` → `not_completed`) (RN-15). Los totales de la instantánea no tienen prueba
       unitaria propia: se calculan solo en SQL y los verifica T064 contra la base (FR-045 con

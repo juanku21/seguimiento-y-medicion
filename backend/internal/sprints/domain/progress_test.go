@@ -45,3 +45,26 @@ func TestValidateStoryProgress(t *testing.T) {
 		})
 	}
 }
+
+// Pruebas unitarias obligatorias del resultado congelado de una historia al cerrar el sprint (T062;
+// RN-15, FR-043; data-model.md sección 6). Solo una historia Completada queda completed; pending e
+// in_progress quedan not_completed. Los totales de la instantánea se calculan en SQL y se verifican
+// en las pruebas de integración de T064.
+func TestOutcome(t *testing.T) {
+	cases := []struct {
+		name   string
+		status backlogdomain.StoryStatus
+		want   StoryOutcome
+	}{
+		{name: "completed queda completed", status: backlogdomain.StoryStatusCompleted, want: StoryOutcomeCompleted},
+		{name: "pending queda not_completed", status: backlogdomain.StoryStatusPending, want: StoryOutcomeNotCompleted},
+		{name: "in_progress queda not_completed", status: backlogdomain.StoryStatusInProgress, want: StoryOutcomeNotCompleted},
+	}
+
+	// Cada estado se prueba en un subtest propio y se compara con el resultado esperado al cierre.
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, Outcome(tc.status))
+		})
+	}
+}

@@ -62,11 +62,11 @@ func newSprintConflictResponse(message string, sprint domain.ConflictingSprint) 
 	}
 }
 
-// StoryIdsInput es el cuerpo de la asignación de historias a un sprint (contracts/openapi.yaml,
+// StoryIDsInput es el cuerpo de la asignación de historias a un sprint (contracts/openapi.yaml,
 // FR-017). Los identificadores llegan como texto para que la validación responda por posición con
 // storyIds[i]; las etiquetas de cantidad solo documentan el contrato en Swagger: la validación real
-// la hace ValidateStoryIdsInput.
-type StoryIdsInput struct {
+// la hace ValidateStoryIDsInput.
+type StoryIDsInput struct {
 	// Historias del backlog del mismo proyecto que se comprometen en el sprint; entre 1 y 100, sin
 	// repetidos.
 	StoryIDs []string `json:"storyIds" validate:"required" minItems:"1" maxItems:"100" uniqueItems:"true" format:"uuid" example:"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"`

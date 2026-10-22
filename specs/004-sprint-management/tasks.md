@@ -406,7 +406,7 @@ responde `409` y no asigna ninguna; y quitarlas las devuelve al backlog como `pe
       `RemoveStories(ctx, access, storyIDs)` en `backend/internal/sprints/service/sprint_service.go`,
       con solo lectura primero y estado del sprint después, y devolviendo el detalle actualizado con
       `buildDetail` — depende de T027 y T034
-- [ ] T036 [US2] Declarar `StoryIdsInput`, `AdmissionProblem` y `StoriesNotAdmittedResponse` en
+- [X] T036 [US2] Declarar `StoryIdsInput`, `AdmissionProblem` y `StoriesNotAdmittedResponse` en
       `backend/internal/sprints/delivery/dto.go`, e implementar en
       `backend/internal/sprints/delivery/validation.go` la validación de la lista de identificadores
       del cuerpo y de los parámetros `storyId` repetidos: **entre 1 y 100, UUID válidos y sin

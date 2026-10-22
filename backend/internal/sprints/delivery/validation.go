@@ -122,10 +122,10 @@ const (
 	storyIDsQueryField = "storyId"
 )
 
-// ValidateStoryIdsInput valida la lista de identificadores del cuerpo de la asignación y devuelve los
+// ValidateStoryIDsInput valida la lista de identificadores del cuerpo de la asignación y devuelve los
 // UUID en el orden recibido. La cantidad se informa en el campo storyIds y cada identificador
 // inválido o repetido en storyIds[i]. Si hay algún problema, la lista devuelta es nil.
-func ValidateStoryIdsInput(req StoryIdsInput) ([]uuid.UUID, []authdelivery.FieldError) {
+func ValidateStoryIDsInput(req StoryIDsInput) ([]uuid.UUID, []authdelivery.FieldError) {
 	return validateStoryIDs(req.StoryIDs, storyIDsBodyField, func(i int) string {
 		return fmt.Sprintf("%s[%d]", storyIDsBodyField, i)
 	})

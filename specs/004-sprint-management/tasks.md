@@ -625,7 +625,7 @@ completadas por 13, `POST /api/v1/sprints/{sprintId}/close` devuelve `results` c
       Finalizado → `ErrSprintsReadOnly`; sprint `planned` → `ErrSprintNotActive`; sprint `closed` →
       `ErrSprintClosed` (RN-18); el actor llega como `closedBy` y el instante es el del reloj; y el
       servicio no llama a ninguna operación de proyectos (RN-07) — depende de T061
-- [ ] T064 [US5] Pruebas de integración de la historia en
+- [X] T064 [US5] Pruebas de integración de la historia en
       `backend/internal/sprints/delivery/handler_test.go`, con `// Escenario: <nombre> (004/US5)`:
       `TestUS5_CierreParcial` (21 planificados, 13 completados, las dos no completadas `pending` y sin
       compromiso abierto, y **cuatro** filas congeladas), `TestUS5_TodasCompletadas`,

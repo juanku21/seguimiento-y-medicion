@@ -20,6 +20,7 @@ import (
 	authrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/repository"
 	authservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/service"
 	backlogdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/delivery"
+	backlogdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/domain"
 	backlogrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/repository"
 	backlogservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/service"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/httpserver"
@@ -36,8 +37,9 @@ import (
 // Pruebas de integración de punta a punta de los sprints: atraviesan el router de Gin compuesto como
 // en cmd/app, el middleware de sesión de la 001, RequireMembership de la 002, el servicio y el
 // repositorio de sprints contra la base smye_test (Principios II y V). Las de US1 (T013) cubren
-// POST /api/v1/projects/{projectId}/sprints; las historias siguientes agregan las suyas en este
-// archivo. Los ayudantes llevan el prefijo "sprint" para no chocar con los de validation_test.go,
+// POST /api/v1/projects/{projectId}/sprints; las de US2 (T028) cubren POST y DELETE
+// /api/v1/sprints/{sprintId}/stories detrás de RequireSprintAccess y la restricción de la 003 sobre
+// historias comprometidas; las historias siguientes agregan las suyas en este archivo. Los ayudantes llevan el prefijo "sprint" para no chocar con los de validation_test.go,
 // que llevan el prefijo "validation".
 
 // Textos exactos que fija el contrato para el 400 de entrada inválida, el 404 de proyecto
@@ -178,8 +180,13 @@ func newSprintTestEnv(t *testing.T, overrides ...func(*sprintTestPorts)) sprintT
 	for _, override := range overrides {
 		override(&ports)
 	}
-	sprints := service.NewSprintService(repository.NewSprintRepository(db), ports.effort, cfg.Location, ports.now)
-	RegisterRoutes(projectGroup, NewHandler(sprints))
+	// El mismo repositorio sirve al servicio y a RequireSprintAccess del grupo plano
+	// /api/v1/sprints/:sprintId, que exige la sesión real de la 001.
+	sprintRepository := repository.NewSprintRepository(db)
+	sprints := service.NewSprintService(sprintRepository, ports.effort, cfg.Location, ports.now)
+	sprintHandler := NewHandler(sprints)
+	RegisterRoutes(projectGroup, sprintHandler)
+	RegisterSprintRoutes(router, authHandler.RequireSession, sprintRepository, sprintHandler)
 	return sprintTestEnv{router: router, db: db, auth: auth}
 }
 
@@ -611,4 +618,675 @@ func TestUS1_NoIntegrante(t *testing.T) {
 	assert.Equal(t, missingRec.Header().Get("Content-Type"), foreignRec.Header().Get("Content-Type"), "los tipos de contenido deberían ser idénticos")
 	assert.Equal(t, missingRec.Body.Bytes(), foreignRec.Body.Bytes(), "los cuerpos deberían ser idénticos byte a byte")
 	assert.Zero(t, sprintCount(t, env.db, projectID), "no debería haberse creado ningún sprint")
+}
+
+// Textos exactos que fija el contrato para los rechazos de la asignación y la baja de historias
+// (US2): el 404 de historia inexistente, el 409 de sprint cerrado, el del lote no admitido, el de la
+// historia Completada que se quiere quitar y el 409 de la 003 al quitarle a una historia comprometida
+// sus Story Points o su último criterio.
+const (
+	sprintStoryNotFound      = "La historia no existe."
+	sprintClosedMessage      = "El sprint está cerrado y no admite cambios."
+	sprintNotAdmittedMessage = "Algunas historias no se pueden comprometer en el sprint; no se asignó ninguna."
+	sprintCompletedRemoval   = "No se puede quitar una historia Completada. Primero devolvela a En progreso."
+	sprintBacklogCommitted   = "La historia está comprometida en un sprint abierto; primero hay que quitarla del sprint."
+)
+
+// sprintCriterion es el criterio de aceptación con el que se crean las historias listas para
+// planificar.
+const sprintCriterion = "El reporte muestra la velocidad de los últimos cinco sprints."
+
+// sprintStoriesDetailBody refleja de SprintDetail del contrato solo lo que verifican las pruebas de
+// US2: el estado del sprint y sus historias comprometidas.
+type sprintStoriesDetailBody struct {
+	ID      string `json:"id"`
+	Status  string `json:"status"`
+	Stories []struct {
+		StoryID     string  `json:"storyId"`
+		StoryPoints int     `json:"storyPoints"`
+		Status      string  `json:"status"`
+		CompletedAt *string `json:"completedAt"`
+		Outcome     *string `json:"outcome"`
+	} `json:"stories"`
+}
+
+// sprintNotAdmittedBody refleja StoriesNotAdmittedResponse del contrato, con un AdmissionProblem por
+// historia rechazada.
+type sprintNotAdmittedBody struct {
+	Error   string `json:"error"`
+	Stories []struct {
+		StoryID string   `json:"storyId"`
+		Reason  string   `json:"reason"`
+		Missing []string `json:"missing"`
+		Sprint  *struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"sprint"`
+		Message string `json:"message"`
+	} `json:"stories"`
+}
+
+// sprintPoints devuelve un puntero a los Story Points indicados, para los cuerpos y las siembras.
+func sprintPoints(n int) *int {
+	return &n
+}
+
+// createStory crea una historia en el backlog del proyecto con el endpoint real de la 003, con los
+// Story Points (nil es "sin estimar") y los criterios recibidos, y devuelve su identificador.
+func (e sprintTestEnv) createStory(t *testing.T, token string, projectID uuid.UUID, title string, points *int, criteria ...string) uuid.UUID {
+	t.Helper()
+	body := map[string]any{"title": title, "priority": "high", "storyPoints": nil, "acceptanceCriteria": criteria}
+	if points != nil {
+		body["storyPoints"] = *points
+	}
+	rec := e.sprintDo(t, http.MethodPost, "/api/v1/projects/"+projectID.String()+"/stories", token, body)
+	require.Equal(t, http.StatusCreated, rec.Code, "no se pudo crear la historia de prueba: %s", rec.Body.String())
+	var created struct {
+		ID string `json:"id"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &created), "el cuerpo del 201 de la 003 no es JSON válido")
+	id, err := uuid.Parse(created.ID)
+	require.NoError(t, err, "id = %q no es un UUID", created.ID)
+	return id
+}
+
+// createReadyStory crea con la 003 una historia lista para planificar: 5 Story Points y un criterio.
+func (e sprintTestEnv) createReadyStory(t *testing.T, token string, projectID uuid.UUID, title string) uuid.UUID {
+	t.Helper()
+	return e.createStory(t, token, projectID, title, sprintPoints(5), sprintCriterion)
+}
+
+// sprintSetStoryStatus fija directamente en la base el estado de una historia, para preparar los
+// "Dado" con historias en progreso o completadas, que la 003 no permite alcanzar por su API.
+func sprintSetStoryStatus(t *testing.T, db *gorm.DB, storyID uuid.UUID, status backlogdomain.StoryStatus) {
+	t.Helper()
+	require.NoError(t, db.Model(&backlogdomain.UserStory{}).Where("id = ?", storyID).Update("status", status).Error,
+		"no se pudo fijar el estado de la historia")
+}
+
+// sprintSeedInStatus inserta directamente en la base un sprint del proyecto en el estado indicado,
+// con los datos de inicio si está activo o cerrado y, si está cerrado, también los de cierre, y
+// devuelve su identificador.
+func sprintSeedInStatus(t *testing.T, db *gorm.DB, projectID, authorID uuid.UUID, name, start, end string, status domain.SprintStatus) uuid.UUID {
+	t.Helper()
+	id := sprintSeed(t, db, projectID, authorID, name, start, end)
+	if status == domain.SprintStatusPlanned {
+		return id
+	}
+	updates := map[string]any{"status": status, "started_at": sprintDate(t, start).Add(9 * time.Hour), "committed_story_points": 5}
+	if status == domain.SprintStatusClosed {
+		updates["closed_at"] = sprintDate(t, end).Add(18 * time.Hour)
+		updates["closed_by_id"] = authorID
+		updates["hours_per_story_point_hundredths"] = 650
+	}
+	require.NoError(t, db.Model(&domain.Sprint{}).Where("id = ?", id).Updates(updates).Error,
+		"no se pudo fijar el estado del sprint %s", name)
+	return id
+}
+
+// sprintSeedCommitment inserta directamente en la base el compromiso de una historia en un sprint y
+// marca la historia con ever_committed, como lo dejaría una asignación. Con outcome, la fila queda
+// congelada como la de un sprint cerrado; con completedAt, registra el completado dentro del sprint.
+func sprintSeedCommitment(t *testing.T, db *gorm.DB, sprintID, storyID uuid.UUID, committedAt time.Time, outcome *domain.StoryOutcome, completedAt *time.Time) {
+	t.Helper()
+	row := domain.SprintStory{
+		ID:          uuid.New(),
+		SprintID:    sprintID,
+		StoryID:     storyID,
+		CommittedAt: committedAt,
+		CompletedAt: completedAt,
+		Outcome:     outcome,
+	}
+	if outcome != nil {
+		title := "Historia congelada"
+		priority := backlogdomain.StoryPriorityHigh
+		row.TitleAtClose = &title
+		row.PriorityAtClose = &priority
+		row.StoryPointsAtClose = sprintPoints(5)
+	}
+	require.NoError(t, db.Create(&row).Error, "no se pudo sembrar el compromiso de la historia")
+	require.NoError(t, db.Model(&backlogdomain.UserStory{}).Where("id = ?", storyID).Update("ever_committed", true).Error,
+		"no se pudo marcar ever_committed")
+}
+
+// sprintPath es la ruta del detalle de un sprint según contracts/openapi.yaml.
+func sprintPath(sprintID uuid.UUID) string {
+	return "/api/v1/sprints/" + sprintID.String()
+}
+
+// sprintStoriesPath es la ruta de asignación y baja de historias del sprint según
+// contracts/openapi.yaml.
+func sprintStoriesPath(sprintID uuid.UUID) string {
+	return sprintPath(sprintID) + "/stories"
+}
+
+// assignStories envía POST /api/v1/sprints/{sprintId}/stories con los identificadores recibidos.
+func (e sprintTestEnv) assignStories(t *testing.T, token string, sprintID uuid.UUID, storyIDs ...uuid.UUID) *httptest.ResponseRecorder {
+	t.Helper()
+	ids := make([]string, 0, len(storyIDs))
+	for _, id := range storyIDs {
+		ids = append(ids, id.String())
+	}
+	return e.sprintDo(t, http.MethodPost, sprintStoriesPath(sprintID), token, map[string]any{"storyIds": ids})
+}
+
+// removeStories envía DELETE /api/v1/sprints/{sprintId}/stories con un parámetro storyId por
+// historia.
+func (e sprintTestEnv) removeStories(t *testing.T, token string, sprintID uuid.UUID, storyIDs ...uuid.UUID) *httptest.ResponseRecorder {
+	t.Helper()
+	params := make([]string, 0, len(storyIDs))
+	for _, id := range storyIDs {
+		params = append(params, "storyId="+id.String())
+	}
+	return e.sprintDo(t, http.MethodDelete, sprintStoriesPath(sprintID)+"?"+strings.Join(params, "&"), token, nil)
+}
+
+// requireSprintStories exige un 200 cuyo cuerpo sea el detalle del sprint y lo devuelve decodificado.
+func requireSprintStories(t *testing.T, rec *httptest.ResponseRecorder) sprintStoriesDetailBody {
+	t.Helper()
+	require.Equal(t, http.StatusOK, rec.Code, "cuerpo: %s", rec.Body.String())
+	var body sprintStoriesDetailBody
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "el cuerpo del 200 no es JSON válido: %s", rec.Body.String())
+	return body
+}
+
+// sprintDetailStoryIDs devuelve los identificadores de las historias del detalle, en su orden.
+func sprintDetailStoryIDs(body sprintStoriesDetailBody) []string {
+	ids := make([]string, 0, len(body.Stories))
+	for _, s := range body.Stories {
+		ids = append(ids, s.StoryID)
+	}
+	return ids
+}
+
+// requireNotAdmitted exige un 409 con StoriesNotAdmittedResponse y su mensaje general, y lo devuelve
+// decodificado.
+func requireNotAdmitted(t *testing.T, rec *httptest.ResponseRecorder) sprintNotAdmittedBody {
+	t.Helper()
+	require.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+	var body sprintNotAdmittedBody
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "el cuerpo del 409 no es JSON válido: %s", rec.Body.String())
+	assert.Equal(t, sprintNotAdmittedMessage, body.Error)
+	require.NotEmpty(t, body.Stories, "el 409 debe listar las historias rechazadas: %s", rec.Body.String())
+	return body
+}
+
+// sprintCommitmentCount cuenta las filas de sprint_stories que cumplen la condición, para verificar
+// qué compromisos quedaron en la base.
+func sprintCommitmentCount(t *testing.T, db *gorm.DB, query string, args ...any) int64 {
+	t.Helper()
+	var n int64
+	require.NoError(t, db.Model(&domain.SprintStory{}).Where(query, args...).Count(&n).Error,
+		"no se pudieron contar los compromisos")
+	return n
+}
+
+// sprintStoredStory lee de user_stories la historia indicada.
+func sprintStoredStory(t *testing.T, db *gorm.DB, storyID uuid.UUID) backlogdomain.UserStory {
+	t.Helper()
+	var story backlogdomain.UserStory
+	require.NoError(t, db.First(&story, "id = ?", storyID).Error, "no se encontró la historia %s", storyID)
+	return story
+}
+
+// sprintCriteriaCount cuenta los criterios de aceptación guardados de la historia.
+func sprintCriteriaCount(t *testing.T, db *gorm.DB, storyID uuid.UUID) int64 {
+	t.Helper()
+	var n int64
+	require.NoError(t, db.Model(&backlogdomain.AcceptanceCriterion{}).Where("story_id = ?", storyID).Count(&n).Error,
+		"no se pudieron contar los criterios")
+	return n
+}
+
+// sprintRandomIDs devuelve n identificadores UUID nuevos y distintos.
+func sprintRandomIDs(n int) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, n)
+	for i := 0; i < n; i++ {
+		ids = append(ids, uuid.New())
+	}
+	return ids
+}
+
+// sprintRequireBatchRejected exige un 400 con ValidationErrorResponse con al menos un campo cuyo
+// nombre empiece por el prefijo indicado (storyIds, storyIds[i] o storyId) y tenga mensaje.
+func sprintRequireBatchRejected(t *testing.T, rec *httptest.ResponseRecorder, fieldPrefix string) {
+	t.Helper()
+	require.Equal(t, http.StatusBadRequest, rec.Code, "cuerpo: %s", rec.Body.String())
+	var body sprintValidationBody
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "el cuerpo del 400 no es JSON válido: %s", rec.Body.String())
+	assert.Equal(t, sprintInvalidFieldsError, body.Error)
+	for _, f := range body.Fields {
+		if strings.HasPrefix(f.Field, fieldPrefix) {
+			assert.NotEmpty(t, f.Message, "el mensaje del campo %q no puede estar vacío", f.Field)
+			return
+		}
+	}
+	t.Errorf("la respuesta no señala un campo %q: %s", fieldPrefix, rec.Body.String())
+}
+
+// sprintUS2Fixture es el "Dado" común de US2: Ana, propietaria de un proyecto En curso, y Bruno,
+// integrante que no es el propietario y que ejecuta las acciones (RN-01), con un sprint Planificado
+// "Sprint 1" del 2026-10-01 al 2026-10-14.
+type sprintUS2Fixture struct {
+	env         sprintTestEnv
+	anaID       uuid.UUID
+	brunoID     uuid.UUID
+	brunoToken  string
+	projectID   uuid.UUID
+	sprintOneID uuid.UUID
+}
+
+// newSprintUS2Fixture compone el entorno y siembra las cuentas, el proyecto y el sprint Planificado.
+func newSprintUS2Fixture(t *testing.T) sprintUS2Fixture {
+	t.Helper()
+	env := newSprintTestEnv(t)
+	anaID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Díaz", "bruno@example.com")
+	projectID := sprintSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress, brunoID)
+	sprintOneID := sprintSeed(t, env.db, projectID, anaID, "Sprint 1", "2026-10-01", "2026-10-14")
+	return sprintUS2Fixture{env: env, anaID: anaID, brunoID: brunoID, brunoToken: brunoToken, projectID: projectID, sprintOneID: sprintOneID}
+}
+
+// Escenario: Asignación de tres historias (004/US2)
+// Un integrante asigna a un sprint Planificado tres historias listas: responde 200 con las tres en
+// stories, en pending y sin resultado; quedan tres compromisos abiertos en sprint_stories, y una
+// cuarta asignación de una de ellas a otro sprint abierto se rechaza porque ya está comprometida
+// (FR-017, FR-020, FR-021).
+func TestUS2_AsignacionDeTresHistorias(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	s1 := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+	s2 := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Filtrar por fecha")
+	s3 := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Enviar por correo")
+
+	rec := f.env.assignStories(t, f.brunoToken, f.sprintOneID, s1, s2, s3)
+
+	// Las tres quedan en el detalle, en pending y sin resultado.
+	body := requireSprintStories(t, rec)
+	assert.Equal(t, f.sprintOneID.String(), body.ID)
+	assert.Equal(t, "planned", body.Status)
+	assert.ElementsMatch(t, []string{s1.String(), s2.String(), s3.String()}, sprintDetailStoryIDs(body))
+	for _, s := range body.Stories {
+		assert.Equal(t, "pending", s.Status, "la historia %s debe seguir pending", s.StoryID)
+		assert.Nil(t, s.Outcome, "la historia %s no tiene resultado en un sprint abierto", s.StoryID)
+		assert.Nil(t, s.CompletedAt)
+	}
+
+	// En la base hay un compromiso abierto por historia y las tres siguen en pending.
+	assert.EqualValues(t, 3, sprintCommitmentCount(t, f.env.db, "sprint_id = ? AND outcome IS NULL", f.sprintOneID))
+	for _, id := range []uuid.UUID{s1, s2, s3} {
+		assert.Equal(t, backlogdomain.StoryStatusPending, sprintStoredStory(t, f.env.db, id).Status)
+	}
+
+	// Ya no están disponibles para otro sprint abierto.
+	sprintTwoID := sprintSeed(t, f.env.db, f.projectID, f.anaID, "Sprint 2", "2026-10-15", "2026-10-28")
+	rejected := requireNotAdmitted(t, f.env.assignStories(t, f.brunoToken, sprintTwoID, s1))
+	require.Len(t, rejected.Stories, 1)
+	assert.Equal(t, s1.String(), rejected.Stories[0].StoryID)
+	assert.Equal(t, "committed_elsewhere", rejected.Stories[0].Reason)
+	assert.Zero(t, sprintCommitmentCount(t, f.env.db, "sprint_id = ?", sprintTwoID))
+}
+
+// Escenario: Asignación en sprint Activo (004/US2)
+// A un sprint Activo se le suma una historia lista y la asignación se acepta, porque el alcance puede
+// ajustarse mientras el sprint corre; el sprint sigue active (FR-017).
+func TestUS2_AsignacionEnSprintActivo(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	activeID := sprintSeedInStatus(t, f.env.db, f.projectID, f.anaID, "Sprint 2", "2026-10-15", "2026-10-28", domain.SprintStatusActive)
+	storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+
+	rec := f.env.assignStories(t, f.brunoToken, activeID, storyID)
+
+	body := requireSprintStories(t, rec)
+	assert.Equal(t, "active", body.Status)
+	assert.Equal(t, []string{storyID.String()}, sprintDetailStoryIDs(body))
+	assert.EqualValues(t, 1, sprintCommitmentCount(t, f.env.db, "sprint_id = ? AND story_id = ? AND outcome IS NULL", activeID, storyID))
+	assert.Equal(t, domain.SprintStatusActive, sprintStored(t, f.env.db, activeID.String()).Status)
+}
+
+// Escenario: Quitar de un sprint Planificado (004/US2)
+// Quitar una historia comprometida en un sprint Planificado la devuelve al backlog en pending y sin
+// sprint (sin fila en sprint_stories), y después puede asignarse a otro sprint (FR-021, FR-022).
+func TestUS2_QuitarDeSprintPlanificado(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+	sprintSeedCommitment(t, f.env.db, f.sprintOneID, storyID, sprintFixedNow.Add(-time.Hour), nil, nil)
+
+	rec := f.env.removeStories(t, f.brunoToken, f.sprintOneID, storyID)
+
+	// El sprint queda sin la historia y ella, en pending y sin compromiso.
+	body := requireSprintStories(t, rec)
+	assert.Empty(t, body.Stories)
+	assert.Equal(t, backlogdomain.StoryStatusPending, sprintStoredStory(t, f.env.db, storyID).Status)
+	assert.Zero(t, sprintCommitmentCount(t, f.env.db, "story_id = ?", storyID), "no debe quedar fila en sprint_stories")
+
+	// La historia vuelve a estar disponible para otro sprint.
+	sprintTwoID := sprintSeed(t, f.env.db, f.projectID, f.anaID, "Sprint 2", "2026-10-15", "2026-10-28")
+	reassigned := requireSprintStories(t, f.env.assignStories(t, f.brunoToken, sprintTwoID, storyID))
+	assert.Equal(t, []string{storyID.String()}, sprintDetailStoryIDs(reassigned))
+}
+
+// Escenario: Reestimación de una comprometida (004/US2)
+// Una historia comprometida en un sprint abierto y estimada en 5 se reestima en 8 con el PUT
+// story-points de la 003: responde 200 porque sigue lista para planificar, y el detalle del sprint la
+// muestra todavía comprometida, con 8 (FR-018, RN-22).
+func TestUS2_ReestimacionDeComprometida(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+	sprintSeedCommitment(t, f.env.db, f.sprintOneID, storyID, sprintFixedNow.Add(-time.Hour), nil, nil)
+
+	rec := f.env.sprintDo(t, http.MethodPut, "/api/v1/stories/"+storyID.String()+"/story-points", f.brunoToken, map[string]any{"storyPoints": 8})
+
+	require.Equal(t, http.StatusOK, rec.Code, "cuerpo: %s", rec.Body.String())
+	assert.Equal(t, sprintPoints(8), sprintStoredStory(t, f.env.db, storyID).StoryPoints)
+
+	// La historia sigue comprometida en el sprint, ahora con 8 Story Points.
+	detail := requireSprintStories(t, f.env.sprintDo(t, http.MethodGet, sprintPath(f.sprintOneID), f.brunoToken, nil))
+	require.Equal(t, []string{storyID.String()}, sprintDetailStoryIDs(detail))
+	assert.Equal(t, 8, detail.Stories[0].StoryPoints)
+}
+
+// Escenario: Quitar la única historia de un sprint Activo (004/US2)
+// Quitar la única historia de un sprint Activo lo deja sin historias y sigue active, sin que sea un
+// error; la historia, que estaba en progreso, vuelve a pending (FR-022).
+func TestUS2_QuitarUnicaHistoriaDeSprintActivo(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	activeID := sprintSeedInStatus(t, f.env.db, f.projectID, f.anaID, "Sprint 2", "2026-10-15", "2026-10-28", domain.SprintStatusActive)
+	storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+	sprintSeedCommitment(t, f.env.db, activeID, storyID, sprintFixedNow.Add(-time.Hour), nil, nil)
+	sprintSetStoryStatus(t, f.env.db, storyID, backlogdomain.StoryStatusInProgress)
+
+	rec := f.env.removeStories(t, f.brunoToken, activeID, storyID)
+
+	body := requireSprintStories(t, rec)
+	assert.Equal(t, "active", body.Status)
+	assert.Equal(t, []any{}, sprintRawBody(t, rec)["stories"], "stories debe ser [] y no null")
+	assert.Equal(t, domain.SprintStatusActive, sprintStored(t, f.env.db, activeID.String()).Status)
+	assert.Equal(t, backlogdomain.StoryStatusPending, sprintStoredStory(t, f.env.db, storyID).Status)
+	assert.Zero(t, sprintCommitmentCount(t, f.env.db, "sprint_id = ?", activeID))
+}
+
+// Escenario: Tercer sprint (004/US2)
+// Una historia que estuvo en dos sprints cerrados sin completarse se asigna a un tercero y se acepta;
+// en la base quedan tres filas de sprint_stories para ella: las dos congeladas con not_completed y la
+// abierta, sin resultado. El endpoint de historial se verifica en TestUS6_HistorialDeUnaHistoria
+// (FR-020, FR-055).
+func TestUS2_TercerSprint(t *testing.T) {
+	env := newSprintTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := sprintSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := env.createReadyStory(t, anaToken, projectID, "Exportar el reporte")
+	notCompleted := domain.StoryOutcomeNotCompleted
+	closedOne := sprintSeedInStatus(t, env.db, projectID, anaID, "Sprint 1", "2026-09-01", "2026-09-14", domain.SprintStatusClosed)
+	sprintSeedCommitment(t, env.db, closedOne, storyID, sprintDate(t, "2026-09-01"), &notCompleted, nil)
+	closedTwo := sprintSeedInStatus(t, env.db, projectID, anaID, "Sprint 2", "2026-09-15", "2026-09-28", domain.SprintStatusClosed)
+	sprintSeedCommitment(t, env.db, closedTwo, storyID, sprintDate(t, "2026-09-15"), &notCompleted, nil)
+	thirdID := sprintSeed(t, env.db, projectID, anaID, "Sprint 3", "2026-10-01", "2026-10-14")
+
+	rec := env.assignStories(t, anaToken, thirdID, storyID)
+
+	body := requireSprintStories(t, rec)
+	assert.Equal(t, []string{storyID.String()}, sprintDetailStoryIDs(body))
+	assert.EqualValues(t, 3, sprintCommitmentCount(t, env.db, "story_id = ?", storyID))
+	assert.EqualValues(t, 2, sprintCommitmentCount(t, env.db, "story_id = ? AND outcome = ?", storyID, domain.StoryOutcomeNotCompleted))
+	assert.EqualValues(t, 1, sprintCommitmentCount(t, env.db, "story_id = ? AND outcome IS NULL AND sprint_id = ?", storyID, thirdID))
+}
+
+// Escenario: Historia no lista (004/US2)
+// Una historia sin Story Points o sin criterios de aceptación no se asigna: 409 con el motivo
+// not_ready, lo que le falta y el mensaje de que no está lista para planificar, y no se crea ningún
+// compromiso (FR-018, RN-08).
+func TestUS2_HistoriaNoLista(t *testing.T) {
+	cases := []struct {
+		name     string
+		points   *int
+		criteria []string
+		missing  string
+	}{
+		{"sin Story Points", nil, []string{sprintCriterion}, "story_points"},
+		{"sin criterios", sprintPoints(5), []string{}, "acceptance_criteria"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newSprintUS2Fixture(t)
+			storyID := f.env.createStory(t, f.brunoToken, f.projectID, "Exportar el reporte", tc.points, tc.criteria...)
+
+			rec := f.env.assignStories(t, f.brunoToken, f.sprintOneID, storyID)
+
+			body := requireNotAdmitted(t, rec)
+			require.Len(t, body.Stories, 1)
+			assert.Equal(t, storyID.String(), body.Stories[0].StoryID)
+			assert.Equal(t, "not_ready", body.Stories[0].Reason)
+			assert.Equal(t, []string{tc.missing}, body.Stories[0].Missing)
+			assert.Contains(t, strings.ToLower(body.Stories[0].Message), "lista para planificar")
+			assert.Zero(t, sprintCommitmentCount(t, f.env.db, "story_id = ?", storyID), "no debería haberse creado ningún compromiso")
+		})
+	}
+}
+
+// Escenario: Historia Completada (004/US2)
+// Una historia en estado Completada no se asigna: 409 con el motivo completed y el mensaje de que ya
+// está terminada, y no se crea ningún compromiso (FR-019).
+func TestUS2_HistoriaCompletada(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+	sprintSetStoryStatus(t, f.env.db, storyID, backlogdomain.StoryStatusCompleted)
+
+	rec := f.env.assignStories(t, f.brunoToken, f.sprintOneID, storyID)
+
+	body := requireNotAdmitted(t, rec)
+	require.Len(t, body.Stories, 1)
+	assert.Equal(t, storyID.String(), body.Stories[0].StoryID)
+	assert.Equal(t, "completed", body.Stories[0].Reason)
+	assert.Equal(t, "La historia ya está terminada.", body.Stories[0].Message)
+	assert.Zero(t, sprintCommitmentCount(t, f.env.db, "story_id = ?", storyID), "no debería haberse creado ningún compromiso")
+}
+
+// Escenario: Comprometida en otro sprint (004/US2)
+// Una historia ya comprometida en un sprint Planificado no se asigna a otro sprint abierto: 409 con el
+// motivo committed_elsewhere y el sprint en el que está, y el compromiso original no cambia (FR-020).
+func TestUS2_ComprometidaEnOtroSprint(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+	sprintSeedCommitment(t, f.env.db, f.sprintOneID, storyID, sprintFixedNow.Add(-time.Hour), nil, nil)
+	sprintTwoID := sprintSeed(t, f.env.db, f.projectID, f.anaID, "Sprint 2", "2026-10-15", "2026-10-28")
+
+	rec := f.env.assignStories(t, f.brunoToken, sprintTwoID, storyID)
+
+	body := requireNotAdmitted(t, rec)
+	require.Len(t, body.Stories, 1)
+	problem := body.Stories[0]
+	assert.Equal(t, storyID.String(), problem.StoryID)
+	assert.Equal(t, "committed_elsewhere", problem.Reason)
+	if assert.NotNil(t, problem.Sprint, "falta el sprint del compromiso: %s", rec.Body.String()) {
+		assert.Equal(t, f.sprintOneID.String(), problem.Sprint.ID)
+		assert.Equal(t, "Sprint 1", problem.Sprint.Name)
+	}
+	assert.Equal(t, "Ya está comprometida en el sprint «Sprint 1».", problem.Message)
+	assert.Zero(t, sprintCommitmentCount(t, f.env.db, "sprint_id = ?", sprintTwoID))
+	assert.EqualValues(t, 1, sprintCommitmentCount(t, f.env.db, "sprint_id = ? AND story_id = ?", f.sprintOneID, storyID))
+}
+
+// Escenario: Sprint Cerrado (004/US2)
+// Sobre un sprint Cerrado se rechaza con 409 tanto asignar como quitar una historia, porque un sprint
+// cerrado no admite cambios, y sus compromisos no cambian (FR-024, RN-18).
+func TestUS2_SprintCerrado(t *testing.T) {
+	t.Run("asignar", func(t *testing.T) {
+		f := newSprintUS2Fixture(t)
+		closedID := sprintSeedInStatus(t, f.env.db, f.projectID, f.anaID, "Sprint 0", "2026-09-01", "2026-09-14", domain.SprintStatusClosed)
+		storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+
+		rec := f.env.assignStories(t, f.brunoToken, closedID, storyID)
+
+		assert.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+		assert.JSONEq(t, `{"error":"`+sprintClosedMessage+`"}`, rec.Body.String())
+		assert.Zero(t, sprintCommitmentCount(t, f.env.db, "sprint_id = ?", closedID))
+	})
+
+	t.Run("quitar", func(t *testing.T) {
+		f := newSprintUS2Fixture(t)
+		closedID := sprintSeedInStatus(t, f.env.db, f.projectID, f.anaID, "Sprint 0", "2026-09-01", "2026-09-14", domain.SprintStatusClosed)
+		storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+		notCompleted := domain.StoryOutcomeNotCompleted
+		sprintSeedCommitment(t, f.env.db, closedID, storyID, sprintDate(t, "2026-09-01"), &notCompleted, nil)
+
+		rec := f.env.removeStories(t, f.brunoToken, closedID, storyID)
+
+		assert.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+		assert.JSONEq(t, `{"error":"`+sprintClosedMessage+`"}`, rec.Body.String())
+		assert.EqualValues(t, 1, sprintCommitmentCount(t, f.env.db, "sprint_id = ? AND story_id = ?", closedID, storyID),
+			"la fila congelada debe seguir en la instantánea")
+	})
+}
+
+// Escenario: Lote parcialmente inválido (004/US2)
+// Un lote de tres historias donde una no tiene criterios se rechaza entero: 409 que lista solo la
+// historia con problemas, ninguna de las tres queda asignada y ninguna se marca ever_committed
+// (FR-023, SC-007).
+func TestUS2_LoteParcialmenteInvalido(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	s1 := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+	s2 := f.env.createStory(t, f.brunoToken, f.projectID, "Filtrar por fecha", sprintPoints(3))
+	s3 := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Enviar por correo")
+
+	rec := f.env.assignStories(t, f.brunoToken, f.sprintOneID, s1, s2, s3)
+
+	body := requireNotAdmitted(t, rec)
+	require.Len(t, body.Stories, 1, "solo la historia sin criterios tiene problemas: %s", rec.Body.String())
+	assert.Equal(t, s2.String(), body.Stories[0].StoryID)
+	assert.Equal(t, "not_ready", body.Stories[0].Reason)
+	assert.Zero(t, sprintCommitmentCount(t, f.env.db, "sprint_id = ?", f.sprintOneID), "no debería haberse creado ninguna fila")
+	for _, id := range []uuid.UUID{s1, s2, s3} {
+		assert.False(t, sprintStoredStory(t, f.env.db, id).EverCommitted, "la historia %s no debe marcarse ever_committed", id)
+	}
+}
+
+// Escenario: Historia de otro proyecto (004/US2)
+// Asignar a un sprint una historia de otro proyecto, aunque quien pide sea integrante de ambos,
+// responde 404 de historia inexistente y no crea ningún compromiso.
+func TestUS2_HistoriaDeOtroProyecto(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	otherProjectID := sprintSeedProject(t, f.env.db, f.anaID, projectsdomain.ProjectStatusInProgress, f.brunoID)
+	foreignStoryID := f.env.createReadyStory(t, f.brunoToken, otherProjectID, "Historia ajena")
+
+	rec := f.env.assignStories(t, f.brunoToken, f.sprintOneID, foreignStoryID)
+
+	assert.Equal(t, http.StatusNotFound, rec.Code, "cuerpo: %s", rec.Body.String())
+	assert.JSONEq(t, `{"error":"`+sprintStoryNotFound+`"}`, rec.Body.String())
+	assert.Zero(t, sprintCommitmentCount(t, f.env.db, "story_id = ?", foreignStoryID))
+}
+
+// Escenario: Quitar una historia Completada (004/US2)
+// Quitar del sprint Activo una historia Completada se rechaza con 409 indicando que primero debe
+// devolverse a En progreso; la historia conserva completed y su compromiso conserva completed_at
+// (FR-025, RN-21).
+func TestUS2_QuitarHistoriaCompletada(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	activeID := sprintSeedInStatus(t, f.env.db, f.projectID, f.anaID, "Sprint 2", "2026-10-15", "2026-10-28", domain.SprintStatusActive)
+	storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+	completedAt := time.Date(2026, time.October, 20, 14, 30, 0, 0, time.UTC)
+	sprintSeedCommitment(t, f.env.db, activeID, storyID, sprintDate(t, "2026-10-15"), nil, &completedAt)
+	sprintSetStoryStatus(t, f.env.db, storyID, backlogdomain.StoryStatusCompleted)
+
+	rec := f.env.removeStories(t, f.brunoToken, activeID, storyID)
+
+	assert.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+	assert.JSONEq(t, `{"error":"`+sprintCompletedRemoval+`"}`, rec.Body.String())
+	assert.Equal(t, backlogdomain.StoryStatusCompleted, sprintStoredStory(t, f.env.db, storyID).Status)
+
+	// El compromiso sigue en sprint_stories con el mismo completed_at.
+	var row domain.SprintStory
+	require.NoError(t, f.env.db.First(&row, "sprint_id = ? AND story_id = ?", activeID, storyID).Error, "el compromiso debe seguir en sprint_stories")
+	if assert.NotNil(t, row.CompletedAt) {
+		assert.True(t, completedAt.Equal(*row.CompletedAt), "completed_at = %v, se esperaba %v", *row.CompletedAt, completedAt)
+	}
+}
+
+// Escenario: Comprometida no deja de estar lista (004/US2)
+// A una historia comprometida en un sprint Planificado no se le puede volver a "sin estimar" con el
+// PUT story-points de la 003 ni quitar su último criterio con el PATCH de la 003: 409 indicando que
+// primero hay que quitarla del sprint, y la historia queda como estaba (FR-018, RN-22, RC-05).
+func TestUS2_ComprometidaNoDejaDeEstarLista(t *testing.T) {
+	t.Run("PUT story-points con null", func(t *testing.T) {
+		f := newSprintUS2Fixture(t)
+		storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+		sprintSeedCommitment(t, f.env.db, f.sprintOneID, storyID, sprintFixedNow.Add(-time.Hour), nil, nil)
+
+		rec := f.env.sprintDo(t, http.MethodPut, "/api/v1/stories/"+storyID.String()+"/story-points", f.brunoToken, map[string]any{"storyPoints": nil})
+
+		assert.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+		assert.JSONEq(t, `{"error":"`+sprintBacklogCommitted+`"}`, rec.Body.String())
+		assert.Equal(t, sprintPoints(5), sprintStoredStory(t, f.env.db, storyID).StoryPoints, "la estimación no debe cambiar")
+	})
+
+	t.Run("PATCH con acceptanceCriteria vacío", func(t *testing.T) {
+		f := newSprintUS2Fixture(t)
+		storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+		sprintSeedCommitment(t, f.env.db, f.sprintOneID, storyID, sprintFixedNow.Add(-time.Hour), nil, nil)
+
+		rec := f.env.sprintDo(t, http.MethodPatch, "/api/v1/stories/"+storyID.String(), f.brunoToken, map[string]any{"acceptanceCriteria": []string{}})
+
+		assert.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+		assert.JSONEq(t, `{"error":"`+sprintBacklogCommitted+`"}`, rec.Body.String())
+		assert.EqualValues(t, 1, sprintCriteriaCount(t, f.env.db, storyID), "los criterios no deben cambiar")
+	})
+}
+
+// Lotes inválidos de asignación y de baja, sin etiqueta de escenario porque son cotas de entrada y
+// no escenarios de la spec (research.md sección 8, Principio VII): un identificador repetido o más
+// de 100 identificadores responden 400 con los campos inválidos antes de llegar al servicio, y no
+// crean ni borran compromisos.
+func TestSprintStories_InvalidBatch(t *testing.T) {
+	t.Run("asignar con un identificador repetido", func(t *testing.T) {
+		f := newSprintUS2Fixture(t)
+		storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+
+		rec := f.env.assignStories(t, f.brunoToken, f.sprintOneID, storyID, storyID)
+
+		sprintRequireBatchRejected(t, rec, "storyIds")
+		assert.Zero(t, sprintCommitmentCount(t, f.env.db, "sprint_id = ?", f.sprintOneID))
+	})
+
+	t.Run("asignar más de 100", func(t *testing.T) {
+		f := newSprintUS2Fixture(t)
+
+		rec := f.env.assignStories(t, f.brunoToken, f.sprintOneID, sprintRandomIDs(101)...)
+
+		sprintRequireBatchRejected(t, rec, "storyIds")
+		assert.Zero(t, sprintCommitmentCount(t, f.env.db, "sprint_id = ?", f.sprintOneID))
+	})
+
+	t.Run("quitar con un identificador repetido", func(t *testing.T) {
+		f := newSprintUS2Fixture(t)
+		storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+		sprintSeedCommitment(t, f.env.db, f.sprintOneID, storyID, sprintFixedNow.Add(-time.Hour), nil, nil)
+
+		rec := f.env.removeStories(t, f.brunoToken, f.sprintOneID, storyID, storyID)
+
+		sprintRequireBatchRejected(t, rec, "storyId")
+		assert.EqualValues(t, 1, sprintCommitmentCount(t, f.env.db, "sprint_id = ?", f.sprintOneID))
+	})
+
+	t.Run("quitar más de 100", func(t *testing.T) {
+		f := newSprintUS2Fixture(t)
+
+		rec := f.env.removeStories(t, f.brunoToken, f.sprintOneID, sprintRandomIDs(101)...)
+
+		sprintRequireBatchRejected(t, rec, "storyId")
+	})
+}
+
+// RC-06, sin etiqueta de escenario: la asignación marca user_stories.ever_committed en true y quitar
+// la historia del sprint no lo devuelve a false, para que la 003 siga impidiendo eliminarla.
+func TestSprintStories_EverCommitted(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+	require.False(t, sprintStoredStory(t, f.env.db, storyID).EverCommitted, "la historia nueva no estuvo en ningún sprint")
+
+	assigned := f.env.assignStories(t, f.brunoToken, f.sprintOneID, storyID)
+	require.Equal(t, http.StatusOK, assigned.Code, "cuerpo: %s", assigned.Body.String())
+	assert.True(t, sprintStoredStory(t, f.env.db, storyID).EverCommitted, "tras asignar, ever_committed debe ser true")
+
+	removed := f.env.removeStories(t, f.brunoToken, f.sprintOneID, storyID)
+	require.Equal(t, http.StatusOK, removed.Code, "cuerpo: %s", removed.Body.String())
+	assert.True(t, sprintStoredStory(t, f.env.db, storyID).EverCommitted, "tras quitar, ever_committed debe seguir en true")
 }

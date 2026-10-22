@@ -340,7 +340,7 @@ responde `409` y no asigna ninguna; y quitarlas las devuelve al backlog como `pe
       (RN-09, RN-18); problemas de admisión → `StoriesNotAdmittedError` con todos los motivos;
       historia `completed` en el lote a quitar → `ErrCompletedStoryRemoval` (RN-21) — depende de
       T024
-- [ ] T028 [US2] Pruebas de integración de la historia en
+- [X] T028 [US2] Pruebas de integración de la historia en
       `backend/internal/sprints/delivery/handler_test.go`, con `// Escenario: <nombre> (004/US2)`:
       `TestUS2_AsignacionDeTresHistorias` (las tres en `stories`, `pending`, y una cuarta asignación a
       otro sprint abierto rechazada), `TestUS2_AsignacionEnSprintActivo` (sprint `active` sembrado en

@@ -24,7 +24,8 @@ type DetailState =
 
 // Vista del detalle de un sprint (004/US2 y US3): pide el sprint con un token vigente y muestra sus
 // datos, las acciones del ciclo de vida, la lista de historias comprometidas y, mientras el sprint
-// está abierto, el diálogo para comprometer más. Cada cambio reemplaza el sprint mostrado por el detalle que devuelve el backend.
+// está abierto, el diálogo para comprometer más. Cada cambio reemplaza el sprint mostrado por el
+// detalle que devuelve el backend.
 // El sprint inexistente o ajeno llega como 404 y se muestra solo su mensaje; ante un 401 el cliente
 // HTTP borra el token y la guardia lleva a /login.
 export function SprintDetailView({ sprintId }: SprintDetailViewProps) {

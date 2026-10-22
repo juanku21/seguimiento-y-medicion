@@ -21,21 +21,21 @@ export function SprintLifecycleActions({
   onChanged,
 }: SprintLifecycleActionsProps) {
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const submittingRef = useRef(false);
 
   // Envía el inicio del sprint. La referencia descarta un segundo envío mientras el primero sigue en
-  // curso.
+  // curso, aun antes de que el botón deshabilitado llegue a renderizarse.
   async function handleStart() {
     if (submittingRef.current) {
       return;
     }
     submittingRef.current = true;
-    setSubmitting(true);
+    setIsSubmitting(true);
     setError(null);
     const result = await startSprint(sprint.id);
     submittingRef.current = false;
-    setSubmitting(false);
+    setIsSubmitting(false);
 
     if (result.ok) {
       onChanged(result.data);
@@ -55,7 +55,7 @@ export function SprintLifecycleActions({
         <button
           type="button"
           onClick={handleStart}
-          disabled={submitting}
+          disabled={isSubmitting}
           className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
         >
           Iniciar sprint

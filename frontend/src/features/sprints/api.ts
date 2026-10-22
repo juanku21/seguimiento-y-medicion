@@ -101,7 +101,8 @@ export function removeSprintStories(
 // Inicia un sprint Planificado con POST /api/v1/sprints/{sprintId}/start, sin cuerpo y con la
 // sesión de la pestaña (004/US3). Las reglas del inicio (otro sprint Activo, transición inválida,
 // sprint Cerrado, proyecto Finalizado) las resuelve el backend y llegan como rechazo con su mensaje;
-// con el 200 llega el detalle Activo con su momento de inicio real.
+// con el 200 llega el detalle Activo con su momento de inicio real. El body undefined hace que el
+// cliente HTTP no envíe cuerpo ni Content-Type, y el detalle recibido se valida con isSprintDetail.
 export function startSprint(
   sprintId: string,
 ): Promise<ApiResult<SprintDetail>> {

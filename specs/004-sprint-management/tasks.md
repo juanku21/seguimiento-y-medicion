@@ -513,7 +513,7 @@ proyecto responde `409` con el nombre del activo; y diez inicios simultáneos de
       consulta real, y que la prueba de la 002 que rechaza finalizar con un sprint activo pase con un
       sprint `active` sembrado en la base; ajustar sus comentarios si cuentan un número distinto —
       depende de T049
-- [ ] T051 [US3] Implementar la llamada de inicio en `frontend/src/features/sprints/api.ts` y el
+- [X] T051 [US3] Implementar la llamada de inicio en `frontend/src/features/sprints/api.ts` y el
       componente `SprintLifecycleActions` en
       `frontend/src/features/sprints/components/sprint-lifecycle-actions.tsx` con la acción de
       iniciar, integrado en la pantalla de detalle — depende de T044 y T048

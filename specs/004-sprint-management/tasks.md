@@ -445,18 +445,18 @@ proyecto responde `409` con el nombre del activo; y diez inicios simultáneos de
 
 ### Pruebas de la Historia 3 ⚠️
 
-- [ ] T039 [P] [US3] Pruebas unitarias **obligatorias** de `SprintStatus.ValidateTransition` en
+- [X] T039 [P] [US3] Pruebas unitarias **obligatorias** de `SprintStatus.ValidateTransition` en
       `backend/internal/sprints/domain/status_test.go`, recorriendo la **matriz completa de 9
       pares** origen-destino: solo `planned → active` y `active → closed` devuelven `nil`; los
       otros siete, incluida la permanencia, `ErrInvalidSprintTransition` (RN-02, RN-18, SC-006) —
       depende de T038
-- [ ] T040 [P] [US3] Pruebas unitarias **obligatorias** de `Start` en el servicio en
+- [X] T040 [P] [US3] Pruebas unitarias **obligatorias** de `Start` en el servicio en
       `backend/internal/sprints/service/sprint_service_test.go`, con dobles y reloj fijo: proyecto
       Finalizado → `ErrSprintsReadOnly`; sprint `active` → `ErrInvalidSprintTransition`; sprint
       `closed` → `ErrSprintClosed`; otro activo → `ActiveSprintExistsError` con ese sprint (RN-06);
       el instante pasado al repositorio es el del reloj; y el servicio **no llama a ninguna
       operación de proyectos** (RN-07) — depende de T038
-- [ ] T041 [US3] Pruebas de integración de la historia en
+- [X] T041 [US3] Pruebas de integración de la historia en
       `backend/internal/sprints/delivery/handler_test.go`, con `// Escenario: <nombre> (004/US3)`:
       `TestUS3_InicioConHistorias` (`active`, `startedAt` igual al reloj y
       `committed_story_points` igual a la suma en la base), `TestUS3_ProyectoPlanificadoNoCambia`
@@ -465,18 +465,18 @@ proyecto responde `409` con el nombre del activo; y diez inicios simultáneos de
       `TestUS3_InicioAntesDeLaFecha`, `TestUS3_OtroSprintActivo` (`409` con `sprint`),
       `TestUS3_SprintYaActivo`, `TestUS3_SprintCerrado` y `TestUS3_ProyectoFinalizado` — depende de
       T038
-- [ ] T042 [P] [US3] Agregar al archivo
+- [X] T042 [P] [US3] Agregar al archivo
       `backend/internal/sprints/delivery/sprint_concurrency_test.go` de T013 la prueba, **sin**
       etiqueta `004/USn`:
       `TestSprintStart_Concurrency` crea diez sprints Planificados no superpuestos en el mismo
       proyecto y los inicia a la vez desde diez goroutines; exactamente una respuesta es `200`, nueve
       son `409`, y la base tiene **un** sprint `active` (SC-005). Repetida varias veces para que el
       intercalado sea real — depende de T038
-- [ ] T043 [P] [US3] Prueba de integración del puerto de la 002 en
+- [X] T043 [P] [US3] Prueba de integración del puerto de la 002 en
       `backend/internal/projects/repository/sprint_directory_test.go`, contra la base de test: sin
       sprints o solo con Planificados y Cerrados → `(nil, nil)`; con uno Activo → su `ID` y su
       `Name`; y el Activo de otro proyecto no cuenta — depende de T038
-- [ ] T044 [P] [US3] Pruebas de frontend en
+- [X] T044 [P] [US3] Pruebas de frontend en
       `frontend/src/features/sprints/components/sprint-lifecycle-actions.test.tsx`, con
       `describe("004/US3 - Iniciar un sprint")` y un `it` por escenario, incluido que el botón de
       inicio solo aparece en un sprint Planificado y que el `409` muestra el nombre del sprint
@@ -484,23 +484,23 @@ proyecto responde `409` con el nombre del activo; y diez inicios simultáneos de
 
 ### Implementación de la Historia 3
 
-- [ ] T045 [US3] Implementar `ValidateTransition(to)` en `backend/internal/sprints/domain/status.go`
+- [X] T045 [US3] Implementar `ValidateTransition(to)` en `backend/internal/sprints/domain/status.go`
       con el mismo patrón de mapa de transiciones que `ProjectStatus` de la 002 — depende de T039
-- [ ] T046 [US3] Implementar `Start` en `backend/internal/sprints/repository/sprint_repository.go` en
+- [X] T046 [US3] Implementar `Start` en `backend/internal/sprints/repository/sprint_repository.go` en
       **una transacción**: bloquear el proyecto (`FOR UPDATE`) y el sprint; Finalizado →
       `ErrSprintsReadOnly`; validar la transición con el estado releído; buscar otro sprint `active`
       del proyecto (si existe → `ActiveSprintExistsError`); fijar `status = active`,
       `started_at = now` y `committed_story_points` con la suma de `user_stories.story_points` de
       sus compromisos (`COALESCE(..., 0)`). Traducir `gorm.ErrDuplicatedKey` del índice parcial al
       mismo `ActiveSprintExistsError` (research.md sección 5) — depende de T041, T042 y T045
-- [ ] T047 [US3] Implementar `Start(ctx, access)` en `backend/internal/sprints/service/sprint_service.go`
+- [X] T047 [US3] Implementar `Start(ctx, access)` en `backend/internal/sprints/service/sprint_service.go`
       con el instante del reloj inyectado — depende de T040 y T046
-- [ ] T048 [US3] Implementar el manejador `startSprint` en
+- [X] T048 [US3] Implementar el manejador `startSprint` en
       `backend/internal/sprints/delivery/handler.go` con anotaciones `swag` en español y registrar
       `POST /start` en el grupo del sprint en `backend/internal/sprints/delivery/routes.go`.
       Respuestas: `200` con `SprintDetail`, `401`, `404` y `409` con `SprintConflictResponse` o
       `ErrorResponse` — depende de T047
-- [ ] T049 [US3] Reemplazar el cuerpo de `backend/internal/projects/repository/sprint_directory.go`
+- [X] T049 [US3] Reemplazar el cuerpo de `backend/internal/projects/repository/sprint_directory.go`
       por la lectura real del sprint `active` sobre el modelo `sprintsdomain.Sprint` (solo `id` y
       `name`), con `NewSprintDirectory(db *gorm.DB)`; actualizar su composición en
       `backend/cmd/app/main.go` (las dos instancias, la del servicio de proyectos y la del de
@@ -508,12 +508,12 @@ proyecto responde `409` con el nombre del activo; y diez inicios simultáneos de
       En `newStatusTestEnv`, el directorio recibe **la misma sesión con contador** que los
       repositorios del servicio. **No** se toca `projects/service` (research.md sección 17.1) —
       depende de T043
-- [ ] T050 [US3] Verificar que la prueba de conteo de consultas de la vista de estado de la 002 siga
+- [X] T050 [US3] Verificar que la prueba de conteo de consultas de la vista de estado de la 002 siga
       dentro del límite de **4 consultas** de su SC-003 ahora que el directorio de sprints hace una
       consulta real, y que la prueba de la 002 que rechaza finalizar con un sprint activo pase con un
       sprint `active` sembrado en la base; ajustar sus comentarios si cuentan un número distinto —
       depende de T049
-- [ ] T051 [US3] Implementar la llamada de inicio en `frontend/src/features/sprints/api.ts` y el
+- [X] T051 [US3] Implementar la llamada de inicio en `frontend/src/features/sprints/api.ts` y el
       componente `SprintLifecycleActions` en
       `frontend/src/features/sprints/components/sprint-lifecycle-actions.tsx` con la acción de
       iniciar, integrado en la pantalla de detalle — depende de T044 y T048

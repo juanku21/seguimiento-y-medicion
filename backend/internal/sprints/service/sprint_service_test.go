@@ -468,3 +468,121 @@ func TestSprintService_RemoveStories_HistoriaCompletada(t *testing.T) {
 	assert.Nil(t, view)
 	d.repo.AssertExpectations(t)
 }
+
+// Pruebas unitarias obligatorias del inicio de un sprint en el servicio (T040; RN-02, RN-06, RN-07,
+// RN-19, FR-026 a FR-032). Siguen el orden de data-model.md sección 4 y research.md sección 18: la
+// solo lectura del proyecto Finalizado se evalúa primero y sin tocar el repositorio; después, el
+// estado del sprint leído con FindDetail (closed → ErrSprintClosed, active → la transición no
+// permitida). El repositorio decide dentro de su transacción si hay otro sprint activo. El servicio
+// no tiene dependencia hacia proyectos: los dobles fallan ante cualquier llamada no configurada, lo
+// que prueba que iniciar no dispara otra operación (RN-07). Igual que las anteriores, no llevan
+// etiqueta de escenario: los TestUS3_* son las pruebas de integración de T041.
+
+// expectSuccessfulStart configura el detalle planned del sprint, que el servicio lee antes y después
+// del inicio, y el repositorio para aceptar el inicio con el instante del reloj fijo.
+func expectSuccessfulStart(d serviceDoubles, sprintID uuid.UUID) {
+	d.repo.On("FindDetail", mock.Anything, sprintID).
+		Return(sprintDetailWithStatus(sprintID, domain.SprintStatusPlanned), nil)
+	d.repo.On("Start", mock.Anything, sprintID, serviceFixedNow).Return(nil).Once()
+}
+
+// FR-026, FR-028: un sprint planned se inicia delegando en el repositorio con el sprint del acceso
+// y el instante del reloj inyectado, que es el que queda como momento real de inicio; la respuesta
+// es el detalle del sprint.
+func TestSprintService_Start_InstanteDelReloj(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(false)
+	expectSuccessfulStart(d, access.SprintID)
+
+	view, err := svc.Start(context.Background(), access)
+
+	require.NoError(t, err)
+	require.NotNil(t, view)
+	require.NotNil(t, view.Detail)
+	assert.Equal(t, access.SprintID, view.Detail.Sprint.ID)
+	d.repo.AssertCalled(t, "Start", mock.Anything, access.SprintID, serviceFixedNow)
+	d.repo.AssertExpectations(t)
+}
+
+// RN-19: con el proyecto Finalizado el inicio se rechaza con ErrSprintsReadOnly sin leer el sprint
+// ni escribir.
+func TestSprintService_Start_ProyectoFinalizado(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(true)
+
+	view, err := svc.Start(context.Background(), access)
+
+	require.ErrorIs(t, err, domain.ErrSprintsReadOnly)
+	assert.Nil(t, view)
+	d.repo.AssertNotCalled(t, "FindDetail", mock.Anything, mock.Anything)
+	d.repo.AssertNotCalled(t, "Start", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// RN-02: un sprint que ya está active no se vuelve a iniciar; el inicio se rechaza con
+// ErrInvalidSprintTransition y no llega al repositorio.
+func TestSprintService_Start_SprintYaActivo(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(false)
+	d.repo.On("FindDetail", mock.Anything, access.SprintID).
+		Return(sprintDetailWithStatus(access.SprintID, domain.SprintStatusActive), nil).Once()
+
+	view, err := svc.Start(context.Background(), access)
+
+	require.ErrorIs(t, err, domain.ErrInvalidSprintTransition)
+	assert.Nil(t, view)
+	d.repo.AssertNotCalled(t, "Start", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// RN-02, RN-18: un sprint closed es definitivo; el inicio se rechaza con ErrSprintClosed (no con la
+// transición genérica) y no llega al repositorio.
+func TestSprintService_Start_SprintCerrado(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(false)
+	d.repo.On("FindDetail", mock.Anything, access.SprintID).
+		Return(sprintDetailWithStatus(access.SprintID, domain.SprintStatusClosed), nil).Once()
+
+	view, err := svc.Start(context.Background(), access)
+
+	require.ErrorIs(t, err, domain.ErrSprintClosed)
+	assert.NotErrorIs(t, err, domain.ErrInvalidSprintTransition)
+	assert.Nil(t, view)
+	d.repo.AssertNotCalled(t, "Start", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// RN-06: si el proyecto ya tiene otro sprint activo, el repositorio rechaza el inicio con
+// ActiveSprintExistsError; el servicio lo propaga extraíble con errors.As, con el identificador y el
+// nombre de ese sprint para la respuesta 409, y no vuelve a leer el detalle.
+func TestSprintService_Start_OtroSprintActivo(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(false)
+	active := domain.ConflictingSprint{ID: uuid.New(), Name: "Sprint 1"}
+	d.repo.On("FindDetail", mock.Anything, access.SprintID).
+		Return(sprintDetailWithStatus(access.SprintID, domain.SprintStatusPlanned), nil).Once()
+	d.repo.On("Start", mock.Anything, access.SprintID, serviceFixedNow).
+		Return(&domain.ActiveSprintExistsError{Sprint: active}).Once()
+
+	view, err := svc.Start(context.Background(), access)
+
+	var exists *domain.ActiveSprintExistsError
+	require.ErrorAs(t, err, &exists)
+	assert.Equal(t, active, exists.Sprint)
+	assert.Nil(t, view)
+	d.repo.AssertExpectations(t)
+}
+
+// RN-07: iniciar un sprint no cambia el estado del proyecto. El servicio solo lee el sprint e
+// invoca Start una vez, sin consultar el puerto de esfuerzo. Los dobles atados a t fallan ante
+// cualquier llamada no configurada (m.Called), de modo que otra operación del repositorio haría
+// fallar la prueba; y el servicio no recibe dependencia alguna del módulo de proyectos.
+func TestSprintService_Start_NoTocaElProyecto(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(false)
+	expectSuccessfulStart(d, access.SprintID)
+
+	_, err := svc.Start(context.Background(), access)
+
+	require.NoError(t, err)
+	d.repo.AssertExpectations(t)
+	d.repo.AssertNumberOfCalls(t, "Start", 1)
+	d.effort.AssertNotCalled(t, "HasEffort", mock.Anything, mock.Anything)
+}

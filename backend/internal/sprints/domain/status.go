@@ -13,3 +13,20 @@ const (
 	SprintStatusActive  SprintStatus = "active"
 	SprintStatusClosed  SprintStatus = "closed"
 )
+
+// allowedSprintTransitions asocia cada estado con el único estado al que puede avanzar; closed no
+// figura porque es terminal (RN-02).
+var allowedSprintTransitions = map[SprintStatus]SprintStatus{
+	SprintStatusPlanned: SprintStatusActive,
+	SprintStatusActive:  SprintStatusClosed,
+}
+
+// ValidateTransition indica si el sprint puede pasar del estado actual al destino: devuelve nil
+// solo para planned -> active y active -> closed, y ErrInvalidSprintTransition para cualquier
+// salto, retroceso o permanencia en el mismo estado (FR-047, RN-02).
+func (s SprintStatus) ValidateTransition(to SprintStatus) error {
+	if next, ok := allowedSprintTransitions[s]; ok && next == to {
+		return nil
+	}
+	return ErrInvalidSprintTransition
+}

@@ -1,6 +1,6 @@
 // Package repository persiste las entidades del módulo de proyectos con GORM e implementa los
-// puertos hacia otros módulos: el resumen del backlog de la spec 003 y el directorio de sprints, que
-// sigue siendo provisorio mientras la spec 004 no exista.
+// puertos hacia otros módulos: el resumen del backlog de la spec 003 y el directorio de sprints de
+// la spec 004.
 package repository
 
 import (

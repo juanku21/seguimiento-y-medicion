@@ -1,6 +1,7 @@
 package delivery
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -46,18 +47,17 @@ func sprintConcurrentBodies() []map[string]any {
 	return bodies
 }
 
-// postSprintsAtOnce envía todas las creaciones desde goroutines que esperan la misma señal de
-// salida, para maximizar la simultaneidad, y devuelve las respuestas en el orden de los cuerpos.
-// Cada goroutine escribe solo en su posición del slice, así que no comparten estado mutable.
-func (e sprintTestEnv) postSprintsAtOnce(t *testing.T, token string, projectID uuid.UUID, bodies []map[string]any) []*httptest.ResponseRecorder {
-	t.Helper()
-	recs := make([]*httptest.ResponseRecorder, len(bodies))
+// sprintRequestsAtOnce ejecuta n solicitudes desde goroutines que esperan la misma señal de salida,
+// para maximizar la simultaneidad, y devuelve las respuestas en el orden de los índices. Cada
+// goroutine escribe solo en su posición del slice, así que no comparten estado mutable.
+func sprintRequestsAtOnce(n int, send func(i int) *httptest.ResponseRecorder) []*httptest.ResponseRecorder {
+	recs := make([]*httptest.ResponseRecorder, n)
 	start := make(chan struct{})
 	var wg sync.WaitGroup
-	for i, body := range bodies {
+	for i := range n {
 		wg.Go(func() {
 			<-start
-			recs[i] = e.postSprint(t, token, projectID, body)
+			recs[i] = send(i)
 		})
 	}
 	close(start)
@@ -78,7 +78,9 @@ func TestSprintCreate_Concurrency(t *testing.T) {
 		t.Run(fmt.Sprintf("repeticion_%d", round+1), func(t *testing.T) {
 			projectID := sprintSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
 
-			recs := env.postSprintsAtOnce(t, anaToken, projectID, bodies)
+			recs := sprintRequestsAtOnce(len(bodies), func(i int) *httptest.ResponseRecorder {
+				return env.postSprint(t, anaToken, projectID, bodies[i])
+			})
 
 			// Cada respuesta es una creación o un rechazo por superposición, y se acepta una por par.
 			created := 0
@@ -103,6 +105,80 @@ func TestSprintCreate_Concurrency(t *testing.T) {
 					a := domain.Period{Start: stored[i].StartDate, End: stored[i].EndDate}
 					b := domain.Period{Start: stored[j].StartDate, End: stored[j].EndDate}
 					assert.False(t, domain.PeriodsOverlap(a, b), "se superponen %q y %q", stored[i].Name, stored[j].Name)
+				}
+			}
+		})
+	}
+}
+
+// Pruebas de integración del inicio simultáneo de sprints (T042; SC-005, research.md sección 5):
+// varias goroutines envían a la vez POST /api/v1/sprints/{sprintId}/start sobre sprints Planificados
+// distintos del mismo proyecto, y al terminar se verifica que el proyecto tiene un solo sprint
+// activo. Igual que la creación simultánea, no lleva la etiqueta de un escenario de la spec.
+
+// sprintSeedConcurrentPlanned siembra en el proyecto diez sprints Planificados con períodos
+// consecutivos de 10 días separados por un día libre, así que ninguno se superpone con otro, y
+// devuelve sus identificadores.
+func sprintSeedConcurrentPlanned(t *testing.T, env sprintTestEnv, projectID, authorID uuid.UUID) []uuid.UUID {
+	t.Helper()
+	base := time.Date(2026, time.October, 1, 0, 0, 0, 0, time.UTC)
+	ids := make([]uuid.UUID, 0, sprintConcurrentRequests)
+	for i := range sprintConcurrentRequests {
+		start := base.AddDate(0, 0, 11*i)
+		end := start.AddDate(0, 0, 10)
+		ids = append(ids, sprintSeed(t, env.db, projectID, authorID, fmt.Sprintf("Sprint %d", i+1),
+			start.Format(time.DateOnly), end.Format(time.DateOnly)))
+	}
+	return ids
+}
+
+// Diez inicios simultáneos de sprints Planificados distintos del mismo proyecto: en cada repetición
+// exactamente uno responde 200 y los otros nueve 409 nombrando al sprint que quedó activo, y en la
+// base el proyecto tiene un único sprint active, el aceptado (SC-005, RN-06).
+func TestSprintStart_Concurrency(t *testing.T) {
+	env := newSprintTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+
+	// Cada repetición usa un proyecto recién sembrado con sus diez sprints Planificados.
+	for round := range sprintConcurrentRounds {
+		t.Run(fmt.Sprintf("repeticion_%d", round+1), func(t *testing.T) {
+			projectID := sprintSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+			sprintIDs := sprintSeedConcurrentPlanned(t, env, projectID, anaID)
+
+			recs := sprintRequestsAtOnce(len(sprintIDs), func(i int) *httptest.ResponseRecorder {
+				return env.startSprint(t, anaToken, sprintIDs[i])
+			})
+
+			// Cada respuesta es un inicio o un rechazo por otro sprint activo, y se acepta uno solo.
+			var startedIDs []string
+			var conflicts []*httptest.ResponseRecorder
+			for i, rec := range recs {
+				switch rec.Code {
+				case http.StatusOK:
+					startedIDs = append(startedIDs, sprintIDs[i].String())
+				case http.StatusConflict:
+					conflicts = append(conflicts, rec)
+				default:
+					t.Errorf("solicitud %d: código %d inesperado; cuerpo: %s", i+1, rec.Code, rec.Body.String())
+				}
+			}
+			require.Len(t, startedIDs, 1, "debería aceptarse exactamente un inicio")
+			assert.Len(t, conflicts, sprintConcurrentRequests-1, "los demás inicios deberían responder 409")
+
+			// En la base hay un único sprint activo y es el que se aceptó.
+			var active []domain.Sprint
+			require.NoError(t, env.db.Where("project_id = ? AND status = ?", projectID, domain.SprintStatusActive).
+				Find(&active).Error, "no se pudieron leer los sprints activos del proyecto")
+			require.Len(t, active, 1, "el proyecto debería tener un solo sprint activo")
+			assert.Equal(t, startedIDs[0], active[0].ID.String(), "el sprint activo debería ser el aceptado")
+
+			// Cada 409 nombra al sprint que quedó activo.
+			for _, rec := range conflicts {
+				var body sprintConflictBody
+				require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "el cuerpo del 409 no es JSON válido: %s", rec.Body.String())
+				if assert.NotNil(t, body.Sprint, "el 409 debe indicar el sprint activo: %s", rec.Body.String()) {
+					assert.Equal(t, active[0].ID.String(), body.Sprint.ID)
+					assert.Equal(t, active[0].Name, body.Sprint.Name)
 				}
 			}
 		})

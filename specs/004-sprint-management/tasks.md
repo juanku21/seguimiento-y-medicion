@@ -751,7 +751,7 @@ el detalle de un sprint Activo con fin el 2026-10-14 consultado el 2026-10-04 in
       `backend/internal/sprints/domain/schedule.go`, tomando la fecha de calendario de `now` en la
       zona y devolviendo `remainingDays` u `overdueDays`, **nunca un número negativo** (research.md
       sección 15) — depende de T071
-- [ ] T077 [US6] Implementar `List`, `HasSprints` y `ListForStory` en
+- [X] T077 [US6] Implementar `List`, `HasSprints` y `ListForStory` en
       `backend/internal/sprints/repository/sprint_repository.go`: `List` es **una sola consulta**
       sobre `sprints` del proyecto con el fragmento `sprintResultsSelect` de T067 como subconsulta
       agregada por sprint,

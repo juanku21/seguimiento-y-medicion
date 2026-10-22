@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	authdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/delivery"
+	backlogdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/domain"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
 
@@ -341,6 +342,53 @@ func TestValidateSprintInput_TodosLosCamposInvalidos(t *testing.T) {
 				assert.NotEmpty(t, f.Message, "el mensaje del campo %q no puede estar vacío", f.Field)
 			}
 			assert.Equal(t, domain.SprintInput{}, got)
+		})
+	}
+}
+
+// Pruebas unitarias de la validación del cuerpo del avance de una historia (T053; FR-033,
+// contracts/openapi.yaml, StoryStatusInput). El cuerpo solo admite los tres valores de StoryStatus;
+// si una transición está admitida o no lo decide después ValidateStoryProgress con un 409, de modo
+// que pending es un valor válido para el cuerpo. Igual que las de ValidateSprintInput, no llevan la
+// etiqueta de un escenario: los nombres TestUS4_* son de las pruebas de integración (T055).
+
+// Los tres estados de la historia pasan la validación y se devuelven como StoryStatus.
+func TestValidateStoryStatusInput_EstadosAdmitidos(t *testing.T) {
+	cases := []struct {
+		raw  string
+		want backlogdomain.StoryStatus
+	}{
+		{"pending", backlogdomain.StoryStatusPending},
+		{"in_progress", backlogdomain.StoryStatusInProgress},
+		{"completed", backlogdomain.StoryStatusCompleted},
+	}
+	for _, tc := range cases {
+		t.Run(tc.raw, func(t *testing.T) {
+			got, fields := ValidateStoryStatusInput(StoryStatusInput{Status: tc.raw})
+
+			require.Empty(t, fields, "el estado %q debería ser válido", tc.raw)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// Un estado ausente o vacío se rechaza en el campo status y no devuelve ningún estado.
+func TestValidateStoryStatusInput_EstadoObligatorio(t *testing.T) {
+	got, fields := ValidateStoryStatusInput(StoryStatusInput{})
+
+	validationRequireOnlyField(t, fields, "status")
+	assert.Empty(t, got)
+}
+
+// Un estado fuera de pending, in_progress y completed se rechaza en el campo status; la comparación
+// es exacta, sin recortar espacios ni ignorar mayúsculas, como el enum del contrato.
+func TestValidateStoryStatusInput_EstadoDesconocido(t *testing.T) {
+	for _, raw := range []string{"done", "planned", "COMPLETED", "In_Progress", " completed", "pending ", "in-progress"} {
+		t.Run(raw, func(t *testing.T) {
+			got, fields := ValidateStoryStatusInput(StoryStatusInput{Status: raw})
+
+			validationRequireOnlyField(t, fields, "status")
+			assert.Empty(t, got)
 		})
 	}
 }

@@ -291,3 +291,11 @@ func formatOptionalTime(moment *time.Time) *string {
 	formatted := moment.UTC().Format(time.RFC3339)
 	return &formatted
 }
+
+// StoryStatusInput es el cuerpo del registro del avance de una historia (contracts/openapi.yaml,
+// FR-033). El estado llega como texto para que la validación distinga un estado ausente de uno
+// desconocido y responda en el campo status.
+type StoryStatusInput struct {
+	// Estado destino de la historia: pending, in_progress o completed.
+	Status string `json:"status" validate:"required" enums:"pending,in_progress,completed" example:"in_progress"`
+}

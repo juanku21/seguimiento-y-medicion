@@ -541,7 +541,7 @@ y el salto directo de `pending` a `completed` responde `409` con las transicione
       `pending`/`in_progress`/`completed`: solo `pending → in_progress`, `in_progress → completed` y
       `completed → in_progress` devuelven `nil`; los demás, incluido el salto a `completed` y todo
       destino `pending`, `ErrInvalidStoryTransition` (RN-11, RN-12, FR-038) — depende de T051
-- [ ] T053 [P] [US4] Pruebas unitarias de la validación del cuerpo del avance en
+- [X] T053 [P] [US4] Pruebas unitarias de la validación del cuerpo del avance en
       `backend/internal/sprints/delivery/validation_test.go`: `status` **obligatorio** y limitado a
       `pending`, `in_progress` o `completed`; ausente o con otro valor → `400` en el campo `status`
       — depende de T051

@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	authdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/delivery"
+	backlogdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/domain"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
 
@@ -174,4 +175,10 @@ func validateStoryIDs(values []string, listField string, itemField func(i int) s
 		return nil, fields
 	}
 	return ids, nil
+}
+
+// ValidateStoryStatusInput valida el cuerpo del avance de una historia y devuelve el estado destino.
+// Firma mínima de T053: la implementa T060.
+func ValidateStoryStatusInput(req StoryStatusInput) (backlogdomain.StoryStatus, []authdelivery.FieldError) {
+	return "", nil
 }

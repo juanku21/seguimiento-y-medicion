@@ -720,7 +720,7 @@ el detalle de un sprint Activo con fin el 2026-10-14 consultado el 2026-10-04 in
       `emptyReason` `null` con resultados, `no_sprints` sin sprints aunque haya filtro y `no_matches`
       con sprints que no cumplen el filtro, llamando a `HasSprints` **solo** cuando el resultado
       viene vacío; y `schedule` presente solo para un sprint `active` (FR-053) — depende de T070
-- [ ] T074 [US6] Pruebas de integración de la historia en
+- [X] T074 [US6] Pruebas de integración de la historia en
       `backend/internal/sprints/delivery/handler_test.go`, con `// Escenario: <nombre> (004/US6)`:
       `TestUS6_HistorialDeCerrados` (tres cerrados con nombre, Sprint Goal, cuatro fechas y los cinco
       totales), `TestUS6_ListadoCompletoYFiltro` (Cerrado, Activo y Planificado en el listado; solo

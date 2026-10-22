@@ -251,7 +251,7 @@ solapa un día responde `409` con el nombre del primero.
       **constantes nombradas en un único lugar**, las fechas parseadas con `time.DateOnly` y un
       `FieldError` por cada campo inválido. Se reutilizará sin cambios en la modificación (US7). La
       validación ocurre antes de la capa de servicio (Principio VII) — depende de T011
-- [ ] T017 [US1] Implementar `Create` y `FindDetail` en
+- [X] T017 [US1] Implementar `Create` y `FindDetail` en
       `backend/internal/sprints/repository/sprint_repository.go`: `Create` abre **una transacción**
       que toma el bloqueo de fila del proyecto con `clause.Locking{Strength: "UPDATE"}` leyendo
       `projects.status` (Finalizado → `ErrSprintsReadOnly`), busca el sprint del proyecto que se

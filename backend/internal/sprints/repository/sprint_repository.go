@@ -3,12 +3,15 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	backlogdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/domain"
+	projectsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/domain"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
 
@@ -17,7 +20,8 @@ import (
 var errNotImplemented = errors.New("not implemented")
 
 // SprintRepository implementa domain.SprintRepository con GORM sobre las tablas sprints y
-// sprint_stories. Firma mínima de T013: las operaciones se implementan desde T017.
+// sprint_stories. Create y FindDetail están implementadas; las demás operaciones conservan la firma
+// mínima de T013 y se implementan en la tarea de su historia.
 type SprintRepository struct {
 	db *gorm.DB
 }
@@ -32,9 +36,51 @@ func (r *SprintRepository) FindAccessible(ctx context.Context, sprintID, userID 
 	return nil, errNotImplemented
 }
 
-// Create registra un sprint. Firma mínima: se implementa en T017.
+// Create registra el sprint en una transacción (research.md sección 4). Primero toma un bloqueo
+// FOR UPDATE sobre la fila del proyecto y lee su estado: así las escrituras de calendario de un mismo
+// proyecto quedan serializadas y un proyecto Finalizado se rechaza con ErrSprintsReadOnly (FR-059).
+// Después busca, entre todos los sprints del proyecto y cualquiera sea su estado, uno cuyo período se
+// superponga con el nuevo, con la traducción de PeriodsOverlap a desigualdades estrictas; si lo hay,
+// devuelve SprintOverlapError con el de inicio más temprano (y luego menor id), para que el mensaje
+// sea determinista (FR-005); se lee con Find y LIMIT 1 para que la ausencia de conflicto, que es el
+// caso normal, no pase por gorm.ErrRecordNotFound. Si no, inserta el sprint; CreatedAt y UpdatedAt
+// los completa GORM.
 func (r *SprintRepository) Create(ctx context.Context, sprint *domain.Sprint) error {
-	return errNotImplemented
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var project projectsdomain.Project
+		err := tx.
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("status").
+			Where("id = ?", sprint.ProjectID).
+			Take(&project).Error
+		if err != nil {
+			return fmt.Errorf("bloquear el proyecto del sprint: %w", err)
+		}
+		if project.Status == projectsdomain.ProjectStatusFinished {
+			return domain.ErrSprintsReadOnly
+		}
+
+		var conflicts []domain.ConflictingSprint
+		err = tx.
+			Model(&domain.Sprint{}).
+			Select("id, name").
+			Where("project_id = ?", sprint.ProjectID).
+			Where("start_date < ? AND ? < end_date", sprint.EndDate, sprint.StartDate).
+			Order("start_date ASC, id ASC").
+			Limit(1).
+			Find(&conflicts).Error
+		if err != nil {
+			return fmt.Errorf("buscar sprints superpuestos: %w", err)
+		}
+		if len(conflicts) > 0 {
+			return &domain.SprintOverlapError{Sprint: conflicts[0]}
+		}
+
+		if err := tx.Create(sprint).Error; err != nil {
+			return fmt.Errorf("insertar sprint: %w", err)
+		}
+		return nil
+	})
 }
 
 // Update modifica un sprint planificado. Firma mínima.
@@ -82,9 +128,61 @@ func (r *SprintRepository) HasSprints(ctx context.Context, projectID uuid.UUID) 
 	return false, errNotImplemented
 }
 
-// FindDetail devuelve el detalle de un sprint. Firma mínima: se implementa en T017.
+// sprintDetailRow es la fila que lee FindDetail: las columnas del sprint más el identificador y el
+// nombre completo del autor, que llegan por el JOIN a users con los alias author_id y
+// author_full_name.
+type sprintDetailRow struct {
+	domain.Sprint  `gorm:"embedded"`
+	AuthorID       uuid.UUID
+	AuthorFullName string
+}
+
+// FindDetail lee el detalle del sprint en dos consultas (research.md sección 19). La primera une
+// sprints con users y de users selecciona solo id y full_name, de modo que password_hash nunca entra
+// al módulo; si no hay fila devuelve ErrSprintNotFound, nunca gorm.ErrRecordNotFound ni (nil, nil).
+// La segunda lee las historias vivas del sprint, uniendo sprint_stories con user_stories para tomar
+// los datos vigentes de cada historia, ordenadas por prioridad Alta, Media, Baja, luego por momento
+// de compromiso y por último por id; sin historias devuelve una lista vacía, nunca nil. ClosedBy y
+// Results quedan en nil: el detalle de un sprint Cerrado se completa en la historia de cierre.
 func (r *SprintRepository) FindDetail(ctx context.Context, sprintID uuid.UUID) (*domain.SprintDetail, error) {
-	return nil, errNotImplemented
+	db := r.db.WithContext(ctx)
+
+	var row sprintDetailRow
+	err := db.
+		Table("sprints").
+		Select("sprints.*, users.id AS author_id, users.full_name AS author_full_name").
+		Joins("JOIN users ON users.id = sprints.created_by_id").
+		Where("sprints.id = ?", sprintID).
+		Take(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, domain.ErrSprintNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("buscar el detalle del sprint: %w", err)
+	}
+
+	stories := []domain.SprintStoryView{}
+	err = db.
+		Table("sprint_stories").
+		Select("user_stories.id AS story_id, user_stories.title, user_stories.priority, "+
+			"user_stories.story_points, user_stories.status, sprint_stories.completed_at").
+		Joins("JOIN user_stories ON user_stories.id = sprint_stories.story_id").
+		Where("sprint_stories.sprint_id = ?", sprintID).
+		Order("CASE user_stories.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, " +
+			"sprint_stories.committed_at ASC, user_stories.id ASC").
+		Scan(&stories).Error
+	if err != nil {
+		return nil, fmt.Errorf("leer las historias del sprint: %w", err)
+	}
+
+	return &domain.SprintDetail{
+		Sprint: row.Sprint,
+		CreatedBy: domain.SprintUserRef{
+			ID:       row.AuthorID,
+			FullName: row.AuthorFullName,
+		},
+		Stories: stories,
+	}, nil
 }
 
 // ListForStory devuelve el historial de sprints de una historia. Firma mínima.

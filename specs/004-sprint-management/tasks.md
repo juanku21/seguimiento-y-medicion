@@ -945,6 +945,20 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       sprint está abierto", alineándolo con data-model.md y con la respuesta de
       `GET /api/v1/stories/{storyId}/sprints` per plan: contrato de la API (contradicts) — origen:
       converge, detectado en hu/004-us6-consultar-el-historial
+- [ ] T104 Agregar pruebas de integración que verifiquen que
+      `GET /api/v1/projects/{projectId}/sprints` responde `400`, no `200` con todos los sprints,
+      cuando la query no se puede interpretar (más de 10.000 parámetros `status`, `status=%zz` y
+      `status=closed;x`), y el mismo caso para `GET /api/v1/projects/{projectId}/stories`, en
+      `backend/internal/sprints/delivery/handler_test.go` y
+      `backend/internal/backlog/delivery/handler_test.go`, más una prueba del middleware en
+      `backend/internal/platform/httpserver/` per hallazgo de seguridad: query mal formada que ignora
+      los filtros sin aviso (security) — origen: seguridad, detectado en 004/US6
+- [ ] T105 Agregar en `backend/internal/platform/httpserver/` un middleware que valide
+      `c.Request.URL.RawQuery` con `url.ParseQuery` y responda `400` con un mensaje descriptivo si
+      hay error, registrarlo con `router.Use` en `backend/cmd/app/main.go` junto a
+      `LimitRequestBody`, actualizar las respuestas `400` de Swagger de los listados afectados y el
+      comentario de `TestSprintList_EstadoRepetidoMilesDeVeces` per hallazgo de seguridad: query mal
+      formada que ignora los filtros sin aviso (security) — origen: seguridad, detectado en 004/US6
 
 ---
 

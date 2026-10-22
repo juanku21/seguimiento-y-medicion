@@ -771,7 +771,7 @@ el detalle de un sprint Activo con fin el 2026-10-14 consultado el 2026-10-04 in
       `backend/internal/sprints/delivery/handler.go`; y registrar `GET /sprints` en el subgrupo del
       proyecto y `GET /api/v1/stories/:storyId/sprints` con el `RequireStoryAccess` inyectado en
       `backend/internal/sprints/delivery/routes.go` — depende de T072 y T078
-- [ ] T080 [US6] Implementar las llamadas de listado e historial de una historia en
+- [X] T080 [US6] Implementar las llamadas de listado e historial de una historia en
       `frontend/src/features/sprints/api.ts`; los componentes `SprintList` en
       `frontend/src/features/sprints/components/sprint-list.tsx`, `SprintHistoryTable` en
       `frontend/src/features/sprints/components/sprint-history-table.tsx`, `SprintSchedule` en

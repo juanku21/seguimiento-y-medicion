@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useCallback, useId } from "react";
 import { Alert } from "@/components/alert";
 import { listStorySprints } from "@/features/sprints/api";
-import { useRequireSession } from "@/hooks/use-session";
-import type { StorySprintHistoryItem } from "@/types/sprint";
+import { useAuthorizedQuery } from "@/hooks/use-authorized-query";
 import { formatDate } from "@/utils/format-date";
 import {
   SPRINT_STATUS_LABELS,
@@ -16,12 +15,6 @@ export type StorySprintHistoryProps = {
   storyId: string;
 };
 
-// Estado de la consulta: todavía sin respuesta, los sprints recibidos o el mensaje de error.
-type HistoryState =
-  | { status: "loading" }
-  | { status: "loaded"; sprints: StorySprintHistoryItem[] }
-  | { status: "error"; message: string };
-
 const MUTED_CLASS_NAME = "text-sm text-zinc-600 dark:text-zinc-400";
 
 // Sprints en los que estuvo una historia y su resultado en cada uno (004/US6, FR-055). Pide el
@@ -30,30 +23,9 @@ const MUTED_CLASS_NAME = "text-sm text-zinc-600 dark:text-zinc-400";
 // llega como 404 y se muestra su mensaje; ante un 401 el cliente HTTP borra el token.
 export function StorySprintHistory({ storyId }: StorySprintHistoryProps) {
   const headingId = useId();
-  const token = useRequireSession();
-  const [state, setState] = useState<HistoryState>({ status: "loading" });
-
-  // Pide el historial con un token vigente y cada vez que cambia la historia. La bandera descarta
-  // la respuesta si llegó otra consulta o el componente se desmontó.
-  useEffect(() => {
-    if (token === null) {
-      return;
-    }
-    let isCurrent = true;
-    listStorySprints(storyId).then((result) => {
-      if (!isCurrent) {
-        return;
-      }
-      setState(
-        result.ok
-          ? { status: "loaded", sprints: result.data.sprints }
-          : { status: "error", message: result.error.message },
-      );
-    });
-    return () => {
-      isCurrent = false;
-    };
-  }, [token, storyId]);
+  // Pide el historial con un token vigente y cada vez que cambia la historia.
+  const load = useCallback(() => listStorySprints(storyId), [storyId]);
+  const state = useAuthorizedQuery(load);
 
   // Contenido de la sección según el estado de la consulta.
   function renderContent() {
@@ -67,7 +39,8 @@ export function StorySprintHistory({ storyId }: StorySprintHistoryProps) {
         </p>
       );
     }
-    if (state.sprints.length === 0) {
+    const { sprints } = state.data;
+    if (sprints.length === 0) {
       return (
         <p className={MUTED_CLASS_NAME}>
           La historia todavía no estuvo en ningún sprint.
@@ -76,7 +49,7 @@ export function StorySprintHistory({ storyId }: StorySprintHistoryProps) {
     }
     return (
       <ul className="flex flex-col gap-2">
-        {state.sprints.map((sprint) => (
+        {sprints.map((sprint) => (
           <li
             key={sprint.sprintId}
             className="flex flex-col gap-1 rounded-md border border-zinc-300 px-4 py-3 dark:border-zinc-700"

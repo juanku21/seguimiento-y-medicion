@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback } from "react";
 import { Alert } from "@/components/alert";
 import { listSprints } from "@/features/sprints/api";
-import { useRequireSession } from "@/hooks/use-session";
-import type { SprintListResponse } from "@/types/sprint";
+import { useAuthorizedQuery } from "@/hooks/use-authorized-query";
 import { formatDate } from "@/utils/format-date";
 import { SPRINT_STATUS_LABELS } from "@/utils/sprint-labels";
 
@@ -13,12 +12,6 @@ import { SPRINT_STATUS_LABELS } from "@/utils/sprint-labels";
 export type SprintListProps = {
   projectId: string;
 };
-
-// Estado de la consulta: todavía sin respuesta, el listado recibido o el mensaje de error.
-type ListState =
-  | { status: "loading" }
-  | { status: "loaded"; data: SprintListResponse }
-  | { status: "error"; message: string };
 
 // Arma la cantidad de historias en singular o plural.
 function formatStoryCount(count: number): string {
@@ -30,30 +23,9 @@ function formatStoryCount(count: number): string {
 // FR-052, FR-054). El proyecto inexistente o ajeno llega como 404 y se muestra solo su mensaje
 // (FR-058); ante un 401 el cliente HTTP borra el token y la guardia lleva a /login.
 export function SprintList({ projectId }: SprintListProps) {
-  const token = useRequireSession();
-  const [state, setState] = useState<ListState>({ status: "loading" });
-
-  // Pide el listado con un token vigente y cada vez que cambia el proyecto. La bandera descarta la
-  // respuesta si llegó otra consulta o el componente se desmontó.
-  useEffect(() => {
-    if (token === null) {
-      return;
-    }
-    let isCurrent = true;
-    listSprints(projectId).then((result) => {
-      if (!isCurrent) {
-        return;
-      }
-      setState(
-        result.ok
-          ? { status: "loaded", data: result.data }
-          : { status: "error", message: result.error.message },
-      );
-    });
-    return () => {
-      isCurrent = false;
-    };
-  }, [token, projectId]);
+  // Pide el listado con un token vigente y cada vez que cambia el proyecto.
+  const load = useCallback(() => listSprints(projectId), [projectId]);
+  const state = useAuthorizedQuery(load);
 
   if (state.status === "error") {
     return <Alert>{state.message}</Alert>;

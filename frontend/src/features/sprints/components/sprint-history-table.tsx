@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback } from "react";
 import { Alert } from "@/components/alert";
 import { listSprints } from "@/features/sprints/api";
-import { useRequireSession } from "@/hooks/use-session";
-import type { SprintListResponse, SprintStatus } from "@/types/sprint";
+import { useAuthorizedQuery } from "@/hooks/use-authorized-query";
+import type { SprintStatus } from "@/types/sprint";
 import { formatDate, formatInstant } from "@/utils/format-date";
 
 // Propiedades del historial de sprints cerrados: el proyecto cuyo historial se consulta.
@@ -12,14 +12,7 @@ export type SprintHistoryTableProps = {
   projectId: string;
 };
 
-// Estado de la consulta: todavía sin respuesta, el listado recibido o el mensaje de error.
-type HistoryState =
-  | { status: "loading" }
-  | { status: "loaded"; data: SprintListResponse }
-  | { status: "error"; message: string };
-
-// Filtro del historial: solo los sprints cerrados. Es una constante del módulo para que el efecto no
-// vuelva a consultar en cada render.
+// Filtro del historial: solo los sprints cerrados.
 const CLOSED_ONLY: SprintStatus[] = ["closed"];
 
 // Encabezados de las columnas del historial, en el orden en que se muestran.
@@ -49,30 +42,12 @@ function formatReal(instant: string | null, timeZone: string): string {
 // los devuelve el backend. Los vacíos (proyecto sin sprints o sin cerrados) se informan como estado
 // normal; un rechazo se muestra con su mensaje y ante un 401 el cliente HTTP borra el token.
 export function SprintHistoryTable({ projectId }: SprintHistoryTableProps) {
-  const token = useRequireSession();
-  const [state, setState] = useState<HistoryState>({ status: "loading" });
-
-  // Pide los sprints cerrados con un token vigente y cada vez que cambia el proyecto. La bandera
-  // descarta la respuesta si llegó otra consulta o el componente se desmontó.
-  useEffect(() => {
-    if (token === null) {
-      return;
-    }
-    let isCurrent = true;
-    listSprints(projectId, CLOSED_ONLY).then((result) => {
-      if (!isCurrent) {
-        return;
-      }
-      setState(
-        result.ok
-          ? { status: "loaded", data: result.data }
-          : { status: "error", message: result.error.message },
-      );
-    });
-    return () => {
-      isCurrent = false;
-    };
-  }, [token, projectId]);
+  // Pide los sprints cerrados con un token vigente y cada vez que cambia el proyecto.
+  const load = useCallback(
+    () => listSprints(projectId, CLOSED_ONLY),
+    [projectId],
+  );
+  const state = useAuthorizedQuery(load);
 
   if (state.status === "error") {
     return <Alert>{state.message}</Alert>;

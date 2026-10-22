@@ -4,7 +4,8 @@
 //	@title						Software Metrics & Estimation — API
 //	@version					1.0.0
 //	@description				API de Software Metrics & Estimation: autenticación y cuentas de usuario, gestión de
-//	@description				proyectos y de sus integrantes, y Product Backlog de cada proyecto.
+//	@description				proyectos y de sus integrantes, Product Backlog de cada proyecto y planificación de sus
+//	@description				sprints.
 //	@description				Las únicas operaciones públicas son el registro y el inicio de sesión; las demás exigen
 //	@description				la cabecera `Authorization: Bearer <token>`.
 //	@BasePath					/
@@ -45,6 +46,9 @@ import (
 	projectsdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/delivery"
 	projectsrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/repository"
 	projectsservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/service"
+	sprintsdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/delivery"
+	sprintsrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/repository"
+	sprintsservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/service"
 )
 
 // envFile es el archivo de variables de desarrollo, relativo al directorio backend/ desde el que
@@ -140,6 +144,18 @@ func run() error {
 	backlogHandler := backlogdelivery.NewHandler(stories)
 	backlogdelivery.RegisterRoutes(projectGroup, backlogHandler)
 	backlogdelivery.RegisterStoryRoutes(router, handler.RequireSession, storyRepository, backlogHandler)
+
+	// El módulo de sprints se compone sobre su repositorio y el puerto de esfuerzo, que todavía no
+	// existe y responde sin esfuerzo, con la zona horaria del sistema y el reloj. Sus rutas de
+	// colección cuelgan del subgrupo /api/v1/projects/:projectId, que ya exige sesión y membresía,
+	// recibido aquí para que sprints/delivery no importe projects/delivery.
+	sprints := sprintsservice.NewSprintService(
+		sprintsrepository.NewSprintRepository(db),
+		sprintsrepository.NewSprintEffort(),
+		cfg.Location,
+		time.Now,
+	)
+	sprintsdelivery.RegisterRoutes(projectGroup, sprintsdelivery.NewHandler(sprints))
 
 	// ReadHeaderTimeout acota el tiempo para recibir las cabeceras y ReadTimeout el de la solicitud
 	// completa, cuerpo incluido, para evitar conexiones colgadas.

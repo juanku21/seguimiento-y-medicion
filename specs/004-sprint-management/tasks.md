@@ -194,12 +194,12 @@ solapa un día responde `409` con el nombre del primero.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T010 [P] [US1] Pruebas unitarias **obligatorias** de `PeriodsOverlap` en
+- [X] T010 [P] [US1] Pruebas unitarias **obligatorias** de `PeriodsOverlap` en
       `backend/internal/sprints/domain/period_test.go`, cubriendo RN-05 y SC-004: comparten solo el
       día de borde (10-01→10-14 y 10-14→10-28) → **no** se superponen, en los dos órdenes; un día de
       solape (10-01→10-14 y 10-13→10-20) → sí; período idéntico → sí; contención total en los dos
       sentidos → sí; disjuntos con un día de separación → no — depende de T009
-- [ ] T011 [P] [US1] Pruebas unitarias **obligatorias** de validación en
+- [X] T011 [P] [US1] Pruebas unitarias **obligatorias** de validación en
       `backend/internal/sprints/delivery/validation_test.go`, cubriendo RN-03 y RN-04: nombre
       **obligatorio, entre 1 y 100 runas tras `TrimSpace`**, con ausente o solo espacios rechazado y
       100 válido y 101 rechazado; Sprint Goal **obligatorio, entre 1 y 500 runas tras `TrimSpace`**,
@@ -207,14 +207,14 @@ solapa un día responde `409` con el nombre del primero.
       `YYYY-MM-DD`**, con ausentes y mal formadas rechazadas; `endDate` igual o anterior a
       `startDate` rechazada en el campo `endDate`, y el día siguiente aceptado. La validación
       devuelve **todos** los campos inválidos a la vez — depende de T009
-- [ ] T012 [P] [US1] Pruebas unitarias **obligatorias** de la creación en el servicio en
+- [X] T012 [P] [US1] Pruebas unitarias **obligatorias** de la creación en el servicio en
       `backend/internal/sprints/service/sprint_service_test.go`, con dobles de `testify/mock` de
       `SprintRepository` y `SprintEffort` y un reloj fijo: el sprint nace `planned` (FR-006) con un
       UUID nuevo, sin `CommittedStoryPoints`, `StartedAt` ni datos de cierre; el autor es el actor
       recibido y no un dato de la entrada (FR-060); un actor que no es el propietario crea igual
       (RN-01); y los errores `ErrSprintsReadOnly` y `SprintOverlapError` del repositorio se
       propagan sin envolverlos de forma que se pierdan (RN-19) — depende de T009
-- [ ] T013 [US1] Pruebas de integración de la historia en
+- [X] T013 [US1] Pruebas de integración de la historia en
       `backend/internal/sprints/delivery/handler_test.go`, con un ayudante `newSprintTestEnv` que
       compone el router como `cmd/app` (sesión de la 001, rutas de la 002 con su subgrupo
       `/:projectId`, rutas de la 003 con `RequireStoryAccess`, rutas de sprints y
@@ -234,7 +234,7 @@ solapa un día responde `409` con el nombre del primero.
       sprints del mismo proyecto con períodos que se superponen de a pares; al terminar, ningún par
       de sprints del proyecto cumple `PeriodsOverlap` (SC-004). Repetida varias veces para que el
       intercalado sea real — depende de T009
-- [ ] T014 [P] [US1] Pruebas de frontend en
+- [X] T014 [P] [US1] Pruebas de frontend en
       `frontend/src/features/sprints/components/sprint-form.test.tsx` y
       `frontend/src/features/sprints/validation.test.ts`, con
       `describe("004/US1 - Planificar un sprint")` y un `it` por escenario de la spec, incluido que
@@ -243,15 +243,15 @@ solapa un día responde `409` con el nombre del primero.
 
 ### Implementación de la Historia 1
 
-- [ ] T015 [US1] Implementar `Period` y `PeriodsOverlap(a, b Period) bool` en
+- [X] T015 [US1] Implementar `Period` y `PeriodsOverlap(a, b Period) bool` en
       `backend/internal/sprints/domain/period.go` con la condición
       `a.Start < b.End && b.Start < a.End` (research.md sección 4) — depende de T010
-- [ ] T016 [US1] Implementar la normalización y validación del cuerpo `SprintInput` en
+- [X] T016 [US1] Implementar la normalización y validación del cuerpo `SprintInput` en
       `backend/internal/sprints/delivery/validation.go`, con los límites 100 y 500 declarados como
       **constantes nombradas en un único lugar**, las fechas parseadas con `time.DateOnly` y un
       `FieldError` por cada campo inválido. Se reutilizará sin cambios en la modificación (US7). La
       validación ocurre antes de la capa de servicio (Principio VII) — depende de T011
-- [ ] T017 [US1] Implementar `Create` y `FindDetail` en
+- [X] T017 [US1] Implementar `Create` y `FindDetail` en
       `backend/internal/sprints/repository/sprint_repository.go`: `Create` abre **una transacción**
       que toma el bloqueo de fila del proyecto con `clause.Locking{Strength: "UPDATE"}` leyendo
       `projects.status` (Finalizado → `ErrSprintsReadOnly`), busca el sprint del proyecto que se
@@ -261,19 +261,19 @@ solapa un día responde `409` con el nombre del primero.
       vivas desde `sprint_stories JOIN user_stories`, en dos consultas, y devuelve
       `ErrSprintNotFound` si no hay fila (research.md secciones 4 y 19) — depende de T005, T013 y
       T015
-- [ ] T018 [US1] Implementar en `backend/internal/sprints/service/sprint_service.go` el constructor
+- [X] T018 [US1] Implementar en `backend/internal/sprints/service/sprint_service.go` el constructor
       `NewSprintService(repo SprintRepository, effort SprintEffort, location *time.Location, now
       func() time.Time)`, con la firma definitiva para que no cambie en las historias siguientes; el
       método `Create(ctx, projectID, actorID, input)`, que construye el sprint con UUID, estado
       `planned` y autor el actor; y el armado del detalle (`buildDetail`), que reutilizarán todas las
       historias — depende de T012 y T017
-- [ ] T019 [US1] Declarar en `backend/internal/sprints/delivery/dto.go` los esquemas de
+- [X] T019 [US1] Declarar en `backend/internal/sprints/delivery/dto.go` los esquemas de
       contracts/openapi.yaml `SprintInput`, `SprintDetail`, `SprintStoryItem`, `UserRef`,
       `SprintRef` y `SprintConflictResponse`, reutilizando `ErrorResponse`, `FieldError` y
       `ValidationErrorResponse` de la 001. Las fechas se serializan con `time.DateOnly`; `startedAt`,
       `closedAt`, `closedBy`, `results`, `hoursPerStoryPoint` y `schedule` como `null` cuando no
       tienen valor, y `stories` como `[]`, nunca como `null` — depende de T018
-- [ ] T020 [US1] Implementar el manejador `createSprint` en
+- [X] T020 [US1] Implementar el manejador `createSprint` en
       `backend/internal/sprints/delivery/handler.go` con anotaciones `swag` en español, que lee al
       titular con `authdelivery.CurrentUserID` y el proyecto del parámetro `projectId` ya validado
       por `RequireMembership`; crear `RegisterRoutes` en
@@ -285,21 +285,21 @@ solapa un día responde `409` con el nombre del primero.
       `201` con `SprintDetail`, `400`, `401`, `404` de `RequireMembership` y `409` con
       `SprintConflictResponse` o `ErrorResponse` (`El proyecto está finalizado y sus sprints son de
       solo lectura.`) — depende de T013, T016 y T019
-- [ ] T021 [P] [US1] Declarar los tipos de petición y respuesta en `frontend/src/types/sprint.ts` y,
+- [X] T021 [P] [US1] Declarar los tipos de petición y respuesta en `frontend/src/types/sprint.ts` y,
       en `frontend/src/utils/sprint-labels.ts`, las etiquetas en español del estado del sprint
       (`planned` → Planificado, `active` → Activo, `closed` → Cerrado) y del resultado
       (`completed` → Completada, `not_completed` → No completada). **Prohibido el tipo `any`**
       (Principio VIII)
-- [ ] T022 [US1] Implementar la llamada de creación en `frontend/src/features/sprints/api.ts` sobre
+- [X] T022 [US1] Implementar la llamada de creación en `frontend/src/features/sprints/api.ts` sobre
       el cliente `fetch` de la 001, y las reglas del formulario en
       `frontend/src/features/sprints/validation.ts` con los límites 100 y 500 como constantes
       nombradas en un único lugar — depende de T014 y T021
-- [ ] T023 [US1] Implementar `SprintForm` en
+- [X] T023 [US1] Implementar `SprintForm` en
       `frontend/src/features/sprints/components/sprint-form.tsx` con los mensajes en español, los
       límites visibles antes de enviar y la indicación del sprint en conflicto cuando la respuesta es
       `409`. Antes de escribir código, leer la documentación de Next.js de
       `frontend/node_modules/next/dist/docs/` — depende de T022
-- [ ] T024 [US1] Crear la pantalla `frontend/src/app/projects/[projectId]/sprints/new/page.tsx`,
+- [X] T024 [US1] Crear la pantalla `frontend/src/app/projects/[projectId]/sprints/new/page.tsx`,
       protegida con la guardia de sesión de la 001 — depende de T023
 
 **Checkpoint**: US1 funciona y se prueba sola. El MVP está entregable.

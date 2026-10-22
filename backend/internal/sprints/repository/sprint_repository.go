@@ -20,7 +20,7 @@ import (
 var errNotImplemented = errors.New("not implemented")
 
 // SprintRepository implementa domain.SprintRepository con GORM sobre las tablas sprints y
-// sprint_stories. FindAccessible, Create, AssignStories, RemoveStories y FindDetail están
+// sprint_stories. FindAccessible, Create, Start, AssignStories, RemoveStories y FindDetail están
 // implementadas; las demás operaciones conservan la firma mínima de T013 y se implementan en la tarea
 // de su historia.
 type SprintRepository struct {
@@ -126,9 +126,146 @@ func (r *SprintRepository) Delete(ctx context.Context, sprintID uuid.UUID) error
 	return errNotImplemented
 }
 
-// Start inicia un sprint. Firma mínima.
+// Start inicia el sprint en una transacción (research.md sección 5). Primero lee el proyecto del
+// sprint, que nunca cambia, y bloquea con FOR UPDATE la fila del proyecto, igual que Create, para que
+// los inicios de un mismo proyecto queden serializados; después bloquea el sprint y relee su estado,
+// en ese orden (proyecto y luego sprint) para no interbloquearse con las demás escrituras. Con los
+// datos releídos rechaza el proyecto Finalizado con ErrSprintsReadOnly (FR-059), el sprint Cerrado
+// con ErrSprintClosed y cualquier otra transición que no sea planned → active con
+// ValidateTransition. Si el proyecto ya tiene otro sprint activo devuelve ActiveSprintExistsError con
+// ese sprint (FR-027). Si no, fija status = active, started_at = now y committed_story_points con la
+// suma de los Story Points de sus compromisos, cero si no tiene (FR-028). El índice único parcial de
+// un activo por proyecto es el respaldo: si la escritura lo viola, se deshace hasta el punto de
+// guardado previo y se informa el mismo ActiveSprintExistsError con el sprint activo releído.
 func (r *SprintRepository) Start(ctx context.Context, sprintID uuid.UUID, now time.Time) error {
-	return errNotImplemented
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		sprint, err := lockProjectAndSprint(tx, sprintID)
+		if err != nil {
+			return err
+		}
+		if sprint.Status == domain.SprintStatusClosed {
+			return domain.ErrSprintClosed
+		}
+		if err := sprint.Status.ValidateTransition(domain.SprintStatusActive); err != nil {
+			return err
+		}
+
+		active, err := otherActiveSprint(tx, sprint.ProjectID, sprintID)
+		if err != nil {
+			return err
+		}
+		if active != nil {
+			return &domain.ActiveSprintExistsError{Sprint: *active}
+		}
+
+		// Los Story Points comprometidos se congelan con la suma de las historias vivas del sprint.
+		var committedPoints int
+		err = tx.
+			Table("sprint_stories").
+			Select("COALESCE(SUM(user_stories.story_points), 0)").
+			Joins("JOIN user_stories ON user_stories.id = sprint_stories.story_id").
+			Where("sprint_stories.sprint_id = ?", sprintID).
+			Scan(&committedPoints).Error
+		if err != nil {
+			return fmt.Errorf("sumar los story points comprometidos: %w", err)
+		}
+
+		// La actualización va en una transacción anidada (punto de guardado) para que, si el índice
+		// parcial la rechaza, la transacción externa siga utilizable y pueda releer el sprint activo.
+		err = tx.Transaction(func(inner *gorm.DB) error {
+			return inner.
+				Model(&domain.Sprint{}).
+				Where("id = ?", sprintID).
+				Updates(map[string]any{
+					"status":                 domain.SprintStatusActive,
+					"started_at":             now,
+					"committed_story_points": committedPoints,
+				}).Error
+		})
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return activeSprintExistsError(tx, sprint.ProjectID, sprintID, err)
+		}
+		if err != nil {
+			return fmt.Errorf("iniciar el sprint: %w", err)
+		}
+		return nil
+	})
+}
+
+// lockProjectAndSprint toma, dentro de la transacción recibida, los bloqueos del inicio: lee el
+// proyecto del sprint sin bloquear (si no existe devuelve ErrSprintNotFound), bloquea con FOR UPDATE
+// la fila del proyecto y rechaza el proyecto Finalizado con ErrSprintsReadOnly, y por último bloquea
+// la fila del sprint y relee su estado ya serializado.
+func lockProjectAndSprint(tx *gorm.DB, sprintID uuid.UUID) (*domain.Sprint, error) {
+	var owner domain.Sprint
+	err := tx.Select("project_id").Where("id = ?", sprintID).Take(&owner).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, domain.ErrSprintNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("leer el proyecto del sprint: %w", err)
+	}
+
+	var project projectsdomain.Project
+	err = tx.
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("status").
+		Where("id = ?", owner.ProjectID).
+		Take(&project).Error
+	if err != nil {
+		return nil, fmt.Errorf("bloquear el proyecto del sprint: %w", err)
+	}
+	if project.Status == projectsdomain.ProjectStatusFinished {
+		return nil, domain.ErrSprintsReadOnly
+	}
+
+	var sprint domain.Sprint
+	err = tx.
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id, project_id, status").
+		Where("id = ?", sprintID).
+		Take(&sprint).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, domain.ErrSprintNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("bloquear el sprint: %w", err)
+	}
+	return &sprint, nil
+}
+
+// otherActiveSprint devuelve el sprint activo del proyecto distinto del indicado, o nil si no hay
+// ninguno; se lee con Find y LIMIT 1 para que la ausencia, que es el caso normal, no pase por
+// gorm.ErrRecordNotFound.
+func otherActiveSprint(tx *gorm.DB, projectID, sprintID uuid.UUID) (*domain.ConflictingSprint, error) {
+	var active []domain.ConflictingSprint
+	err := tx.
+		Model(&domain.Sprint{}).
+		Select("id, name").
+		Where("project_id = ? AND status = ? AND id <> ?", projectID, domain.SprintStatusActive, sprintID).
+		Limit(1).
+		Find(&active).Error
+	if err != nil {
+		return nil, fmt.Errorf("buscar otro sprint activo del proyecto: %w", err)
+	}
+	if len(active) == 0 {
+		return nil, nil
+	}
+	return &active[0], nil
+}
+
+// activeSprintExistsError traduce la violación del índice parcial de un activo por proyecto a
+// ActiveSprintExistsError con el sprint activo releído. Si la relectura no encuentra ninguno,
+// devuelve envuelto el error original de la actualización.
+func activeSprintExistsError(tx *gorm.DB, projectID, sprintID uuid.UUID, updateErr error) error {
+	active, err := otherActiveSprint(tx, projectID, sprintID)
+	if err != nil {
+		return err
+	}
+	if active == nil {
+		return fmt.Errorf("iniciar el sprint: %w", updateErr)
+	}
+	return &domain.ActiveSprintExistsError{Sprint: *active}
 }
 
 // Close cierra un sprint. Firma mínima.

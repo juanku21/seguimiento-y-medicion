@@ -648,7 +648,7 @@ completadas por 13, `POST /api/v1/sprints/{sprintId}/close` devuelve `results` c
 
 ### Implementación de la Historia 5
 
-- [ ] T066 [US5] Implementar `Outcome(status)` en `backend/internal/sprints/domain/progress.go` —
+- [X] T066 [US5] Implementar `Outcome(status)` en `backend/internal/sprints/domain/progress.go` —
       depende de T062
 - [ ] T067 [US5] Implementar `Close` en `backend/internal/sprints/repository/sprint_repository.go` en
       **una transacción**: bloquear el sprint (`FOR UPDATE`) y leer el estado del proyecto;

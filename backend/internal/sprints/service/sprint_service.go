@@ -4,7 +4,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -65,7 +64,7 @@ func (s *SprintService) Create(ctx context.Context, projectID, actorID uuid.UUID
 // después el estado del sprint; superados ambos controles delega en el repositorio con el instante
 // del reloj inyectado y propaga sus rechazos envueltos con %w, como StoriesNotAdmittedError.
 func (s *SprintService) AssignStories(ctx context.Context, access *domain.SprintAccess, storyIDs []uuid.UUID) (*SprintView, error) {
-	if err := s.ensureEditable(ctx, access); err != nil {
+	if _, err := s.ensureEditable(ctx, access); err != nil {
 		return nil, err
 	}
 	if err := s.repo.AssignStories(ctx, access.SprintID, storyIDs, s.now()); err != nil {
@@ -79,7 +78,7 @@ func (s *SprintService) AssignStories(ctx context.Context, access *domain.Sprint
 // pending, y devuelve el detalle actualizado (FR-022, FR-023). Aplica los mismos controles que
 // AssignStories y propaga envueltos los rechazos del repositorio, como ErrCompletedStoryRemoval.
 func (s *SprintService) RemoveStories(ctx context.Context, access *domain.SprintAccess, storyIDs []uuid.UUID) (*SprintView, error) {
-	if err := s.ensureEditable(ctx, access); err != nil {
+	if _, err := s.ensureEditable(ctx, access); err != nil {
 		return nil, err
 	}
 	if err := s.repo.RemoveStories(ctx, access.SprintID, storyIDs); err != nil {
@@ -89,10 +88,25 @@ func (s *SprintService) RemoveStories(ctx context.Context, access *domain.Sprint
 	return s.buildDetail(ctx, access.SprintID)
 }
 
-// Start inicia el sprint del acceso y devuelve su detalle actualizado (FR-026 a FR-032). Firma
-// mínima para que compilen las pruebas de T040; la implementación corresponde a T047.
+// Start inicia el sprint del acceso y devuelve su detalle actualizado (FR-026 a FR-032). Aplica la
+// solo lectura del proyecto Finalizado y el rechazo del sprint cerrado, y después valida la
+// transición hacia active sin llegar al repositorio si no corresponde (RN-02). Superados los
+// controles delega en el repositorio con el instante del reloj inyectado, que queda como inicio
+// real, y propaga envueltos sus rechazos, como ActiveSprintExistsError (RN-06). No toca el estado
+// del proyecto (RN-07).
 func (s *SprintService) Start(ctx context.Context, access *domain.SprintAccess) (*SprintView, error) {
-	return nil, errors.New("not implemented")
+	detail, err := s.ensureEditable(ctx, access)
+	if err != nil {
+		return nil, err
+	}
+	if err := detail.Sprint.Status.ValidateTransition(domain.SprintStatusActive); err != nil {
+		return nil, err
+	}
+	if err := s.repo.Start(ctx, access.SprintID, s.now()); err != nil {
+		return nil, fmt.Errorf("iniciar sprint: %w", err)
+	}
+
+	return s.buildDetail(ctx, access.SprintID)
 }
 
 // Detail devuelve el detalle del sprint del acceso con sus historias vivas (FR-053). Es una lectura:
@@ -105,19 +119,20 @@ func (s *SprintService) Detail(ctx context.Context, access *domain.SprintAccess)
 // ensureEditable verifica que el sprint del acceso admita cambios en sus historias: el proyecto
 // Finalizado se rechaza con ErrSprintsReadOnly sin consultar el repositorio (RN-19) y el sprint
 // cerrado con ErrSprintClosed. El repositorio repite ambos controles dentro de su transacción.
-func (s *SprintService) ensureEditable(ctx context.Context, access *domain.SprintAccess) error {
+// Devuelve el detalle leído para que quien lo necesite, como Start, valide su estado sin releerlo.
+func (s *SprintService) ensureEditable(ctx context.Context, access *domain.SprintAccess) (*domain.SprintDetail, error) {
 	if access.ProjectFinished {
-		return domain.ErrSprintsReadOnly
+		return nil, domain.ErrSprintsReadOnly
 	}
 	detail, err := s.repo.FindDetail(ctx, access.SprintID)
 	if err != nil {
-		return fmt.Errorf("leer sprint a modificar: %w", err)
+		return nil, fmt.Errorf("leer sprint a modificar: %w", err)
 	}
 	if detail.Sprint.Status == domain.SprintStatusClosed {
-		return domain.ErrSprintClosed
+		return nil, domain.ErrSprintClosed
 	}
 
-	return nil
+	return detail, nil
 }
 
 // buildDetail arma la vista de un sprint a partir de su detalle persistido; la respuesta de toda

@@ -25,3 +25,13 @@ func RegisterSprintRoutes(router *gin.Engine, requireSession gin.HandlerFunc, sp
 	sprintGroup.DELETE("/stories", handler.removeSprintStories)
 	sprintGroup.POST("/start", handler.startSprint)
 }
+
+// RegisterStoryRoutes registra las rutas de sprints sobre una historia en el grupo plano
+// /api/v1/stories/:storyId, con el middleware de sesión y el RequireStoryAccess de la 003 recibidos
+// desde cmd/app para no importar backlog/delivery (research.md sección 2). La historia inexistente,
+// ajena o con identificador mal formado recibe el mismo 404 que en la 003, antes de llegar al
+// manejador (FR-058).
+func RegisterStoryRoutes(router *gin.Engine, requireSession, requireStoryAccess gin.HandlerFunc, handler *Handler) {
+	storyGroup := router.Group("/api/v1/stories/:storyId", requireSession, requireStoryAccess)
+	storyGroup.PUT("/status", handler.changeStoryStatus)
+}

@@ -151,7 +151,9 @@ func run() error {
 	// colección cuelgan del subgrupo /api/v1/projects/:projectId, que ya exige sesión y membresía,
 	// recibido aquí para que sprints/delivery no importe projects/delivery. Las rutas de ítem van en el
 	// grupo plano /api/v1/sprints/:sprintId, que exige sesión y RequireSprintAccess sobre la misma
-	// instancia del repositorio de sprints que usa el servicio.
+	// instancia del repositorio de sprints que usa el servicio. Las rutas de sprints sobre una historia
+	// reciben como gin.HandlerFunc el RequireStoryAccess de la 003, sobre la misma instancia del
+	// repositorio de historias, para que sprints/delivery no importe backlog/delivery.
 	sprintRepository := sprintsrepository.NewSprintRepository(db)
 	sprints := sprintsservice.NewSprintService(
 		sprintRepository,
@@ -162,6 +164,7 @@ func run() error {
 	sprintsHandler := sprintsdelivery.NewHandler(sprints)
 	sprintsdelivery.RegisterRoutes(projectGroup, sprintsHandler)
 	sprintsdelivery.RegisterSprintRoutes(router, handler.RequireSession, sprintRepository, sprintsHandler)
+	sprintsdelivery.RegisterStoryRoutes(router, handler.RequireSession, backlogdelivery.RequireStoryAccess(storyRepository), sprintsHandler)
 
 	// ReadHeaderTimeout acota el tiempo para recibir las cabeceras y ReadTimeout el de la solicitud
 	// completa, cuerpo incluido, para evitar conexiones colgadas.

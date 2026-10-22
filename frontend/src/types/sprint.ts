@@ -86,3 +86,12 @@ export type SprintConflictResponse = {
   error: string;
   sprint: SprintRef;
 };
+
+// Resultado del registro de avance de una historia del sprint Activo (StoryProgressResponse,
+// FR-033 a FR-035); completedAt llega en null salvo cuando la historia queda Completada.
+export type StoryProgressResponse = {
+  storyId: string;
+  sprintId: string;
+  status: StoryStatus;
+  completedAt: string | null;
+};

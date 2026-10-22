@@ -3,7 +3,8 @@
 import { useRef, useState } from "react";
 import { Alert } from "@/components/alert";
 import { removeSprintStories } from "@/features/sprints/api";
-import type { SprintDetail } from "@/types/sprint";
+import { StoryProgressControl } from "@/features/sprints/components/story-progress-control";
+import type { SprintDetail, StoryProgressResponse } from "@/types/sprint";
 import {
   STORY_PRIORITY_LABELS,
   STORY_STATUS_LABELS,
@@ -11,7 +12,7 @@ import {
 } from "@/utils/story-labels";
 
 // Propiedades de la lista de historias del sprint: el sprint con sus historias y la función que
-// recibe el detalle actualizado tras quitar historias.
+// recibe el detalle actualizado tras quitar historias o registrar su avance.
 export type SprintStoryListProps = {
   sprint: SprintDetail;
   onChanged: (sprint: SprintDetail) => void;
@@ -20,12 +21,14 @@ export type SprintStoryListProps = {
 // Lista de las historias comprometidas en un sprint, con la acción de quitarlas (004/US2). Muestra
 // cada historia en el orden recibido con su estado, sus Story Points y su prioridad. Solo en un
 // sprint abierto ofrece quitar las historias que no están Completadas (RN-09, RN-21); con el 200
-// entrega el detalle actualizado a la pantalla y con un rechazo muestra su mensaje. Ante un 401 el
-// cliente HTTP descarta la sesión.
+// entrega el detalle actualizado a la pantalla y con un rechazo muestra su mensaje. En un sprint
+// Activo cada fila ofrece además el control de avance (004/US4). Ante un 401 el cliente HTTP descarta
+// la sesión.
 export function SprintStoryList({ sprint, onChanged }: SprintStoryListProps) {
   const [error, setError] = useState<string | null>(null);
   const submittingRef = useRef(false);
   const isOpen = sprint.status !== "closed";
+  const isActive = sprint.status === "active";
 
   // Envía la baja de una historia. La referencia descarta un segundo envío mientras el primero sigue
   // en curso.
@@ -45,6 +48,23 @@ export function SprintStoryList({ sprint, onChanged }: SprintStoryListProps) {
     setError(result.error.message);
   }
 
+  // Entrega a la pantalla el sprint con el estado y el completedAt de la historia avanzada
+  // reemplazados por los que registró el backend; el resto del detalle se conserva.
+  function handleProgress(progress: StoryProgressResponse) {
+    onChanged({
+      ...sprint,
+      stories: sprint.stories.map((story) =>
+        story.storyId === progress.storyId
+          ? {
+              ...story,
+              status: progress.status,
+              completedAt: progress.completedAt,
+            }
+          : story,
+      ),
+    });
+  }
+
   // Sprint sin historias: se informa como estado normal, no como error.
   if (sprint.stories.length === 0) {
     return (
@@ -58,7 +78,7 @@ export function SprintStoryList({ sprint, onChanged }: SprintStoryListProps) {
     <section className="flex flex-col gap-3">
       {error && <Alert>{error}</Alert>}
 
-      {/* Historias comprometidas, con la acción de quitar solo donde las reglas la admiten. */}
+      {/* Historias comprometidas, con el avance y la acción de quitar solo donde las reglas los admiten. */}
       <ul className="flex flex-col gap-2">
         {sprint.stories.map((story) => (
           <li
@@ -73,15 +93,23 @@ export function SprintStoryList({ sprint, onChanged }: SprintStoryListProps) {
                 {STORY_PRIORITY_LABELS[story.priority].toLowerCase()}
               </p>
             </div>
-            {isOpen && story.status !== "completed" && (
-              <button
-                type="button"
-                onClick={() => handleRemove(story.storyId)}
-                className="shrink-0 rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:border-zinc-700 dark:hover:bg-zinc-800"
-              >
-                Quitar del sprint
-              </button>
-            )}
+            <div className="flex shrink-0 items-start gap-2">
+              {isActive && (
+                <StoryProgressControl
+                  story={story}
+                  onChanged={handleProgress}
+                />
+              )}
+              {isOpen && story.status !== "completed" && (
+                <button
+                  type="button"
+                  onClick={() => handleRemove(story.storyId)}
+                  className="shrink-0 rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                >
+                  Quitar del sprint
+                </button>
+              )}
+            </div>
           </li>
         ))}
       </ul>

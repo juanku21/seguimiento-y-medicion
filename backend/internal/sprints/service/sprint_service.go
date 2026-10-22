@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	backlogdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/domain"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
 
@@ -107,6 +108,32 @@ func (s *SprintService) Start(ctx context.Context, access *domain.SprintAccess) 
 	}
 
 	return s.buildDetail(ctx, access.SprintID)
+}
+
+// ChangeStoryProgress cambia el estado de una historia del sprint activo con el instante del reloj
+// (FR-033 a FR-038). Las guardas dependen de la historia bloqueada, así que las decide el
+// repositorio dentro de su transacción: historia fuera del sprint activo, sprint cerrado, transición
+// no admitida y proyecto Finalizado (RN-11, RN-18, RN-19). El servicio le pasa el instante del reloj
+// inyectado, una sola vez, y propaga sus rechazos envueltos con %w para que delivery los reconozca
+// con errors.Is.
+func (s *SprintService) ChangeStoryProgress(ctx context.Context, storyID uuid.UUID, to backlogdomain.StoryStatus) error {
+	if err := s.repo.ChangeStoryProgress(ctx, storyID, to, s.now()); err != nil {
+		return fmt.Errorf("cambiar avance de historia: %w", err)
+	}
+
+	return nil
+}
+
+// FindOpenCommitment devuelve el compromiso abierto de la historia, o nil sin error si no tiene
+// ninguno. Es una lectura sin reglas de negocio: delivery la usa después de ChangeStoryProgress para
+// armar la respuesta del avance con el sprint y la fecha de completado registrada.
+func (s *SprintService) FindOpenCommitment(ctx context.Context, storyID uuid.UUID) (*domain.SprintStory, error) {
+	commitment, err := s.repo.FindOpenCommitment(ctx, storyID)
+	if err != nil {
+		return nil, fmt.Errorf("leer compromiso abierto de historia: %w", err)
+	}
+
+	return commitment, nil
 }
 
 // Detail devuelve el detalle del sprint del acceso con sus historias vivas (FR-053). Es una lectura:

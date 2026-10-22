@@ -536,21 +536,21 @@ y el salto directo de `pending` a `completed` responde `409` con las transicione
 
 ### Pruebas de la Historia 4 ⚠️
 
-- [ ] T052 [P] [US4] Pruebas unitarias **obligatorias** de `ValidateStoryProgress` en
+- [X] T052 [P] [US4] Pruebas unitarias **obligatorias** de `ValidateStoryProgress` en
       `backend/internal/sprints/domain/progress_test.go`, recorriendo los **9 pares** de
       `pending`/`in_progress`/`completed`: solo `pending → in_progress`, `in_progress → completed` y
       `completed → in_progress` devuelven `nil`; los demás, incluido el salto a `completed` y todo
       destino `pending`, `ErrInvalidStoryTransition` (RN-11, RN-12, FR-038) — depende de T051
-- [ ] T053 [P] [US4] Pruebas unitarias de la validación del cuerpo del avance en
+- [X] T053 [P] [US4] Pruebas unitarias de la validación del cuerpo del avance en
       `backend/internal/sprints/delivery/validation_test.go`: `status` **obligatorio** y limitado a
       `pending`, `in_progress` o `completed`; ausente o con otro valor → `400` en el campo `status`
       — depende de T051
-- [ ] T054 [P] [US4] Pruebas unitarias **obligatorias** de `ChangeStoryProgress` en el servicio en
+- [X] T054 [P] [US4] Pruebas unitarias **obligatorias** de `ChangeStoryProgress` en el servicio en
       `backend/internal/sprints/service/sprint_service_test.go`, con dobles y reloj fijo: el
       instante pasado al repositorio es el del reloj, y `ErrProgressOutsideActiveSprint`,
       `ErrSprintClosed`, `ErrInvalidStoryTransition` y `ErrSprintsReadOnly` del repositorio se
       propagan (RN-11, SC-011) — depende de T051
-- [ ] T055 [US4] Pruebas de integración de la historia en
+- [X] T055 [US4] Pruebas de integración de la historia en
       `backend/internal/sprints/delivery/handler_test.go`, con `// Escenario: <nombre> (004/US4)`:
       `TestUS4_AvanceHastaCompletada` (`completedAt` igual al reloj en la respuesta y en
       `sprint_stories`), `TestUS4_DesmarcarCompletada` (`completedAt: null`),
@@ -561,7 +561,7 @@ y el salto directo de `pending` a `completed` responde `409` con las transicione
       → `409` de sprint cerrado) y `TestUS4_SaltoDePendienteACompletada`. En todos los rechazos el
       estado de la historia y `completed_at` quedan intactos. Además, sin etiqueta de escenario, que
       el `404` de una historia ajena sea **idéntico byte a byte** al de la 003 — depende de T051
-- [ ] T056 [P] [US4] Pruebas de frontend en
+- [X] T056 [P] [US4] Pruebas de frontend en
       `frontend/src/features/sprints/components/story-progress-control.test.tsx`, con
       `describe("004/US4 - Registrar el avance de las historias del sprint")` y un `it` por
       escenario, incluido que el control solo ofrece las transiciones admitidas desde el estado
@@ -569,9 +569,9 @@ y el salto directo de `pending` a `completed` responde `409` con las transicione
 
 ### Implementación de la Historia 4
 
-- [ ] T057 [US4] Implementar `ValidateStoryProgress(from, to backlogdomain.StoryStatus) error` en
+- [X] T057 [US4] Implementar `ValidateStoryProgress(from, to backlogdomain.StoryStatus) error` en
       `backend/internal/sprints/domain/progress.go` — depende de T052
-- [ ] T058 [US4] Implementar `ChangeStoryProgress` en
+- [X] T058 [US4] Implementar `ChangeStoryProgress` en
       `backend/internal/sprints/repository/sprint_repository.go` en **una transacción**: bloquear la
       historia (`FOR UPDATE`) y leer el estado de su proyecto (Finalizado → `ErrSprintsReadOnly`);
       buscar su compromiso abierto y tomar `FOR SHARE` sobre la fila del sprint. Sin compromiso
@@ -580,10 +580,10 @@ y el salto directo de `pending` a `completed` responde `409` con las transicione
       `planned` → `ErrProgressOutsideActiveSprint`. Validar con `ValidateStoryProgress`; escribir
       `user_stories.status` y `sprint_stories.completed_at` (`now` al completar, `NULL` al volver a
       `in_progress`) (research.md sección 13) — depende de T055 y T057
-- [ ] T059 [US4] Implementar `ChangeStoryProgress(ctx, storyID, to)` en
+- [X] T059 [US4] Implementar `ChangeStoryProgress(ctx, storyID, to)` en
       `backend/internal/sprints/service/sprint_service.go` con el instante del reloj — depende de
       T054 y T058
-- [ ] T060 [US4] Declarar `StoryStatusInput` y `StoryProgressResponse` en
+- [X] T060 [US4] Declarar `StoryStatusInput` y `StoryProgressResponse` en
       `backend/internal/sprints/delivery/dto.go`, implementar su validación en
       `backend/internal/sprints/delivery/validation.go` y el manejador `changeStoryStatus` en
       `backend/internal/sprints/delivery/handler.go` con anotaciones `swag` en español; crear en
@@ -592,7 +592,7 @@ y el salto directo de `pending` a `completed` responde `409` con las transicione
       `gin.HandlerFunc` desde `backend/cmd/app/main.go`**, sin que `sprints/delivery` importe
       `backlog/delivery` (research.md sección 2). El mensaje de `ErrInvalidStoryTransition` enumera
       las tres transiciones admitidas — depende de T053 y T059
-- [ ] T061 [US4] Implementar la llamada de avance en `frontend/src/features/sprints/api.ts` y el
+- [X] T061 [US4] Implementar la llamada de avance en `frontend/src/features/sprints/api.ts` y el
       componente `StoryProgressControl` en
       `frontend/src/features/sprints/components/story-progress-control.tsx`, integrado en cada fila
       de `SprintStoryList` cuando el sprint está Activo — depende de T056 y T060

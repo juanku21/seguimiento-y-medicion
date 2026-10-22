@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	authdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/delivery"
+	backlogdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/domain"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
 
@@ -174,4 +175,27 @@ func validateStoryIDs(values []string, listField string, itemField func(i int) s
 		return nil, fields
 	}
 	return ids, nil
+}
+
+// Mensajes de validación del estado destino del avance de una historia, señalados en el campo status.
+var (
+	msgStatusRequired = "El estado es obligatorio."
+	msgStatusInvalid  = "Los valores admitidos para el estado son pending, in_progress y completed."
+)
+
+// ValidateStoryStatusInput valida el cuerpo del avance de una historia y devuelve el estado destino
+// (contracts/openapi.yaml, StoryStatusInput). El estado es obligatorio y debe ser exactamente uno de
+// los tres valores de StoryStatus, sin recortar espacios ni ignorar mayúsculas. Si la transición está
+// admitida lo decide después ValidateStoryProgress, así que pending es un valor válido para el cuerpo.
+// Ante cualquier problema devuelve un estado vacío y un único FieldError en status.
+func ValidateStoryStatusInput(req StoryStatusInput) (backlogdomain.StoryStatus, []authdelivery.FieldError) {
+	status := backlogdomain.StoryStatus(req.Status)
+	switch status {
+	case "":
+		return "", []authdelivery.FieldError{{Field: "status", Message: msgStatusRequired}}
+	case backlogdomain.StoryStatusPending, backlogdomain.StoryStatusInProgress, backlogdomain.StoryStatusCompleted:
+		return status, nil
+	default:
+		return "", []authdelivery.FieldError{{Field: "status", Message: msgStatusInvalid}}
+	}
 }

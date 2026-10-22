@@ -40,7 +40,8 @@ import (
 // repositorio de sprints contra la base smye_test (Principios II y V). Las de US1 (T013) cubren
 // POST /api/v1/projects/{projectId}/sprints; las de US2 (T028) cubren POST y DELETE
 // /api/v1/sprints/{sprintId}/stories detrás de RequireSprintAccess y la restricción de la 003 sobre
-// historias comprometidas; las de US3 (T041) cubren POST /api/v1/sprints/{sprintId}/start; las
+// historias comprometidas; las de US3 (T041) cubren POST /api/v1/sprints/{sprintId}/start; las de
+// US4 (T055) cubren PUT /api/v1/stories/{storyId}/status detrás del RequireStoryAccess de la 003; las
 // historias siguientes agregan las suyas en este archivo. Los ayudantes llevan el prefijo "sprint" para no chocar con los de validation_test.go,
 // que llevan el prefijo "validation".
 
@@ -189,6 +190,9 @@ func newSprintTestEnv(t *testing.T, overrides ...func(*sprintTestPorts)) sprintT
 	sprintHandler := NewHandler(sprints)
 	RegisterRoutes(projectGroup, sprintHandler)
 	RegisterSprintRoutes(router, authHandler.RequireSession, sprintRepository, sprintHandler)
+	// Las rutas de sprints sobre una historia reciben, como en cmd/app, la sesión de la 001 y el
+	// RequireStoryAccess de la 003 sobre el mismo repositorio de historias.
+	RegisterStoryRoutes(router, authHandler.RequireSession, backlogdelivery.RequireStoryAccess(storyRepository), sprintHandler)
 	return sprintTestEnv{router: router, db: db, auth: auth}
 }
 
@@ -1567,4 +1571,368 @@ func TestUS3_ProyectoFinalizado(t *testing.T) {
 	require.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
 	assert.JSONEq(t, `{"error":"`+sprintReadOnlyMessage+`"}`, rec.Body.String())
 	requireStoredUnchanged(t, env.db, before)
+}
+
+// Textos exactos que fija el contrato para los rechazos del avance de una historia (US4): el 409 de
+// la historia fuera del sprint Activo (sin sprint o de un sprint Planificado) y el de la transición
+// no admitida, que enumera las tres permitidas. El de sprint cerrado es sprintClosedMessage.
+const (
+	sprintOutsideActiveMessage   = "Solo se registra avance sobre historias del sprint activo."
+	sprintProgressTransitionText = "Transición no permitida. Las admitidas son: Pendiente → En progreso, En progreso → Completada y Completada → En progreso."
+)
+
+// sprintProgressBody refleja StoryProgressResponse del contrato.
+type sprintProgressBody struct {
+	StoryID     string  `json:"storyId"`
+	SprintID    string  `json:"sprintId"`
+	Status      string  `json:"status"`
+	CompletedAt *string `json:"completedAt"`
+}
+
+// sprintProgressSnapshot guarda el estado de una historia y el completed_at de cada uno de sus
+// compromisos, para verificar que un rechazo no los cambió.
+type sprintProgressSnapshot struct {
+	storyID     uuid.UUID
+	status      backlogdomain.StoryStatus
+	completedAt map[uuid.UUID]*time.Time
+}
+
+// sprintStoryStatusPath es la ruta del registro del avance de una historia según
+// contracts/openapi.yaml.
+func sprintStoryStatusPath(storyID uuid.UUID) string {
+	return "/api/v1/stories/" + storyID.String() + "/status"
+}
+
+// changeStoryStatus envía PUT /api/v1/stories/{storyId}/status con el estado destino.
+func (e sprintTestEnv) changeStoryStatus(t *testing.T, token string, storyID uuid.UUID, status string) *httptest.ResponseRecorder {
+	t.Helper()
+	return e.sprintDo(t, http.MethodPut, sprintStoryStatusPath(storyID), token, map[string]any{"status": status})
+}
+
+// requireStoryProgress exige un 200 con StoryProgressResponse de la historia en el sprint y el estado
+// indicados, con el campo completedAt presente, y devuelve el cuerpo decodificado.
+func requireStoryProgress(t *testing.T, rec *httptest.ResponseRecorder, storyID, sprintID uuid.UUID, status string) sprintProgressBody {
+	t.Helper()
+	require.Equal(t, http.StatusOK, rec.Code, "cuerpo: %s", rec.Body.String())
+	var body sprintProgressBody
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "el cuerpo del 200 no es JSON válido: %s", rec.Body.String())
+	assert.Equal(t, storyID.String(), body.StoryID)
+	assert.Equal(t, sprintID.String(), body.SprintID)
+	assert.Equal(t, status, body.Status)
+	_, present := sprintRawBody(t, rec)["completedAt"]
+	assert.True(t, present, "falta el campo completedAt en la respuesta: %s", rec.Body.String())
+	return body
+}
+
+// requireProgressCompletedAt exige que completedAt de la respuesta sea el instante indicado.
+func requireProgressCompletedAt(t *testing.T, body sprintProgressBody, want time.Time) {
+	t.Helper()
+	require.NotNil(t, body.CompletedAt, "completedAt debe registrar el instante del completado")
+	got, err := time.Parse(time.RFC3339, *body.CompletedAt)
+	require.NoError(t, err, "completedAt = %q no es una fecha y hora RFC 3339", *body.CompletedAt)
+	assert.True(t, want.Equal(got), "completedAt = %v, se esperaba %v", got, want)
+}
+
+// sprintStoredCommitment lee de sprint_stories el compromiso de la historia en el sprint.
+func sprintStoredCommitment(t *testing.T, db *gorm.DB, sprintID, storyID uuid.UUID) domain.SprintStory {
+	t.Helper()
+	var row domain.SprintStory
+	require.NoError(t, db.First(&row, "sprint_id = ? AND story_id = ?", sprintID, storyID).Error,
+		"no se encontró el compromiso de la historia %s en el sprint %s", storyID, sprintID)
+	return row
+}
+
+// requireStoredProgress exige que la historia quede en el estado indicado y que su compromiso en el
+// sprint tenga completed_at igual al instante indicado, o null si es nil.
+func requireStoredProgress(t *testing.T, db *gorm.DB, sprintID, storyID uuid.UUID, status backlogdomain.StoryStatus, completedAt *time.Time) {
+	t.Helper()
+	assert.Equal(t, status, sprintStoredStory(t, db, storyID).Status)
+	row := sprintStoredCommitment(t, db, sprintID, storyID)
+	if completedAt == nil {
+		assert.Nil(t, row.CompletedAt, "completed_at debe quedar en null")
+		return
+	}
+	if assert.NotNil(t, row.CompletedAt, "completed_at debe quedar registrado") {
+		assert.True(t, completedAt.Equal(*row.CompletedAt), "completed_at = %v, se esperaba %v", *row.CompletedAt, *completedAt)
+	}
+}
+
+// sprintTakeProgressSnapshot lee el estado de la historia y el completed_at de todos sus compromisos.
+func sprintTakeProgressSnapshot(t *testing.T, db *gorm.DB, storyID uuid.UUID) sprintProgressSnapshot {
+	t.Helper()
+	var rows []domain.SprintStory
+	require.NoError(t, db.Where("story_id = ?", storyID).Find(&rows).Error, "no se pudieron leer los compromisos")
+	snapshot := sprintProgressSnapshot{
+		storyID:     storyID,
+		status:      sprintStoredStory(t, db, storyID).Status,
+		completedAt: make(map[uuid.UUID]*time.Time, len(rows)),
+	}
+	for _, row := range rows {
+		snapshot.completedAt[row.ID] = row.CompletedAt
+	}
+	return snapshot
+}
+
+// requireProgressRejected exige un 409 con el mensaje indicado y que la historia conserve su estado
+// y cada compromiso su completed_at, comparados con la foto previa al rechazo.
+func requireProgressRejected(t *testing.T, db *gorm.DB, rec *httptest.ResponseRecorder, message string, before sprintProgressSnapshot) {
+	t.Helper()
+	assert.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+	assert.JSONEq(t, `{"error":"`+message+`"}`, rec.Body.String())
+
+	after := sprintTakeProgressSnapshot(t, db, before.storyID)
+	assert.Equal(t, before.status, after.status, "el estado de la historia no debe cambiar")
+	require.Len(t, after.completedAt, len(before.completedAt), "los compromisos de la historia no deben cambiar")
+	for id, want := range before.completedAt {
+		got := after.completedAt[id]
+		if want == nil {
+			assert.Nil(t, got, "completed_at del compromiso %s debe seguir en null", id)
+			continue
+		}
+		if assert.NotNil(t, got, "completed_at del compromiso %s no debe borrarse", id) {
+			assert.True(t, want.Equal(*got), "completed_at = %v, se esperaba %v", *got, *want)
+		}
+	}
+}
+
+// sprintUS4Fixture es el "Dado" común de US4: el de US2 más "Sprint 2", Activo del 2026-10-15 al
+// 2026-10-28, que contiene al reloj por defecto (2026-10-21).
+type sprintUS4Fixture struct {
+	sprintUS2Fixture
+	activeID uuid.UUID
+}
+
+// newSprintUS4Fixture compone el entorno con los overrides recibidos y siembra las cuentas, el
+// proyecto En curso, el sprint Planificado de US2 y el sprint Activo.
+func newSprintUS4Fixture(t *testing.T, overrides ...func(*sprintTestPorts)) sprintUS4Fixture {
+	t.Helper()
+	env := newSprintTestEnv(t, overrides...)
+	anaID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Díaz", "bruno@example.com")
+	projectID := sprintSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress, brunoID)
+	sprintOneID := sprintSeed(t, env.db, projectID, anaID, "Sprint 1", "2026-10-01", "2026-10-14")
+	activeID := sprintSeedInStatus(t, env.db, projectID, anaID, "Sprint 2", "2026-10-15", "2026-10-28", domain.SprintStatusActive)
+	return sprintUS4Fixture{
+		sprintUS2Fixture: sprintUS2Fixture{env: env, anaID: anaID, brunoID: brunoID, brunoToken: brunoToken, projectID: projectID, sprintOneID: sprintOneID},
+		activeID:         activeID,
+	}
+}
+
+// commitInActive crea con la 003 una historia lista, la compromete en el sprint Activo y le fija el
+// estado indicado; si está completed, su compromiso registra completedAt.
+func (f sprintUS4Fixture) commitInActive(t *testing.T, title string, status backlogdomain.StoryStatus, completedAt *time.Time) uuid.UUID {
+	t.Helper()
+	storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, title)
+	sprintSeedCommitment(t, f.env.db, f.activeID, storyID, sprintDate(t, "2026-10-15"), nil, completedAt)
+	if status != backlogdomain.StoryStatusPending {
+		sprintSetStoryStatus(t, f.env.db, storyID, status)
+	}
+	return storyID
+}
+
+// Escenario: Avance hasta Completada (004/US4)
+// Bruno, integrante que no es el propietario, pasa una historia Pendiente del sprint Activo a En
+// progreso y luego a Completada: ambas transiciones responden 200 con la historia en el sprint, sin
+// completedAt la primera y con completedAt igual al reloj la segunda, y en la base la historia queda
+// completed con completed_at igual al reloj en sprint_stories (FR-033, FR-034).
+func TestUS4_AvanceHastaCompletada(t *testing.T) {
+	f := newSprintUS4Fixture(t)
+	storyID := f.commitInActive(t, "Exportar el reporte", backlogdomain.StoryStatusPending, nil)
+
+	// Primero pasa a En progreso, sin fecha de completado.
+	started := requireStoryProgress(t, f.env.changeStoryStatus(t, f.brunoToken, storyID, "in_progress"), storyID, f.activeID, "in_progress")
+	assert.Nil(t, started.CompletedAt, "completedAt debe ser null en una historia En progreso")
+	requireStoredProgress(t, f.env.db, f.activeID, storyID, backlogdomain.StoryStatusInProgress, nil)
+
+	// Después se completa y queda registrado el instante del reloj.
+	completed := requireStoryProgress(t, f.env.changeStoryStatus(t, f.brunoToken, storyID, "completed"), storyID, f.activeID, "completed")
+	requireProgressCompletedAt(t, completed, sprintFixedNow)
+	requireStoredProgress(t, f.env.db, f.activeID, storyID, backlogdomain.StoryStatusCompleted, &sprintFixedNow)
+}
+
+// Escenario: Desmarcar una Completada (004/US4)
+// Una historia Completada del sprint Activo se devuelve a En progreso: responde 200 con completedAt
+// null (presente y no ausente) y en la base completed_at se borra (FR-035, RN-12).
+func TestUS4_DesmarcarCompletada(t *testing.T) {
+	f := newSprintUS4Fixture(t)
+	completedAt := time.Date(2026, time.October, 20, 14, 30, 0, 0, time.UTC)
+	storyID := f.commitInActive(t, "Exportar el reporte", backlogdomain.StoryStatusCompleted, &completedAt)
+
+	rec := f.env.changeStoryStatus(t, f.brunoToken, storyID, "in_progress")
+
+	body := requireStoryProgress(t, rec, storyID, f.activeID, "in_progress")
+	assert.Nil(t, body.CompletedAt, "completedAt debe volver a null")
+	assert.Nil(t, sprintRawBody(t, rec)["completedAt"], "completedAt debe ser null en el JSON")
+	requireStoredProgress(t, f.env.db, f.activeID, storyID, backlogdomain.StoryStatusInProgress, nil)
+}
+
+// Escenario: Recompletar registra el último (004/US4)
+// Una historia se completa con el reloj en un primer instante, vuelve a En progreso y se completa de
+// nuevo con el reloj en un segundo instante distinto: la respuesta y sprint_stories registran el
+// segundo, el del último completado (FR-035).
+func TestUS4_RecompletarRegistraElUltimo(t *testing.T) {
+	first := time.Date(2026, time.October, 19, 11, 0, 0, 0, time.UTC)
+	second := time.Date(2026, time.October, 21, 16, 45, 0, 0, time.UTC)
+	current := first
+	f := newSprintUS4Fixture(t, func(p *sprintTestPorts) {
+		p.now = func() time.Time { return current }
+	})
+	storyID := f.commitInActive(t, "Exportar el reporte", backlogdomain.StoryStatusInProgress, nil)
+
+	// Primer completado y vuelta a En progreso.
+	firstBody := requireStoryProgress(t, f.env.changeStoryStatus(t, f.brunoToken, storyID, "completed"), storyID, f.activeID, "completed")
+	requireProgressCompletedAt(t, firstBody, first)
+	requireStoryProgress(t, f.env.changeStoryStatus(t, f.brunoToken, storyID, "in_progress"), storyID, f.activeID, "in_progress")
+
+	// Segundo completado, con el reloj en otro instante.
+	current = second
+	rec := f.env.changeStoryStatus(t, f.brunoToken, storyID, "completed")
+
+	body := requireStoryProgress(t, rec, storyID, f.activeID, "completed")
+	requireProgressCompletedAt(t, body, second)
+	requireStoredProgress(t, f.env.db, f.activeID, storyID, backlogdomain.StoryStatusCompleted, &second)
+}
+
+// Escenario: Reestimación durante el sprint (004/US4)
+// Una historia En progreso del sprint Activo, estimada en 5, se reestima en 8 con el PUT story-points
+// de la 003 y después se completa: el completado se acepta con completedAt igual al reloj, y la
+// historia queda completed con los 8 Story Points vigentes, que tomará el cierre (FR-034, RN-22).
+func TestUS4_ReestimacionDuranteElSprint(t *testing.T) {
+	f := newSprintUS4Fixture(t)
+	storyID := f.commitInActive(t, "Exportar el reporte", backlogdomain.StoryStatusInProgress, nil)
+
+	// La reestimación con la 003 se acepta mientras el sprint está Activo.
+	reestimated := f.env.sprintDo(t, http.MethodPut, "/api/v1/stories/"+storyID.String()+"/story-points", f.brunoToken, map[string]any{"storyPoints": 8})
+	require.Equal(t, http.StatusOK, reestimated.Code, "cuerpo: %s", reestimated.Body.String())
+
+	rec := f.env.changeStoryStatus(t, f.brunoToken, storyID, "completed")
+
+	body := requireStoryProgress(t, rec, storyID, f.activeID, "completed")
+	requireProgressCompletedAt(t, body, sprintFixedNow)
+	requireStoredProgress(t, f.env.db, f.activeID, storyID, backlogdomain.StoryStatusCompleted, &sprintFixedNow)
+	assert.Equal(t, sprintPoints(8), sprintStoredStory(t, f.env.db, storyID).StoryPoints, "la historia conserva la estimación vigente")
+}
+
+// Escenario: Último día del sprint (004/US4)
+// Con el reloj en la fecha de fin prevista del sprint Activo (2026-10-28), completar una historia se
+// acepta y registra ese instante, porque el sprint admite avance hasta que se cierra (FR-036).
+func TestUS4_UltimoDiaDelSprint(t *testing.T) {
+	lastDay := time.Date(2026, time.October, 28, 18, 0, 0, 0, time.UTC)
+	f := newSprintUS4Fixture(t, func(p *sprintTestPorts) {
+		p.now = func() time.Time { return lastDay }
+	})
+	storyID := f.commitInActive(t, "Exportar el reporte", backlogdomain.StoryStatusInProgress, nil)
+
+	rec := f.env.changeStoryStatus(t, f.brunoToken, storyID, "completed")
+
+	body := requireStoryProgress(t, rec, storyID, f.activeID, "completed")
+	requireProgressCompletedAt(t, body, lastDay)
+	requireStoredProgress(t, f.env.db, f.activeID, storyID, backlogdomain.StoryStatusCompleted, &lastDay)
+	assert.Equal(t, domain.SprintStatusActive, sprintStored(t, f.env.db, f.activeID.String()).Status, "el sprint sigue Activo")
+}
+
+// Escenario: Sprint Planificado (004/US4)
+// Pasar a En progreso o a Completada una historia Pendiente comprometida en un sprint Planificado se
+// rechaza con 409 porque solo se registra avance dentro del sprint activo; la historia sigue pending
+// y su compromiso sin completed_at (FR-036).
+func TestUS4_SprintPlanificado(t *testing.T) {
+	for _, target := range []string{"in_progress", "completed"} {
+		t.Run("a "+target, func(t *testing.T) {
+			f := newSprintUS4Fixture(t)
+			storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+			sprintSeedCommitment(t, f.env.db, f.sprintOneID, storyID, sprintFixedNow.Add(-time.Hour), nil, nil)
+			before := sprintTakeProgressSnapshot(t, f.env.db, storyID)
+
+			rec := f.env.changeStoryStatus(t, f.brunoToken, storyID, target)
+
+			requireProgressRejected(t, f.env.db, rec, sprintOutsideActiveMessage, before)
+		})
+	}
+}
+
+// Escenario: Historia sin sprint (004/US4)
+// Cambiar el estado de una historia del backlog sin sprint se rechaza con 409 indicando que solo se
+// registra avance sobre historias del sprint activo; la historia sigue pending y sin compromisos
+// (FR-037).
+func TestUS4_HistoriaSinSprint(t *testing.T) {
+	for _, target := range []string{"in_progress", "completed"} {
+		t.Run("a "+target, func(t *testing.T) {
+			f := newSprintUS4Fixture(t)
+			storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+			before := sprintTakeProgressSnapshot(t, f.env.db, storyID)
+
+			rec := f.env.changeStoryStatus(t, f.brunoToken, storyID, target)
+
+			requireProgressRejected(t, f.env.db, rec, sprintOutsideActiveMessage, before)
+			assert.Zero(t, sprintCommitmentCount(t, f.env.db, "story_id = ?", storyID), "no debe crearse ningún compromiso")
+		})
+	}
+}
+
+// Escenario: Sprint Cerrado (004/US4)
+// Devolver a En progreso una historia completed cuyo último compromiso es de un sprint cerrado se
+// rechaza con 409 de sprint cerrado; la historia sigue completed y la fila congelada conserva su
+// completed_at (FR-036, RN-18).
+func TestUS4_SprintCerrado(t *testing.T) {
+	f := newSprintUS4Fixture(t)
+	closedID := sprintSeedInStatus(t, f.env.db, f.projectID, f.anaID, "Sprint 0", "2026-09-01", "2026-09-14", domain.SprintStatusClosed)
+	storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+	completedAt := time.Date(2026, time.September, 12, 17, 0, 0, 0, time.UTC)
+	outcome := domain.StoryOutcomeCompleted
+	sprintSeedCommitment(t, f.env.db, closedID, storyID, sprintDate(t, "2026-09-01"), &outcome, &completedAt)
+	sprintSetStoryStatus(t, f.env.db, storyID, backlogdomain.StoryStatusCompleted)
+	before := sprintTakeProgressSnapshot(t, f.env.db, storyID)
+
+	rec := f.env.changeStoryStatus(t, f.brunoToken, storyID, "in_progress")
+
+	requireProgressRejected(t, f.env.db, rec, sprintClosedMessage, before)
+}
+
+// Escenario: Salto de Pendiente a Completada (004/US4)
+// Pasar directamente a Completada una historia Pendiente del sprint Activo se rechaza con 409 que
+// enumera las transiciones admitidas; la historia sigue pending y su compromiso sin completed_at
+// (FR-038, RN-11).
+func TestUS4_SaltoDePendienteACompletada(t *testing.T) {
+	f := newSprintUS4Fixture(t)
+	storyID := f.commitInActive(t, "Exportar el reporte", backlogdomain.StoryStatusPending, nil)
+	before := sprintTakeProgressSnapshot(t, f.env.db, storyID)
+
+	rec := f.env.changeStoryStatus(t, f.brunoToken, storyID, "completed")
+
+	requireProgressRejected(t, f.env.db, rec, sprintProgressTransitionText, before)
+}
+
+// Sin etiqueta de escenario: el 404 del avance sobre una historia ajena, o inexistente, es idéntico
+// byte a byte (código, tipo de contenido y cuerpo) al que responde la 003 para la misma historia,
+// porque la ruta reutiliza su RequireStoryAccess (research.md sección 2, FR-058); la historia ajena
+// no cambia.
+func TestStoryProgress_NotFoundMatchesBacklog(t *testing.T) {
+	f := newSprintUS4Fixture(t)
+	_, outsiderToken := f.env.signUp(t, "Carla Gómez", "carla@example.com")
+	foreignID := f.commitInActive(t, "Exportar el reporte", backlogdomain.StoryStatusInProgress, nil)
+	before := sprintTakeProgressSnapshot(t, f.env.db, foreignID)
+
+	cases := []struct {
+		name    string
+		storyID uuid.UUID
+	}{
+		{name: "historia ajena", storyID: foreignID},
+		{name: "historia inexistente", storyID: uuid.New()},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			storyID := tc.storyID
+			backlogRec := f.env.sprintDo(t, http.MethodGet, "/api/v1/stories/"+storyID.String(), outsiderToken, nil)
+			require.Equal(t, http.StatusNotFound, backlogRec.Code, "la 003 debe responder 404: %s", backlogRec.Body.String())
+
+			rec := f.env.changeStoryStatus(t, outsiderToken, storyID, "completed")
+
+			assert.Equal(t, backlogRec.Code, rec.Code, "los códigos de estado deberían ser idénticos")
+			assert.Equal(t, backlogRec.Header().Get("Content-Type"), rec.Header().Get("Content-Type"), "los tipos de contenido deberían ser idénticos")
+			assert.Equal(t, backlogRec.Body.Bytes(), rec.Body.Bytes(), "los cuerpos deberían ser idénticos byte a byte")
+		})
+	}
+
+	after := sprintTakeProgressSnapshot(t, f.env.db, foreignID)
+	assert.Equal(t, before, after, "la historia ajena no debe cambiar")
 }

@@ -747,7 +747,7 @@ el detalle de un sprint Activo con fin el 2026-10-14 consultado el 2026-10-04 in
 
 ### Implementación de la Historia 6
 
-- [ ] T076 [US6] Implementar `Schedule(endDate, now time.Time, location *time.Location)` en
+- [X] T076 [US6] Implementar `Schedule(endDate, now time.Time, location *time.Location)` en
       `backend/internal/sprints/domain/schedule.go`, tomando la fecha de calendario de `now` en la
       zona y devolviendo `remainingDays` u `overdueDays`, **nunca un número negativo** (research.md
       sección 15) — depende de T071

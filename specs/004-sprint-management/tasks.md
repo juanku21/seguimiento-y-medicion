@@ -781,6 +781,19 @@ el detalle de un sprint Activo con fin el 2026-10-14 consultado el 2026-10-04 in
       cerrados y el acceso a "Nuevo sprint"; y la sección "Sprints en los que estuvo" en
       `frontend/src/app/projects/[projectId]/backlog/[storyId]/page.tsx` de la 003 (FR-055) —
       depende de T075 y T079
+- [ ] T101 [US6] Agregar en `backend/internal/sprints/delivery/validation_test.go` una prueba
+      unitaria de `ParseSprintStatusFilter` con miles de valores repetidos de `status` (por ejemplo,
+      70.000 `closed` intercalados con `planned`) que verifique que el filtro resultante contiene cada
+      valor admitido una sola vez, en el orden de su primera aparición, y en
+      `backend/internal/sprints/delivery/handler_test.go` una prueba de integración de
+      `GET /api/v1/projects/{projectId}/sprints` con más de 65.535 `status=closed` que espere `200`,
+      no `500`, y `appliedFilters.status` igual a `["closed"]` per hallazgo de seguridad: filtro de
+      estado repetible sin deduplicar que arma una cláusula IN con un parámetro por valor (security)
+- [ ] T102 [US6] Eliminar los valores duplicados en `ParseSprintStatusFilter` de
+      `backend/internal/sprints/delivery/validation.go`, conservando el orden de la primera
+      aparición, de modo que la cláusula `IN` de `List` y `appliedFilters.status` reciban como máximo
+      los tres estados admitidos per hallazgo de seguridad: filtro de estado repetible sin deduplicar
+      que arma una cláusula IN con un parámetro por valor (security) — depende de T101
 
 **Checkpoint**: US1 a US6 funcionan de forma independiente. El historial congelado y los días
 restantes ya están disponibles para el dashboard (009) y los reportes (010).

@@ -243,7 +243,7 @@ solapa un día responde `409` con el nombre del primero.
 
 ### Implementación de la Historia 1
 
-- [ ] T015 [US1] Implementar `Period` y `PeriodsOverlap(a, b Period) bool` en
+- [X] T015 [US1] Implementar `Period` y `PeriodsOverlap(a, b Period) bool` en
       `backend/internal/sprints/domain/period.go` con la condición
       `a.Start < b.End && b.Start < a.End` (research.md sección 4) — depende de T010
 - [ ] T016 [US1] Implementar la normalización y validación del cuerpo `SprintInput` en

@@ -813,7 +813,7 @@ backlog; y los mismos intentos sobre un sprint Activo responden `409`.
 
 ### Pruebas de la Historia 7 ⚠️
 
-- [ ] T081 [P] [US7] Pruebas unitarias **obligatorias** de `Update` y `Delete` en el servicio en
+- [X] T081 [P] [US7] Pruebas unitarias **obligatorias** de `Update` y `Delete` en el servicio en
       `backend/internal/sprints/service/sprint_service_test.go`, con dobles: proyecto Finalizado →
       `ErrSprintsReadOnly`; modificar `active` → `ErrSprintNotPlanned` y `closed` →
       `ErrSprintClosed` (RN-18); eliminar `active` o `closed` → `ErrSprintAlreadyStarted`; con

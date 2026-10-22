@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -202,6 +203,18 @@ func (s *SprintService) Close(ctx context.Context, access *domain.SprintAccess, 
 	}
 
 	return s.buildDetail(ctx, access.SprintID)
+}
+
+// Update modifica nombre, fechas y Sprint Goal del sprint planned del acceso y devuelve su detalle
+// actualizado (FR-012 a FR-016). Firma mínima de T081; la implementa T085.
+func (s *SprintService) Update(ctx context.Context, access *domain.SprintAccess, input domain.SprintInput) (*SprintView, error) {
+	return nil, errors.New("not implemented")
+}
+
+// Delete elimina el sprint planned del acceso sin esfuerzo registrado (FR-048, RN-20). Firma mínima
+// de T081; la implementa T085.
+func (s *SprintService) Delete(ctx context.Context, access *domain.SprintAccess) error {
+	return errors.New("not implemented")
 }
 
 // ChangeStoryProgress cambia el estado de una historia del sprint activo con el instante del reloj

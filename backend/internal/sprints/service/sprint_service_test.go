@@ -924,3 +924,155 @@ func TestSprintService_Detail_ScheduleEnLaZonaDelSistema(t *testing.T) {
 	assert.Equal(t, "0", showScheduleDays(view.Schedule.RemainingDays), "remainingDays")
 	assert.Equal(t, "nil", showScheduleDays(view.Schedule.OverdueDays), "overdueDays")
 }
+
+// Pruebas unitarias obligatorias de la modificación y la eliminación de un sprint en el servicio
+// (T081; FR-012 a FR-016, FR-048, RN-18 a RN-20). Con el repositorio y el puerto de esfuerzo
+// reemplazados por dobles se verifica el orden de las guardas: solo lectura del proyecto Finalizado,
+// estado del sprint y, en la eliminación, esfuerzo registrado antes de llegar al repositorio. Igual
+// que las anteriores, no llevan etiqueta de escenario: los TestUS7_* son las pruebas de integración
+// de T082.
+
+// assertNoOtherSprintWrites verifica que una modificación no disparó ninguna escritura que cambie el
+// estado, las historias comprometidas o la instantánea del sprint (FR-015).
+func assertNoOtherSprintWrites(t *testing.T, d serviceDoubles) {
+	t.Helper()
+	d.repo.AssertNotCalled(t, "Start", mock.Anything, mock.Anything, mock.Anything)
+	d.repo.AssertNotCalled(t, "Close", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	d.repo.AssertNotCalled(t, "AssignStories", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	d.repo.AssertNotCalled(t, "RemoveStories", mock.Anything, mock.Anything, mock.Anything)
+	d.repo.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything)
+}
+
+// FR-012, FR-015: un sprint planned se modifica delegando en el repositorio solo el sprint del acceso
+// y los datos editables de la entrada; no se pasa estado, historias ni instantánea, no se dispara
+// otra escritura y la respuesta es el detalle actualizado del sprint.
+func TestSprintService_Update_SprintPlanificado(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(false)
+	input := serviceInput()
+	d.repo.On("FindDetail", mock.Anything, access.SprintID).
+		Return(sprintDetailWithStatus(access.SprintID, domain.SprintStatusPlanned), nil)
+	d.repo.On("Update", mock.Anything, access.SprintID, input).Return(nil).Once()
+
+	view, err := svc.Update(context.Background(), access, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, view)
+	require.NotNil(t, view.Detail)
+	assert.Equal(t, access.SprintID, view.Detail.Sprint.ID)
+	d.repo.AssertCalled(t, "Update", mock.Anything, access.SprintID, input)
+	assertNoOtherSprintWrites(t, d)
+	d.effort.AssertNotCalled(t, "HasEffort", mock.Anything, mock.Anything)
+	d.repo.AssertExpectations(t)
+}
+
+// RN-19: con el proyecto Finalizado la modificación se rechaza con ErrSprintsReadOnly sin leer el
+// sprint ni escribir.
+func TestSprintService_Update_ProyectoFinalizado(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(true)
+
+	view, err := svc.Update(context.Background(), access, serviceInput())
+
+	require.ErrorIs(t, err, domain.ErrSprintsReadOnly)
+	assert.Nil(t, view)
+	d.repo.AssertNotCalled(t, "FindDetail", mock.Anything, mock.Anything)
+	d.repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// FR-016: solo se modifica un sprint Planificado; uno active se rechaza con ErrSprintNotPlanned y no
+// llega al repositorio.
+func TestSprintService_Update_SprintActivo(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(false)
+	d.repo.On("FindDetail", mock.Anything, access.SprintID).
+		Return(sprintDetailWithStatus(access.SprintID, domain.SprintStatusActive), nil).Once()
+
+	view, err := svc.Update(context.Background(), access, serviceInput())
+
+	require.ErrorIs(t, err, domain.ErrSprintNotPlanned)
+	assert.Nil(t, view)
+	d.repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// RN-18: un sprint closed es definitivo; la modificación se rechaza con ErrSprintClosed (no con
+// ErrSprintNotPlanned) y no llega al repositorio.
+func TestSprintService_Update_SprintCerrado(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(false)
+	d.repo.On("FindDetail", mock.Anything, access.SprintID).
+		Return(sprintDetailWithStatus(access.SprintID, domain.SprintStatusClosed), nil).Once()
+
+	view, err := svc.Update(context.Background(), access, serviceInput())
+
+	require.ErrorIs(t, err, domain.ErrSprintClosed)
+	assert.NotErrorIs(t, err, domain.ErrSprintNotPlanned)
+	assert.Nil(t, view)
+	d.repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// FR-048, RN-20: un sprint planned sin esfuerzo registrado se elimina consultando el puerto de
+// esfuerzo y delegando después en el repositorio con el sprint del acceso.
+func TestSprintService_Delete_PlanificadoSinEsfuerzo(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(false)
+	d.repo.On("FindDetail", mock.Anything, access.SprintID).
+		Return(sprintDetailWithStatus(access.SprintID, domain.SprintStatusPlanned), nil).Once()
+	d.effort.On("HasEffort", mock.Anything, access.SprintID).Return(false, nil).Once()
+	d.repo.On("Delete", mock.Anything, access.SprintID).Return(nil).Once()
+
+	err := svc.Delete(context.Background(), access)
+
+	require.NoError(t, err)
+	d.effort.AssertExpectations(t)
+	d.repo.AssertExpectations(t)
+}
+
+// RN-19: con el proyecto Finalizado la eliminación se rechaza con ErrSprintsReadOnly sin leer el
+// sprint, sin consultar el esfuerzo y sin borrar.
+func TestSprintService_Delete_ProyectoFinalizado(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(true)
+
+	err := svc.Delete(context.Background(), access)
+
+	require.ErrorIs(t, err, domain.ErrSprintsReadOnly)
+	d.repo.AssertNotCalled(t, "FindDetail", mock.Anything, mock.Anything)
+	d.effort.AssertNotCalled(t, "HasEffort", mock.Anything, mock.Anything)
+	d.repo.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything)
+}
+
+// RN-20: un sprint active o closed ya fue iniciado y no se elimina; se rechaza con
+// ErrSprintAlreadyStarted antes de consultar el esfuerzo y sin llegar al repositorio.
+func TestSprintService_Delete_SprintIniciado(t *testing.T) {
+	for _, status := range []domain.SprintStatus{domain.SprintStatusActive, domain.SprintStatusClosed} {
+		t.Run(string(status), func(t *testing.T) {
+			svc, d := newSprintServiceWithDoubles(t)
+			access := sprintAccessFor(false)
+			d.repo.On("FindDetail", mock.Anything, access.SprintID).
+				Return(sprintDetailWithStatus(access.SprintID, status), nil).Once()
+
+			err := svc.Delete(context.Background(), access)
+
+			require.ErrorIs(t, err, domain.ErrSprintAlreadyStarted)
+			d.effort.AssertNotCalled(t, "HasEffort", mock.Anything, mock.Anything)
+			d.repo.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything)
+		})
+	}
+}
+
+// FR-048, RN-20: un sprint planned con esfuerzo registrado no se elimina; se rechaza con
+// ErrSprintHasEffort sin llamar a Delete del repositorio.
+func TestSprintService_Delete_ConEsfuerzo(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(false)
+	d.repo.On("FindDetail", mock.Anything, access.SprintID).
+		Return(sprintDetailWithStatus(access.SprintID, domain.SprintStatusPlanned), nil).Once()
+	d.effort.On("HasEffort", mock.Anything, access.SprintID).Return(true, nil).Once()
+
+	err := svc.Delete(context.Background(), access)
+
+	require.ErrorIs(t, err, domain.ErrSprintHasEffort)
+	d.effort.AssertExpectations(t)
+	d.repo.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything)
+}

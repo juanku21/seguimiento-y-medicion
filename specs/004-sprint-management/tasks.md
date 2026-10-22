@@ -365,7 +365,7 @@ responde `409` y no asigna ninguna; y quitarlas las devuelve al backlog como `pe
       verdaderos; con la fila congelada de un sprint cerrado → `CommittedToOpenSprint` falso y
       `EverAssigned` verdadero; tras quitar la historia → `EverAssigned` sigue verdadero — depende de
       T024
-- [ ] T030 [P] [US2] Pruebas de frontend en
+- [X] T030 [P] [US2] Pruebas de frontend en
       `frontend/src/features/sprints/components/commit-stories-dialog.test.tsx` y
       `frontend/src/features/sprints/components/sprint-story-list.test.tsx`, con
       `describe("004/US2 - Comprometer historias en un sprint")` y un `it` por escenario, incluido que

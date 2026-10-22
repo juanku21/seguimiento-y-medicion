@@ -207,7 +207,7 @@ solapa un día responde `409` con el nombre del primero.
       `YYYY-MM-DD`**, con ausentes y mal formadas rechazadas; `endDate` igual o anterior a
       `startDate` rechazada en el campo `endDate`, y el día siguiente aceptado. La validación
       devuelve **todos** los campos inválidos a la vez — depende de T009
-- [ ] T012 [P] [US1] Pruebas unitarias **obligatorias** de la creación en el servicio en
+- [X] T012 [P] [US1] Pruebas unitarias **obligatorias** de la creación en el servicio en
       `backend/internal/sprints/service/sprint_service_test.go`, con dobles de `testify/mock` de
       `SprintRepository` y `SprintEffort` y un reloj fijo: el sprint nace `planned` (FR-006) con un
       UUID nuevo, sin `CommittedStoryPoints`, `StartedAt` ni datos de cierre; el autor es el actor

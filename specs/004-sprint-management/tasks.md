@@ -375,7 +375,7 @@ responde `409` y no asigna ninguna; y quitarlas las devuelve al backlog como `pe
 
 ### Implementación de la Historia 2
 
-- [ ] T031 [US2] Implementar `Admission` en `backend/internal/sprints/domain/admission.go`, usando
+- [X] T031 [US2] Implementar `Admission` en `backend/internal/sprints/domain/admission.go`, usando
       `backlogdomain.Readiness` como **única** fuente de "lista para planificar" (research.md
       sección 8) — depende de T025
 - [ ] T032 [US2] Implementar `FindAccessible` en

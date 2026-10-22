@@ -21,5 +21,18 @@ type AdmissionCandidate struct {
 // committed_elsewhere (con el sprint del compromiso abierto, que es nil si no lo hay). Una lista
 // vacía significa que la historia se admite (research.md sección 8).
 func Admission(story AdmissionCandidate, openCommitment *ConflictingSprint) []AdmissionProblem {
-	return nil
+	// Cada condición se evalúa por separado y acumula su propio problema; la de "lista para
+	// planificar" delega en Readiness de la 003 para no duplicar la regla.
+	var problems []AdmissionProblem
+	if ready, missing := backlogdomain.Readiness(story.StoryPoints, story.CriteriaCount); !ready {
+		problems = append(problems, AdmissionProblem{StoryID: story.ID, Reason: AdmissionReasonNotReady, Missing: missing})
+	}
+	if story.Status == backlogdomain.StoryStatusCompleted {
+		problems = append(problems, AdmissionProblem{StoryID: story.ID, Reason: AdmissionReasonCompleted})
+	}
+	if openCommitment != nil {
+		sprint := *openCommitment
+		problems = append(problems, AdmissionProblem{StoryID: story.ID, Reason: AdmissionReasonCommittedElsewhere, Sprint: &sprint})
+	}
+	return problems
 }

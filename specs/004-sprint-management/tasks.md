@@ -758,7 +758,7 @@ el detalle de un sprint Activo con fin el 2026-10-14 consultado el 2026-10-04 in
       filtro `IN` por estado y orden `start_date DESC, id ASC` (FR-052); `HasSprints` es un
       `SELECT 1 ... LIMIT 1`; `ListForStory` une `sprint_stories` con `sprints` por la historia y
       ordena por `start_date ASC, sprints.id ASC` — depende de T066, T067 y T074
-- [ ] T078 [US6] Implementar `List(ctx, projectID, statuses)`, completar `Get(ctx, access)` con
+- [X] T078 [US6] Implementar `List(ctx, projectID, statuses)`, completar `Get(ctx, access)` con
       `schedule` calculado con `Schedule`, el reloj y la zona solo para un sprint `active`, e
       implementar `StoryHistory(ctx, storyID)` en `backend/internal/sprints/service/sprint_service.go`
       — depende de T073, T076 y T077

@@ -4,7 +4,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -69,9 +68,44 @@ type SprintListView struct {
 }
 
 // List devuelve los sprints del proyecto filtrados por estado, con el motivo del vacío cuando no
-// hay resultados (FR-050 a FR-054). Firma mínima de T073: la implementación corresponde a T078.
+// hay resultados (FR-050 a FR-054). La consulta de existencia solo se hace si el resultado filtrado
+// viene vacío, para distinguir el proyecto sin sprints (no_sprints, aunque haya filtro) del filtro
+// sin coincidencias (no_matches); la lista devuelta nunca es nil (research.md sección 10).
 func (s *SprintService) List(ctx context.Context, projectID uuid.UUID, statuses []domain.SprintStatus) (*SprintListView, error) {
-	return nil, errors.New("not implemented")
+	items, err := s.repo.List(ctx, projectID, statuses)
+	if err != nil {
+		return nil, fmt.Errorf("listar sprints: %w", err)
+	}
+	if len(items) > 0 {
+		return &SprintListView{Sprints: items}, nil
+	}
+
+	// Resultado vacío: se consulta si el proyecto tiene algún sprint para elegir el motivo.
+	hasSprints, err := s.repo.HasSprints(ctx, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("verificar existencia de sprints: %w", err)
+	}
+	reason := EmptyReasonNoSprints
+	if hasSprints {
+		reason = EmptyReasonNoMatches
+	}
+
+	return &SprintListView{Sprints: []domain.SprintListItem{}, EmptyReason: &reason}, nil
+}
+
+// StoryHistory devuelve los sprints en los que estuvo una historia, del más antiguo al más reciente,
+// con su resultado en cada sprint Cerrado (FR-055). Es una lectura sin reglas de negocio: el acceso
+// a la historia lo resuelve el middleware. La lista devuelta nunca es nil.
+func (s *SprintService) StoryHistory(ctx context.Context, storyID uuid.UUID) ([]domain.StorySprintHistoryItem, error) {
+	items, err := s.repo.ListForStory(ctx, storyID)
+	if err != nil {
+		return nil, fmt.Errorf("listar sprints de historia: %w", err)
+	}
+	if items == nil {
+		items = []domain.StorySprintHistoryItem{}
+	}
+
+	return items, nil
 }
 
 // Create registra un sprint en el proyecto atribuido al actor y devuelve su detalle (FR-006, FR-060).
@@ -196,9 +230,10 @@ func (s *SprintService) FindOpenCommitment(ctx context.Context, storyID uuid.UUI
 	return commitment, nil
 }
 
-// Detail devuelve el detalle del sprint del acceso con sus historias vivas (FR-053). Es una lectura:
-// no aplica la solo lectura del proyecto Finalizado ni el estado del sprint, que cualquier integrante
-// puede consultar. La consulta del sprint (US6) le agrega la instantánea y los días restantes.
+// Detail devuelve el detalle del sprint del acceso (FR-053). Es una lectura: no aplica la solo
+// lectura del proyecto Finalizado ni el estado del sprint, que cualquier integrante puede consultar.
+// La vista lleva la instantánea si el sprint está cerrado y los días restantes o vencidos si está
+// active, ambos agregados por buildDetail.
 func (s *SprintService) Detail(ctx context.Context, access *domain.SprintAccess) (*SprintView, error) {
 	return s.buildDetail(ctx, access.SprintID)
 }
@@ -241,6 +276,13 @@ func (s *SprintService) buildDetail(ctx context.Context, sprintID uuid.UUID) (*S
 	if detail.Sprint.Status == domain.SprintStatusClosed && hundredths != nil {
 		hours := float64(*hundredths) / 100
 		view.HoursPerStoryPoint = &hours
+	}
+
+	// Solo un sprint active lleva los días restantes o vencidos, contados en la zona del sistema
+	// con el instante del reloj inyectado (FR-053, RN-23).
+	if detail.Sprint.Status == domain.SprintStatusActive {
+		remaining, overdue := domain.Schedule(detail.Sprint.EndDate, s.now(), s.location)
+		view.Schedule = &ScheduleView{RemainingDays: remaining, OverdueDays: overdue}
 	}
 
 	return view, nil

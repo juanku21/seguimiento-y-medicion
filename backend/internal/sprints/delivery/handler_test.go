@@ -42,8 +42,9 @@ import (
 // /api/v1/sprints/{sprintId}/stories detrás de RequireSprintAccess y la restricción de la 003 sobre
 // historias comprometidas; las de US3 (T041) cubren POST /api/v1/sprints/{sprintId}/start; las de
 // US4 (T055) cubren PUT /api/v1/stories/{storyId}/status detrás del RequireStoryAccess de la 003; las
-// de US5 (T064) cubren POST /api/v1/sprints/{sprintId}/close; las historias siguientes agregan las
-// suyas en este archivo. Los ayudantes llevan el prefijo "sprint" para no chocar con los de validation_test.go,
+// de US5 (T064) cubren POST /api/v1/sprints/{sprintId}/close; las de US6 (T074) cubren GET
+// /api/v1/projects/{projectId}/sprints, GET /api/v1/sprints/{sprintId} y GET
+// /api/v1/stories/{storyId}/sprints; las historias siguientes agregan las suyas en este archivo. Los ayudantes llevan el prefijo "sprint" para no chocar con los de validation_test.go,
 // que llevan el prefijo "validation".
 
 // Textos exactos que fija el contrato para el 400 de entrada inválida, el 404 de proyecto
@@ -2530,4 +2531,695 @@ func TestSprintClose_ClosedByIsSessionHolder(t *testing.T) {
 	require.NotNil(t, body.ClosedBy)
 	assert.NotEqual(t, body.CreatedBy.ID, body.ClosedBy.ID, "quien cierra no es la autora")
 	requireStoredClosed(t, f.env.db, f.sprintOneID, f.brunoID)
+}
+
+// sprintListItemBody refleja SprintListItem del contrato: los datos del sprint, sus cuatro fechas,
+// la cantidad de historias y los totales de la instantánea, null si no está cerrado.
+type sprintListItemBody struct {
+	ID         string             `json:"id"`
+	Name       string             `json:"name"`
+	Goal       string             `json:"goal"`
+	Status     string             `json:"status"`
+	StartDate  string             `json:"startDate"`
+	EndDate    string             `json:"endDate"`
+	StartedAt  *string            `json:"startedAt"`
+	ClosedAt   *string            `json:"closedAt"`
+	StoryCount int                `json:"storyCount"`
+	Results    *sprintResultsBody `json:"results"`
+}
+
+// sprintListBody refleja SprintListResponse del contrato.
+type sprintListBody struct {
+	Sprints        []sprintListItemBody `json:"sprints"`
+	AppliedFilters struct {
+		Status []string `json:"status"`
+	} `json:"appliedFilters"`
+	EmptyReason *string `json:"emptyReason"`
+}
+
+// sprintScheduleBody refleja SprintSchedule del contrato: exactamente uno de los dos campos es
+// distinto de null.
+type sprintScheduleBody struct {
+	RemainingDays *int `json:"remainingDays"`
+	OverdueDays   *int `json:"overdueDays"`
+}
+
+// sprintStoryHistoryBody refleja StorySprintHistoryResponse del contrato.
+type sprintStoryHistoryBody struct {
+	Sprints []struct {
+		SprintID     string  `json:"sprintId"`
+		SprintName   string  `json:"sprintName"`
+		SprintStatus string  `json:"sprintStatus"`
+		StartDate    string  `json:"startDate"`
+		EndDate      string  `json:"endDate"`
+		Outcome      *string `json:"outcome"`
+		CompletedAt  *string `json:"completedAt"`
+	} `json:"sprints"`
+}
+
+// listSprints envía GET /api/v1/projects/{projectId}/sprints con un parámetro status por cada estado
+// recibido.
+func (e sprintTestEnv) listSprints(t *testing.T, token string, projectID uuid.UUID, statuses ...string) *httptest.ResponseRecorder {
+	t.Helper()
+	path := sprintsPath(projectID)
+	if len(statuses) > 0 {
+		params := make([]string, 0, len(statuses))
+		for _, s := range statuses {
+			params = append(params, "status="+s)
+		}
+		path += "?" + strings.Join(params, "&")
+	}
+	return e.sprintDo(t, http.MethodGet, path, token, nil)
+}
+
+// requireSprintList exige un 200 con SprintListResponse, con sprints y appliedFilters.status como
+// listas y nunca null y con el campo emptyReason presente, y devuelve el cuerpo decodificado junto
+// con el crudo.
+func requireSprintList(t *testing.T, rec *httptest.ResponseRecorder) (sprintListBody, map[string]any) {
+	t.Helper()
+	require.Equal(t, http.StatusOK, rec.Code, "cuerpo: %s", rec.Body.String())
+	var body sprintListBody
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "el cuerpo del 200 no es JSON válido: %s", rec.Body.String())
+	raw := sprintRawBody(t, rec)
+	_, isList := raw["sprints"].([]any)
+	require.True(t, isList, "sprints debe ser una lista y no null: %s", rec.Body.String())
+	filters, ok := raw["appliedFilters"].(map[string]any)
+	require.True(t, ok, "falta appliedFilters: %s", rec.Body.String())
+	_, isList = filters["status"].([]any)
+	require.True(t, isList, "appliedFilters.status debe ser una lista y no null: %s", rec.Body.String())
+	_, present := raw["emptyReason"]
+	require.True(t, present, "falta el campo emptyReason: %s", rec.Body.String())
+	return body, raw
+}
+
+// sprintListIDs devuelve los identificadores del listado, en su orden.
+func sprintListIDs(body sprintListBody) []string {
+	ids := make([]string, 0, len(body.Sprints))
+	for _, s := range body.Sprints {
+		ids = append(ids, s.ID)
+	}
+	return ids
+}
+
+// getSprintDetail envía GET /api/v1/sprints/{sprintId} con el token como Bearer.
+func (e sprintTestEnv) getSprintDetail(t *testing.T, token string, sprintID uuid.UUID) *httptest.ResponseRecorder {
+	t.Helper()
+	return e.sprintDo(t, http.MethodGet, sprintPath(sprintID), token, nil)
+}
+
+// requireSchedule exige un 200 con el detalle del sprint cuyo schedule es un objeto con
+// remainingDays y overdueDays, y lo devuelve decodificado.
+func requireSchedule(t *testing.T, rec *httptest.ResponseRecorder) sprintScheduleBody {
+	t.Helper()
+	require.Equal(t, http.StatusOK, rec.Code, "cuerpo: %s", rec.Body.String())
+	raw := sprintRawBody(t, rec)
+	schedule, ok := raw["schedule"].(map[string]any)
+	require.True(t, ok, "schedule debe ser un objeto en un sprint activo: %s", rec.Body.String())
+	_, hasRemaining := schedule["remainingDays"]
+	_, hasOverdue := schedule["overdueDays"]
+	require.True(t, hasRemaining && hasOverdue, "schedule debe traer remainingDays y overdueDays: %s", rec.Body.String())
+	var body struct {
+		Schedule sprintScheduleBody `json:"schedule"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "el cuerpo del 200 no es JSON válido: %s", rec.Body.String())
+	return body.Schedule
+}
+
+// listStorySprints envía GET /api/v1/stories/{storyId}/sprints con el token como Bearer.
+func (e sprintTestEnv) listStorySprints(t *testing.T, token string, storyID uuid.UUID) *httptest.ResponseRecorder {
+	t.Helper()
+	return e.sprintDo(t, http.MethodGet, "/api/v1/stories/"+storyID.String()+"/sprints", token, nil)
+}
+
+// requireStoryHistory exige un 200 con StorySprintHistoryResponse cuyo sprints sea una lista y no
+// null, y lo devuelve decodificado.
+func requireStoryHistory(t *testing.T, rec *httptest.ResponseRecorder) sprintStoryHistoryBody {
+	t.Helper()
+	require.Equal(t, http.StatusOK, rec.Code, "cuerpo: %s", rec.Body.String())
+	_, isList := sprintRawBody(t, rec)["sprints"].([]any)
+	require.True(t, isList, "sprints debe ser una lista y no null: %s", rec.Body.String())
+	var body sprintStoryHistoryBody
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "el cuerpo del 200 no es JSON válido: %s", rec.Body.String())
+	return body
+}
+
+// sprintUTC formatea un instante como lo devuelve la API: en UTC con formato RFC 3339.
+func sprintUTC(moment time.Time) string {
+	return moment.UTC().Format(time.RFC3339)
+}
+
+// sprintMoment arma un instante UTC a partir de una fecha YYYY-MM-DD y una hora. Las pruebas usan el
+// mediodía UTC o poco después, que cae en la misma fecha de calendario en la zona del sistema.
+func sprintMoment(t *testing.T, date string, hour, minute int) time.Time {
+	t.Helper()
+	return sprintDate(t, date).Add(time.Duration(hour)*time.Hour + time.Duration(minute)*time.Minute)
+}
+
+// sprintUS6Fixture es el "Dado" común de US6: Ana, propietaria de un proyecto En curso, y Bruno,
+// integrante que no es el propietario y que consulta (RN-01), sin sprints. El reloj del servicio es
+// mutable, para que cada inicio y cada cierre registre su propio instante.
+type sprintUS6Fixture struct {
+	env        sprintTestEnv
+	anaID      uuid.UUID
+	brunoID    uuid.UUID
+	brunoToken string
+	projectID  uuid.UUID
+	clock      *time.Time
+}
+
+// newSprintUS6Fixture compone el entorno con el reloj mutable, que arranca en sprintFixedNow, y
+// siembra las cuentas y el proyecto.
+func newSprintUS6Fixture(t *testing.T) sprintUS6Fixture {
+	t.Helper()
+	clock := sprintFixedNow
+	env := newSprintTestEnv(t, func(p *sprintTestPorts) {
+		p.now = func() time.Time { return clock }
+	})
+	anaID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Díaz", "bruno@example.com")
+	projectID := sprintSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress, brunoID)
+	return sprintUS6Fixture{env: env, anaID: anaID, brunoID: brunoID, brunoToken: brunoToken, projectID: projectID, clock: &clock}
+}
+
+// setClock fija el instante que devuelve el reloj del servicio desde ahora.
+func (f sprintUS6Fixture) setClock(moment time.Time) {
+	*f.clock = moment
+}
+
+// sprintGoalFor es el Sprint Goal con el que la fixture crea cada sprint, distinto por nombre.
+func sprintGoalFor(name string) string {
+	return "Objetivo de " + name
+}
+
+// createSprint crea con la API de US1 un sprint Planificado con el período indicado y el Sprint Goal
+// de sprintGoalFor, y devuelve su identificador.
+func (f sprintUS6Fixture) createSprint(t *testing.T, name, start, end string) uuid.UUID {
+	t.Helper()
+	created := requireCreatedSprint(t, f.env.postSprint(t, f.brunoToken, f.projectID, sprintBody(name, sprintGoalFor(name), start, end)))
+	return uuid.MustParse(created.ID)
+}
+
+// newStories crea con la 003 una historia lista por cada valor de Story Points, con el prefijo de
+// título recibido seguido de su posición, y devuelve sus identificadores en el mismo orden.
+func (f sprintUS6Fixture) newStories(t *testing.T, prefix string, points ...int) []uuid.UUID {
+	t.Helper()
+	ids := make([]uuid.UUID, 0, len(points))
+	for i, p := range points {
+		ids = append(ids, f.env.createStory(t, f.brunoToken, f.projectID, fmt.Sprintf("%s %d", prefix, i+1), sprintPoints(p), sprintCriterion))
+	}
+	return ids
+}
+
+// startWith compromete las historias en el sprint con la API de US2 y lo inicia con la de US3 en el
+// instante indicado.
+func (f sprintUS6Fixture) startWith(t *testing.T, sprintID uuid.UUID, startedAt time.Time, storyIDs ...uuid.UUID) {
+	t.Helper()
+	if len(storyIDs) > 0 {
+		rec := f.env.assignStories(t, f.brunoToken, sprintID, storyIDs...)
+		require.Equal(t, http.StatusOK, rec.Code, "no se pudieron asignar las historias: %s", rec.Body.String())
+	}
+	f.setClock(startedAt)
+	rec := f.env.startSprint(t, f.brunoToken, sprintID)
+	require.Equal(t, http.StatusOK, rec.Code, "no se pudo iniciar el sprint: %s", rec.Body.String())
+}
+
+// completeAndClose lleva a Completada, con la API de US4, cada historia indicada del sprint Activo y
+// después lo cierra con la de US5 en el instante indicado.
+func (f sprintUS6Fixture) completeAndClose(t *testing.T, sprintID uuid.UUID, closedAt time.Time, completed ...uuid.UUID) {
+	t.Helper()
+	for _, storyID := range completed {
+		for _, target := range []string{"in_progress", "completed"} {
+			rec := f.env.changeStoryStatus(t, f.brunoToken, storyID, target)
+			require.Equal(t, http.StatusOK, rec.Code, "no se pudo pasar la historia a %s: %s", target, rec.Body.String())
+		}
+	}
+	f.setClock(closedAt)
+	rec := f.env.closeSprint(t, f.brunoToken, sprintID)
+	require.Equal(t, http.StatusOK, rec.Code, "no se pudo cerrar el sprint: %s", rec.Body.String())
+}
+
+// sprintClosedRun describe un sprint que la fixture crea, inicia y cierra: su período previsto, sus
+// momentos reales de inicio y cierre, los Story Points de sus historias y cuántas de ellas, las
+// primeras, quedan completadas.
+type sprintClosedRun struct {
+	name      string
+	start     string
+	end       string
+	startedAt time.Time
+	closedAt  time.Time
+	points    []int
+	completed int
+}
+
+// runClosed crea el sprint descrito con historias nuevas, lo inicia, completa las primeras historias
+// y lo cierra, todo con la API, y devuelve su identificador.
+func (f sprintUS6Fixture) runClosed(t *testing.T, run sprintClosedRun) uuid.UUID {
+	t.Helper()
+	sprintID := f.createSprint(t, run.name, run.start, run.end)
+	stories := f.newStories(t, "Historia de "+run.name, run.points...)
+	f.startWith(t, sprintID, run.startedAt, stories...)
+	f.completeAndClose(t, sprintID, run.closedAt, stories[:run.completed]...)
+	return sprintID
+}
+
+// activeDetailAt siembra un sprint Activo del 2026-10-01 al 2026-10-14, fija el reloj en el instante
+// indicado y devuelve el detalle que consulta Bruno.
+func (f sprintUS6Fixture) activeDetailAt(t *testing.T, now time.Time) *httptest.ResponseRecorder {
+	t.Helper()
+	sprintID := sprintSeedInStatus(t, f.env.db, f.projectID, f.anaID, "Sprint 1", "2026-10-01", "2026-10-14", domain.SprintStatusActive)
+	f.setClock(now)
+	return f.env.getSprintDetail(t, f.brunoToken, sprintID)
+}
+
+// requireListedSprint exige que el ítem del listado tenga el identificador, el nombre, el Sprint Goal,
+// el estado y las fechas previstas indicados.
+func requireListedSprint(t *testing.T, item sprintListItemBody, id uuid.UUID, name, status, start, end string) {
+	t.Helper()
+	assert.Equal(t, id.String(), item.ID, "id de %s", name)
+	assert.Equal(t, name, item.Name)
+	assert.Equal(t, sprintGoalFor(name), item.Goal, "goal de %s", name)
+	assert.Equal(t, status, item.Status, "status de %s", name)
+	assert.Equal(t, start, item.StartDate, "startDate de %s", name)
+	assert.Equal(t, end, item.EndDate, "endDate de %s", name)
+}
+
+// Escenario: Historial de cerrados (004/US6)
+// En un proyecto con tres sprints cerrados con resultados distintos, el historial (?status=closed)
+// devuelve los tres, del más reciente al más antiguo, cada uno con su nombre, su Sprint Goal, sus
+// cuatro fechas, la cantidad de historias y los cinco totales congelados de su instantánea (FR-051).
+func TestUS6_HistorialDeCerrados(t *testing.T) {
+	f := newSprintUS6Fixture(t)
+	runs := []sprintClosedRun{
+		{name: "Sprint 1", start: "2026-09-01", end: "2026-09-14", startedAt: sprintMoment(t, "2026-09-01", 12, 0), closedAt: sprintMoment(t, "2026-09-14", 20, 0), points: []int{8, 5, 3}, completed: 2},
+		{name: "Sprint 2", start: "2026-09-15", end: "2026-09-28", startedAt: sprintMoment(t, "2026-09-15", 12, 0), closedAt: sprintMoment(t, "2026-09-28", 20, 0), points: []int{5, 5}, completed: 1},
+		{name: "Sprint 3", start: "2026-10-01", end: "2026-10-14", startedAt: sprintMoment(t, "2026-10-01", 12, 0), closedAt: sprintMoment(t, "2026-10-14", 20, 0), points: []int{3, 2, 1}, completed: 3},
+	}
+	ids := make([]uuid.UUID, 0, len(runs))
+	for _, run := range runs {
+		ids = append(ids, f.runClosed(t, run))
+	}
+	want := []sprintResultsBody{
+		{CommittedStoryPoints: 16, PlannedStoryPoints: 16, CompletedStoryPoints: 13, PlannedStoryCount: 3, CompletedStoryCount: 2},
+		{CommittedStoryPoints: 10, PlannedStoryPoints: 10, CompletedStoryPoints: 5, PlannedStoryCount: 2, CompletedStoryCount: 1},
+		{CommittedStoryPoints: 6, PlannedStoryPoints: 6, CompletedStoryPoints: 6, PlannedStoryCount: 3, CompletedStoryCount: 3},
+	}
+
+	rec := f.env.listSprints(t, f.brunoToken, f.projectID, "closed")
+
+	body, raw := requireSprintList(t, rec)
+	assert.Nil(t, raw["emptyReason"], "con resultados emptyReason es null")
+	assert.Equal(t, []string{"closed"}, body.AppliedFilters.Status)
+	require.Len(t, body.Sprints, 3, "el historial debe listar los tres sprints cerrados: %s", rec.Body.String())
+
+	// El listado va en orden start_date DESC: la posición 0 es el último sprint de runs.
+	for pos, item := range body.Sprints {
+		i := len(runs) - 1 - pos
+		run := runs[i]
+		requireListedSprint(t, item, ids[i], run.name, "closed", run.start, run.end)
+		if assert.NotNil(t, item.StartedAt, "startedAt de %s", run.name) {
+			assert.Equal(t, sprintUTC(run.startedAt), *item.StartedAt)
+		}
+		if assert.NotNil(t, item.ClosedAt, "closedAt de %s", run.name) {
+			assert.Equal(t, sprintUTC(run.closedAt), *item.ClosedAt)
+		}
+		assert.Equal(t, len(run.points), item.StoryCount, "storyCount de %s", run.name)
+		if assert.NotNil(t, item.Results, "results de %s", run.name) {
+			assert.Equal(t, want[i], *item.Results, "totales de %s", run.name)
+		}
+	}
+}
+
+// Escenario: Listado completo y filtro (004/US6)
+// En un proyecto con un sprint Cerrado, uno Activo y uno Planificado, el listado sin filtro devuelve
+// los tres con su estado en orden start_date DESC, con results solo en el Cerrado; con
+// ?status=closed devuelve solo el Cerrado, y con ?status=planned&status=active los otros dos
+// (FR-050 a FR-052).
+func TestUS6_ListadoCompletoYFiltro(t *testing.T) {
+	f := newSprintUS6Fixture(t)
+	closedID := f.runClosed(t, sprintClosedRun{
+		name: "Sprint 1", start: "2026-09-15", end: "2026-09-28",
+		startedAt: sprintMoment(t, "2026-09-15", 12, 0), closedAt: sprintMoment(t, "2026-09-28", 20, 0),
+		points: []int{5, 3}, completed: 1,
+	})
+	activeID := f.createSprint(t, "Sprint 2", "2026-10-15", "2026-10-28")
+	f.startWith(t, activeID, sprintMoment(t, "2026-10-15", 12, 0), f.newStories(t, "Historia activa", 8, 2)...)
+	plannedID := f.createSprint(t, "Sprint 3", "2026-11-01", "2026-11-14")
+
+	t.Run("sin filtro", func(t *testing.T) {
+		body, raw := requireSprintList(t, f.env.listSprints(t, f.brunoToken, f.projectID))
+		assert.Nil(t, raw["emptyReason"], "con resultados emptyReason es null")
+		assert.Equal(t, []string{}, body.AppliedFilters.Status, "sin filtro appliedFilters.status es []")
+		require.Equal(t, []string{plannedID.String(), activeID.String(), closedID.String()}, sprintListIDs(body),
+			"el orden debe ser start_date DESC, id")
+		requireListedSprint(t, body.Sprints[0], plannedID, "Sprint 3", "planned", "2026-11-01", "2026-11-14")
+		assert.Nil(t, body.Sprints[0].StartedAt, "un sprint planificado no tiene inicio real")
+		assert.Nil(t, body.Sprints[0].Results, "results es null en un sprint planificado")
+		assert.Zero(t, body.Sprints[0].StoryCount)
+		requireListedSprint(t, body.Sprints[1], activeID, "Sprint 2", "active", "2026-10-15", "2026-10-28")
+		assert.Nil(t, body.Sprints[1].ClosedAt, "un sprint activo no tiene cierre")
+		assert.Nil(t, body.Sprints[1].Results, "results es null en un sprint activo")
+		assert.Equal(t, 2, body.Sprints[1].StoryCount)
+		requireListedSprint(t, body.Sprints[2], closedID, "Sprint 1", "closed", "2026-09-15", "2026-09-28")
+		assert.NotNil(t, body.Sprints[2].Results, "results tiene valor en un sprint cerrado")
+	})
+
+	t.Run("solo cerrados", func(t *testing.T) {
+		body, _ := requireSprintList(t, f.env.listSprints(t, f.brunoToken, f.projectID, "closed"))
+		assert.Equal(t, []string{"closed"}, body.AppliedFilters.Status)
+		assert.Equal(t, []string{closedID.String()}, sprintListIDs(body), "el historial muestra solo el cerrado")
+	})
+
+	t.Run("planificados y activos", func(t *testing.T) {
+		body, _ := requireSprintList(t, f.env.listSprints(t, f.brunoToken, f.projectID, "planned", "active"))
+		assert.ElementsMatch(t, []string{"planned", "active"}, body.AppliedFilters.Status)
+		assert.Equal(t, []string{plannedID.String(), activeID.String()}, sprintListIDs(body))
+	})
+}
+
+// Escenario: Historial de una historia (004/US6)
+// Una historia que estuvo planificada en tres sprints hasta completarse (no completada en los dos
+// primeros, completada en el tercero) informa los tres sprints en orden ascendente de inicio, con
+// not_completed, not_completed y completed, y completedAt solo en el tercero (FR-055, RN-17).
+func TestUS6_HistorialDeUnaHistoria(t *testing.T) {
+	f := newSprintUS6Fixture(t)
+	storyID := f.newStories(t, "Historia viajera", 5)[0]
+	type stage struct {
+		name, start, end string
+		complete         bool
+	}
+	stages := []stage{
+		{name: "Sprint 1", start: "2026-09-01", end: "2026-09-14"},
+		{name: "Sprint 2", start: "2026-09-15", end: "2026-09-28"},
+		{name: "Sprint 3", start: "2026-10-01", end: "2026-10-14", complete: true},
+	}
+
+	// La misma historia pasa por los tres sprints: se compromete, se inicia el sprint y se cierra,
+	// completándola solo en el último.
+	ids := make([]uuid.UUID, 0, len(stages))
+	for _, s := range stages {
+		sprintID := f.createSprint(t, s.name, s.start, s.end)
+		f.startWith(t, sprintID, sprintMoment(t, s.start, 12, 0), storyID)
+		var completed []uuid.UUID
+		if s.complete {
+			completed = append(completed, storyID)
+		}
+		f.completeAndClose(t, sprintID, sprintMoment(t, s.end, 20, 0), completed...)
+		ids = append(ids, sprintID)
+	}
+
+	body := requireStoryHistory(t, f.env.listStorySprints(t, f.brunoToken, storyID))
+
+	require.Len(t, body.Sprints, 3, "la historia estuvo en tres sprints")
+	wantOutcomes := []string{"not_completed", "not_completed", "completed"}
+	for i, item := range body.Sprints {
+		assert.Equal(t, ids[i].String(), item.SprintID, "orden ascendente de inicio")
+		assert.Equal(t, stages[i].name, item.SprintName)
+		assert.Equal(t, "closed", item.SprintStatus)
+		assert.Equal(t, stages[i].start, item.StartDate)
+		assert.Equal(t, stages[i].end, item.EndDate)
+		if assert.NotNil(t, item.Outcome, "outcome en %s", stages[i].name) {
+			assert.Equal(t, wantOutcomes[i], *item.Outcome, "outcome en %s", stages[i].name)
+		}
+		if stages[i].complete {
+			assert.NotNil(t, item.CompletedAt, "completedAt en el sprint donde se completó")
+		} else {
+			assert.Nil(t, item.CompletedAt, "completedAt es null donde no se completó")
+		}
+	}
+}
+
+// Escenario: Días restantes (004/US6)
+// El detalle de un sprint Activo que termina el 2026-10-14, consultado el 2026-10-04, informa 10 días
+// restantes, con el día de fin incluido, y overdueDays null (FR-053, RN-23).
+func TestUS6_DiasRestantes(t *testing.T) {
+	f := newSprintUS6Fixture(t)
+
+	schedule := requireSchedule(t, f.activeDetailAt(t, sprintMoment(t, "2026-10-04", 12, 0)))
+
+	if assert.NotNil(t, schedule.RemainingDays, "remainingDays debe tener valor") {
+		assert.Equal(t, 10, *schedule.RemainingDays)
+	}
+	assert.Nil(t, schedule.OverdueDays, "overdueDays es null si el sprint no venció")
+}
+
+// Escenario: Termina hoy (004/US6)
+// El detalle de un sprint Activo que termina el día de la consulta informa 0 días restantes, porque
+// el día de fin se cuenta y el sprint sigue en curso, y overdueDays null (RN-23).
+func TestUS6_TerminaHoy(t *testing.T) {
+	f := newSprintUS6Fixture(t)
+
+	schedule := requireSchedule(t, f.activeDetailAt(t, sprintMoment(t, "2026-10-14", 12, 0)))
+
+	if assert.NotNil(t, schedule.RemainingDays, "remainingDays debe tener valor el último día") {
+		assert.Equal(t, 0, *schedule.RemainingDays)
+	}
+	assert.Nil(t, schedule.OverdueDays, "el último día no está vencido")
+}
+
+// Escenario: Vencido (004/US6)
+// El detalle de un sprint Activo cuya fecha de fin (2026-10-14) pasó hace 3 días informa overdueDays
+// 3 y remainingDays null, nunca un número negativo (RN-23).
+func TestUS6_Vencido(t *testing.T) {
+	f := newSprintUS6Fixture(t)
+
+	schedule := requireSchedule(t, f.activeDetailAt(t, sprintMoment(t, "2026-10-17", 12, 0)))
+
+	assert.Nil(t, schedule.RemainingDays, "remainingDays es null en un sprint vencido")
+	if assert.NotNil(t, schedule.OverdueDays, "overdueDays debe tener valor") {
+		assert.Equal(t, 3, *schedule.OverdueDays)
+	}
+}
+
+// Escenario: Sin días restantes fuera de Activo (004/US6)
+// Los detalles de un sprint Planificado y de uno Cerrado traen schedule en null, porque los días
+// restantes solo aplican al sprint en curso (FR-053).
+func TestUS6_SinDiasRestantesFueraDeActivo(t *testing.T) {
+	f := newSprintUS6Fixture(t)
+	closedID := f.runClosed(t, sprintClosedRun{
+		name: "Sprint 1", start: "2026-10-01", end: "2026-10-14",
+		startedAt: sprintMoment(t, "2026-10-01", 12, 0), closedAt: sprintMoment(t, "2026-10-14", 20, 0),
+		points: []int{5}, completed: 1,
+	})
+	plannedID := f.createSprint(t, "Sprint 2", "2026-10-15", "2026-10-28")
+	f.setClock(sprintMoment(t, "2026-10-20", 12, 0))
+
+	for name, sprintID := range map[string]uuid.UUID{"planificado": plannedID, "cerrado": closedID} {
+		t.Run(name, func(t *testing.T) {
+			rec := f.env.getSprintDetail(t, f.brunoToken, sprintID)
+			require.Equal(t, http.StatusOK, rec.Code, "cuerpo: %s", rec.Body.String())
+			schedule, present := sprintRawBody(t, rec)["schedule"]
+			assert.True(t, present, "falta el campo schedule en el detalle")
+			assert.Nil(t, schedule, "schedule debe ser null en un sprint %s", name)
+		})
+	}
+}
+
+// Escenario: Detalle desde la instantánea (004/US6)
+// Cerrado un sprint con una historia no completada ("Historia de Sprint 1 1", prioridad alta, 5 Story
+// Points), renombrarla, cambiarle la prioridad y reestimarla con la 003 no cambia el detalle del
+// sprint: muestra el título, la prioridad y los Story Points que tenía al cerrarse (FR-043, FR-053).
+func TestUS6_DetalleDesdeLaInstantanea(t *testing.T) {
+	f := newSprintUS6Fixture(t)
+	sprintID := f.createSprint(t, "Sprint 1", "2026-10-01", "2026-10-14")
+	storyID := f.newStories(t, "Historia de Sprint 1", 5)[0]
+	f.startWith(t, sprintID, sprintMoment(t, "2026-10-01", 12, 0), storyID)
+	f.completeAndClose(t, sprintID, sprintMoment(t, "2026-10-14", 20, 0))
+
+	// Renombre, cambio de prioridad y reestimación de la historia devuelta al backlog, con la 003; se
+	// comprueba que los cambios ocurrieron de verdad.
+	patched := f.env.sprintDo(t, http.MethodPatch, "/api/v1/stories/"+storyID.String(), f.brunoToken, map[string]any{"title": "Historia renombrada", "priority": "low"})
+	require.Equal(t, http.StatusOK, patched.Code, "no se pudo modificar la historia: %s", patched.Body.String())
+	reestimated := f.env.sprintDo(t, http.MethodPut, "/api/v1/stories/"+storyID.String()+"/story-points", f.brunoToken, map[string]any{"storyPoints": 13})
+	require.Equal(t, http.StatusOK, reestimated.Code, "no se pudo reestimar la historia: %s", reestimated.Body.String())
+	story := sprintStoredStory(t, f.env.db, storyID)
+	require.Equal(t, "Historia renombrada", story.Title)
+	require.Equal(t, backlogdomain.StoryPriorityLow, story.Priority)
+	require.Equal(t, sprintPoints(13), story.StoryPoints)
+
+	rec := f.env.getSprintDetail(t, f.brunoToken, sprintID)
+
+	require.Equal(t, http.StatusOK, rec.Code, "cuerpo: %s", rec.Body.String())
+	var body sprintClosedBody
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "el cuerpo del 200 no es JSON válido: %s", rec.Body.String())
+	require.Len(t, body.Stories, 1, "el detalle debe listar la historia de la instantánea")
+	assert.Equal(t, storyID.String(), body.Stories[0].StoryID)
+	assert.Equal(t, "Historia de Sprint 1 1", body.Stories[0].Title, "título al cierre")
+	assert.Equal(t, "high", body.Stories[0].Priority, "prioridad al cierre")
+	assert.Equal(t, 5, body.Stories[0].StoryPoints, "Story Points al cierre")
+}
+
+// Escenario: Cuatro fechas (004/US6)
+// Un sprint previsto del 2026-10-01 al 2026-10-14 que arrancó el 2026-10-03 y se cerró el 2026-10-10
+// figura en el historial con las cuatro fechas por separado, de modo que la duración real es
+// distinguible de la prevista (FR-051).
+func TestUS6_CuatroFechas(t *testing.T) {
+	f := newSprintUS6Fixture(t)
+	startedAt := sprintMoment(t, "2026-10-03", 12, 0)
+	closedAt := sprintMoment(t, "2026-10-10", 20, 30)
+	sprintID := f.runClosed(t, sprintClosedRun{
+		name: "Sprint 1", start: "2026-10-01", end: "2026-10-14",
+		startedAt: startedAt, closedAt: closedAt, points: []int{5}, completed: 0,
+	})
+
+	body, _ := requireSprintList(t, f.env.listSprints(t, f.brunoToken, f.projectID, "closed"))
+
+	require.Len(t, body.Sprints, 1, "el historial debe listar el sprint cerrado")
+	item := body.Sprints[0]
+	requireListedSprint(t, item, sprintID, "Sprint 1", "closed", "2026-10-01", "2026-10-14")
+	if assert.NotNil(t, item.StartedAt, "startedAt debe registrar el inicio real") {
+		assert.Equal(t, sprintUTC(startedAt), *item.StartedAt)
+	}
+	if assert.NotNil(t, item.ClosedAt, "closedAt debe registrar el cierre real") {
+		assert.Equal(t, sprintUTC(closedAt), *item.ClosedAt)
+	}
+}
+
+// Escenario: Proyecto sin sprints (004/US6)
+// El listado de un proyecto sin ningún sprint responde 200 con sprints [] y emptyReason no_sprints,
+// también cuando se filtra por estado, sin que eso sea un error (FR-054).
+func TestUS6_ProyectoSinSprints(t *testing.T) {
+	f := newSprintUS6Fixture(t)
+
+	for name, statuses := range map[string][]string{"sin filtro": nil, "con filtro": {"closed"}} {
+		t.Run(name, func(t *testing.T) {
+			body, raw := requireSprintList(t, f.env.listSprints(t, f.brunoToken, f.projectID, statuses...))
+			assert.Equal(t, []any{}, raw["sprints"], "sprints debe ser []")
+			if assert.NotNil(t, body.EmptyReason, "emptyReason debe explicar el vacío") {
+				assert.Equal(t, "no_sprints", *body.EmptyReason)
+			}
+		})
+	}
+}
+
+// Escenario: Cerrados sin completadas (004/US6)
+// Un proyecto cuyos dos sprints cerrados no completaron ninguna historia los lista en el historial
+// con 0 Story Points y 0 historias completadas, sin que eso sea un error (FR-045, FR-051).
+func TestUS6_CerradosSinCompletadas(t *testing.T) {
+	f := newSprintUS6Fixture(t)
+	first := f.runClosed(t, sprintClosedRun{
+		name: "Sprint 1", start: "2026-09-15", end: "2026-09-28",
+		startedAt: sprintMoment(t, "2026-09-15", 12, 0), closedAt: sprintMoment(t, "2026-09-28", 20, 0),
+		points: []int{5, 3}, completed: 0,
+	})
+	second := f.runClosed(t, sprintClosedRun{
+		name: "Sprint 2", start: "2026-10-01", end: "2026-10-14",
+		startedAt: sprintMoment(t, "2026-10-01", 12, 0), closedAt: sprintMoment(t, "2026-10-14", 20, 0),
+		points: []int{8}, completed: 0,
+	})
+
+	body, raw := requireSprintList(t, f.env.listSprints(t, f.brunoToken, f.projectID, "closed"))
+
+	assert.Nil(t, raw["emptyReason"], "con resultados emptyReason es null")
+	require.Equal(t, []string{second.String(), first.String()}, sprintListIDs(body))
+	want := []sprintResultsBody{
+		{CommittedStoryPoints: 8, PlannedStoryPoints: 8, PlannedStoryCount: 1},
+		{CommittedStoryPoints: 8, PlannedStoryPoints: 8, PlannedStoryCount: 2},
+	}
+	for i, item := range body.Sprints {
+		if assert.NotNil(t, item.Results, "results de %s", item.Name) {
+			assert.Equal(t, want[i], *item.Results, "totales de %s", item.Name)
+		}
+	}
+}
+
+// Escenario: No integrante (004/US6)
+// Un usuario que no es integrante del proyecto recibe al listar sus sprints, con y sin filtro, el
+// mismo 404 que ante un proyecto inexistente, idéntico byte a byte y sin datos del proyecto (FR-058).
+func TestUS6_NoIntegrante(t *testing.T) {
+	f := newSprintUS6Fixture(t)
+	sprintSeed(t, f.env.db, f.projectID, f.anaID, "Sprint 1", "2026-10-01", "2026-10-14")
+	_, outsiderToken := f.env.signUp(t, "Carla Gómez", "carla@example.com")
+
+	for name, statuses := range map[string][]string{"sin filtro": nil, "con filtro": {"closed"}} {
+		t.Run(name, func(t *testing.T) {
+			foreignRec := f.env.listSprints(t, outsiderToken, f.projectID, statuses...)
+			missingRec := f.env.listSprints(t, outsiderToken, uuid.New(), statuses...)
+
+			assert.Equal(t, http.StatusNotFound, foreignRec.Code, "cuerpo: %s", foreignRec.Body.String())
+			assert.JSONEq(t, `{"error":"`+sprintProjectNotFound+`"}`, foreignRec.Body.String())
+			assert.Equal(t, missingRec.Code, foreignRec.Code, "los códigos de estado deberían ser idénticos")
+			assert.Equal(t, missingRec.Header().Get("Content-Type"), foreignRec.Header().Get("Content-Type"), "los tipos de contenido deberían ser idénticos")
+			assert.Equal(t, missingRec.Body.Bytes(), foreignRec.Body.Bytes(), "los cuerpos deberían ser idénticos byte a byte")
+		})
+	}
+}
+
+// Escenario: Sprint inexistente (004/US6)
+// Un integrante que consulta el detalle de un sprint que no existe recibe el 404 de sprint
+// inexistente del contrato (FR-058).
+func TestUS6_SprintInexistente(t *testing.T) {
+	f := newSprintUS6Fixture(t)
+
+	rec := f.env.getSprintDetail(t, f.brunoToken, uuid.New())
+
+	assert.Equal(t, http.StatusNotFound, rec.Code, "cuerpo: %s", rec.Body.String())
+	assert.Equal(t, sprintNotFoundBody, rec.Body.String())
+}
+
+// Sin etiqueta de escenario: el listado no incluye sprints de otro proyecto. Bruno integra dos
+// proyectos con un sprint cada uno y el listado de cada proyecto devuelve solo el suyo (FR-050).
+func TestSprintList_ExcludesOtherProjects(t *testing.T) {
+	f := newSprintUS6Fixture(t)
+	ownID := f.createSprint(t, "Sprint propio", "2026-10-01", "2026-10-14")
+	otherProjectID := sprintSeedProject(t, f.env.db, f.anaID, projectsdomain.ProjectStatusInProgress, f.brunoID)
+	otherID := sprintSeed(t, f.env.db, otherProjectID, f.anaID, "Sprint ajeno", "2026-10-01", "2026-10-14")
+
+	own, _ := requireSprintList(t, f.env.listSprints(t, f.brunoToken, f.projectID))
+	other, _ := requireSprintList(t, f.env.listSprints(t, f.brunoToken, otherProjectID))
+
+	assert.Equal(t, []string{ownID.String()}, sprintListIDs(own), "el listado solo trae los sprints del proyecto")
+	assert.Equal(t, []string{otherID.String()}, sprintListIDs(other), "el listado solo trae los sprints del proyecto")
+}
+
+// Sin etiqueta de escenario: una historia quitada de un sprint Activo antes de su cierre no figura en
+// el historial de ese sprint. El historial de la historia quitada viene vacío, el de la que se quedó
+// muestra el sprint, y el historial de cerrados cuenta solo la historia que quedó (FR-055, RN-17).
+func TestStorySprints_RemovedBeforeCloseNotListed(t *testing.T) {
+	f := newSprintUS6Fixture(t)
+	sprintID := f.createSprint(t, "Sprint 1", "2026-10-01", "2026-10-14")
+	stories := f.newStories(t, "Historia", 5, 3)
+	f.startWith(t, sprintID, sprintMoment(t, "2026-10-01", 12, 0), stories...)
+	removed := f.env.removeStories(t, f.brunoToken, sprintID, stories[0])
+	require.Equal(t, http.StatusOK, removed.Code, "no se pudo quitar la historia: %s", removed.Body.String())
+	f.completeAndClose(t, sprintID, sprintMoment(t, "2026-10-14", 20, 0))
+
+	removedHistory := requireStoryHistory(t, f.env.listStorySprints(t, f.brunoToken, stories[0]))
+	keptHistory := requireStoryHistory(t, f.env.listStorySprints(t, f.brunoToken, stories[1]))
+	list, _ := requireSprintList(t, f.env.listSprints(t, f.brunoToken, f.projectID, "closed"))
+
+	assert.Empty(t, removedHistory.Sprints, "la historia quitada no figura en el sprint")
+	if assert.Len(t, keptHistory.Sprints, 1, "la historia que quedó figura en el sprint") {
+		assert.Equal(t, sprintID.String(), keptHistory.Sprints[0].SprintID)
+	}
+	if assert.Len(t, list.Sprints, 1) {
+		assert.Equal(t, 1, list.Sprints[0].StoryCount, "el sprint cuenta solo la historia que quedó")
+	}
+}
+
+// Sin etiqueta de escenario: un listado con miles de status=closed responde 200 con solo el sprint
+// cerrado y el filtro aplicado una sola vez, porque la cláusula IN debe recibir cada estado admitido
+// una vez y no un parámetro por repetición (T101, hallazgo de seguridad: filtro de estado repetible
+// sin deduplicar). Las repeticiones quedan por debajo del tope de 10000 parámetros de consulta de
+// net/url: por encima de ese tope la consulta no se interpreta y el manejador no recibe ningún valor
+// de status, de modo que la petición nunca llegaría a la cláusula IN.
+func TestSprintList_EstadoRepetidoMilesDeVeces(t *testing.T) {
+	const repetitions = 9000
+	f := newSprintUS6Fixture(t)
+	closedID := f.runClosed(t, sprintClosedRun{
+		name: "Sprint 1", start: "2026-09-15", end: "2026-09-28",
+		startedAt: sprintMoment(t, "2026-09-15", 12, 0), closedAt: sprintMoment(t, "2026-09-28", 20, 0),
+		points: []int{5, 3}, completed: 1,
+	})
+	f.createSprint(t, "Sprint 2", "2026-11-01", "2026-11-14")
+	statuses := make([]string, repetitions)
+	for i := range statuses {
+		statuses[i] = "closed"
+	}
+
+	rec := f.env.listSprints(t, f.brunoToken, f.projectID, statuses...)
+
+	// Solo se lista el cerrado y el filtro informado contiene closed una única vez.
+	body, _ := requireSprintList(t, rec)
+	assert.Equal(t, []string{"closed"}, body.AppliedFilters.Status, "el filtro aplicado debe informar closed una sola vez")
+	assert.Equal(t, []string{closedID.String()}, sprintListIDs(body), "el listado muestra solo el cerrado")
 }

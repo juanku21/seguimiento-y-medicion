@@ -6,6 +6,7 @@ import { getSprint } from "@/features/sprints/api";
 import { CommitStoriesDialog } from "@/features/sprints/components/commit-stories-dialog";
 import { SprintLifecycleActions } from "@/features/sprints/components/sprint-lifecycle-actions";
 import { SprintResults } from "@/features/sprints/components/sprint-results";
+import { SprintSchedule } from "@/features/sprints/components/sprint-schedule";
 import { SprintStoryList } from "@/features/sprints/components/sprint-story-list";
 import { useRequireSession } from "@/hooks/use-session";
 import type { SprintDetail } from "@/types/sprint";
@@ -23,9 +24,10 @@ type DetailState =
   | { status: "loaded"; sprint: SprintDetail }
   | { status: "error"; message: string };
 
-// Vista del detalle de un sprint (004/US2, US3 y US5): pide el sprint con un token vigente y muestra
-// sus datos, las acciones del ciclo de vida, el resultado congelado si está cerrado, la lista de
-// historias comprometidas y, mientras el sprint está abierto, el diálogo para comprometer más. Cada cambio reemplaza el sprint mostrado por el
+// Vista del detalle de un sprint (004/US2, US3, US5 y US6): pide el sprint con un token vigente y
+// muestra sus datos con los días restantes del sprint Activo, las acciones del ciclo de vida, el
+// resultado congelado si está cerrado, la lista de historias comprometidas y, mientras el sprint
+// está abierto, el diálogo para comprometer más. Cada cambio reemplaza el sprint mostrado por el
 // detalle que devuelve el backend.
 // El sprint inexistente o ajeno llega como 404 y se muestra solo su mensaje; ante un 401 el cliente
 // HTTP borra el token y la guardia lleva a /login.
@@ -72,7 +74,8 @@ export function SprintDetailView({ sprintId }: SprintDetailViewProps) {
 
   return (
     <div className="flex flex-col gap-8">
-      {/* Datos del sprint: nombre, estado, Sprint Goal y fechas previstas. */}
+      {/* Datos del sprint: nombre, estado, Sprint Goal, fechas previstas y, si está Activo, los
+          días restantes o vencidos. */}
       <section className="flex flex-col gap-1">
         <h2 className="text-xl font-semibold tracking-tight">{sprint.name}</h2>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -80,6 +83,7 @@ export function SprintDetailView({ sprintId }: SprintDetailViewProps) {
           al {formatDate(sprint.endDate)}
         </p>
         <p className="text-sm">{sprint.goal}</p>
+        <SprintSchedule sprint={sprint} />
       </section>
 
       <SprintLifecycleActions sprint={sprint} onChanged={showSprint} />

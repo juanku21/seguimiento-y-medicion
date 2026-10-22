@@ -199,3 +199,36 @@ func ValidateStoryStatusInput(req StoryStatusInput) (backlogdomain.StoryStatus, 
 		return "", []authdelivery.FieldError{{Field: "status", Message: msgStatusInvalid}}
 	}
 }
+
+// Campo y mensaje del rechazo del filtro de estado del listado de sprints, que enumera los valores
+// admitidos.
+const (
+	sprintStatusQueryField       = "status"
+	msgSprintStatusFilterInvalid = "Los valores admitidos para el estado son planned, active y closed."
+)
+
+// ParseSprintStatusFilter valida los valores repetibles del filtro status del listado de sprints, tal
+// como los entrega c.QueryArray, y devuelve los estados del dominio o un FieldError en status que
+// indica los valores admitidos (FR-050, FR-051). Sin valores devuelve una lista vacía y no nil,
+// porque appliedFilters.status nunca es null. La comparación es exacta, como el enum del contrato:
+// no se recortan espacios ni se ignoran mayúsculas. Ante un valor no admitido devuelve nil y un
+// único FieldError. Los valores repetidos se descartan conservando el orden de su primera aparición,
+// de modo que la cláusula IN y appliedFilters.status reciban como máximo los tres estados admitidos
+// (hallazgo de seguridad: filtro de estado repetible sin deduplicar).
+func ParseSprintStatusFilter(values []string) ([]domain.SprintStatus, []authdelivery.FieldError) {
+	statuses := []domain.SprintStatus{}
+	seen := map[domain.SprintStatus]bool{}
+	for _, value := range values {
+		status := domain.SprintStatus(value)
+		switch status {
+		case domain.SprintStatusPlanned, domain.SprintStatusActive, domain.SprintStatusClosed:
+			if !seen[status] {
+				seen[status] = true
+				statuses = append(statuses, status)
+			}
+		default:
+			return nil, []authdelivery.FieldError{{Field: sprintStatusQueryField, Message: msgSprintStatusFilterInvalid}}
+		}
+	}
+	return statuses, nil
+}

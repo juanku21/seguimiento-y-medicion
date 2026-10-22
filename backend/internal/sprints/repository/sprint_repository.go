@@ -788,14 +788,83 @@ func (r *SprintRepository) FindOpenCommitment(ctx context.Context, storyID uuid.
 	return &rows[0], nil
 }
 
-// List devuelve los sprints de un proyecto. Firma mínima.
-func (r *SprintRepository) List(ctx context.Context, projectID uuid.UUID, statuses []domain.SprintStatus) ([]domain.SprintListItem, error) {
-	return nil, errNotImplemented
+// sprintListRow es la fila que lee List: las columnas del sprint más los totales que calcula
+// sprintResultsSelect sobre sus filas de sprint_stories, con los mismos alias que SprintResults.
+type sprintListRow struct {
+	domain.Sprint        `gorm:"embedded"`
+	PlannedStoryCount    int
+	CompletedStoryCount  int
+	PlannedStoryPoints   int
+	CompletedStoryPoints int
 }
 
-// HasSprints indica si el proyecto tiene sprints. Firma mínima.
+// List devuelve los sprints del proyecto en una sola consulta (research.md sección 10): une cada
+// sprint con una subconsulta LATERAL que agrega sus filas de sprint_stories con sprintResultsSelect,
+// de modo que no hay N+1 y un sprint sin historias da todos los totales en 0. Si se pide algún
+// estado, filtra con IN; sin filtro devuelve todos. El orden es start_date DESC y luego id ASC
+// (FR-052). StoryCount es la cantidad de filas del sprint: los compromisos vigentes en uno abierto y
+// las planificadas al cierre en uno Cerrado. Results solo se completa en un sprint Cerrado, con los
+// Story Points comprometidos al inicio; en otro caso queda en nil. Sin sprints devuelve una lista
+// vacía, nunca nil.
+func (r *SprintRepository) List(ctx context.Context, projectID uuid.UUID, statuses []domain.SprintStatus) ([]domain.SprintListItem, error) {
+	query := r.db.WithContext(ctx).
+		Table("sprints").
+		Select("sprints.*, results.planned_story_count, results.completed_story_count, "+
+			"results.planned_story_points, results.completed_story_points").
+		Joins("CROSS JOIN LATERAL (SELECT "+sprintResultsSelect+
+			" FROM sprint_stories WHERE sprint_stories.sprint_id = sprints.id) AS results").
+		Where("sprints.project_id = ?", projectID)
+	if len(statuses) > 0 {
+		query = query.Where("sprints.status IN ?", statuses)
+	}
+	var rows []sprintListRow
+	err := query.
+		Order("sprints.start_date DESC, sprints.id ASC").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("listar los sprints del proyecto: %w", err)
+	}
+
+	// Cada fila se traduce al elemento del listado; los totales solo se exponen si está Cerrado.
+	items := make([]domain.SprintListItem, 0, len(rows))
+	for _, row := range rows {
+		item := domain.SprintListItem{
+			Sprint:     row.Sprint,
+			StoryCount: row.PlannedStoryCount,
+		}
+		if row.Status == domain.SprintStatusClosed {
+			results := domain.SprintResults{
+				PlannedStoryPoints:   row.PlannedStoryPoints,
+				CompletedStoryPoints: row.CompletedStoryPoints,
+				PlannedStoryCount:    row.PlannedStoryCount,
+				CompletedStoryCount:  row.CompletedStoryCount,
+			}
+			if row.CommittedStoryPoints != nil {
+				results.CommittedStoryPoints = *row.CommittedStoryPoints
+			}
+			item.Results = &results
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
+// HasSprints indica si el proyecto tiene al menos un sprint, cualquiera sea su estado, con un
+// SELECT 1 ... LIMIT 1; se lee con Find para que la ausencia no pase por gorm.ErrRecordNotFound. El
+// servicio la usa solo cuando el listado filtrado viene vacío, para distinguir no_sprints de
+// no_matches (FR-054).
 func (r *SprintRepository) HasSprints(ctx context.Context, projectID uuid.UUID) (bool, error) {
-	return false, errNotImplemented
+	var found []int
+	err := r.db.WithContext(ctx).
+		Table("sprints").
+		Select("1").
+		Where("project_id = ?", projectID).
+		Limit(1).
+		Find(&found).Error
+	if err != nil {
+		return false, fmt.Errorf("verificar si el proyecto tiene sprints: %w", err)
+	}
+	return len(found) > 0, nil
 }
 
 // sprintDetailRow es la fila que lee FindDetail: las columnas del sprint más el identificador y el
@@ -907,7 +976,23 @@ func (r *SprintRepository) FindDetail(ctx context.Context, sprintID uuid.UUID) (
 	return detail, nil
 }
 
-// ListForStory devuelve el historial de sprints de una historia. Firma mínima.
+// ListForStory devuelve el historial de sprints de una historia (FR-055): une sus filas de
+// sprint_stories con sprints y las ordena por start_date ASC y luego por el id del sprint. Como al
+// quitar una historia de un sprint abierto se borra su fila, solo figuran los sprints donde sigue
+// comprometida y los Cerrados donde estuvo al cierre. Outcome es el congelado al cierre, o nil en el
+// sprint abierto. Sin sprints devuelve una lista vacía, nunca nil.
 func (r *SprintRepository) ListForStory(ctx context.Context, storyID uuid.UUID) ([]domain.StorySprintHistoryItem, error) {
-	return nil, errNotImplemented
+	items := []domain.StorySprintHistoryItem{}
+	err := r.db.WithContext(ctx).
+		Table("sprint_stories").
+		Select("sprints.id AS sprint_id, sprints.name AS sprint_name, sprints.status AS sprint_status, "+
+			"sprints.start_date, sprints.end_date, sprint_stories.outcome, sprint_stories.completed_at").
+		Joins("JOIN sprints ON sprints.id = sprint_stories.sprint_id").
+		Where("sprint_stories.story_id = ?", storyID).
+		Order("sprints.start_date ASC, sprints.id ASC").
+		Scan(&items).Error
+	if err != nil {
+		return nil, fmt.Errorf("leer el historial de sprints de la historia: %w", err)
+	}
+	return items, nil
 }

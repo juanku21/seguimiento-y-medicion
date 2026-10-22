@@ -705,22 +705,22 @@ el detalle de un sprint Activo con fin el 2026-10-14 consultado el 2026-10-04 in
 
 ### Pruebas de la Historia 6 ⚠️
 
-- [ ] T071 [P] [US6] Pruebas unitarias **obligatorias** de `Schedule` en
+- [X] T071 [P] [US6] Pruebas unitarias **obligatorias** de `Schedule` en
       `backend/internal/sprints/domain/schedule_test.go`, cubriendo RN-23 con la tabla de
       data-model.md sección 6: fin 2026-10-14 y hoy 2026-10-04 → `remainingDays` 10 y `overdueDays`
       `nil`; hoy 2026-10-14 → 0 y `nil`; hoy 2026-10-17 → `nil` y 3; y el **borde de medianoche**:
       un instante que en UTC ya es el día siguiente pero en la zona del sistema todavía es el día de
       fin devuelve 0 — depende de T070
-- [ ] T072 [P] [US6] Pruebas unitarias de la validación del filtro del listado en
+- [X] T072 [P] [US6] Pruebas unitarias de la validación del filtro del listado en
       `backend/internal/sprints/delivery/validation_test.go`: `status` repetible, valores fuera de
       `planned`/`active`/`closed` rechazados indicando los admitidos, y ausencia de filtro aceptada —
       depende de T070
-- [ ] T073 [P] [US6] Pruebas unitarias del listado y del detalle en el servicio en
+- [X] T073 [P] [US6] Pruebas unitarias del listado y del detalle en el servicio en
       `backend/internal/sprints/service/sprint_service_test.go`, con dobles y reloj fijo:
       `emptyReason` `null` con resultados, `no_sprints` sin sprints aunque haya filtro y `no_matches`
       con sprints que no cumplen el filtro, llamando a `HasSprints` **solo** cuando el resultado
       viene vacío; y `schedule` presente solo para un sprint `active` (FR-053) — depende de T070
-- [ ] T074 [US6] Pruebas de integración de la historia en
+- [X] T074 [US6] Pruebas de integración de la historia en
       `backend/internal/sprints/delivery/handler_test.go`, con `// Escenario: <nombre> (004/US6)`:
       `TestUS6_HistorialDeCerrados` (tres cerrados con nombre, Sprint Goal, cuatro fechas y los cinco
       totales), `TestUS6_ListadoCompletoYFiltro` (Cerrado, Activo y Planificado en el listado; solo
@@ -734,7 +734,7 @@ el detalle de un sprint Activo con fin el 2026-10-14 consultado el 2026-10-04 in
       `TestUS6_SprintInexistente` (`404` de sprint). Además, sin etiqueta de escenario, que el
       listado **no incluye sprints de otro proyecto** y que una historia quitada antes del cierre no
       figura en el historial de ese sprint — depende de T070
-- [ ] T075 [P] [US6] Pruebas de frontend en
+- [X] T075 [P] [US6] Pruebas de frontend en
       `frontend/src/features/sprints/components/sprint-list.test.tsx`,
       `frontend/src/features/sprints/components/sprint-history-table.test.tsx`,
       `frontend/src/features/sprints/components/sprint-schedule.test.tsx` y
@@ -747,22 +747,22 @@ el detalle de un sprint Activo con fin el 2026-10-14 consultado el 2026-10-04 in
 
 ### Implementación de la Historia 6
 
-- [ ] T076 [US6] Implementar `Schedule(endDate, now time.Time, location *time.Location)` en
+- [X] T076 [US6] Implementar `Schedule(endDate, now time.Time, location *time.Location)` en
       `backend/internal/sprints/domain/schedule.go`, tomando la fecha de calendario de `now` en la
       zona y devolviendo `remainingDays` u `overdueDays`, **nunca un número negativo** (research.md
       sección 15) — depende de T071
-- [ ] T077 [US6] Implementar `List`, `HasSprints` y `ListForStory` en
+- [X] T077 [US6] Implementar `List`, `HasSprints` y `ListForStory` en
       `backend/internal/sprints/repository/sprint_repository.go`: `List` es **una sola consulta**
       sobre `sprints` del proyecto con el fragmento `sprintResultsSelect` de T067 como subconsulta
       agregada por sprint,
       filtro `IN` por estado y orden `start_date DESC, id ASC` (FR-052); `HasSprints` es un
       `SELECT 1 ... LIMIT 1`; `ListForStory` une `sprint_stories` con `sprints` por la historia y
       ordena por `start_date ASC, sprints.id ASC` — depende de T066, T067 y T074
-- [ ] T078 [US6] Implementar `List(ctx, projectID, statuses)`, completar `Get(ctx, access)` con
+- [X] T078 [US6] Implementar `List(ctx, projectID, statuses)`, completar `Get(ctx, access)` con
       `schedule` calculado con `Schedule`, el reloj y la zona solo para un sprint `active`, e
       implementar `StoryHistory(ctx, storyID)` en `backend/internal/sprints/service/sprint_service.go`
       — depende de T073, T076 y T077
-- [ ] T079 [US6] Declarar `SprintListItem`, `SprintListResponse`, `SprintSchedule`,
+- [X] T079 [US6] Declarar `SprintListItem`, `SprintListResponse`, `SprintSchedule`,
       `StorySprintHistoryItem` y `StorySprintHistoryResponse` en
       `backend/internal/sprints/delivery/dto.go` (`sprints` y `appliedFilters.status` nunca son
       `null`); implementar el parseo del filtro con `c.QueryArray("status")` en
@@ -771,7 +771,7 @@ el detalle de un sprint Activo con fin el 2026-10-14 consultado el 2026-10-04 in
       `backend/internal/sprints/delivery/handler.go`; y registrar `GET /sprints` en el subgrupo del
       proyecto y `GET /api/v1/stories/:storyId/sprints` con el `RequireStoryAccess` inyectado en
       `backend/internal/sprints/delivery/routes.go` — depende de T072 y T078
-- [ ] T080 [US6] Implementar las llamadas de listado e historial de una historia en
+- [X] T080 [US6] Implementar las llamadas de listado e historial de una historia en
       `frontend/src/features/sprints/api.ts`; los componentes `SprintList` en
       `frontend/src/features/sprints/components/sprint-list.tsx`, `SprintHistoryTable` en
       `frontend/src/features/sprints/components/sprint-history-table.tsx`, `SprintSchedule` en
@@ -781,6 +781,19 @@ el detalle de un sprint Activo con fin el 2026-10-14 consultado el 2026-10-04 in
       cerrados y el acceso a "Nuevo sprint"; y la sección "Sprints en los que estuvo" en
       `frontend/src/app/projects/[projectId]/backlog/[storyId]/page.tsx` de la 003 (FR-055) —
       depende de T075 y T079
+- [X] T101 [US6] Agregar en `backend/internal/sprints/delivery/validation_test.go` una prueba
+      unitaria de `ParseSprintStatusFilter` con miles de valores repetidos de `status` (por ejemplo,
+      70.000 `closed` intercalados con `planned`) que verifique que el filtro resultante contiene cada
+      valor admitido una sola vez, en el orden de su primera aparición, y en
+      `backend/internal/sprints/delivery/handler_test.go` una prueba de integración de
+      `GET /api/v1/projects/{projectId}/sprints` con más de 65.535 `status=closed` que espere `200`,
+      no `500`, y `appliedFilters.status` igual a `["closed"]` per hallazgo de seguridad: filtro de
+      estado repetible sin deduplicar que arma una cláusula IN con un parámetro por valor (security)
+- [X] T102 [US6] Eliminar los valores duplicados en `ParseSprintStatusFilter` de
+      `backend/internal/sprints/delivery/validation.go`, conservando el orden de la primera
+      aparición, de modo que la cláusula `IN` de `List` y `appliedFilters.status` reciban como máximo
+      los tres estados admitidos per hallazgo de seguridad: filtro de estado repetible sin deduplicar
+      que arma una cláusula IN con un parámetro por valor (security) — depende de T101
 
 **Checkpoint**: US1 a US6 funcionan de forma independiente. El historial congelado y los días
 restantes ya están disponibles para el dashboard (009) y los reportes (010).
@@ -927,6 +940,25 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       antes que el de la historia (mismo orden que `Close`) y revalide el compromiso abierto tras
       bloquear, eliminando el interbloqueo con el cierre per plan: research.md §13 (partial) —
       origen: converge, detectado en hu/004-us5-cerrar-un-sprint
+- [ ] T103 Marcar `outcome` como `nullable: true` en el esquema `StorySprintHistoryItem` de
+      `specs/004-sprint-management/contracts/openapi.yaml`, con la descripción "`null` mientras el
+      sprint está abierto", alineándolo con data-model.md y con la respuesta de
+      `GET /api/v1/stories/{storyId}/sprints` per plan: contrato de la API (contradicts) — origen:
+      converge, detectado en hu/004-us6-consultar-el-historial
+- [ ] T104 Agregar pruebas de integración que verifiquen que
+      `GET /api/v1/projects/{projectId}/sprints` responde `400`, no `200` con todos los sprints,
+      cuando la query no se puede interpretar (más de 10.000 parámetros `status`, `status=%zz` y
+      `status=closed;x`), y el mismo caso para `GET /api/v1/projects/{projectId}/stories`, en
+      `backend/internal/sprints/delivery/handler_test.go` y
+      `backend/internal/backlog/delivery/handler_test.go`, más una prueba del middleware en
+      `backend/internal/platform/httpserver/` per hallazgo de seguridad: query mal formada que ignora
+      los filtros sin aviso (security) — origen: seguridad, detectado en 004/US6
+- [ ] T105 Agregar en `backend/internal/platform/httpserver/` un middleware que valide
+      `c.Request.URL.RawQuery` con `url.ParseQuery` y responda `400` con un mensaje descriptivo si
+      hay error, registrarlo con `router.Use` en `backend/cmd/app/main.go` junto a
+      `LimitRequestBody`, actualizar las respuestas `400` de Swagger de los listados afectados y el
+      comentario de `TestSprintList_EstadoRepetidoMilesDeVeces` per hallazgo de seguridad: query mal
+      formada que ignora los filtros sin aviso (security) — origen: seguridad, detectado en 004/US6
 
 ---
 

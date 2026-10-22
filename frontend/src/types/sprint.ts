@@ -95,3 +95,46 @@ export type StoryProgressResponse = {
   status: StoryStatus;
   completedAt: string | null;
 };
+
+// Elemento del listado de sprints del proyecto (SprintListItem, FR-050, FR-051). results trae los
+// totales de la instantánea solo en un sprint cerrado; en los demás llega en null.
+export type SprintListItem = {
+  id: string;
+  name: string;
+  goal: string;
+  status: SprintStatus;
+  startDate: string;
+  endDate: string;
+  startedAt: string | null;
+  closedAt: string | null;
+  storyCount: number;
+  results: SprintResults | null;
+};
+
+// Motivo del listado vacío: el proyecto sin sprints (FR-054) o sprints que no cumplen el filtro.
+export type SprintListEmptyReason = "no_sprints" | "no_matches";
+
+// Respuesta del listado de sprints (SprintListResponse); sprints y appliedFilters.status nunca
+// llegan en null y emptyReason es null cuando hay resultados.
+export type SprintListResponse = {
+  sprints: SprintListItem[];
+  appliedFilters: { status: SprintStatus[] };
+  emptyReason: SprintListEmptyReason | null;
+};
+
+// Sprint en el que estuvo una historia y el resultado que tuvo en él (StorySprintHistoryItem,
+// FR-055); outcome llega en null mientras el sprint está abierto.
+export type StorySprintHistoryItem = {
+  sprintId: string;
+  sprintName: string;
+  sprintStatus: SprintStatus;
+  startDate: string;
+  endDate: string;
+  outcome: StoryOutcome | null;
+  completedAt: string | null;
+};
+
+// Respuesta del historial de sprints de una historia (StorySprintHistoryResponse).
+export type StorySprintHistoryResponse = {
+  sprints: StorySprintHistoryItem[];
+};

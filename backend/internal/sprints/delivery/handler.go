@@ -112,13 +112,68 @@ func (h *Handler) createSprint(c *gin.Context) {
 	c.JSON(http.StatusCreated, newSprintDetail(view))
 }
 
+// listSprints godoc
+//
+//	@Summary		Lista los sprints del proyecto
+//	@Description	Devuelve los sprints del proyecto, con su estado, en orden de fecha de inicio
+//	@Description	descendente y luego por identificador (FR-050, FR-052). El filtro status es opcional y
+//	@Description	repetible (?status=planned&status=active). Con ?status=closed devuelve el historial de
+//	@Description	sprints cerrados: cada ítem trae en results los totales congelados en su instantánea;
+//	@Description	en los sprints que no están cerrados, results es null (FR-051). Un proyecto sin sprints
+//	@Description	devuelve una lista vacía con emptyReason no_sprints, no un error (FR-054); si hay
+//	@Description	sprints pero ninguno cumple el filtro, emptyReason es no_matches. Cualquier integrante
+//	@Description	puede consultarlo, también en un proyecto finished.
+//	@Tags			Sprints
+//	@ID				listSprints
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			projectId	path		string								true	"Identificador del proyecto"	format(uuid)
+//	@Param			status		query		[]string							false	"Filtro por estado; puede repetirse"	collectionFormat(multi)	Enums(planned, active, closed)
+//	@Success		200			{object}	SprintListResponse					"Lista de sprints, posiblemente vacía."
+//	@Failure		400			{object}	delivery.ValidationErrorResponse	"Algún valor de status no es planned, active ni closed; señala status."
+//	@Failure		401			{object}	delivery.ErrorResponse				"Se requiere iniciar sesión."
+//	@Failure		404			{object}	delivery.ErrorResponse				"El proyecto no existe o quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo."
+//	@Failure		500			{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."
+//	@Router			/api/v1/projects/{projectId}/sprints [get]
+func (h *Handler) listSprints(c *gin.Context) {
+	// El proyecto sale del parámetro que RequireMembership ya validó como UUID de un proyecto del que
+	// quien pide es integrante.
+	_, projectID, ok := sessionAndProject(c, "listSprints")
+	if !ok {
+		return
+	}
+
+	// El filtro de estado se valida antes de llegar al servicio; un valor no admitido responde 400
+	// con el campo status.
+	statuses, fields := ParseSprintStatusFilter(c.QueryArray(sprintStatusQueryField))
+	if len(fields) > 0 {
+		c.JSON(http.StatusBadRequest, authdelivery.ValidationErrorResponse{Error: msgInvalidFields, Fields: fields})
+		return
+	}
+
+	// Se listan los sprints con el motivo del vacío; cualquier error es 500 genérico.
+	view, err := h.sprints.List(c.Request.Context(), projectID, statuses)
+	if err != nil {
+		respondServiceError(c, err, "no se pudieron listar los sprints")
+		return
+	}
+
+	c.JSON(http.StatusOK, newSprintListResponse(view, statuses))
+}
+
 // getSprint godoc
 //
 //	@Summary		Consulta el detalle de un sprint
-//	@Description	Devuelve los datos del sprint, su estado y sus historias comprometidas con sus datos
-//	@Description	vigentes (FR-053). Cualquier integrante del proyecto puede consultarlo, también en un
-//	@Description	proyecto finished. Un sprint inexistente, eliminado o de un proyecto del que quien pide
-//	@Description	no es integrante responde el mismo 404 (FR-058).
+//	@Description	Devuelve los datos del sprint, su estado y sus historias (FR-053). En un sprint planned
+//	@Description	o active, las historias muestran sus datos vigentes; en uno closed, el título, la
+//	@Description	prioridad y los Story Points que tenían al cerrarse, tomados de la instantánea, con los
+//	@Description	totales en results y el factor congelado en hoursPerStoryPoint (FR-043, US6-8). Solo en
+//	@Description	un sprint active, schedule informa los días restantes hasta la fecha de fin prevista,
+//	@Description	con el día de fin incluido; si ya pasó, informa overdueDays en lugar de un número
+//	@Description	negativo (RN-23). En los demás estados schedule es null. Cualquier integrante del
+//	@Description	proyecto puede consultarlo, también en un proyecto finished. Un sprint inexistente,
+//	@Description	eliminado o de un proyecto del que quien pide no es integrante responde el mismo 404
+//	@Description	(FR-058).
 //	@Tags			Sprints
 //	@ID				getSprint
 //	@Produce		json
@@ -418,6 +473,43 @@ func (h *Handler) changeStoryStatus(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, newStoryProgressResponse(status, commitment))
+}
+
+// listStorySprints godoc
+//
+//	@Summary		Lista los sprints en los que estuvo una historia
+//	@Description	Devuelve todos los sprints en los que la historia estuvo planificada y el resultado que
+//	@Description	tuvo en cada uno, en orden de fecha de inicio ascendente (FR-055, RN-17). En los
+//	@Description	sprints cerrados, outcome es completed o not_completed; en el sprint abierto en el que
+//	@Description	está, null. Una historia quitada de un sprint antes del cierre no figura en ese sprint.
+//	@Tags			Sprints
+//	@ID				listStorySprints
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			storyId	path		string						true	"Identificador de la historia"	format(uuid)
+//	@Success		200		{object}	StorySprintHistoryResponse	"Historial de sprints de la historia, posiblemente vacío."
+//	@Failure		401		{object}	delivery.ErrorResponse		"Se requiere iniciar sesión."
+//	@Failure		404		{object}	delivery.ErrorResponse		"La historia no existe o pertenece a un proyecto del que quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo."
+//	@Failure		500		{object}	delivery.ErrorResponse		"Error interno sin detalles expuestos."
+//	@Router			/api/v1/stories/{storyId}/sprints [get]
+func (h *Handler) listStorySprints(c *gin.Context) {
+	// RequireStoryAccess de la 003 ya respondió 404 ante un identificador mal formado, así que un
+	// storyId que no sea UUID solo es posible si la ruta se registró fuera de ese middleware: es un
+	// error de composición y responde 500.
+	storyID, err := uuid.Parse(c.Param("storyId"))
+	if err != nil {
+		respondInternalError(c, "listStorySprints sin un storyId válido en la ruta", "error", err)
+		return
+	}
+
+	// Se lee el historial de la historia; cualquier error es 500 genérico.
+	items, err := h.sprints.StoryHistory(c.Request.Context(), storyID)
+	if err != nil {
+		respondServiceError(c, err, "no se pudo leer el historial de sprints de la historia")
+		return
+	}
+
+	c.JSON(http.StatusOK, newStorySprintHistoryResponse(items))
 }
 
 // sessionAndProject devuelve el titular de la sesión y el proyecto de la ruta. Sin sesión responde el

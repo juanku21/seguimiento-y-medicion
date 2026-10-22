@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -750,4 +751,176 @@ func TestSprintService_Close_NoTocaElProyecto(t *testing.T) {
 	d.repo.AssertExpectations(t)
 	d.repo.AssertNumberOfCalls(t, "Close", 1)
 	d.effort.AssertNotCalled(t, "HasEffort", mock.Anything, mock.Anything)
+}
+
+// Pruebas unitarias del listado y del detalle de sprints en el servicio (T073; FR-050 a FR-054,
+// RN-23). El listado distingue el proyecto sin sprints del filtro sin coincidencias y solo consulta
+// HasSprints cuando el resultado filtrado viene vacío (research.md sección 10). El detalle agrega
+// los días restantes o vencidos solo a un sprint active, calculados con el reloj fijo y la zona
+// inyectados. Igual que las anteriores, no llevan etiqueta de escenario: los TestUS6_* son las
+// pruebas de integración de T074.
+
+// listItemWithStatus arma un elemento del listado de un sprint en el estado indicado, como lo
+// devuelve List del repositorio.
+func listItemWithStatus(status domain.SprintStatus) domain.SprintListItem {
+	item := domain.SprintListItem{}
+	item.Sprint.ID = uuid.New()
+	item.Sprint.Status = status
+	return item
+}
+
+// FR-050, FR-054: con resultados, el listado devuelve los elementos del repositorio en su orden,
+// con el filtro recibido, sin motivo de vacío y sin la consulta de existencia.
+func TestSprintService_List_ConResultados(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	projectID := uuid.New()
+	statuses := []domain.SprintStatus{domain.SprintStatusClosed, domain.SprintStatusActive}
+	items := []domain.SprintListItem{
+		listItemWithStatus(domain.SprintStatusActive),
+		listItemWithStatus(domain.SprintStatusClosed),
+	}
+	d.repo.On("List", mock.Anything, projectID, statuses).Return(items, nil).Once()
+
+	view, err := svc.List(context.Background(), projectID, statuses)
+
+	require.NoError(t, err)
+	require.NotNil(t, view)
+	assert.Equal(t, items, view.Sprints)
+	assert.Nil(t, view.EmptyReason)
+	d.repo.AssertExpectations(t)
+	d.repo.AssertNotCalled(t, "HasSprints", mock.Anything, mock.Anything)
+}
+
+// FR-054, US6-10: un proyecto sin sprints devuelve la lista vacía, nunca nil, con no_sprints, haya
+// o no filtro de estado; la consulta de existencia se hace una sola vez porque el resultado vino
+// vacío.
+func TestSprintService_List_ProyectoSinSprints(t *testing.T) {
+	filters := map[string][]domain.SprintStatus{
+		"sin filtro":        {},
+		"con filtro closed": {domain.SprintStatusClosed},
+	}
+	for name, statuses := range filters {
+		t.Run(name, func(t *testing.T) {
+			svc, d := newSprintServiceWithDoubles(t)
+			projectID := uuid.New()
+			d.repo.On("List", mock.Anything, projectID, statuses).Return([]domain.SprintListItem{}, nil).Once()
+			d.repo.On("HasSprints", mock.Anything, projectID).Return(false, nil).Once()
+
+			view, err := svc.List(context.Background(), projectID, statuses)
+
+			require.NoError(t, err)
+			require.NotNil(t, view)
+			assert.NotNil(t, view.Sprints)
+			assert.Empty(t, view.Sprints)
+			require.NotNil(t, view.EmptyReason)
+			assert.Equal(t, EmptyReasonNoSprints, *view.EmptyReason)
+			d.repo.AssertExpectations(t)
+			d.repo.AssertNumberOfCalls(t, "HasSprints", 1)
+		})
+	}
+}
+
+// FR-054: si el proyecto tiene sprints pero ninguno cumple el filtro, la lista vacía, nunca nil,
+// lleva no_matches.
+func TestSprintService_List_FiltroSinCoincidencias(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	projectID := uuid.New()
+	statuses := []domain.SprintStatus{domain.SprintStatusClosed}
+	d.repo.On("List", mock.Anything, projectID, statuses).Return([]domain.SprintListItem{}, nil).Once()
+	d.repo.On("HasSprints", mock.Anything, projectID).Return(true, nil).Once()
+
+	view, err := svc.List(context.Background(), projectID, statuses)
+
+	require.NoError(t, err)
+	require.NotNil(t, view)
+	assert.NotNil(t, view.Sprints)
+	assert.Empty(t, view.Sprints)
+	require.NotNil(t, view.EmptyReason)
+	assert.Equal(t, EmptyReasonNoMatches, *view.EmptyReason)
+	d.repo.AssertExpectations(t)
+}
+
+// scheduleDays devuelve un puntero al entero dado, para expresar los valores esperados no nulos.
+func scheduleDays(v int) *int {
+	return &v
+}
+
+// showScheduleDays representa un valor opcional de días como texto, "nil" si falta, para que un
+// fallo muestre los números y no las direcciones de los punteros.
+func showScheduleDays(p *int) string {
+	if p == nil {
+		return "nil"
+	}
+	return strconv.Itoa(*p)
+}
+
+// sprintDetailEnding arma el detalle de un sprint en el estado indicado con la fecha de fin dada.
+func sprintDetailEnding(sprintID uuid.UUID, status domain.SprintStatus, endDate time.Time) *domain.SprintDetail {
+	detail := sprintDetailWithStatus(sprintID, status)
+	detail.Sprint.EndDate = endDate
+	return detail
+}
+
+// FR-053, RN-23: el detalle de un sprint active informa los días restantes hasta la fecha de fin,
+// con el día de fin incluido, o los días que lleva vencido, contados con el reloj fijo (2026-10-21);
+// un sprint planned o closed no lleva schedule.
+func TestSprintService_Detail_ScheduleSoloActivo(t *testing.T) {
+	cases := []struct {
+		name          string
+		status        domain.SprintStatus
+		endDate       time.Time
+		wantSchedule  bool
+		wantRemaining *int
+		wantOverdue   *int
+	}{
+		{name: "activo con diez días restantes", status: domain.SprintStatusActive, endDate: serviceDay(time.October, 31), wantSchedule: true, wantRemaining: scheduleDays(10)},
+		{name: "activo que termina hoy", status: domain.SprintStatusActive, endDate: serviceDay(time.October, 21), wantSchedule: true, wantRemaining: scheduleDays(0)},
+		{name: "activo vencido hace tres días", status: domain.SprintStatusActive, endDate: serviceDay(time.October, 18), wantSchedule: true, wantOverdue: scheduleDays(3)},
+		{name: "planificado sin schedule", status: domain.SprintStatusPlanned, endDate: serviceDay(time.October, 31)},
+		{name: "cerrado sin schedule", status: domain.SprintStatusClosed, endDate: serviceDay(time.October, 18)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, d := newSprintServiceWithDoubles(t)
+			access := sprintAccessFor(false)
+			d.repo.On("FindDetail", mock.Anything, access.SprintID).
+				Return(sprintDetailEnding(access.SprintID, tc.status, tc.endDate), nil).Once()
+
+			view, err := svc.Detail(context.Background(), access)
+
+			require.NoError(t, err)
+			require.NotNil(t, view)
+			if !tc.wantSchedule {
+				assert.Nil(t, view.Schedule)
+				return
+			}
+			require.NotNil(t, view.Schedule)
+			assert.Equal(t, showScheduleDays(tc.wantRemaining), showScheduleDays(view.Schedule.RemainingDays), "remainingDays")
+			assert.Equal(t, showScheduleDays(tc.wantOverdue), showScheduleDays(view.Schedule.OverdueDays), "overdueDays")
+		})
+	}
+}
+
+// RN-23: el día de calendario se toma en la zona inyectada y no en UTC. A las 01:00 UTC del
+// 2026-10-22 todavía es 2026-10-21 en la zona del sistema (UTC−3), así que un sprint active que
+// termina el 2026-10-21 tiene 0 días restantes y no está vencido.
+func TestSprintService_Detail_ScheduleEnLaZonaDelSistema(t *testing.T) {
+	repo := &mockSprintRepository{}
+	repo.Test(t)
+	effort := &mockSprintEffort{}
+	effort.Test(t)
+	zone := time.FixedZone("UTC-3", -3*60*60)
+	now := time.Date(2026, time.October, 22, 1, 0, 0, 0, time.UTC)
+	svc := NewSprintService(repo, effort, zone, func() time.Time { return now })
+	access := sprintAccessFor(false)
+	repo.On("FindDetail", mock.Anything, access.SprintID).
+		Return(sprintDetailEnding(access.SprintID, domain.SprintStatusActive, serviceDay(time.October, 21)), nil).Once()
+
+	view, err := svc.Detail(context.Background(), access)
+
+	require.NoError(t, err)
+	require.NotNil(t, view)
+	require.NotNil(t, view.Schedule)
+	assert.Equal(t, "0", showScheduleDays(view.Schedule.RemainingDays), "remainingDays")
+	assert.Equal(t, "nil", showScheduleDays(view.Schedule.OverdueDays), "overdueDays")
 }

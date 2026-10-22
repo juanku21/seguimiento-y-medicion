@@ -158,8 +158,7 @@ type SprintResults struct {
 
 // SprintSchedule son los días restantes o vencidos de un sprint Activo, contados en la zona horaria
 // del sistema con el día de fin incluido; exactamente uno de los dos campos es distinto de null
-// (FR-053, RN-23). Se declara para tipar el campo schedule del detalle; lo completa la historia de
-// consulta del sprint.
+// (FR-053, RN-23).
 type SprintSchedule struct {
 	// Días que faltan hasta la fecha de fin; 0 el último día (US6-5).
 	RemainingDays *int `json:"remainingDays" validate:"required" minimum:"0" extensions:"x-nullable" example:"10"`
@@ -230,8 +229,8 @@ type SprintDetail struct {
 // newSprintDetail arma SprintDetail del contrato a partir de la vista que entrega el servicio. Es el
 // único lugar que garantiza la forma de la respuesta: la lista de historias nunca queda nula, de
 // modo que se serializa como [], y los momentos ausentes quedan en null. Results, ClosedBy y
-// HoursPerStoryPoint solo tienen valor en un sprint cerrado, porque el servicio los entrega nil en
-// los demás estados; Schedule queda en null: lo completa la historia de consulta del sprint.
+// HoursPerStoryPoint solo tienen valor en un sprint cerrado y Schedule solo en uno activo, porque el
+// servicio los entrega nil en los demás estados.
 func newSprintDetail(view *service.SprintView) SprintDetail {
 	sprint := view.Detail.Sprint
 
@@ -263,8 +262,126 @@ func newSprintDetail(view *service.SprintView) SprintDetail {
 	if closedBy := view.Detail.ClosedBy; closedBy != nil {
 		detail.ClosedBy = &UserRef{ID: closedBy.ID.String(), FullName: closedBy.FullName}
 	}
+	if schedule := view.Schedule; schedule != nil {
+		detail.Schedule = &SprintSchedule{RemainingDays: schedule.RemainingDays, OverdueDays: schedule.OverdueDays}
+	}
 
 	return detail
+}
+
+// SprintListItem es un sprint del listado y del historial de cerrados de un proyecto (FR-050,
+// FR-051), con sus cuatro fechas por separado para distinguir la duración real de la prevista.
+type SprintListItem struct {
+	// Identificador del sprint.
+	ID string `json:"id" validate:"required" format:"uuid" example:"7c1d2e9a-5b8f-4b7e-9c0a-1f2e3d4c5b6a"`
+	// Nombre del sprint.
+	Name string `json:"name" validate:"required" example:"Sprint 1"`
+	// Sprint Goal.
+	Goal string `json:"goal" validate:"required" example:"Cerrar el alta de clientes"`
+	// Estado del sprint: planned (Planificado), active (Activo) o closed (Cerrado).
+	Status domain.SprintStatus `json:"status" validate:"required" enums:"planned,active,closed" example:"closed"`
+	// Fecha de inicio prevista.
+	StartDate string `json:"startDate" validate:"required" format:"date" example:"2026-10-01"`
+	// Fecha de fin prevista.
+	EndDate string `json:"endDate" validate:"required" format:"date" example:"2026-10-14"`
+	// Momento real de inicio (RFC 3339); null si nunca se inició.
+	StartedAt *string `json:"startedAt" validate:"required" format:"date-time" extensions:"x-nullable" example:"2026-10-03T12:00:00Z"`
+	// Momento real de cierre (RFC 3339); null si no está cerrado.
+	ClosedAt *string `json:"closedAt" validate:"required" format:"date-time" extensions:"x-nullable" example:"2026-10-10T20:30:00Z"`
+	// Historias comprometidas; en un sprint cerrado, las planificadas al cierre.
+	StoryCount int `json:"storyCount" validate:"required" example:"4"`
+	// Totales de la instantánea; null si el sprint no está cerrado.
+	Results *SprintResults `json:"results" validate:"required" extensions:"x-nullable"`
+}
+
+// SprintListFilters son los filtros aplicados al listado; Status es una lista, vacía sin filtro.
+type SprintListFilters struct {
+	// Estados por los que se filtró; vacía si no se filtró.
+	Status []domain.SprintStatus `json:"status" validate:"required" enums:"planned,active,closed" example:"closed"`
+}
+
+// SprintListResponse es la respuesta del listado de sprints de un proyecto (FR-050 a FR-054). Sprints
+// y AppliedFilters.Status nunca son null; EmptyReason es null cuando hay resultados.
+type SprintListResponse struct {
+	// Sprints en orden de fecha de inicio descendente y luego por identificador; vacía si no hay.
+	Sprints []SprintListItem `json:"sprints" validate:"required"`
+	// Filtros aplicados al listado.
+	AppliedFilters SprintListFilters `json:"appliedFilters" validate:"required"`
+	// Motivo del vacío: no_sprints si el proyecto no tiene sprints, no_matches si ninguno cumple el
+	// filtro; null si hay resultados.
+	EmptyReason *service.EmptyReason `json:"emptyReason" validate:"required" swaggertype:"string" enums:"no_sprints,no_matches" extensions:"x-nullable" example:"no_sprints"`
+}
+
+// newSprintListResponse arma la respuesta del listado a partir de la vista del servicio y de los
+// estados del filtro, que llegan como lista no nula. La lista de sprints nunca queda nula, de modo
+// que se serializa como [].
+func newSprintListResponse(view *service.SprintListView, statuses []domain.SprintStatus) SprintListResponse {
+	sprints := make([]SprintListItem, 0, len(view.Sprints))
+	for _, item := range view.Sprints {
+		sprint := item.Sprint
+		sprints = append(sprints, SprintListItem{
+			ID:         sprint.ID.String(),
+			Name:       sprint.Name,
+			Goal:       sprint.Goal,
+			Status:     sprint.Status,
+			StartDate:  sprint.StartDate.Format(time.DateOnly),
+			EndDate:    sprint.EndDate.Format(time.DateOnly),
+			StartedAt:  formatOptionalTime(sprint.StartedAt),
+			ClosedAt:   formatOptionalTime(sprint.ClosedAt),
+			StoryCount: item.StoryCount,
+			Results:    newSprintResults(item.Results),
+		})
+	}
+
+	return SprintListResponse{
+		Sprints:        sprints,
+		AppliedFilters: SprintListFilters{Status: statuses},
+		EmptyReason:    view.EmptyReason,
+	}
+}
+
+// StorySprintHistoryItem es un sprint en el que estuvo planificada una historia, con el resultado que
+// tuvo en él (FR-055).
+type StorySprintHistoryItem struct {
+	// Identificador del sprint.
+	SprintID string `json:"sprintId" validate:"required" format:"uuid" example:"7c1d2e9a-5b8f-4b7e-9c0a-1f2e3d4c5b6a"`
+	// Nombre del sprint.
+	SprintName string `json:"sprintName" validate:"required" example:"Sprint 1"`
+	// Estado del sprint: planned, active o closed.
+	SprintStatus domain.SprintStatus `json:"sprintStatus" validate:"required" enums:"planned,active,closed" example:"closed"`
+	// Fecha de inicio prevista del sprint.
+	StartDate string `json:"startDate" validate:"required" format:"date" example:"2026-10-01"`
+	// Fecha de fin prevista del sprint.
+	EndDate string `json:"endDate" validate:"required" format:"date" example:"2026-10-14"`
+	// Resultado en un sprint cerrado: completed o not_completed; null en el sprint abierto.
+	Outcome *domain.StoryOutcome `json:"outcome" validate:"required" swaggertype:"string" enums:"completed,not_completed" extensions:"x-nullable" example:"completed"`
+	// Fecha y hora del completado dentro de ese sprint (RFC 3339), o null.
+	CompletedAt *string `json:"completedAt" validate:"required" format:"date-time" extensions:"x-nullable" example:"2026-10-12T15:00:00Z"`
+}
+
+// StorySprintHistoryResponse es la respuesta del historial de sprints de una historia, en orden de
+// fecha de inicio ascendente; Sprints nunca es null.
+type StorySprintHistoryResponse struct {
+	// Sprints en los que estuvo la historia; vacía si nunca estuvo en uno.
+	Sprints []StorySprintHistoryItem `json:"sprints" validate:"required"`
+}
+
+// newStorySprintHistoryResponse arma la respuesta del historial de una historia conservando el orden
+// del servicio; la lista nunca queda nula, de modo que se serializa como [].
+func newStorySprintHistoryResponse(items []domain.StorySprintHistoryItem) StorySprintHistoryResponse {
+	sprints := make([]StorySprintHistoryItem, 0, len(items))
+	for _, item := range items {
+		sprints = append(sprints, StorySprintHistoryItem{
+			SprintID:     item.SprintID.String(),
+			SprintName:   item.SprintName,
+			SprintStatus: item.SprintStatus,
+			StartDate:    item.StartDate.Format(time.DateOnly),
+			EndDate:      item.EndDate.Format(time.DateOnly),
+			Outcome:      item.Outcome,
+			CompletedAt:  formatOptionalTime(item.CompletedAt),
+		})
+	}
+	return StorySprintHistoryResponse{Sprints: sprints}
 }
 
 // newSprintResults arma los totales de la instantánea, o devuelve nil para que results se serialice

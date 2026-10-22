@@ -834,7 +834,7 @@ backlog; y los mismos intentos sobre un sprint Activo responden `409`.
       `TestUS7_ModificarActivo`, `TestUS7_ModificarCerrado`, `TestUS7_EliminarActivoOCerrado`,
       `TestUS7_EsfuerzoRegistrado` (`409`, sprint e historias intactos — SC-016) y
       `TestUS7_SprintEliminado` (`GET`, `PUT` y `DELETE` → `404`) — depende de T080
-- [ ] T083 [P] [US7] Pruebas de frontend en
+- [X] T083 [P] [US7] Pruebas de frontend en
       `frontend/src/features/sprints/components/sprint-edit-view.test.tsx` y
       `frontend/src/features/sprints/components/delete-sprint-button.test.tsx`, con
       `describe("004/US7 - Corregir o descartar un sprint planificado")` y un `it` por escenario,

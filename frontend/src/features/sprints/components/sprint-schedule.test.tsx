@@ -279,3 +279,83 @@ describe("004/US6 - Consultar el historial de sprints", () => {
     expect(within(pendingItem).getByText(/Pendiente/)).toBeTruthy();
   });
 });
+
+// Pruebas de las acciones de modificación y eliminación en el detalle del sprint (T083).
+// Atraviesan la vista de detalle y el cliente HTTP real; solo se sustituyen fetch y el enrutador
+// de Next.js. La confirmación, el DELETE y el regreso al listado los prueba
+// delete-sprint-button.test.tsx; acá solo se verifica qué ofrece el detalle.
+//
+// Contrato que fijan estas pruebas para T087:
+// - SprintDetailView muestra el enlace "Editar sprint" a /projects/{projectId}/sprints/{sprintId}/edit
+//   solo cuando el sprint está Planificado; en uno Activo o Cerrado no lo muestra (FR-012, FR-016).
+// - SprintDetailView integra DeleteSprintButton: el botón "Eliminar sprint" aparece en el detalle
+//   de un sprint Planificado y no en el de uno Activo o Cerrado (FR-048).
+describe("004/US7 - Corregir o descartar un sprint planificado", () => {
+  // Cada prueba arranca con una sesión válida en la pestaña y un fetch sustituido.
+  beforeEach(() => {
+    sessionStorage.clear();
+    writeToken(sessionToken);
+  });
+
+  // Sin globals de Vitest, la limpieza del DOM de Testing Library se hace a mano.
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  // Monta el detalle del sprint dado y espera a que llegue su Sprint Goal desde el backend.
+  async function renderDetail(sprint: SprintDetail) {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(serve(sprint)));
+    render(
+      <SessionProvider>
+        <SprintDetailView sprintId={sprintId} />
+      </SessionProvider>,
+    );
+    await screen.findByText(sprintGoal);
+  }
+
+  // Sprints que ya arrancaron, en los que el detalle no ofrece modificar ni eliminar.
+  const startedSprints: Array<[SprintStatus, SprintScheduleData | null]> = [
+    ["active", remaining(10)],
+    ["closed", null],
+  ];
+
+  // Editar solo se ofrece en un sprint Planificado: el enlace lleva a la pantalla de modificación
+  // del sprint, y en uno Activo o Cerrado no aparece.
+  it("Editar solo se ofrece en un sprint Planificado", async () => {
+    await renderDetail(sprintWith("planned", null));
+    const link = screen.getByRole("link", { name: "Editar sprint" });
+    expect(link.getAttribute("href")).toBe(
+      `/projects/${projectId}/sprints/${sprintId}/edit`,
+    );
+    cleanup();
+
+    for (const [status, schedule] of startedSprints) {
+      await renderDetail(sprintWith(status, schedule));
+      expect(
+        screen.queryByRole("link", { name: "Editar sprint" }),
+        status,
+      ).toBeNull();
+      cleanup();
+    }
+  });
+
+  // Eliminar solo se ofrece en un sprint Planificado: el detalle muestra el botón de eliminación, y
+  // en uno Activo o Cerrado no aparece.
+  it("Eliminar solo se ofrece en un sprint Planificado", async () => {
+    await renderDetail(sprintWith("planned", null));
+    expect(
+      screen.getByRole("button", { name: "Eliminar sprint" }),
+    ).not.toBeNull();
+    cleanup();
+
+    for (const [status, schedule] of startedSprints) {
+      await renderDetail(sprintWith(status, schedule));
+      expect(
+        screen.queryByRole("button", { name: "Eliminar sprint" }),
+        status,
+      ).toBeNull();
+      cleanup();
+    }
+  });
+});

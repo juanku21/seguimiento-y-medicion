@@ -20,9 +20,9 @@ import (
 var errNotImplemented = errors.New("not implemented")
 
 // SprintRepository implementa domain.SprintRepository con GORM sobre las tablas sprints y
-// sprint_stories. FindAccessible, Create, Start, AssignStories, RemoveStories y FindDetail están
-// implementadas; las demás operaciones conservan la firma mínima de T013 y se implementan en la tarea
-// de su historia.
+// sprint_stories. FindAccessible, Create, Start, AssignStories, RemoveStories, ChangeStoryProgress y
+// FindDetail están implementadas; las demás operaciones conservan la firma mínima de T013 y se
+// implementan en la tarea de su historia.
 type SprintRepository struct {
 	db *gorm.DB
 }
@@ -533,9 +533,136 @@ func committedElsewhereError(tx *gorm.DB, storyIDs []uuid.UUID, insertErr error)
 	return &domain.StoriesNotAdmittedError{Problems: problems}
 }
 
-// ChangeStoryProgress cambia el estado de una historia del sprint activo. Firma mínima.
+// lockedStoryRow es la fila que lee ChangeStoryProgress al bloquear la historia: su estado y el estado
+// de su proyecto, que llega por el JOIN a projects con el alias project_status.
+type lockedStoryRow struct {
+	Status        backlogdomain.StoryStatus
+	ProjectStatus projectsdomain.ProjectStatus
+}
+
+// storyCommitmentRow es la fila de un compromiso de la historia junto con el estado de su sprint, que
+// llega por el JOIN a sprints con el alias sprint_status.
+type storyCommitmentRow struct {
+	ID           uuid.UUID
+	SprintStatus domain.SprintStatus
+}
+
+// ChangeStoryProgress aplica el avance de una historia dentro del sprint Activo en una transacción
+// (research.md sección 13). Primero bloquea la historia (FOR UPDATE OF user_stories) y, en la misma
+// consulta, lee el estado de su proyecto; si no existe devuelve ErrStoryNotFound y si el proyecto está
+// Finalizado, ErrSprintsReadOnly (FR-059). Después busca su compromiso abierto tomando un bloqueo
+// compartido sobre la fila del sprint (FOR SHARE OF sprints), para que un cierre simultáneo no se
+// intercale. El compromiso y el sprint se verifican antes que la transición: sin compromiso abierto,
+// la historia Completada cuyo último compromiso es de un sprint Cerrado se rechaza con ErrSprintClosed
+// (RN-18) y cualquier otra con ErrProgressOutsideActiveSprint (FR-037); con compromiso en un sprint que
+// no está Activo, también ErrProgressOutsideActiveSprint (FR-036). Recién entonces valida la
+// transición con ValidateStoryProgress (FR-038). Si se admite, escribe user_stories.status con
+// UpdateColumn, igual que RemoveStories, para no tocar updated_at, y sprint_stories.completed_at con
+// now al completar y NULL al volver a in_progress (FR-034, FR-035).
 func (r *SprintRepository) ChangeStoryProgress(ctx context.Context, storyID uuid.UUID, to backlogdomain.StoryStatus, now time.Time) error {
-	return errNotImplemented
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var story lockedStoryRow
+		err := tx.
+			Table("user_stories").
+			Clauses(clause.Locking{Strength: "UPDATE", Table: clause.Table{Name: "user_stories"}}).
+			Select("user_stories.status, projects.status AS project_status").
+			Joins("JOIN projects ON projects.id = user_stories.project_id").
+			Where("user_stories.id = ?", storyID).
+			Take(&story).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return backlogdomain.ErrStoryNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("bloquear la historia: %w", err)
+		}
+		if story.ProjectStatus == projectsdomain.ProjectStatusFinished {
+			return domain.ErrSprintsReadOnly
+		}
+
+		commitment, err := openCommitmentForProgress(tx, storyID)
+		if err != nil {
+			return err
+		}
+		if commitment == nil {
+			return progressWithoutCommitmentError(tx, storyID, story.Status)
+		}
+		if commitment.SprintStatus != domain.SprintStatusActive {
+			return domain.ErrProgressOutsideActiveSprint
+		}
+		if err := domain.ValidateStoryProgress(story.Status, to); err != nil {
+			return err
+		}
+
+		err = tx.
+			Model(&backlogdomain.UserStory{}).
+			Where("id = ?", storyID).
+			UpdateColumn("status", to).Error
+		if err != nil {
+			return fmt.Errorf("cambiar el estado de la historia: %w", err)
+		}
+
+		// Al completar se registra el instante; al volver a En progreso la fecha se borra.
+		var completedAt *time.Time
+		if to == backlogdomain.StoryStatusCompleted {
+			completedAt = &now
+		}
+		err = tx.
+			Model(&domain.SprintStory{}).
+			Where("id = ?", commitment.ID).
+			Update("completed_at", completedAt).Error
+		if err != nil {
+			return fmt.Errorf("registrar la fecha de completado: %w", err)
+		}
+		return nil
+	})
+}
+
+// openCommitmentForProgress devuelve el compromiso abierto (outcome IS NULL) de la historia con el
+// estado de su sprint, tomando un bloqueo compartido solo sobre la fila del sprint (FOR SHARE OF
+// sprints), o nil si no tiene ninguno; se lee con Find y LIMIT 1 para que la ausencia no pase por
+// gorm.ErrRecordNotFound.
+func openCommitmentForProgress(tx *gorm.DB, storyID uuid.UUID) (*storyCommitmentRow, error) {
+	var rows []storyCommitmentRow
+	err := tx.
+		Table("sprint_stories").
+		Clauses(clause.Locking{Strength: "SHARE", Table: clause.Table{Name: "sprints"}}).
+		Select("sprint_stories.id, sprints.status AS sprint_status").
+		Joins("JOIN sprints ON sprints.id = sprint_stories.sprint_id").
+		Where("sprint_stories.story_id = ? AND sprint_stories.outcome IS NULL", storyID).
+		Limit(1).
+		Find(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("bloquear el sprint del compromiso abierto: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	return &rows[0], nil
+}
+
+// progressWithoutCommitmentError decide el rechazo del avance de una historia sin compromiso abierto:
+// si está Completada y su último compromiso, el de committed_at más reciente, es de un sprint Cerrado,
+// devuelve ErrSprintClosed (RN-18); en cualquier otro caso, ErrProgressOutsideActiveSprint (FR-037).
+func progressWithoutCommitmentError(tx *gorm.DB, storyID uuid.UUID, status backlogdomain.StoryStatus) error {
+	if status != backlogdomain.StoryStatusCompleted {
+		return domain.ErrProgressOutsideActiveSprint
+	}
+	var rows []storyCommitmentRow
+	err := tx.
+		Table("sprint_stories").
+		Select("sprint_stories.id, sprints.status AS sprint_status").
+		Joins("JOIN sprints ON sprints.id = sprint_stories.sprint_id").
+		Where("sprint_stories.story_id = ?", storyID).
+		Order("sprint_stories.committed_at DESC, sprint_stories.id DESC").
+		Limit(1).
+		Find(&rows).Error
+	if err != nil {
+		return fmt.Errorf("leer el último compromiso de la historia: %w", err)
+	}
+	if len(rows) > 0 && rows[0].SprintStatus == domain.SprintStatusClosed {
+		return domain.ErrSprintClosed
+	}
+	return domain.ErrProgressOutsideActiveSprint
 }
 
 // List devuelve los sprints de un proyecto. Firma mínima.

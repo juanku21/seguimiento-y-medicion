@@ -571,7 +571,7 @@ y el salto directo de `pending` a `completed` responde `409` con las transicione
 
 - [X] T057 [US4] Implementar `ValidateStoryProgress(from, to backlogdomain.StoryStatus) error` en
       `backend/internal/sprints/domain/progress.go` — depende de T052
-- [ ] T058 [US4] Implementar `ChangeStoryProgress` en
+- [X] T058 [US4] Implementar `ChangeStoryProgress` en
       `backend/internal/sprints/repository/sprint_repository.go` en **una transacción**: bloquear la
       historia (`FOR UPDATE`) y leer el estado de su proyecto (Finalizado → `ErrSprintsReadOnly`);
       buscar su compromiso abierto y tomar `FOR SHARE` sobre la fila del sprint. Sin compromiso

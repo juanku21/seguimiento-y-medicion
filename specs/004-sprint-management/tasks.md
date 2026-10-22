@@ -500,7 +500,7 @@ proyecto responde `409` con el nombre del activo; y diez inicios simultáneos de
       `POST /start` en el grupo del sprint en `backend/internal/sprints/delivery/routes.go`.
       Respuestas: `200` con `SprintDetail`, `401`, `404` y `409` con `SprintConflictResponse` o
       `ErrorResponse` — depende de T047
-- [ ] T049 [US3] Reemplazar el cuerpo de `backend/internal/projects/repository/sprint_directory.go`
+- [X] T049 [US3] Reemplazar el cuerpo de `backend/internal/projects/repository/sprint_directory.go`
       por la lectura real del sprint `active` sobre el modelo `sprintsdomain.Sprint` (solo `id` y
       `name`), con `NewSprintDirectory(db *gorm.DB)`; actualizar su composición en
       `backend/cmd/app/main.go` (las dos instancias, la del servicio de proyectos y la del de

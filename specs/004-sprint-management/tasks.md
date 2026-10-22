@@ -456,7 +456,7 @@ proyecto responde `409` con el nombre del activo; y diez inicios simultáneos de
       `closed` → `ErrSprintClosed`; otro activo → `ActiveSprintExistsError` con ese sprint (RN-06);
       el instante pasado al repositorio es el del reloj; y el servicio **no llama a ninguna
       operación de proyectos** (RN-07) — depende de T038
-- [ ] T041 [US3] Pruebas de integración de la historia en
+- [X] T041 [US3] Pruebas de integración de la historia en
       `backend/internal/sprints/delivery/handler_test.go`, con `// Escenario: <nombre> (004/US3)`:
       `TestUS3_InicioConHistorias` (`active`, `startedAt` igual al reloj y
       `committed_story_points` igual a la suma en la base), `TestUS3_ProyectoPlanificadoNoCambia`

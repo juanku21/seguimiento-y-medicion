@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -39,7 +40,8 @@ import (
 // repositorio de sprints contra la base smye_test (Principios II y V). Las de US1 (T013) cubren
 // POST /api/v1/projects/{projectId}/sprints; las de US2 (T028) cubren POST y DELETE
 // /api/v1/sprints/{sprintId}/stories detrás de RequireSprintAccess y la restricción de la 003 sobre
-// historias comprometidas; las historias siguientes agregan las suyas en este archivo. Los ayudantes llevan el prefijo "sprint" para no chocar con los de validation_test.go,
+// historias comprometidas; las de US3 (T041) cubren POST /api/v1/sprints/{sprintId}/start; las
+// historias siguientes agregan las suyas en este archivo. Los ayudantes llevan el prefijo "sprint" para no chocar con los de validation_test.go,
 // que llevan el prefijo "validation".
 
 // Textos exactos que fija el contrato para el 400 de entrada inválida, el 404 de proyecto
@@ -1289,4 +1291,280 @@ func TestSprintStories_EverCommitted(t *testing.T) {
 	removed := f.env.removeStories(t, f.brunoToken, f.sprintOneID, storyID)
 	require.Equal(t, http.StatusOK, removed.Code, "cuerpo: %s", removed.Body.String())
 	assert.True(t, sprintStoredStory(t, f.env.db, storyID).EverCommitted, "tras quitar, ever_committed debe seguir en true")
+}
+
+// Textos exactos que fija el contrato para los rechazos del inicio de un sprint (US3): el 409 de
+// otro sprint activo, que nombra al activo, y el de la transición inválida de un sprint ya activo.
+const (
+	sprintStartTransitionMessage = "Transición no permitida: solo se inicia un sprint Planificado."
+	sprintActiveExistsTemplate   = "El proyecto ya tiene el sprint activo «%s». Cerralo antes de iniciar otro."
+)
+
+// sprintStartedAt es el momento de inicio que debe devolver la API: el del reloj inyectado, en UTC
+// con formato RFC 3339.
+var sprintStartedAt = sprintFixedNow.UTC().Format(time.RFC3339)
+
+// sprintStartPath es la ruta de inicio de un sprint según contracts/openapi.yaml.
+func sprintStartPath(sprintID uuid.UUID) string {
+	return sprintPath(sprintID) + "/start"
+}
+
+// startSprint envía POST /api/v1/sprints/{sprintId}/start, sin cuerpo, con el token como Bearer.
+func (e sprintTestEnv) startSprint(t *testing.T, token string, sprintID uuid.UUID) *httptest.ResponseRecorder {
+	t.Helper()
+	return e.sprintDo(t, http.MethodPost, sprintStartPath(sprintID), token, nil)
+}
+
+// requireStartedSprint exige un 200 cuyo cuerpo sea el detalle de un sprint active con startedAt
+// igual al reloj, y lo devuelve decodificado junto con el cuerpo crudo.
+func requireStartedSprint(t *testing.T, rec *httptest.ResponseRecorder, sprintID uuid.UUID) (sprintStoriesDetailBody, map[string]any) {
+	t.Helper()
+	body := requireSprintStories(t, rec)
+	raw := sprintRawBody(t, rec)
+	assert.Equal(t, sprintID.String(), body.ID)
+	assert.Equal(t, "active", body.Status)
+	assert.Equal(t, sprintStartedAt, raw["startedAt"], "startedAt debe ser el instante del reloj")
+	return body, raw
+}
+
+// requireStoredStarted exige que la fila del sprint quede active, con started_at igual al reloj y
+// committed_story_points igual al valor indicado.
+func requireStoredStarted(t *testing.T, db *gorm.DB, sprintID uuid.UUID, committed int) {
+	t.Helper()
+	stored := sprintStored(t, db, sprintID.String())
+	assert.Equal(t, domain.SprintStatusActive, stored.Status)
+	if assert.NotNil(t, stored.StartedAt, "started_at debe quedar registrado") {
+		assert.True(t, sprintFixedNow.Equal(*stored.StartedAt), "started_at = %v, se esperaba %v", *stored.StartedAt, sprintFixedNow)
+	}
+	if assert.NotNil(t, stored.CommittedStoryPoints, "committed_story_points debe quedar congelado") {
+		assert.Equal(t, committed, *stored.CommittedStoryPoints)
+	}
+}
+
+// requireStoredUnchanged exige que la fila del sprint conserve el estado, el momento de inicio y los
+// Story Points comprometidos que tenía antes del rechazo.
+func requireStoredUnchanged(t *testing.T, db *gorm.DB, before domain.Sprint) {
+	t.Helper()
+	after := sprintStored(t, db, before.ID.String())
+	assert.Equal(t, before.Status, after.Status, "el estado del sprint no debe cambiar")
+	assert.Equal(t, before.CommittedStoryPoints, after.CommittedStoryPoints, "committed_story_points no debe cambiar")
+	if before.StartedAt == nil {
+		assert.Nil(t, after.StartedAt, "started_at debe seguir en null")
+		return
+	}
+	if assert.NotNil(t, after.StartedAt, "started_at no debe borrarse") {
+		assert.True(t, before.StartedAt.Equal(*after.StartedAt), "started_at = %v, se esperaba %v", *after.StartedAt, *before.StartedAt)
+	}
+}
+
+// sprintCommittedSum suma en la base los Story Points vigentes de las historias comprometidas en el
+// sprint, para comparar el valor congelado al iniciar con la fuente de verdad.
+func sprintCommittedSum(t *testing.T, db *gorm.DB, sprintID uuid.UUID) int {
+	t.Helper()
+	var sum int
+	require.NoError(t, db.Table("sprint_stories").
+		Select("COALESCE(SUM(user_stories.story_points), 0)").
+		Joins("JOIN user_stories ON user_stories.id = sprint_stories.story_id").
+		Where("sprint_stories.sprint_id = ?", sprintID).
+		Scan(&sum).Error, "no se pudieron sumar los Story Points comprometidos")
+	return sum
+}
+
+// sprintStoredProject lee de projects la fila del proyecto, para verificar que iniciar un sprint no
+// la escribe (RN-07).
+func sprintStoredProject(t *testing.T, db *gorm.DB, projectID uuid.UUID) projectsdomain.Project {
+	t.Helper()
+	var project projectsdomain.Project
+	require.NoError(t, db.First(&project, "id = ?", projectID).Error, "no se encontró el proyecto %s", projectID)
+	return project
+}
+
+// requireProjectUntouched exige que el proyecto siga en el estado esperado según la API de la 002 y
+// que su fila no se haya escrito: mismo estado y mismo updated_at que antes del inicio (RN-07).
+func (e sprintTestEnv) requireProjectUntouched(t *testing.T, token string, before projectsdomain.Project, want projectsdomain.ProjectStatus) {
+	t.Helper()
+	rec := e.sprintDo(t, http.MethodGet, "/api/v1/projects/"+before.ID.String(), token, nil)
+	require.Equal(t, http.StatusOK, rec.Code, "cuerpo: %s", rec.Body.String())
+	var project struct {
+		Status string `json:"status"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &project))
+	assert.Equal(t, string(want), project.Status, "el proyecto debe seguir %s", want)
+
+	after := sprintStoredProject(t, e.db, before.ID)
+	assert.Equal(t, want, after.Status)
+	assert.True(t, before.UpdatedAt.Equal(after.UpdatedAt), "la fila del proyecto no debe escribirse: updated_at = %v, antes %v", after.UpdatedAt, before.UpdatedAt)
+}
+
+// Escenario: Inicio con historias comprometidas (004/US3)
+// Bruno, integrante que no es el propietario de un proyecto En curso, inicia un sprint Planificado
+// con tres historias de 3, 5 y 8 Story Points: responde 200 con el sprint active, startedAt igual al
+// reloj y las tres historias; en la base el sprint queda active con started_at igual al reloj y
+// committed_story_points igual a la suma de sus historias, 16 (FR-026, FR-028).
+func TestUS3_InicioConHistorias(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	s1 := f.env.createStory(t, f.brunoToken, f.projectID, "Exportar el reporte", sprintPoints(3), sprintCriterion)
+	s2 := f.env.createStory(t, f.brunoToken, f.projectID, "Filtrar por fecha", sprintPoints(5), sprintCriterion)
+	s3 := f.env.createStory(t, f.brunoToken, f.projectID, "Enviar por correo", sprintPoints(8), sprintCriterion)
+	for _, id := range []uuid.UUID{s1, s2, s3} {
+		sprintSeedCommitment(t, f.env.db, f.sprintOneID, id, sprintFixedNow.Add(-time.Hour), nil, nil)
+	}
+
+	rec := f.env.startSprint(t, f.brunoToken, f.sprintOneID)
+
+	// La respuesta es el detalle del sprint activo con sus tres historias.
+	body, _ := requireStartedSprint(t, rec, f.sprintOneID)
+	assert.ElementsMatch(t, []string{s1.String(), s2.String(), s3.String()}, sprintDetailStoryIDs(body))
+
+	// La fila guarda el inicio y congela la suma de los Story Points comprometidos.
+	sum := sprintCommittedSum(t, f.env.db, f.sprintOneID)
+	require.Equal(t, 16, sum, "la suma en la base debe ser 3 + 5 + 8")
+	requireStoredStarted(t, f.env.db, f.sprintOneID, sum)
+}
+
+// Escenario: Proyecto Planificado no cambia (004/US3)
+// En un proyecto en estado Planificado, Bruno, integrante que no es el propietario, inicia el sprint
+// Planificado: el sprint queda active y el proyecto sigue planned, sin que se escriba su fila,
+// porque los sprints no cambian el estado del proyecto (FR-029, RN-07).
+func TestUS3_ProyectoPlanificadoNoCambia(t *testing.T) {
+	env := newSprintTestEnv(t)
+	anaID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Díaz", "bruno@example.com")
+	projectID := sprintSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusPlanned, brunoID)
+	sprintID := sprintSeed(t, env.db, projectID, anaID, "Sprint 1", "2026-10-01", "2026-10-14")
+	before := sprintStoredProject(t, env.db, projectID)
+
+	rec := env.startSprint(t, brunoToken, sprintID)
+
+	requireStartedSprint(t, rec, sprintID)
+	requireStoredStarted(t, env.db, sprintID, 0)
+	env.requireProjectUntouched(t, brunoToken, before, projectsdomain.ProjectStatusPlanned)
+}
+
+// Escenario: Proyecto En curso no cambia (004/US3)
+// En un proyecto que ya está En curso, iniciar un sprint lo deja active y el proyecto sigue
+// in_progress, sin que se escriba su fila (FR-029, RN-07).
+func TestUS3_ProyectoEnCursoNoCambia(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	before := sprintStoredProject(t, f.env.db, f.projectID)
+
+	rec := f.env.startSprint(t, f.brunoToken, f.sprintOneID)
+
+	requireStartedSprint(t, rec, f.sprintOneID)
+	requireStoredStarted(t, f.env.db, f.sprintOneID, 0)
+	f.env.requireProjectUntouched(t, f.brunoToken, before, projectsdomain.ProjectStatusInProgress)
+}
+
+// Escenario: Sprint vacío (004/US3)
+// Un sprint Planificado sin historias se inicia y queda active y vacío: stories es [] y no null, y
+// committed_story_points queda en 0 y no en null (FR-030).
+func TestUS3_SprintVacio(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+
+	rec := f.env.startSprint(t, f.brunoToken, f.sprintOneID)
+
+	_, raw := requireStartedSprint(t, rec, f.sprintOneID)
+	assert.Equal(t, []any{}, raw["stories"], "stories debe ser [] y no null")
+	requireStoredStarted(t, f.env.db, f.sprintOneID, 0)
+}
+
+// Escenario: Inicio antes de la fecha (004/US3)
+// Un sprint cuya fecha de inicio prevista (2026-11-02) es posterior al reloj (2026-10-21) se inicia
+// igual: queda active con started_at igual al reloj y sus fechas previstas no cambian, porque el
+// arranque lo decide el equipo y no el calendario (FR-031).
+func TestUS3_InicioAntesDeLaFecha(t *testing.T) {
+	env := newSprintTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := sprintSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	sprintID := sprintSeed(t, env.db, projectID, anaID, "Sprint 3", "2026-11-02", "2026-11-15")
+	require.True(t, sprintDate(t, "2026-11-02").After(sprintFixedNow), "la fecha prevista debe ser futura respecto del reloj")
+
+	rec := env.startSprint(t, anaToken, sprintID)
+
+	_, raw := requireStartedSprint(t, rec, sprintID)
+	assert.Equal(t, "2026-11-02", raw["startDate"], "la fecha de inicio prevista no cambia")
+	assert.Equal(t, "2026-11-15", raw["endDate"], "la fecha de fin prevista no cambia")
+	requireStoredStarted(t, env.db, sprintID, 0)
+	stored := sprintStored(t, env.db, sprintID.String())
+	assert.Equal(t, sprintDate(t, "2026-11-02"), stored.StartDate.UTC())
+	assert.Equal(t, sprintDate(t, "2026-11-15"), stored.EndDate.UTC())
+}
+
+// Escenario: Otro sprint activo (004/US3)
+// En un proyecto con "Sprint 0" Activo, iniciar el Planificado "Sprint 1" se rechaza con 409
+// SprintConflictResponse que nombra a "Sprint 0" y pide cerrarlo primero; "Sprint 1" sigue
+// Planificado sin datos de inicio y "Sprint 0" sigue Activo con los suyos (FR-027, RN-06).
+func TestUS3_OtroSprintActivo(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	activeID := sprintSeedInStatus(t, f.env.db, f.projectID, f.anaID, "Sprint 0", "2026-09-15", "2026-09-28", domain.SprintStatusActive)
+	activeBefore := sprintStored(t, f.env.db, activeID.String())
+	plannedBefore := sprintStored(t, f.env.db, f.sprintOneID.String())
+
+	rec := f.env.startSprint(t, f.brunoToken, f.sprintOneID)
+
+	require.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+	var body sprintConflictBody
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "el cuerpo del 409 no es JSON válido: %s", rec.Body.String())
+	assert.Equal(t, fmt.Sprintf(sprintActiveExistsTemplate, "Sprint 0"), body.Error)
+	if assert.NotNil(t, body.Sprint, "el 409 debe indicar el sprint activo: %s", rec.Body.String()) {
+		assert.Equal(t, activeID.String(), body.Sprint.ID)
+		assert.Equal(t, "Sprint 0", body.Sprint.Name)
+	}
+	requireStoredUnchanged(t, f.env.db, plannedBefore)
+	requireStoredUnchanged(t, f.env.db, activeBefore)
+}
+
+// Escenario: Sprint ya activo (004/US3)
+// Iniciar otra vez un sprint Activo se rechaza con 409 por transición inválida, sin el campo sprint,
+// y nada cambia: conserva su started_at y sus committed_story_points (FR-032, RN-02).
+func TestUS3_SprintYaActivo(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	activeID := sprintSeedInStatus(t, f.env.db, f.projectID, f.anaID, "Sprint 2", "2026-10-15", "2026-10-28", domain.SprintStatusActive)
+	before := sprintStored(t, f.env.db, activeID.String())
+
+	rec := f.env.startSprint(t, f.brunoToken, activeID)
+
+	require.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+	assert.JSONEq(t, `{"error":"`+sprintStartTransitionMessage+`"}`, rec.Body.String())
+	requireStoredUnchanged(t, f.env.db, before)
+}
+
+// Escenario: Sprint cerrado (004/US3)
+// Iniciar un sprint Cerrado se rechaza con 409 y un mensaje de error, sin el campo sprint, porque un
+// sprint cerrado no vuelve atrás; sigue closed con sus datos de inicio y de cierre (FR-032, RN-18).
+func TestUS3_SprintCerrado(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	closedID := sprintSeedInStatus(t, f.env.db, f.projectID, f.anaID, "Sprint 0", "2026-09-01", "2026-09-14", domain.SprintStatusClosed)
+	before := sprintStored(t, f.env.db, closedID.String())
+
+	rec := f.env.startSprint(t, f.brunoToken, closedID)
+
+	require.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+	raw := sprintRawBody(t, rec)
+	assert.NotEmpty(t, raw["error"], "el 409 debe explicar el rechazo: %s", rec.Body.String())
+	assert.NotContains(t, raw, "sprint", "el rechazo de un sprint cerrado no nombra otro sprint")
+	requireStoredUnchanged(t, f.env.db, before)
+	after := sprintStored(t, f.env.db, closedID.String())
+	assert.Equal(t, before.ClosedByID, after.ClosedByID, "closed_by_id no debe cambiar")
+	if assert.NotNil(t, after.ClosedAt, "closed_at no debe borrarse") {
+		assert.True(t, before.ClosedAt.Equal(*after.ClosedAt), "closed_at = %v, se esperaba %v", *after.ClosedAt, *before.ClosedAt)
+	}
+}
+
+// Escenario: Proyecto finalizado (004/US3)
+// En un proyecto Finalizado, iniciar un sprint Planificado se rechaza con 409 porque sus sprints son
+// de solo lectura, y el sprint sigue planned sin datos de inicio (FR-059, RN-19).
+func TestUS3_ProyectoFinalizado(t *testing.T) {
+	env := newSprintTestEnv(t)
+	anaID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Díaz", "bruno@example.com")
+	projectID := sprintSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusFinished, brunoID)
+	sprintID := sprintSeed(t, env.db, projectID, anaID, "Sprint 1", "2026-10-01", "2026-10-14")
+	before := sprintStored(t, env.db, sprintID.String())
+
+	rec := env.startSprint(t, brunoToken, sprintID)
+
+	require.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+	assert.JSONEq(t, `{"error":"`+sprintReadOnlyMessage+`"}`, rec.Body.String())
+	requireStoredUnchanged(t, env.db, before)
 }

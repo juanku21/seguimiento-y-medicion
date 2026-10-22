@@ -561,7 +561,7 @@ y el salto directo de `pending` a `completed` responde `409` con las transicione
       → `409` de sprint cerrado) y `TestUS4_SaltoDePendienteACompletada`. En todos los rechazos el
       estado de la historia y `completed_at` quedan intactos. Además, sin etiqueta de escenario, que
       el `404` de una historia ajena sea **idéntico byte a byte** al de la 003 — depende de T051
-- [ ] T056 [P] [US4] Pruebas de frontend en
+- [X] T056 [P] [US4] Pruebas de frontend en
       `frontend/src/features/sprints/components/story-progress-control.test.tsx`, con
       `describe("004/US4 - Registrar el avance de las historias del sprint")` y un `it` por
       escenario, incluido que el control solo ofrece las transiciones admitidas desde el estado

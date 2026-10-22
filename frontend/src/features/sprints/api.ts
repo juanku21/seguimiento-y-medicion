@@ -5,7 +5,12 @@ import {
   postAuthorizedJson,
   type ApiResult,
 } from "@/lib/api-client";
-import type { SprintDetail, SprintInput } from "@/types/sprint";
+import type {
+  SprintDetail,
+  SprintInput,
+  StoryProgressResponse,
+} from "@/types/sprint";
+import type { StoryStatus } from "@/types/story";
 
 // Reconoce el detalle del sprint (SprintDetail) que devuelve la creación exitosa (201), sin confiar
 // en el cuerpo recibido. Los campos de inicio, cierre, resultados y cronograma pueden llegar en null.
@@ -111,4 +116,15 @@ export function startSprint(
     undefined,
     isSprintDetail,
   );
+}
+
+// Registra el avance de una historia del sprint Activo con PUT /api/v1/stories/{storyId}/status
+// (004/US4). Pendiente de implementar en T061.
+export function changeStoryStatus(
+  storyId: string,
+  status: StoryStatus,
+): Promise<ApiResult<StoryProgressResponse>> {
+  void storyId;
+  void status;
+  throw new Error("not implemented");
 }

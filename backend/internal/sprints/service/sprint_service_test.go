@@ -586,3 +586,62 @@ func TestSprintService_Start_NoTocaElProyecto(t *testing.T) {
 	d.repo.AssertNumberOfCalls(t, "Start", 1)
 	d.effort.AssertNotCalled(t, "HasEffort", mock.Anything, mock.Anything)
 }
+
+// Pruebas unitarias obligatorias del avance de las historias en el servicio (T054; RN-11, SC-011,
+// FR-033 a FR-038). Las reglas del avance (proyecto Finalizado, compromiso en el sprint activo,
+// sprint cerrado y transición admitida) las decide el repositorio dentro de su transacción, con la
+// historia bloqueada; el servicio solo le entrega el instante del reloj inyectado y propaga sus
+// rechazos reconocibles con errors.Is. Igual que las anteriores, no llevan etiqueta de escenario:
+// los TestUS4_* son las pruebas de integración de T055.
+
+// SC-011, FR-035: el avance se delega al repositorio con la historia, el estado destino y el
+// instante del reloj inyectado, que es el que queda como fecha de completado; cada transición
+// admitida llega intacta y sin error.
+func TestSprintService_ChangeStoryProgress_InstanteDelReloj(t *testing.T) {
+	targets := []backlogdomain.StoryStatus{backlogdomain.StoryStatusInProgress, backlogdomain.StoryStatusCompleted}
+	for _, to := range targets {
+		t.Run(string(to), func(t *testing.T) {
+			svc, d := newSprintServiceWithDoubles(t)
+			storyID := uuid.New()
+			d.repo.On("ChangeStoryProgress", mock.Anything, storyID, to, serviceFixedNow).
+				Return(nil).Once()
+
+			err := svc.ChangeStoryProgress(context.Background(), storyID, to)
+
+			require.NoError(t, err)
+			d.repo.AssertExpectations(t)
+			d.effort.AssertNotCalled(t, "HasEffort", mock.Anything, mock.Anything)
+		})
+	}
+}
+
+// RN-11, RN-18, RN-19: los rechazos que el repositorio decide con la historia bloqueada se propagan
+// reconocibles con errors.Is: historia fuera del sprint activo, sprint cerrado, transición no
+// admitida y proyecto Finalizado. El servicio invoca el repositorio una sola vez con el instante del
+// reloj y no traduce el error a otro.
+func TestSprintService_ChangeStoryProgress_PropagaRechazos(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+	}{
+		{"fuera del sprint activo", domain.ErrProgressOutsideActiveSprint},
+		{"sprint cerrado", domain.ErrSprintClosed},
+		{"transicion no admitida", domain.ErrInvalidStoryTransition},
+		{"proyecto finalizado", domain.ErrSprintsReadOnly},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, d := newSprintServiceWithDoubles(t)
+			storyID := uuid.New()
+			to := backlogdomain.StoryStatusCompleted
+			d.repo.On("ChangeStoryProgress", mock.Anything, storyID, to, serviceFixedNow).
+				Return(tc.err).Once()
+
+			err := svc.ChangeStoryProgress(context.Background(), storyID, to)
+
+			require.ErrorIs(t, err, tc.err)
+			d.repo.AssertExpectations(t)
+			d.repo.AssertNumberOfCalls(t, "ChangeStoryProgress", 1)
+		})
+	}
+}

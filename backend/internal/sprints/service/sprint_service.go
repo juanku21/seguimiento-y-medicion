@@ -4,11 +4,13 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 
+	backlogdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/domain"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
 
@@ -107,6 +109,12 @@ func (s *SprintService) Start(ctx context.Context, access *domain.SprintAccess) 
 	}
 
 	return s.buildDetail(ctx, access.SprintID)
+}
+
+// ChangeStoryProgress cambia el estado de una historia del sprint activo con el instante del reloj
+// (FR-033 a FR-038). Firma mínima: la implementa T059.
+func (s *SprintService) ChangeStoryProgress(ctx context.Context, storyID uuid.UUID, to backlogdomain.StoryStatus) error {
+	return errors.New("not implemented")
 }
 
 // Detail devuelve el detalle del sprint del acceso con sus historias vivas (FR-053). Es una lectura:

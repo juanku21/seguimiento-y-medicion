@@ -545,7 +545,7 @@ y el salto directo de `pending` a `completed` responde `409` con las transicione
       `backend/internal/sprints/delivery/validation_test.go`: `status` **obligatorio** y limitado a
       `pending`, `in_progress` o `completed`; ausente o con otro valor → `400` en el campo `status`
       — depende de T051
-- [ ] T054 [P] [US4] Pruebas unitarias **obligatorias** de `ChangeStoryProgress` en el servicio en
+- [X] T054 [P] [US4] Pruebas unitarias **obligatorias** de `ChangeStoryProgress` en el servicio en
       `backend/internal/sprints/service/sprint_service_test.go`, con dobles y reloj fijo: el
       instante pasado al repositorio es el del reloj, y `ErrProgressOutsideActiveSprint`,
       `ErrSprintClosed`, `ErrInvalidStoryTransition` y `ErrSprintsReadOnly` del repositorio se

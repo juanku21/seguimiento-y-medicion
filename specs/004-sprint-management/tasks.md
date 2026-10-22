@@ -638,7 +638,7 @@ completadas por 13, `POST /api/v1/sprints/{sprintId}/close` devuelve `results` c
       iniciar → `409`) y `TestUS5_ProyectoFinalizado` (proyecto sembrado `finished` con el sprint
       Activo). Además, sin etiqueta de escenario, que el estado del proyecto no cambia al cerrar
       (RN-07) y que `closedBy` es el titular de la sesión (FR-040) — depende de T061
-- [ ] T065 [P] [US5] Pruebas de frontend en
+- [X] T065 [P] [US5] Pruebas de frontend en
       `frontend/src/features/sprints/components/sprint-lifecycle-actions.test.tsx` y
       `frontend/src/features/sprints/components/sprint-results.test.tsx`, con
       `describe("004/US5 - Cerrar un sprint y congelar su resultado")` y un `it` por escenario,

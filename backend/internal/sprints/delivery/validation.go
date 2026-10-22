@@ -6,6 +6,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/google/uuid"
+
 	authdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/delivery"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
@@ -16,6 +18,10 @@ const (
 	maxNameLength = 100
 	maxGoalLength = 500
 )
+
+// maxStoryIDs es la cantidad máxima de historias de un lote de asignación o de baja; no es un
+// requisito de la spec sino una cota de entrada (research.md sección 8, Principio VII).
+const maxStoryIDs = 100
 
 // Mensajes de validación en español dirigidos a la persona (data-model.md, reglas de validación).
 // Los límites se toman de las constantes para no repetirlos en el texto. Una fecha inexistente,
@@ -30,6 +36,10 @@ var (
 	msgEndDateRequired      = "La fecha de fin es obligatoria."
 	msgEndDateInvalid       = "La fecha de fin debe ser una fecha válida con el formato AAAA-MM-DD."
 	msgEndDateNotAfterStart = "La fecha de fin debe ser posterior a la de inicio."
+	msgStoryIDsRequired     = "Hay que indicar al menos una historia."
+	msgStoryIDsTooMany      = fmt.Sprintf("Se admiten como máximo %d historias por solicitud.", maxStoryIDs)
+	msgStoryIDInvalid       = "El identificador de la historia debe ser un UUID válido."
+	msgStoryIDRepeated      = "La historia está repetida en la solicitud."
 )
 
 // ValidateSprintInput aplica las reglas RN-03 y RN-04 al cuerpo de la creación y la modificación de
@@ -103,4 +113,65 @@ func parseSprintDate(raw, msgRequired, msgInvalid string) (time.Time, string) {
 		return time.Time{}, msgInvalid
 	}
 	return date, ""
+}
+
+// Campos del FieldError de un lote de historias: el arreglo del cuerpo de la asignación, que se
+// señala por posición, y el parámetro repetible de la baja.
+const (
+	storyIDsBodyField  = "storyIds"
+	storyIDsQueryField = "storyId"
+)
+
+// ValidateStoryIdsInput valida la lista de identificadores del cuerpo de la asignación y devuelve los
+// UUID en el orden recibido. La cantidad se informa en el campo storyIds y cada identificador
+// inválido o repetido en storyIds[i]. Si hay algún problema, la lista devuelta es nil.
+func ValidateStoryIdsInput(req StoryIdsInput) ([]uuid.UUID, []authdelivery.FieldError) {
+	return validateStoryIDs(req.StoryIDs, storyIDsBodyField, func(i int) string {
+		return fmt.Sprintf("%s[%d]", storyIDsBodyField, i)
+	})
+}
+
+// ValidateStoryIDParams valida los parámetros storyId repetidos de la baja, tal como los entrega
+// c.QueryArray, y devuelve los UUID en el orden recibido. Todos los problemas se informan en el
+// campo storyId. Si hay algún problema, la lista devuelta es nil.
+func ValidateStoryIDParams(values []string) ([]uuid.UUID, []authdelivery.FieldError) {
+	return validateStoryIDs(values, storyIDsQueryField, func(int) string {
+		return storyIDsQueryField
+	})
+}
+
+// validateStoryIDs aplica las cotas de entrada de un lote de historias (research.md sección 8,
+// Principio VII): entre 1 y maxStoryIDs identificadores, UUID válidos y sin repetidos. Una cantidad
+// fuera de rango se informa sola en listField, sin revisar cada elemento; si no, cada identificador
+// inválido o repetido recibe su FieldError en itemField(i). Los repetidos se comparan ya convertidos,
+// de modo que dos textos del mismo UUID con distinta capitalización cuentan como repetidos.
+func validateStoryIDs(values []string, listField string, itemField func(i int) string) ([]uuid.UUID, []authdelivery.FieldError) {
+	switch {
+	case len(values) == 0:
+		return nil, []authdelivery.FieldError{{Field: listField, Message: msgStoryIDsRequired}}
+	case len(values) > maxStoryIDs:
+		return nil, []authdelivery.FieldError{{Field: listField, Message: msgStoryIDsTooMany}}
+	}
+
+	ids := make([]uuid.UUID, 0, len(values))
+	seen := make(map[uuid.UUID]struct{}, len(values))
+	fields := []authdelivery.FieldError{}
+	for i, value := range values {
+		id, err := uuid.Parse(value)
+		if err != nil {
+			fields = append(fields, authdelivery.FieldError{Field: itemField(i), Message: msgStoryIDInvalid})
+			continue
+		}
+		if _, repeated := seen[id]; repeated {
+			fields = append(fields, authdelivery.FieldError{Field: itemField(i), Message: msgStoryIDRepeated})
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+
+	if len(fields) > 0 {
+		return nil, fields
+	}
+	return ids, nil
 }

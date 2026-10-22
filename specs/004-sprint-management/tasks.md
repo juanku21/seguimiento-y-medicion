@@ -334,7 +334,7 @@ responde `409` y no asigna ninguna; y quitarlas las devuelve al backlog como `pe
       ajeno, el de un integrante ya quitado y un identificador que no es UUID responden **el mismo
       `404` byte a byte** (`{"error":"El sprint no existe."}`) con una sola consulta; y sin titular
       en el contexto responde el `401` de la 001 (research.md sección 3) — depende de T024
-- [ ] T027 [P] [US2] Pruebas unitarias **obligatorias** de asignar y quitar en el servicio en
+- [X] T027 [P] [US2] Pruebas unitarias **obligatorias** de asignar y quitar en el servicio en
       `backend/internal/sprints/service/sprint_service_test.go`, con dobles: proyecto Finalizado →
       `ErrSprintsReadOnly` (RN-19); sprint `closed` → `ErrSprintClosed` al asignar y al quitar
       (RN-09, RN-18); problemas de admisión → `StoriesNotAdmittedError` con todos los motivos;

@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -57,6 +58,20 @@ func (s *SprintService) Create(ctx context.Context, projectID, actorID uuid.UUID
 	}
 
 	return s.buildDetail(ctx, sprint.ID)
+}
+
+// AssignStories compromete en el sprint del acceso un lote de historias, todo o nada, y devuelve el
+// detalle actualizado (FR-017 a FR-021). Firma mínima creada por las pruebas de T027; la
+// implementación corresponde a T035.
+func (s *SprintService) AssignStories(ctx context.Context, access *domain.SprintAccess, storyIDs []uuid.UUID) (*SprintView, error) {
+	return nil, errors.New("not implemented")
+}
+
+// RemoveStories quita del sprint del acceso un lote de historias, que vuelven al backlog como
+// pending, y devuelve el detalle actualizado (FR-022, FR-023). Firma mínima creada por las pruebas
+// de T027; la implementación corresponde a T035.
+func (s *SprintService) RemoveStories(ctx context.Context, access *domain.SprintAccess, storyIDs []uuid.UUID) (*SprintView, error) {
+	return nil, errors.New("not implemented")
 }
 
 // buildDetail arma la vista de un sprint a partir de su detalle persistido; la respuesta de toda

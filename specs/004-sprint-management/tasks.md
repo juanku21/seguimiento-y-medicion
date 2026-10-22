@@ -662,7 +662,7 @@ completadas por 13, `POST /api/v1/sprints/{sprintId}/close` devuelve `results` c
       `COALESCE(SUM(story_points_at_close), 0)` y su versión filtrada por `completed`, que es la
       **única** fuente de los totales derivados (research.md sección 11) y que `FindDetail` usa
       para un sprint `closed` — depende de T064 y T066
-- [ ] T068 [US5] Implementar `Close(ctx, access, actorID)` en
+- [X] T068 [US5] Implementar `Close(ctx, access, actorID)` en
       `backend/internal/sprints/service/sprint_service.go` con el instante del reloj, y extender
       `buildDetail` para un sprint `closed`: historias desde las filas congeladas, `results` leído por
       `FindDetail` con `sprintResultsSelect`, `hoursPerStoryPoint` desde las centésimas copiadas y `closedBy` — depende de T063

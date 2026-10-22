@@ -116,10 +116,11 @@ func (s *SprintService) Detail(ctx context.Context, access *domain.SprintAccess)
 	return s.buildDetail(ctx, access.SprintID)
 }
 
-// ensureEditable verifica que el sprint del acceso admita cambios en sus historias: el proyecto
-// Finalizado se rechaza con ErrSprintsReadOnly sin consultar el repositorio (RN-19) y el sprint
-// cerrado con ErrSprintClosed. El repositorio repite ambos controles dentro de su transacción.
-// Devuelve el detalle leído para que quien lo necesite, como Start, valide su estado sin releerlo.
+// ensureEditable aplica las guardas que comparten las escrituras sobre un sprint existente, sea
+// sobre sus historias o sobre su estado: el proyecto Finalizado se rechaza con ErrSprintsReadOnly
+// sin consultar el repositorio (RN-19) y el sprint cerrado con ErrSprintClosed. El repositorio
+// repite ambos controles dentro de su transacción. Devuelve el detalle leído para que quien lo
+// necesite, como Start, valide la transición de estado sin releerlo.
 func (s *SprintService) ensureEditable(ctx context.Context, access *domain.SprintAccess) (*domain.SprintDetail, error) {
 	if access.ProjectFinished {
 		return nil, domain.ErrSprintsReadOnly

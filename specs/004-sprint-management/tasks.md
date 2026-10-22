@@ -820,7 +820,7 @@ backlog; y los mismos intentos sobre un sprint Activo responden `409`.
       `SprintEffort.HasEffort` verdadero → `ErrSprintHasEffort` **sin llamar a `Delete` del
       repositorio** (RN-20); y la modificación no pasa estado, historias ni instantánea al
       repositorio (FR-015) — depende de T080
-- [ ] T082 [US7] Pruebas de integración de la historia en
+- [X] T082 [US7] Pruebas de integración de la historia en
       `backend/internal/sprints/delivery/handler_test.go`, con `// Escenario: <nombre> (004/US7)`:
       `TestUS7_ModificacionCompleta` (estado e historias sin cambios), `TestUS7_EliminacionConHistorias`
       (`204`, sin filas en `sprints` ni `sprint_stories`, historias `pending` y un sprint nuevo en el

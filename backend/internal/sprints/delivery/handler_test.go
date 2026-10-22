@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
@@ -44,7 +45,7 @@ import (
 // US4 (T055) cubren PUT /api/v1/stories/{storyId}/status detrás del RequireStoryAccess de la 003; las
 // de US5 (T064) cubren POST /api/v1/sprints/{sprintId}/close; las de US6 (T074) cubren GET
 // /api/v1/projects/{projectId}/sprints, GET /api/v1/sprints/{sprintId} y GET
-// /api/v1/stories/{storyId}/sprints; las historias siguientes agregan las suyas en este archivo. Los ayudantes llevan el prefijo "sprint" para no chocar con los de validation_test.go,
+// /api/v1/stories/{storyId}/sprints; las de US7 (T082) cubren PUT y DELETE /api/v1/sprints/{sprintId}. Los ayudantes llevan el prefijo "sprint" para no chocar con los de validation_test.go,
 // que llevan el prefijo "validation".
 
 // Textos exactos que fija el contrato para el 400 de entrada inválida, el 404 de proyecto
@@ -884,10 +885,11 @@ type sprintUS2Fixture struct {
 	sprintOneID uuid.UUID
 }
 
-// newSprintUS2Fixture compone el entorno y siembra las cuentas, el proyecto y el sprint Planificado.
-func newSprintUS2Fixture(t *testing.T) sprintUS2Fixture {
+// newSprintUS2Fixture compone el entorno con los overrides que pida la prueba (por ejemplo, el doble
+// de esfuerzo de US7) y siembra las cuentas, el proyecto y el sprint Planificado.
+func newSprintUS2Fixture(t *testing.T, overrides ...func(*sprintTestPorts)) sprintUS2Fixture {
 	t.Helper()
-	env := newSprintTestEnv(t)
+	env := newSprintTestEnv(t, overrides...)
 	anaID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
 	brunoID, brunoToken := env.signUp(t, "Bruno Díaz", "bruno@example.com")
 	projectID := sprintSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress, brunoID)
@@ -3222,4 +3224,448 @@ func TestSprintList_EstadoRepetidoMilesDeVeces(t *testing.T) {
 	body, _ := requireSprintList(t, rec)
 	assert.Equal(t, []string{"closed"}, body.AppliedFilters.Status, "el filtro aplicado debe informar closed una sola vez")
 	assert.Equal(t, []string{closedID.String()}, sprintListIDs(body), "el listado muestra solo el cerrado")
+}
+
+// Textos exactos que fija el contrato para los rechazos de la modificación y la eliminación de un
+// sprint (US7): el 409 de modificar un sprint que no está Planificado, el de eliminar uno ya iniciado
+// y el de eliminar uno con esfuerzo registrado. El de sprint cerrado es sprintClosedMessage. Los dos
+// últimos son el 409 de la 003 al eliminar una historia que estuvo en un sprint.
+const (
+	sprintUpdateNotPlannedMessage = "Solo se puede modificar un sprint Planificado."
+	sprintDeleteStartedMessage    = "Solo se puede eliminar un sprint que nunca fue iniciado."
+	sprintDeleteEffortMessage     = "El sprint tiene esfuerzo registrado. Primero hay que eliminar esos registros."
+	sprintStoryDeletionBlocked    = "La historia tiene historial asociado y no se puede eliminar."
+	sprintStoryHistoryReason      = "Estuvo asignada a un sprint."
+)
+
+// sprintEffortDouble es el doble de testify del puerto SprintEffort: cada prueba configura qué
+// informa sobre el esfuerzo registrado del sprint, porque la feature de esfuerzo todavía no existe
+// (plan.md, cómo se preparan los escenarios).
+type sprintEffortDouble struct {
+	mock.Mock
+}
+
+// HasEffort devuelve lo que la prueba configuró para el esfuerzo del sprint.
+func (m *sprintEffortDouble) HasEffort(ctx context.Context, sprintID uuid.UUID) (bool, error) {
+	args := m.Called(ctx, sprintID)
+	return args.Bool(0), args.Error(1)
+}
+
+// updateSprint envía el cuerpo a PUT /api/v1/sprints/{sprintId} con el token como Bearer.
+func (e sprintTestEnv) updateSprint(t *testing.T, token string, sprintID uuid.UUID, body map[string]any) *httptest.ResponseRecorder {
+	t.Helper()
+	return e.sprintDo(t, http.MethodPut, sprintPath(sprintID), token, body)
+}
+
+// deleteSprint envía DELETE /api/v1/sprints/{sprintId}, sin cuerpo, con el token como Bearer.
+func (e sprintTestEnv) deleteSprint(t *testing.T, token string, sprintID uuid.UUID) *httptest.ResponseRecorder {
+	t.Helper()
+	return e.sprintDo(t, http.MethodDelete, sprintPath(sprintID), token, nil)
+}
+
+// requireUpdatedSprint exige un 200 cuyo cuerpo sea el detalle del sprint con los datos del cuerpo
+// enviado y el estado indicado, y lo devuelve decodificado con sus historias.
+func requireUpdatedSprint(t *testing.T, rec *httptest.ResponseRecorder, sprintID uuid.UUID, body map[string]any, status string) sprintStoriesDetailBody {
+	t.Helper()
+	require.Equal(t, http.StatusOK, rec.Code, "cuerpo: %s", rec.Body.String())
+	var detail sprintDetailBody
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &detail), "el cuerpo del 200 no es JSON válido: %s", rec.Body.String())
+	assert.Equal(t, sprintID.String(), detail.ID)
+	assert.Equal(t, body["name"], detail.Name)
+	assert.Equal(t, body["goal"], detail.Goal)
+	assert.Equal(t, body["startDate"], detail.StartDate)
+	assert.Equal(t, body["endDate"], detail.EndDate)
+	assert.Equal(t, status, detail.Status)
+	return requireSprintStories(t, rec)
+}
+
+// requireStoredSprintData exige que la fila del sprint guarde el nombre, el Sprint Goal y las fechas
+// del cuerpo enviado, y la devuelve.
+func requireStoredSprintData(t *testing.T, db *gorm.DB, sprintID uuid.UUID, body map[string]any) domain.Sprint {
+	t.Helper()
+	stored := sprintStored(t, db, sprintID.String())
+	assert.Equal(t, body["name"], stored.Name)
+	assert.Equal(t, body["goal"], stored.Goal)
+	assert.Equal(t, sprintDate(t, body["startDate"].(string)), stored.StartDate.UTC())
+	assert.Equal(t, sprintDate(t, body["endDate"].(string)), stored.EndDate.UTC())
+	return stored
+}
+
+// requireSprintDataUntouched exige que la fila del sprint conserve el nombre, el Sprint Goal, las
+// fechas y el momento de última actualización que tenía antes del rechazo, además del estado y los
+// datos de inicio que verifica requireStoredUnchanged: ningún cambio parcial (FR-014).
+func requireSprintDataUntouched(t *testing.T, db *gorm.DB, before domain.Sprint) {
+	t.Helper()
+	requireStoredUnchanged(t, db, before)
+	after := sprintStored(t, db, before.ID.String())
+	assert.Equal(t, before.Name, after.Name, "el nombre no debe cambiar")
+	assert.Equal(t, before.Goal, after.Goal, "el Sprint Goal no debe cambiar")
+	assert.True(t, before.StartDate.Equal(after.StartDate), "start_date = %v, se esperaba %v", after.StartDate, before.StartDate)
+	assert.True(t, before.EndDate.Equal(after.EndDate), "end_date = %v, se esperaba %v", after.EndDate, before.EndDate)
+	assert.True(t, before.UpdatedAt.Equal(after.UpdatedAt), "la fila del sprint no debe escribirse: updated_at = %v, antes %v", after.UpdatedAt, before.UpdatedAt)
+}
+
+// requireSprintDeleted exige un 204 sin cuerpo y que no quede la fila del sprint en sprints ni
+// ninguna suya en sprint_stories.
+func requireSprintDeleted(t *testing.T, db *gorm.DB, rec *httptest.ResponseRecorder, sprintID uuid.UUID) {
+	t.Helper()
+	require.Equal(t, http.StatusNoContent, rec.Code, "cuerpo: %s", rec.Body.String())
+	assert.Empty(t, rec.Body.String(), "el 204 no lleva cuerpo")
+	var n int64
+	require.NoError(t, db.Model(&domain.Sprint{}).Where("id = ?", sprintID).Count(&n).Error, "no se pudo contar el sprint")
+	assert.Zero(t, n, "no debe quedar la fila del sprint en sprints")
+	assert.Zero(t, sprintCommitmentCount(t, db, "sprint_id = ?", sprintID), "no deben quedar filas del sprint en sprint_stories")
+}
+
+// commitStories crea con la 003, sobre el "Dado" de US2 que también usa US7, una historia lista por
+// título y la compromete en el sprint indicado, como lo dejaría una asignación, y devuelve sus
+// identificadores.
+func (f sprintUS2Fixture) commitStories(t *testing.T, sprintID uuid.UUID, titles ...string) []uuid.UUID {
+	t.Helper()
+	ids := make([]uuid.UUID, 0, len(titles))
+	for _, title := range titles {
+		id := f.env.createReadyStory(t, f.brunoToken, f.projectID, title)
+		sprintSeedCommitment(t, f.env.db, sprintID, id, sprintFixedNow.Add(-time.Hour), nil, nil)
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+// requireCommittedOpen exige que cada historia siga comprometida en el sprint, sin resultado, y en
+// pending: el sprint no cambió sus historias.
+func requireCommittedOpen(t *testing.T, db *gorm.DB, sprintID uuid.UUID, storyIDs ...uuid.UUID) {
+	t.Helper()
+	assert.EqualValues(t, len(storyIDs), sprintCommitmentCount(t, db, "sprint_id = ? AND outcome IS NULL", sprintID))
+	for _, id := range storyIDs {
+		assert.EqualValues(t, 1, sprintCommitmentCount(t, db, "sprint_id = ? AND story_id = ? AND outcome IS NULL", sprintID, id),
+			"la historia %s debe seguir comprometida", id)
+		assert.Equal(t, backlogdomain.StoryStatusPending, sprintStoredStory(t, db, id).Status)
+	}
+}
+
+// Escenario: Modificación completa (004/US7)
+// Bruno, integrante que no es el propietario, cambia nombre, fechas y Sprint Goal de un sprint
+// Planificado con dos historias: responde 200 con el detalle actualizado, el sprint sigue planned
+// sin datos de inicio, conserva su autor y sus dos historias siguen comprometidas (FR-012, FR-015).
+func TestUS7_ModificacionCompleta(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	stories := f.commitStories(t, f.sprintOneID, "Exportar el reporte", "Filtrar por fecha")
+	body := sprintBody("Sprint 1 corregido", "Publicar el alta de clientes", "2026-10-02", "2026-10-16")
+
+	rec := f.env.updateSprint(t, f.brunoToken, f.sprintOneID, body)
+
+	// La respuesta es el detalle con los datos nuevos, el mismo estado y las mismas historias.
+	detail := requireUpdatedSprint(t, rec, f.sprintOneID, body, "planned")
+	assert.ElementsMatch(t, []string{stories[0].String(), stories[1].String()}, sprintDetailStoryIDs(detail))
+
+	// La fila guarda los datos nuevos y no toca el estado, el inicio ni el autor.
+	stored := requireStoredSprintData(t, f.env.db, f.sprintOneID, body)
+	assert.Equal(t, domain.SprintStatusPlanned, stored.Status)
+	assert.Nil(t, stored.StartedAt)
+	assert.Nil(t, stored.CommittedStoryPoints)
+	assert.Equal(t, f.anaID, stored.CreatedByID, "el autor del sprint no cambia")
+	requireCommittedOpen(t, f.env.db, f.sprintOneID, stories...)
+}
+
+// Escenario: Eliminación con historias (004/US7)
+// Eliminar un sprint Planificado que nunca fue iniciado y tiene dos historias responde 204: no queda
+// fila en sprints ni en sprint_stories, las dos historias quedan pending y sin sprint (conservando
+// ever_committed), y un sprint nuevo en el mismo período se acepta (FR-048, RC-06).
+func TestUS7_EliminacionConHistorias(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	stories := f.commitStories(t, f.sprintOneID, "Exportar el reporte", "Filtrar por fecha")
+
+	rec := f.env.deleteSprint(t, f.brunoToken, f.sprintOneID)
+
+	// El sprint y sus compromisos desaparecen y las historias vuelven al backlog.
+	requireSprintDeleted(t, f.env.db, rec, f.sprintOneID)
+	for _, id := range stories {
+		story := sprintStoredStory(t, f.env.db, id)
+		assert.Equal(t, backlogdomain.StoryStatusPending, story.Status, "la historia %s debe volver a pending", id)
+		assert.True(t, story.EverCommitted, "la historia %s conserva ever_committed", id)
+		assert.Zero(t, sprintCommitmentCount(t, f.env.db, "story_id = ?", id), "la historia %s queda sin sprint", id)
+	}
+
+	// El período quedó libre para otro sprint.
+	created := requireCreatedSprint(t, f.env.postSprint(t, f.brunoToken, f.projectID, sprintBody("Sprint 1 bis", sprintGoal, "2026-10-01", "2026-10-14")))
+	assert.Equal(t, "2026-10-01", created.StartDate)
+}
+
+// Escenario: Mover fechas (004/US7)
+// Un sprint Planificado con dos historias se corre a un período libre (del 2026-11-01 al
+// 2026-11-14, después de "Sprint 2"): responde 200 con las fechas nuevas y las historias siguen
+// comprometidas (FR-012, FR-015).
+func TestUS7_MoverFechas(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	sprintSeed(t, f.env.db, f.projectID, f.anaID, "Sprint 2", "2026-10-15", "2026-10-28")
+	stories := f.commitStories(t, f.sprintOneID, "Exportar el reporte", "Filtrar por fecha")
+	body := sprintBody("Sprint 1", sprintGoal, "2026-11-01", "2026-11-14")
+
+	rec := f.env.updateSprint(t, f.brunoToken, f.sprintOneID, body)
+
+	detail := requireUpdatedSprint(t, rec, f.sprintOneID, body, "planned")
+	assert.ElementsMatch(t, []string{stories[0].String(), stories[1].String()}, sprintDetailStoryIDs(detail))
+	requireStoredSprintData(t, f.env.db, f.sprintOneID, body)
+	requireCommittedOpen(t, f.env.db, f.sprintOneID, stories...)
+}
+
+// Escenario: Mismo nombre (004/US7)
+// Renombrar un sprint Planificado con el mismo nombre que ya tenía se acepta con 200, aunque el resto
+// de los datos tampoco cambie (FR-012).
+func TestUS7_MismoNombre(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	body := sprintBody("Sprint 1", sprintGoal, "2026-10-01", "2026-10-14")
+
+	rec := f.env.updateSprint(t, f.brunoToken, f.sprintOneID, body)
+
+	requireUpdatedSprint(t, rec, f.sprintOneID, body, "planned")
+	requireStoredSprintData(t, f.env.db, f.sprintOneID, body)
+}
+
+// Escenario: Fechas contiguas (004/US7)
+// Con "Sprint 1" del 2026-10-01 al 2026-10-14, mover "Sprint 2" para que empiece el 2026-10-14 se
+// acepta, porque compartir el día de borde no es superposición (FR-013, RN-05).
+func TestUS7_FechasContiguas(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	sprintTwoID := sprintSeed(t, f.env.db, f.projectID, f.anaID, "Sprint 2", "2026-10-20", "2026-11-02")
+	body := sprintBody("Sprint 2", sprintGoal, "2026-10-14", "2026-10-28")
+
+	rec := f.env.updateSprint(t, f.brunoToken, sprintTwoID, body)
+
+	requireUpdatedSprint(t, rec, sprintTwoID, body, "planned")
+	requireStoredSprintData(t, f.env.db, sprintTwoID, body)
+}
+
+// Escenario: Eliminación sin historias (004/US7)
+// Eliminar un sprint Planificado sin historias responde 204 y no tiene efectos sobre el backlog: una
+// historia del proyecto, fuera del sprint, no se escribe (FR-048).
+func TestUS7_EliminacionSinHistorias(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+	before := sprintStoredStory(t, f.env.db, storyID)
+
+	rec := f.env.deleteSprint(t, f.brunoToken, f.sprintOneID)
+
+	requireSprintDeleted(t, f.env.db, rec, f.sprintOneID)
+	after := sprintStoredStory(t, f.env.db, storyID)
+	assert.Equal(t, before.Status, after.Status)
+	assert.False(t, after.EverCommitted, "la historia nunca estuvo en un sprint")
+	assert.True(t, before.UpdatedAt.Equal(after.UpdatedAt), "la historia no debe escribirse: updated_at = %v, antes %v", after.UpdatedAt, before.UpdatedAt)
+}
+
+// Escenario: Historia de sprint eliminado (004/US7)
+// Una historia que estuvo comprometida en un sprint que después se eliminó no se puede eliminar del
+// backlog: el DELETE de la 003 responde 409 con el motivo sprint_history y la historia sigue
+// existiendo (RC-06, FR-048).
+func TestUS7_HistoriaDeSprintEliminado(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	stories := f.commitStories(t, f.sprintOneID, "Exportar el reporte")
+	requireSprintDeleted(t, f.env.db, f.env.deleteSprint(t, f.brunoToken, f.sprintOneID), f.sprintOneID)
+
+	rec := f.env.sprintDo(t, http.MethodDelete, "/api/v1/stories/"+stories[0].String(), f.brunoToken, nil)
+
+	assert.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+	assert.JSONEq(t, `{"error":"`+sprintStoryDeletionBlocked+`","reasons":[{"code":"sprint_history","message":"`+sprintStoryHistoryReason+`"}]}`, rec.Body.String())
+	sprintStoredStory(t, f.env.db, stories[0])
+}
+
+// Escenario: Esfuerzo eliminado antes (004/US7)
+// Con el puerto de esfuerzo reemplazado por un doble que primero informa esfuerzo registrado y
+// después ya no, la primera eliminación se rechaza con 409 y la segunda, hecha cuando el autor ya
+// eliminó su registro, se acepta con 204 (FR-048, RN-20).
+func TestUS7_EsfuerzoEliminadoAntes(t *testing.T) {
+	effort := &sprintEffortDouble{}
+	f := newSprintUS2Fixture(t, func(p *sprintTestPorts) { p.effort = effort })
+	effort.On("HasEffort", mock.Anything, f.sprintOneID).Return(true, nil).Once()
+	effort.On("HasEffort", mock.Anything, f.sprintOneID).Return(false, nil).Once()
+
+	first := f.env.deleteSprint(t, f.brunoToken, f.sprintOneID)
+	require.Equal(t, http.StatusConflict, first.Code, "con esfuerzo registrado debe rechazarse: %s", first.Body.String())
+	sprintStored(t, f.env.db, f.sprintOneID.String())
+
+	second := f.env.deleteSprint(t, f.brunoToken, f.sprintOneID)
+
+	requireSprintDeleted(t, f.env.db, second, f.sprintOneID)
+	effort.AssertExpectations(t)
+}
+
+// Escenario: Datos inválidos (004/US7)
+// Dejar el nombre o el Sprint Goal vacíos, poner una fecha de fin igual a la de inicio o un Sprint
+// Goal de 501 caracteres se rechaza con 400 señalando el campo y el motivo; los demás datos del
+// cuerpo, que sí son válidos y distintos, tampoco se aplican: ningún cambio parcial (FR-013, FR-014).
+func TestUS7_DatosInvalidos(t *testing.T) {
+	cases := []struct {
+		name  string
+		field string
+		value string
+		part  string
+	}{
+		{"nombre vacío", "name", "", "obligatori"},
+		{"Sprint Goal vacío", "goal", "", "obligatori"},
+		{"fin no posterior", "endDate", "2026-10-03", "posterior"},
+		{"Sprint Goal de 501", "goal", strings.Repeat("ñ", 501), "500"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newSprintUS2Fixture(t)
+			before := sprintStored(t, f.env.db, f.sprintOneID.String())
+			body := sprintBody("Sprint 1 corregido", "Publicar el alta de clientes", "2026-10-03", "2026-10-17")
+			body[tc.field] = tc.value
+
+			rec := f.env.updateSprint(t, f.brunoToken, f.sprintOneID, body)
+
+			sprintRequireFieldRejected(t, rec, tc.field, tc.part)
+			requireSprintDataUntouched(t, f.env.db, before)
+		})
+	}
+}
+
+// Escenario: Superposición (004/US7)
+// Mover "Sprint 2" a un período que se superpone con "Sprint 1" se rechaza con 409 indicando el
+// identificador y el nombre de "Sprint 1", y "Sprint 2" no cambia; en cambio, mover "Sprint 1" a un
+// período que se superpone con el suyo propio se acepta, porque un sprint no choca consigo mismo
+// (FR-013, SC-004).
+func TestUS7_Superposicion(t *testing.T) {
+	t.Run("con otro sprint", func(t *testing.T) {
+		f := newSprintUS2Fixture(t)
+		sprintTwoID := sprintSeed(t, f.env.db, f.projectID, f.anaID, "Sprint 2", "2026-10-20", "2026-11-02")
+		before := sprintStored(t, f.env.db, sprintTwoID.String())
+
+		rec := f.env.updateSprint(t, f.brunoToken, sprintTwoID, sprintBody("Sprint 2", sprintGoal, "2026-10-10", "2026-10-25"))
+
+		require.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+		var body sprintConflictBody
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "el cuerpo del 409 no es JSON válido: %s", rec.Body.String())
+		assert.Contains(t, body.Error, "Sprint 1", "el mensaje debe nombrar el sprint en conflicto")
+		if assert.NotNil(t, body.Sprint, "falta el sprint en conflicto: %s", rec.Body.String()) {
+			assert.Equal(t, f.sprintOneID.String(), body.Sprint.ID)
+			assert.Equal(t, "Sprint 1", body.Sprint.Name)
+		}
+		requireSprintDataUntouched(t, f.env.db, before)
+	})
+
+	t.Run("consigo mismo", func(t *testing.T) {
+		f := newSprintUS2Fixture(t)
+		body := sprintBody("Sprint 1", sprintGoal, "2026-10-03", "2026-10-16")
+
+		rec := f.env.updateSprint(t, f.brunoToken, f.sprintOneID, body)
+
+		requireUpdatedSprint(t, rec, f.sprintOneID, body, "planned")
+		requireStoredSprintData(t, f.env.db, f.sprintOneID, body)
+	})
+}
+
+// Escenario: Modificar activo (004/US7)
+// Modificar un sprint Activo se rechaza con 409 indicando que solo se modifica un sprint
+// Planificado, y el sprint no cambia (FR-016).
+func TestUS7_ModificarActivo(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	activeID := sprintSeedInStatus(t, f.env.db, f.projectID, f.anaID, "Sprint 2", "2026-10-15", "2026-10-28", domain.SprintStatusActive)
+	before := sprintStored(t, f.env.db, activeID.String())
+
+	rec := f.env.updateSprint(t, f.brunoToken, activeID, sprintBody("Sprint 2 corregido", sprintGoal, "2026-10-15", "2026-10-30"))
+
+	assert.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+	assert.JSONEq(t, `{"error":"`+sprintUpdateNotPlannedMessage+`"}`, rec.Body.String())
+	requireSprintDataUntouched(t, f.env.db, before)
+}
+
+// Escenario: Modificar cerrado (004/US7)
+// Modificar un sprint Cerrado se rechaza con 409 porque un sprint cerrado no admite cambios, y el
+// sprint no cambia (FR-016, RN-18).
+func TestUS7_ModificarCerrado(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	closedID := sprintSeedInStatus(t, f.env.db, f.projectID, f.anaID, "Sprint 0", "2026-09-01", "2026-09-14", domain.SprintStatusClosed)
+	before := sprintStored(t, f.env.db, closedID.String())
+
+	rec := f.env.updateSprint(t, f.brunoToken, closedID, sprintBody("Sprint 0 corregido", sprintGoal, "2026-09-01", "2026-09-15"))
+
+	assert.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+	assert.JSONEq(t, `{"error":"`+sprintClosedMessage+`"}`, rec.Body.String())
+	requireSprintDataUntouched(t, f.env.db, before)
+}
+
+// Escenario: Eliminar activo o cerrado (004/US7)
+// Eliminar un sprint Activo o uno Cerrado se rechaza con 409 indicando que solo se elimina un sprint
+// que nunca fue iniciado; el sprint y su compromiso siguen en la base (FR-048, RN-20, SC-016).
+func TestUS7_EliminarActivoOCerrado(t *testing.T) {
+	notCompleted := domain.StoryOutcomeNotCompleted
+	cases := []struct {
+		name    string
+		status  domain.SprintStatus
+		start   string
+		end     string
+		outcome *domain.StoryOutcome
+	}{
+		{"activo", domain.SprintStatusActive, "2026-10-15", "2026-10-28", nil},
+		{"cerrado", domain.SprintStatusClosed, "2026-09-01", "2026-09-14", &notCompleted},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newSprintUS2Fixture(t)
+			sprintID := sprintSeedInStatus(t, f.env.db, f.projectID, f.anaID, "Sprint 2", tc.start, tc.end, tc.status)
+			storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+			sprintSeedCommitment(t, f.env.db, sprintID, storyID, sprintDate(t, tc.start), tc.outcome, nil)
+			before := sprintStored(t, f.env.db, sprintID.String())
+
+			rec := f.env.deleteSprint(t, f.brunoToken, sprintID)
+
+			assert.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+			assert.JSONEq(t, `{"error":"`+sprintDeleteStartedMessage+`"}`, rec.Body.String())
+			requireSprintDataUntouched(t, f.env.db, before)
+			assert.EqualValues(t, 1, sprintCommitmentCount(t, f.env.db, "sprint_id = ? AND story_id = ?", sprintID, storyID),
+				"el compromiso debe seguir en sprint_stories")
+		})
+	}
+}
+
+// Escenario: Esfuerzo registrado (004/US7)
+// Con el puerto de esfuerzo reemplazado por un doble que informa esfuerzo registrado, eliminar un
+// sprint Planificado con dos historias se rechaza con 409 indicando que primero hay que eliminar esos
+// registros; el sprint y sus historias comprometidas no cambian (FR-048, RN-20, SC-016).
+func TestUS7_EsfuerzoRegistrado(t *testing.T) {
+	effort := &sprintEffortDouble{}
+	f := newSprintUS2Fixture(t, func(p *sprintTestPorts) { p.effort = effort })
+	effort.On("HasEffort", mock.Anything, f.sprintOneID).Return(true, nil)
+	stories := f.commitStories(t, f.sprintOneID, "Exportar el reporte", "Filtrar por fecha")
+	before := sprintStored(t, f.env.db, f.sprintOneID.String())
+
+	rec := f.env.deleteSprint(t, f.brunoToken, f.sprintOneID)
+
+	assert.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+	assert.JSONEq(t, `{"error":"`+sprintDeleteEffortMessage+`"}`, rec.Body.String())
+	requireSprintDataUntouched(t, f.env.db, before)
+	requireCommittedOpen(t, f.env.db, f.sprintOneID, stories...)
+	effort.AssertCalled(t, "HasEffort", mock.Anything, f.sprintOneID)
+}
+
+// Escenario: Sprint eliminado (004/US7)
+// Sobre un sprint ya eliminado, GET, PUT y DELETE responden el 404 de sprint inexistente del
+// contrato (FR-058).
+func TestUS7_SprintEliminado(t *testing.T) {
+	f := newSprintUS2Fixture(t)
+	requireSprintDeleted(t, f.env.db, f.env.deleteSprint(t, f.brunoToken, f.sprintOneID), f.sprintOneID)
+
+	cases := []struct {
+		name string
+		send func(t *testing.T) *httptest.ResponseRecorder
+	}{
+		{"GET", func(t *testing.T) *httptest.ResponseRecorder {
+			return f.env.getSprintDetail(t, f.brunoToken, f.sprintOneID)
+		}},
+		{"PUT", func(t *testing.T) *httptest.ResponseRecorder {
+			return f.env.updateSprint(t, f.brunoToken, f.sprintOneID, sprintBody("Sprint 1", sprintGoal, "2026-10-01", "2026-10-14"))
+		}},
+		{"DELETE", func(t *testing.T) *httptest.ResponseRecorder {
+			return f.env.deleteSprint(t, f.brunoToken, f.sprintOneID)
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := tc.send(t)
+
+			assert.Equal(t, http.StatusNotFound, rec.Code, "cuerpo: %s", rec.Body.String())
+			assert.Equal(t, sprintNotFoundBody, rec.Body.String())
+		})
+	}
 }

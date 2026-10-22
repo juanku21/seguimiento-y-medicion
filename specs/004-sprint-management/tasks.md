@@ -650,7 +650,7 @@ completadas por 13, `POST /api/v1/sprints/{sprintId}/close` devuelve `results` c
 
 - [X] T066 [US5] Implementar `Outcome(status)` en `backend/internal/sprints/domain/progress.go` —
       depende de T062
-- [ ] T067 [US5] Implementar `Close` en `backend/internal/sprints/repository/sprint_repository.go` en
+- [X] T067 [US5] Implementar `Close` en `backend/internal/sprints/repository/sprint_repository.go` en
       **una transacción**: bloquear el sprint (`FOR UPDATE`) y leer el estado del proyecto;
       validar la transición con el estado releído; leer y bloquear las historias comprometidas
       (`FOR UPDATE`, **ordenadas por `id`**); completar en cada fila `title_at_close`,

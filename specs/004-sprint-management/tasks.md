@@ -327,7 +327,7 @@ responde `409` y no asigna ninguna; y quitarlas las devuelve al backlog como `pe
       `completed` → `completed`; con compromiso abierto en otro sprint o en este mismo →
       `committed_elsewhere` con ese sprint; y una historia que cumple varias condiciones informa
       **todos** sus motivos — depende de T024
-- [ ] T026 [P] [US2] Pruebas de integración de `RequireSprintAccess` en
+- [X] T026 [P] [US2] Pruebas de integración de `RequireSprintAccess` en
       `backend/internal/sprints/delivery/middleware_test.go`, montado sobre un manejador de prueba:
       un integrante que no es el propietario pasa y recibe en el contexto un `SprintAccess` con el
       sprint, su proyecto y si está Finalizado (RN-01); el sprint inexistente, el de un proyecto

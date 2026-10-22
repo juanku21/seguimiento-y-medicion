@@ -536,7 +536,7 @@ y el salto directo de `pending` a `completed` responde `409` con las transicione
 
 ### Pruebas de la Historia 4 ⚠️
 
-- [ ] T052 [P] [US4] Pruebas unitarias **obligatorias** de `ValidateStoryProgress` en
+- [X] T052 [P] [US4] Pruebas unitarias **obligatorias** de `ValidateStoryProgress` en
       `backend/internal/sprints/domain/progress_test.go`, recorriendo los **9 pares** de
       `pending`/`in_progress`/`completed`: solo `pending → in_progress`, `in_progress → completed` y
       `completed → in_progress` devuelven `nil`; los demás, incluido el salto a `completed` y todo

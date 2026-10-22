@@ -285,7 +285,7 @@ solapa un día responde `409` con el nombre del primero.
       `201` con `SprintDetail`, `400`, `401`, `404` de `RequireMembership` y `409` con
       `SprintConflictResponse` o `ErrorResponse` (`El proyecto está finalizado y sus sprints son de
       solo lectura.`) — depende de T013, T016 y T019
-- [ ] T021 [P] [US1] Declarar los tipos de petición y respuesta en `frontend/src/types/sprint.ts` y,
+- [X] T021 [P] [US1] Declarar los tipos de petición y respuesta en `frontend/src/types/sprint.ts` y,
       en `frontend/src/utils/sprint-labels.ts`, las etiquetas en español del estado del sprint
       (`planned` → Planificado, `active` → Activo, `closed` → Cerrado) y del resultado
       (`completed` → Completada, `not_completed` → No completada). **Prohibido el tipo `any`**

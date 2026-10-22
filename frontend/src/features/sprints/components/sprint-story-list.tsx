@@ -4,12 +4,17 @@ import { useRef, useState } from "react";
 import { Alert } from "@/components/alert";
 import { removeSprintStories } from "@/features/sprints/api";
 import { StoryProgressControl } from "@/features/sprints/components/story-progress-control";
-import type { SprintDetail, StoryProgressResponse } from "@/types/sprint";
+import type {
+  SprintDetail,
+  SprintStoryItem,
+  StoryProgressResponse,
+} from "@/types/sprint";
 import {
   STORY_PRIORITY_LABELS,
   STORY_STATUS_LABELS,
   formatStoryPoints,
 } from "@/utils/story-labels";
+import { STORY_OUTCOME_LABELS } from "@/utils/sprint-labels";
 
 // Propiedades de la lista de historias del sprint: el sprint con sus historias y la función que
 // recibe el detalle actualizado tras quitar historias o registrar su avance.
@@ -19,7 +24,8 @@ export type SprintStoryListProps = {
 };
 
 // Lista de las historias comprometidas en un sprint, con la acción de quitarlas (004/US2). Muestra
-// cada historia en el orden recibido con su estado, sus Story Points y su prioridad. Solo en un
+// cada historia en el orden recibido con su estado (en un sprint Cerrado, el resultado congelado al
+// cierre, 004/US5), sus Story Points y su prioridad. Solo en un
 // sprint abierto ofrece quitar las historias que no están Completadas (RN-09, RN-21); con el 200
 // entrega el detalle actualizado a la pantalla y con un rechazo muestra su mensaje. En un sprint
 // Activo cada fila ofrece además el control de avance (004/US4). Ante un 401 el cliente HTTP descarta
@@ -65,6 +71,15 @@ export function SprintStoryList({ sprint, onChanged }: SprintStoryListProps) {
     });
   }
 
+  // Etiqueta de la historia: en un sprint Cerrado, el resultado congelado al cierre (FR-043); en un
+  // sprint abierto, o si el cierre no registró resultado, su estado vigente.
+  function storyLabel(story: SprintStoryItem): string {
+    if (!isOpen && story.outcome) {
+      return STORY_OUTCOME_LABELS[story.outcome];
+    }
+    return STORY_STATUS_LABELS[story.status];
+  }
+
   // Sprint sin historias: se informa como estado normal, no como error.
   if (sprint.stories.length === 0) {
     return (
@@ -88,7 +103,7 @@ export function SprintStoryList({ sprint, onChanged }: SprintStoryListProps) {
             <div className="flex flex-col gap-1">
               <p className="text-sm font-medium">{story.title}</p>
               <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                {STORY_STATUS_LABELS[story.status]} ·{" "}
+                {storyLabel(story)} ·{" "}
                 {formatStoryPoints(story.storyPoints, "SP")} · Prioridad{" "}
                 {STORY_PRIORITY_LABELS[story.priority].toLowerCase()}
               </p>

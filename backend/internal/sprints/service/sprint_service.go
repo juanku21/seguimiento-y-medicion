@@ -31,9 +31,12 @@ func NewSprintService(repo domain.SprintRepository, effort domain.SprintEffort, 
 }
 
 // SprintView es la vista de detalle de un sprint que devuelven las operaciones del servicio. Las
-// historias siguientes le agregan los datos derivados que arma buildDetail.
+// historias siguientes le agregan los datos derivados que arma buildDetail. HoursPerStoryPoint es
+// el factor de horas por Story Point congelado al cierre, con la representación del factor del
+// proyecto de la spec 002; es nil si el sprint no está cerrado (FR-043).
 type SprintView struct {
-	Detail *domain.SprintDetail
+	Detail             *domain.SprintDetail
+	HoursPerStoryPoint *float64
 }
 
 // Create registra un sprint en el proyecto atribuido al actor y devuelve su detalle (FR-006, FR-060).
@@ -110,6 +113,28 @@ func (s *SprintService) Start(ctx context.Context, access *domain.SprintAccess) 
 	return s.buildDetail(ctx, access.SprintID)
 }
 
+// Close cierra el sprint del acceso atribuido al actor y devuelve su detalle con la instantánea
+// (FR-039 a FR-047). Aplica la solo lectura del proyecto Finalizado y el rechazo del sprint cerrado
+// (RN-18, RN-19); después, solo un sprint active se cierra, y uno planned se rechaza con
+// ErrSprintNotActive sin llegar al repositorio (RN-02; data-model.md sección 4). Superados los
+// controles delega en el repositorio con el actor como closedBy y el instante del reloj inyectado,
+// que queda como momento real de cierre, y propaga envueltos sus rechazos. No toca el estado del
+// proyecto (RN-07).
+func (s *SprintService) Close(ctx context.Context, access *domain.SprintAccess, actorID uuid.UUID) (*SprintView, error) {
+	detail, err := s.ensureEditable(ctx, access)
+	if err != nil {
+		return nil, err
+	}
+	if detail.Sprint.Status != domain.SprintStatusActive {
+		return nil, domain.ErrSprintNotActive
+	}
+	if err := s.repo.Close(ctx, access.SprintID, actorID, s.now()); err != nil {
+		return nil, fmt.Errorf("cerrar sprint: %w", err)
+	}
+
+	return s.buildDetail(ctx, access.SprintID)
+}
+
 // ChangeStoryProgress cambia el estado de una historia del sprint activo con el instante del reloj
 // (FR-033 a FR-038). Las guardas dependen de la historia bloqueada, así que las decide el
 // repositorio dentro de su transacción: historia fuera del sprint activo, sprint cerrado, transición
@@ -166,12 +191,22 @@ func (s *SprintService) ensureEditable(ctx context.Context, access *domain.Sprin
 // buildDetail arma la vista de un sprint a partir de su detalle persistido; la respuesta de toda
 // escritura y de la consulta del detalle pasa por acá. Si el sprint no existe, el error envuelve
 // ErrSprintNotFound del repositorio. Es el punto donde se agregan los datos derivados de la vista,
-// como los días restantes calculados con la zona horaria y el reloj inyectados.
+// como los días restantes calculados con la zona horaria y el reloj inyectados. En un sprint closed
+// FindDetail ya entrega las historias desde las filas congeladas, los totales de la instantánea
+// (sprintResultsSelect) y quien lo cerró; acá se agrega el factor de horas por Story Point a partir
+// de las centésimas copiadas al cerrar.
 func (s *SprintService) buildDetail(ctx context.Context, sprintID uuid.UUID) (*SprintView, error) {
 	detail, err := s.repo.FindDetail(ctx, sprintID)
 	if err != nil {
 		return nil, fmt.Errorf("leer detalle de sprint: %w", err)
 	}
 
-	return &SprintView{Detail: detail}, nil
+	view := &SprintView{Detail: detail}
+	hundredths := detail.Sprint.HoursPerStoryPointHundredths
+	if detail.Sprint.Status == domain.SprintStatusClosed && hundredths != nil {
+		hours := float64(*hundredths) / 100
+		view.HoursPerStoryPoint = &hours
+	}
+
+	return view, nil
 }

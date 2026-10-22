@@ -42,7 +42,8 @@ import (
 // /api/v1/sprints/{sprintId}/stories detrás de RequireSprintAccess y la restricción de la 003 sobre
 // historias comprometidas; las de US3 (T041) cubren POST /api/v1/sprints/{sprintId}/start; las de
 // US4 (T055) cubren PUT /api/v1/stories/{storyId}/status detrás del RequireStoryAccess de la 003; las
-// historias siguientes agregan las suyas en este archivo. Los ayudantes llevan el prefijo "sprint" para no chocar con los de validation_test.go,
+// de US5 (T064) cubren POST /api/v1/sprints/{sprintId}/close; las historias siguientes agregan las
+// suyas en este archivo. Los ayudantes llevan el prefijo "sprint" para no chocar con los de validation_test.go,
 // que llevan el prefijo "validation".
 
 // Textos exactos que fija el contrato para el 400 de entrada inválida, el 404 de proyecto
@@ -1935,4 +1936,598 @@ func TestStoryProgress_NotFoundMatchesBacklog(t *testing.T) {
 
 	after := sprintTakeProgressSnapshot(t, f.env.db, foreignID)
 	assert.Equal(t, before, after, "la historia ajena no debe cambiar")
+}
+
+// Textos exactos que fija el contrato para los rechazos del cierre de un sprint (US5): el 409 del
+// sprint Planificado y el del sprint ya Cerrado, cuyo estado es definitivo.
+const (
+	sprintCloseNotActiveMessage = "Solo se puede cerrar un sprint Activo."
+	sprintCloseClosedMessage    = "El sprint ya está cerrado; el estado Cerrado es definitivo."
+)
+
+// sprintClosedAt es el momento de cierre que debe devolver la API: el del reloj inyectado, en UTC con
+// formato RFC 3339.
+var sprintClosedAt = sprintFixedNow.UTC().Format(time.RFC3339)
+
+// sprintResultsBody refleja SprintResults del contrato: los cinco totales de la instantánea.
+type sprintResultsBody struct {
+	CommittedStoryPoints int `json:"committedStoryPoints"`
+	PlannedStoryPoints   int `json:"plannedStoryPoints"`
+	CompletedStoryPoints int `json:"completedStoryPoints"`
+	PlannedStoryCount    int `json:"plannedStoryCount"`
+	CompletedStoryCount  int `json:"completedStoryCount"`
+}
+
+// sprintClosedBody refleja de SprintDetail del contrato lo que verifican las pruebas de US5: el
+// estado, las cuatro fechas, quién cerró, las historias congeladas, los totales y el factor.
+type sprintClosedBody struct {
+	ID        string  `json:"id"`
+	Status    string  `json:"status"`
+	StartDate string  `json:"startDate"`
+	EndDate   string  `json:"endDate"`
+	StartedAt *string `json:"startedAt"`
+	ClosedAt  *string `json:"closedAt"`
+	CreatedBy struct {
+		ID       string `json:"id"`
+		FullName string `json:"fullName"`
+	} `json:"createdBy"`
+	ClosedBy *struct {
+		ID       string `json:"id"`
+		FullName string `json:"fullName"`
+	} `json:"closedBy"`
+	Stories []struct {
+		StoryID     string  `json:"storyId"`
+		Title       string  `json:"title"`
+		Priority    string  `json:"priority"`
+		StoryPoints int     `json:"storyPoints"`
+		Status      string  `json:"status"`
+		CompletedAt *string `json:"completedAt"`
+		Outcome     *string `json:"outcome"`
+	} `json:"stories"`
+	Results            *sprintResultsBody `json:"results"`
+	HoursPerStoryPoint *float64           `json:"hoursPerStoryPoint"`
+}
+
+// sprintFrozenRow es lo que la instantánea debe conservar de una historia al cerrar, además de su
+// prioridad: su título, sus Story Points y su resultado.
+type sprintFrozenRow struct {
+	title   string
+	points  int
+	outcome domain.StoryOutcome
+}
+
+// sprintClosePath es la ruta de cierre de un sprint según contracts/openapi.yaml.
+func sprintClosePath(sprintID uuid.UUID) string {
+	return sprintPath(sprintID) + "/close"
+}
+
+// closeSprint envía POST /api/v1/sprints/{sprintId}/close, sin cuerpo, con el token como Bearer.
+func (e sprintTestEnv) closeSprint(t *testing.T, token string, sprintID uuid.UUID) *httptest.ResponseRecorder {
+	t.Helper()
+	return e.sprintDo(t, http.MethodPost, sprintClosePath(sprintID), token, nil)
+}
+
+// requireClosedSprint exige un 200 cuyo cuerpo sea el detalle del sprint closed, con closedAt igual
+// al reloj, closedBy igual a quien cerró, el factor congelado del proyecto (6,5), results presente y
+// schedule null, y lo devuelve decodificado junto con el cuerpo crudo.
+func requireClosedSprint(t *testing.T, rec *httptest.ResponseRecorder, sprintID, closerID uuid.UUID, closerName string) (sprintClosedBody, map[string]any) {
+	t.Helper()
+	require.Equal(t, http.StatusOK, rec.Code, "cuerpo: %s", rec.Body.String())
+	var body sprintClosedBody
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "el cuerpo del 200 no es JSON válido: %s", rec.Body.String())
+	raw := sprintRawBody(t, rec)
+	assert.Equal(t, sprintID.String(), body.ID)
+	assert.Equal(t, "closed", body.Status)
+	if assert.NotNil(t, body.ClosedAt, "closedAt debe registrar el momento real de cierre") {
+		assert.Equal(t, sprintClosedAt, *body.ClosedAt, "closedAt debe ser el instante del reloj")
+	}
+	if assert.NotNil(t, body.ClosedBy, "closedBy debe identificar a quien cerró") {
+		assert.Equal(t, closerID.String(), body.ClosedBy.ID, "closedBy es el titular de la sesión")
+		assert.Equal(t, closerName, body.ClosedBy.FullName)
+	}
+	if assert.NotNil(t, body.HoursPerStoryPoint, "hoursPerStoryPoint debe congelar el factor del proyecto") {
+		assert.InDelta(t, 6.5, *body.HoursPerStoryPoint, 0.0001)
+	}
+	schedule, present := raw["schedule"]
+	assert.True(t, present, "falta el campo schedule en el detalle")
+	assert.Nil(t, schedule, "schedule debe ser null en un sprint cerrado")
+	require.NotNil(t, body.Results, "results no puede ser null en un sprint cerrado: %s", rec.Body.String())
+	return body, raw
+}
+
+// requireStoredClosed exige que la fila del sprint quede closed, con closed_at igual al reloj,
+// closed_by_id igual a quien cerró y el factor del proyecto copiado en centésimas (650), y la
+// devuelve.
+func requireStoredClosed(t *testing.T, db *gorm.DB, sprintID, closerID uuid.UUID) domain.Sprint {
+	t.Helper()
+	stored := sprintStored(t, db, sprintID.String())
+	assert.Equal(t, domain.SprintStatusClosed, stored.Status)
+	if assert.NotNil(t, stored.ClosedAt, "closed_at debe quedar registrado") {
+		assert.True(t, sprintFixedNow.Equal(*stored.ClosedAt), "closed_at = %v, se esperaba %v", *stored.ClosedAt, sprintFixedNow)
+	}
+	if assert.NotNil(t, stored.ClosedByID, "closed_by_id debe quedar registrado") {
+		assert.Equal(t, closerID, *stored.ClosedByID)
+	}
+	if assert.NotNil(t, stored.HoursPerStoryPointHundredths, "el factor debe copiarse al cerrar") {
+		assert.Equal(t, 650, *stored.HoursPerStoryPointHundredths)
+	}
+	return stored
+}
+
+// requireFrozenRows exige que el sprint conserve exactamente una fila congelada por cada historia
+// esperada, con su título, prioridad high, Story Points y resultado al cierre, y completed_at solo
+// en las completadas. También exige que la respuesta liste las mismas historias con esos datos.
+func requireFrozenRows(t *testing.T, db *gorm.DB, body sprintClosedBody, sprintID uuid.UUID, want map[uuid.UUID]sprintFrozenRow) {
+	t.Helper()
+	rows := sprintStoredRows(t, db, sprintID)
+	require.Len(t, rows, len(want), "el sprint debe conservar una fila por historia comprometida al cierre")
+	for _, row := range rows {
+		expected, ok := want[row.StoryID]
+		if !assert.True(t, ok, "la historia %s no debería figurar en la instantánea", row.StoryID) {
+			continue
+		}
+		if assert.NotNil(t, row.TitleAtClose, "title_at_close de %s", row.StoryID) {
+			assert.Equal(t, expected.title, *row.TitleAtClose)
+		}
+		if assert.NotNil(t, row.PriorityAtClose, "priority_at_close de %s", row.StoryID) {
+			assert.Equal(t, backlogdomain.StoryPriorityHigh, *row.PriorityAtClose)
+		}
+		if assert.NotNil(t, row.StoryPointsAtClose, "story_points_at_close de %s", row.StoryID) {
+			assert.Equal(t, expected.points, *row.StoryPointsAtClose)
+		}
+		if assert.NotNil(t, row.Outcome, "outcome de %s", row.StoryID) {
+			assert.Equal(t, expected.outcome, *row.Outcome)
+		}
+		if expected.outcome == domain.StoryOutcomeCompleted {
+			assert.NotNil(t, row.CompletedAt, "completed_at se conserva en la historia completada %s", row.StoryID)
+		} else {
+			assert.Nil(t, row.CompletedAt, "completed_at queda null en la historia no completada %s", row.StoryID)
+		}
+	}
+
+	// La respuesta lista las mismas historias con sus datos congelados.
+	require.Len(t, body.Stories, len(want), "el detalle debe listar las historias de la instantánea")
+	for _, story := range body.Stories {
+		id, err := uuid.Parse(story.StoryID)
+		require.NoError(t, err, "storyId = %q no es un UUID", story.StoryID)
+		expected, ok := want[id]
+		if !assert.True(t, ok, "la historia %s no debería figurar en el detalle", id) {
+			continue
+		}
+		assert.Equal(t, expected.title, story.Title)
+		assert.Equal(t, "high", story.Priority)
+		assert.Equal(t, expected.points, story.StoryPoints)
+		if assert.NotNil(t, story.Outcome, "outcome de %s en el detalle", id) {
+			assert.Equal(t, string(expected.outcome), *story.Outcome)
+		}
+	}
+}
+
+// requireBackInBacklog exige que cada historia quede pending y sin ningún compromiso abierto, es
+// decir, de vuelta en el backlog y sin sprint (FR-041).
+func requireBackInBacklog(t *testing.T, db *gorm.DB, storyIDs ...uuid.UUID) {
+	t.Helper()
+	for _, id := range storyIDs {
+		assert.Equal(t, backlogdomain.StoryStatusPending, sprintStoredStory(t, db, id).Status, "la historia %s debe volver a pending", id)
+		assert.Zero(t, sprintCommitmentCount(t, db, "story_id = ? AND outcome IS NULL", id), "la historia %s no debe conservar un compromiso abierto", id)
+	}
+}
+
+// sprintStoredRows lee todas las filas de sprint_stories del sprint, ordenadas por id, para verificar
+// la instantánea y compararla antes y después de un cambio.
+func sprintStoredRows(t *testing.T, db *gorm.DB, sprintID uuid.UUID) []domain.SprintStory {
+	t.Helper()
+	var rows []domain.SprintStory
+	require.NoError(t, db.Where("sprint_id = ?", sprintID).Order("id").Find(&rows).Error, "no se pudieron leer las filas del sprint")
+	return rows
+}
+
+// sprintUS5Fixture es el "Dado" común de US5: Ana, propietaria de un proyecto En curso con factor
+// 6,5, y Bruno, integrante que no es el propietario y que ejecuta las acciones (RN-01), con un sprint
+// Planificado "Sprint 1" creado por Ana en el período recibido.
+type sprintUS5Fixture struct {
+	sprintUS2Fixture
+}
+
+// newSprintUS5Fixture compone el entorno y siembra las cuentas, el proyecto y el sprint Planificado
+// con el período indicado.
+func newSprintUS5Fixture(t *testing.T, start, end string) sprintUS5Fixture {
+	t.Helper()
+	env := newSprintTestEnv(t)
+	anaID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Díaz", "bruno@example.com")
+	projectID := sprintSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress, brunoID)
+	sprintOneID := sprintSeed(t, env.db, projectID, anaID, "Sprint 1", start, end)
+	return sprintUS5Fixture{sprintUS2Fixture{env: env, anaID: anaID, brunoID: brunoID, brunoToken: brunoToken, projectID: projectID, sprintOneID: sprintOneID}}
+}
+
+// newStories crea con la 003 una historia lista por cada valor de Story Points, con título
+// "Historia N", y devuelve sus identificadores en el mismo orden.
+func (f sprintUS5Fixture) newStories(t *testing.T, points ...int) []uuid.UUID {
+	t.Helper()
+	ids := make([]uuid.UUID, 0, len(points))
+	for i, p := range points {
+		ids = append(ids, f.env.createStory(t, f.brunoToken, f.projectID, fmt.Sprintf("Historia %d", i+1), sprintPoints(p), sprintCriterion))
+	}
+	return ids
+}
+
+// assign compromete las historias en "Sprint 1" con la API de US2.
+func (f sprintUS5Fixture) assign(t *testing.T, storyIDs ...uuid.UUID) {
+	t.Helper()
+	rec := f.env.assignStories(t, f.brunoToken, f.sprintOneID, storyIDs...)
+	require.Equal(t, http.StatusOK, rec.Code, "no se pudieron asignar las historias: %s", rec.Body.String())
+}
+
+// activeWith crea historias listas con los Story Points indicados, las compromete en "Sprint 1" y lo
+// inicia con la API de US3, que congela los Story Points comprometidos; devuelve los identificadores
+// de las historias.
+func (f sprintUS5Fixture) activeWith(t *testing.T, points ...int) []uuid.UUID {
+	t.Helper()
+	ids := f.newStories(t, points...)
+	if len(ids) > 0 {
+		f.assign(t, ids...)
+	}
+	rec := f.env.startSprint(t, f.brunoToken, f.sprintOneID)
+	require.Equal(t, http.StatusOK, rec.Code, "no se pudo iniciar el sprint: %s", rec.Body.String())
+	return ids
+}
+
+// advance lleva la historia del sprint Activo hasta el estado indicado con la API de US4, pasando
+// por En progreso.
+func (f sprintUS5Fixture) advance(t *testing.T, storyID uuid.UUID, to string) {
+	t.Helper()
+	targets := []string{"in_progress"}
+	if to == "completed" {
+		targets = append(targets, "completed")
+	}
+	for _, target := range targets {
+		rec := f.env.changeStoryStatus(t, f.brunoToken, storyID, target)
+		require.Equal(t, http.StatusOK, rec.Code, "no se pudo pasar la historia a %s: %s", target, rec.Body.String())
+	}
+}
+
+// Escenario: Cierre parcial (004/US5)
+// Bruno cierra un sprint Activo con cuatro historias de 8, 5, 5 y 3 Story Points (21), dos completadas
+// por 13, una en progreso y una pendiente: responde 200 con el sprint closed, 21 planificados y 13
+// completados; las dos no completadas vuelven pending y sin compromiso abierto, y el sprint conserva
+// cuatro filas congeladas (FR-039, FR-041 a FR-043, RN-15).
+func TestUS5_CierreParcial(t *testing.T) {
+	f := newSprintUS5Fixture(t, "2026-10-15", "2026-10-28")
+	ids := f.activeWith(t, 8, 5, 5, 3)
+	f.advance(t, ids[0], "completed")
+	f.advance(t, ids[1], "completed")
+	f.advance(t, ids[2], "in_progress")
+
+	rec := f.env.closeSprint(t, f.brunoToken, f.sprintOneID)
+
+	body, _ := requireClosedSprint(t, rec, f.sprintOneID, f.brunoID, "Bruno Díaz")
+	assert.Equal(t, sprintResultsBody{CommittedStoryPoints: 21, PlannedStoryPoints: 21, CompletedStoryPoints: 13, PlannedStoryCount: 4, CompletedStoryCount: 2}, *body.Results)
+	requireStoredClosed(t, f.env.db, f.sprintOneID, f.brunoID)
+	requireFrozenRows(t, f.env.db, body, f.sprintOneID, map[uuid.UUID]sprintFrozenRow{
+		ids[0]: {title: "Historia 1", points: 8, outcome: domain.StoryOutcomeCompleted},
+		ids[1]: {title: "Historia 2", points: 5, outcome: domain.StoryOutcomeCompleted},
+		ids[2]: {title: "Historia 3", points: 5, outcome: domain.StoryOutcomeNotCompleted},
+		ids[3]: {title: "Historia 4", points: 3, outcome: domain.StoryOutcomeNotCompleted},
+	})
+
+	// Las no completadas vuelven al backlog y las completadas siguen completed.
+	requireBackInBacklog(t, f.env.db, ids[2], ids[3])
+	for _, id := range ids[:2] {
+		assert.Equal(t, backlogdomain.StoryStatusCompleted, sprintStoredStory(t, f.env.db, id).Status)
+	}
+}
+
+// Escenario: Todas completadas (004/US5)
+// Un sprint Activo cuyas dos historias (5 y 3) están Completadas se cierra: ninguna vuelve al backlog
+// y los Story Points planificados al cierre coinciden con los completados (8).
+func TestUS5_TodasCompletadas(t *testing.T) {
+	f := newSprintUS5Fixture(t, "2026-10-15", "2026-10-28")
+	ids := f.activeWith(t, 5, 3)
+	for _, id := range ids {
+		f.advance(t, id, "completed")
+	}
+
+	rec := f.env.closeSprint(t, f.brunoToken, f.sprintOneID)
+
+	body, _ := requireClosedSprint(t, rec, f.sprintOneID, f.brunoID, "Bruno Díaz")
+	assert.Equal(t, sprintResultsBody{CommittedStoryPoints: 8, PlannedStoryPoints: 8, CompletedStoryPoints: 8, PlannedStoryCount: 2, CompletedStoryCount: 2}, *body.Results)
+	requireStoredClosed(t, f.env.db, f.sprintOneID, f.brunoID)
+	requireFrozenRows(t, f.env.db, body, f.sprintOneID, map[uuid.UUID]sprintFrozenRow{
+		ids[0]: {title: "Historia 1", points: 5, outcome: domain.StoryOutcomeCompleted},
+		ids[1]: {title: "Historia 2", points: 3, outcome: domain.StoryOutcomeCompleted},
+	})
+	for _, id := range ids {
+		assert.Equal(t, backlogdomain.StoryStatusCompleted, sprintStoredStory(t, f.env.db, id).Status, "ninguna historia vuelve al backlog")
+	}
+}
+
+// Escenario: Alcance agregado (004/US5)
+// Un sprint iniciado con 20 Story Points que suma dos historias de 8 mientras está Activo cierra con
+// 20 comprometidos al inicio y 36 planificados al cierre; si en cambio pierde una historia de 5
+// durante el sprint, cierra con 20 y 15 y la historia quitada no figura en la instantánea. En ambos
+// casos la diferencia es distinta de cero y deja visible el cambio de alcance (FR-043, SC-009).
+func TestUS5_AlcanceAgregado(t *testing.T) {
+	t.Run("suma dos historias de 8", func(t *testing.T) {
+		f := newSprintUS5Fixture(t, "2026-10-15", "2026-10-28")
+		initial := f.activeWith(t, 5, 5, 5, 5)
+		added := f.newStories(t, 8, 8)
+		f.assign(t, added...)
+
+		rec := f.env.closeSprint(t, f.brunoToken, f.sprintOneID)
+
+		body, _ := requireClosedSprint(t, rec, f.sprintOneID, f.brunoID, "Bruno Díaz")
+		assert.Equal(t, sprintResultsBody{CommittedStoryPoints: 20, PlannedStoryPoints: 36, CompletedStoryPoints: 0, PlannedStoryCount: 6, CompletedStoryCount: 0}, *body.Results)
+		assert.Equal(t, 16, body.Results.PlannedStoryPoints-body.Results.CommittedStoryPoints, "la diferencia expresa el alcance agregado")
+		requireBackInBacklog(t, f.env.db, append(initial, added...)...)
+	})
+
+	t.Run("quita una historia de 5", func(t *testing.T) {
+		f := newSprintUS5Fixture(t, "2026-10-15", "2026-10-28")
+		ids := f.activeWith(t, 8, 5, 5, 2)
+		removed := f.env.removeStories(t, f.brunoToken, f.sprintOneID, ids[1])
+		require.Equal(t, http.StatusOK, removed.Code, "no se pudo quitar la historia: %s", removed.Body.String())
+
+		rec := f.env.closeSprint(t, f.brunoToken, f.sprintOneID)
+
+		body, _ := requireClosedSprint(t, rec, f.sprintOneID, f.brunoID, "Bruno Díaz")
+		assert.Equal(t, sprintResultsBody{CommittedStoryPoints: 20, PlannedStoryPoints: 15, CompletedStoryPoints: 0, PlannedStoryCount: 3, CompletedStoryCount: 0}, *body.Results)
+		assert.Equal(t, -5, body.Results.PlannedStoryPoints-body.Results.CommittedStoryPoints, "la diferencia negativa expresa el alcance quitado")
+		requireFrozenRows(t, f.env.db, body, f.sprintOneID, map[uuid.UUID]sprintFrozenRow{
+			ids[0]: {title: "Historia 1", points: 8, outcome: domain.StoryOutcomeNotCompleted},
+			ids[2]: {title: "Historia 3", points: 5, outcome: domain.StoryOutcomeNotCompleted},
+			ids[3]: {title: "Historia 4", points: 2, outcome: domain.StoryOutcomeNotCompleted},
+		})
+	})
+}
+
+// Escenario: Inmutable tras el cierre (004/US5)
+// Cerrado un sprint con una historia completada de 8 y una pendiente de 5, renombrar y reestimar la
+// pendiente con la 003 y cambiar el factor del proyecto a 8 con la 002 no altera el sprint: el
+// detalle es idéntico byte a byte antes y después, y la fila del sprint y sus filas congeladas en la
+// base no cambian (FR-044, SC-008).
+func TestUS5_InmutableTrasElCierre(t *testing.T) {
+	f := newSprintUS5Fixture(t, "2026-10-15", "2026-10-28")
+	ids := f.activeWith(t, 8, 5)
+	f.advance(t, ids[0], "completed")
+	closed := f.env.closeSprint(t, f.brunoToken, f.sprintOneID)
+	requireClosedSprint(t, closed, f.sprintOneID, f.brunoID, "Bruno Díaz")
+
+	// Foto del detalle y de la instantánea en la base antes de los cambios.
+	detailBefore := f.env.sprintDo(t, http.MethodGet, sprintPath(f.sprintOneID), f.brunoToken, nil)
+	require.Equal(t, http.StatusOK, detailBefore.Code, "cuerpo: %s", detailBefore.Body.String())
+	sprintBefore := sprintStored(t, f.env.db, f.sprintOneID.String())
+	rowsBefore := sprintStoredRows(t, f.env.db, f.sprintOneID)
+
+	// Renombre y reestimación de la historia devuelta al backlog, con la 003.
+	renamed := f.env.sprintDo(t, http.MethodPatch, "/api/v1/stories/"+ids[1].String(), f.brunoToken, map[string]any{"title": "Historia 2 renombrada"})
+	require.Equal(t, http.StatusOK, renamed.Code, "no se pudo renombrar la historia: %s", renamed.Body.String())
+	reestimated := f.env.sprintDo(t, http.MethodPut, "/api/v1/stories/"+ids[1].String()+"/story-points", f.brunoToken, map[string]any{"storyPoints": 13})
+	require.Equal(t, http.StatusOK, reestimated.Code, "no se pudo reestimar la historia: %s", reestimated.Body.String())
+
+	// Cambio del factor del proyecto a 8 con la 002, por su propietaria, conservando los demás datos.
+	login, err := f.env.auth.Login(context.Background(), "ana@example.com", sprintUserPassword)
+	require.NoError(t, err, "no se pudo iniciar la sesión de Ana")
+	project := sprintStoredProject(t, f.env.db, f.projectID)
+	factor := f.env.sprintDo(t, http.MethodPut, "/api/v1/projects/"+f.projectID.String(), login.Token, map[string]any{
+		"name":               project.Name,
+		"description":        nil,
+		"startDate":          project.StartDate.UTC().Format(time.DateOnly),
+		"plannedEndDate":     project.PlannedEndDate.UTC().Format(time.DateOnly),
+		"hoursPerStoryPoint": 8,
+	})
+	require.Equal(t, http.StatusOK, factor.Code, "no se pudo cambiar el factor del proyecto: %s", factor.Body.String())
+
+	// Los cambios ocurrieron de verdad en la historia y en el proyecto.
+	story := sprintStoredStory(t, f.env.db, ids[1])
+	require.Equal(t, "Historia 2 renombrada", story.Title)
+	require.Equal(t, sprintPoints(13), story.StoryPoints)
+	require.Equal(t, 800, sprintStoredProject(t, f.env.db, f.projectID).HoursPerStoryPointHundredths)
+
+	// El detalle es idéntico byte a byte y la instantánea en la base no cambió.
+	detailAfter := f.env.sprintDo(t, http.MethodGet, sprintPath(f.sprintOneID), f.brunoToken, nil)
+	require.Equal(t, http.StatusOK, detailAfter.Code, "cuerpo: %s", detailAfter.Body.String())
+	assert.Equal(t, detailBefore.Body.String(), detailAfter.Body.String(), "el detalle del sprint cerrado debe ser idéntico byte a byte")
+	assert.Equal(t, sprintBefore, sprintStored(t, f.env.db, f.sprintOneID.String()), "la fila del sprint cerrado no debe cambiar")
+	assert.Equal(t, rowsBefore, sprintStoredRows(t, f.env.db, f.sprintOneID), "las filas congeladas no deben cambiar")
+}
+
+// Escenario: Sin completadas (004/US5)
+// Un sprint Activo con una historia pendiente (5) y una en progreso (3) se cierra igual: los Story
+// Points completados quedan en 0, las dos historias vuelven al backlog y el sprint conserva sus dos
+// filas como not_completed (FR-045).
+func TestUS5_SinCompletadas(t *testing.T) {
+	f := newSprintUS5Fixture(t, "2026-10-15", "2026-10-28")
+	ids := f.activeWith(t, 5, 3)
+	f.advance(t, ids[1], "in_progress")
+
+	rec := f.env.closeSprint(t, f.brunoToken, f.sprintOneID)
+
+	body, _ := requireClosedSprint(t, rec, f.sprintOneID, f.brunoID, "Bruno Díaz")
+	assert.Equal(t, sprintResultsBody{CommittedStoryPoints: 8, PlannedStoryPoints: 8, CompletedStoryPoints: 0, PlannedStoryCount: 2, CompletedStoryCount: 0}, *body.Results)
+	requireStoredClosed(t, f.env.db, f.sprintOneID, f.brunoID)
+	requireFrozenRows(t, f.env.db, body, f.sprintOneID, map[uuid.UUID]sprintFrozenRow{
+		ids[0]: {title: "Historia 1", points: 5, outcome: domain.StoryOutcomeNotCompleted},
+		ids[1]: {title: "Historia 2", points: 3, outcome: domain.StoryOutcomeNotCompleted},
+	})
+	requireBackInBacklog(t, f.env.db, ids...)
+}
+
+// Escenario: Sprint vacío (004/US5)
+// Un sprint Activo sin historias se cierra con la instantánea en cero: los cinco totales en 0 (y no
+// null), stories [] y ninguna fila en sprint_stories (FR-045).
+func TestUS5_SprintVacio(t *testing.T) {
+	f := newSprintUS5Fixture(t, "2026-10-15", "2026-10-28")
+	f.activeWith(t)
+
+	rec := f.env.closeSprint(t, f.brunoToken, f.sprintOneID)
+
+	body, raw := requireClosedSprint(t, rec, f.sprintOneID, f.brunoID, "Bruno Díaz")
+	assert.Equal(t, sprintResultsBody{}, *body.Results, "los cinco totales deben ser 0")
+	assert.Equal(t, []any{}, raw["stories"], "stories debe ser [] y no null")
+	requireStoredClosed(t, f.env.db, f.sprintOneID, f.brunoID)
+	assert.Zero(t, sprintCommitmentCount(t, f.env.db, "sprint_id = ?", f.sprintOneID), "un sprint vacío no tiene filas congeladas")
+}
+
+// Escenario: Cierre anticipado (004/US5)
+// Un sprint Activo cuya fecha de fin (2026-10-28) todavía no llegó según el reloj (2026-10-21) se
+// cierra: responde 200 con closedAt igual al reloj, el momento real de cierre, y las fechas previstas
+// y el inicio real no cambian (FR-040).
+func TestUS5_CierreAnticipado(t *testing.T) {
+	f := newSprintUS5Fixture(t, "2026-10-15", "2026-10-28")
+	f.activeWith(t, 5)
+	require.True(t, sprintDate(t, "2026-10-28").After(sprintFixedNow), "la fecha de fin debe ser futura respecto del reloj")
+
+	rec := f.env.closeSprint(t, f.brunoToken, f.sprintOneID)
+
+	body, _ := requireClosedSprint(t, rec, f.sprintOneID, f.brunoID, "Bruno Díaz")
+	assert.Equal(t, "2026-10-15", body.StartDate, "la fecha de inicio prevista no cambia")
+	assert.Equal(t, "2026-10-28", body.EndDate, "la fecha de fin prevista no cambia")
+	if assert.NotNil(t, body.StartedAt, "el inicio real se conserva") {
+		assert.Equal(t, sprintStartedAt, *body.StartedAt)
+	}
+	stored := requireStoredClosed(t, f.env.db, f.sprintOneID, f.brunoID)
+	assert.Equal(t, sprintDate(t, "2026-10-28"), stored.EndDate.UTC())
+}
+
+// Escenario: Cierre tardío (004/US5)
+// Un sprint Activo cuya fecha de fin (2026-10-14) ya pasó según el reloj (2026-10-21) se cierra con
+// 200, sin ningún aviso ni error en la respuesta, y queda registrado el momento real de cierre
+// (FR-040).
+func TestUS5_CierreTardio(t *testing.T) {
+	f := newSprintUS5Fixture(t, "2026-10-01", "2026-10-14")
+	f.activeWith(t, 5)
+	require.True(t, sprintDate(t, "2026-10-14").Before(sprintFixedNow), "la fecha de fin debe haber pasado respecto del reloj")
+
+	rec := f.env.closeSprint(t, f.brunoToken, f.sprintOneID)
+
+	body, raw := requireClosedSprint(t, rec, f.sprintOneID, f.brunoID, "Bruno Díaz")
+	assert.NotContains(t, raw, "error", "el cierre tardío no lleva aviso de error")
+	assert.Equal(t, "2026-10-14", body.EndDate, "la fecha de fin prevista no cambia")
+	requireStoredClosed(t, f.env.db, f.sprintOneID, f.brunoID)
+}
+
+// Escenario: Sprint planificado (004/US5)
+// Cerrar un sprint Planificado con una historia comprometida se rechaza con 409 indicando que solo se
+// cierra un sprint Activo; el sprint sigue planned sin datos de cierre y la historia conserva su
+// compromiso abierto (FR-047, data-model.md sección 4).
+func TestUS5_SprintPlanificado(t *testing.T) {
+	f := newSprintUS5Fixture(t, "2026-10-15", "2026-10-28")
+	f.assign(t, f.newStories(t, 5)...)
+	before := sprintStored(t, f.env.db, f.sprintOneID.String())
+
+	rec := f.env.closeSprint(t, f.brunoToken, f.sprintOneID)
+
+	require.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+	assert.JSONEq(t, `{"error":"`+sprintCloseNotActiveMessage+`"}`, rec.Body.String())
+	requireStoredUnchanged(t, f.env.db, before)
+	after := sprintStored(t, f.env.db, f.sprintOneID.String())
+	assert.Nil(t, after.ClosedAt, "closed_at debe seguir en null")
+	assert.Nil(t, after.ClosedByID, "closed_by_id debe seguir en null")
+	assert.EqualValues(t, 1, sprintCommitmentCount(t, f.env.db, "sprint_id = ? AND outcome IS NULL", f.sprintOneID), "el compromiso sigue abierto")
+}
+
+// Escenario: Sprint cerrado (004/US5)
+// Sobre un sprint ya Cerrado, cerrarlo de nuevo e iniciarlo (el intento de reabrirlo) se rechazan con
+// 409 porque el estado Cerrado es definitivo; el sprint conserva sus datos de cierre y su fila
+// congelada, y la historia sigue completed (FR-046, RN-18).
+func TestUS5_SprintCerrado(t *testing.T) {
+	cases := []struct {
+		name    string
+		send    func(e sprintTestEnv, t *testing.T, token string, sprintID uuid.UUID) *httptest.ResponseRecorder
+		message string
+	}{
+		{name: "cerrar de nuevo", send: sprintTestEnv.closeSprint, message: sprintCloseClosedMessage},
+		{name: "iniciar", send: sprintTestEnv.startSprint},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newSprintUS5Fixture(t, "2026-10-15", "2026-10-28")
+			closedID := sprintSeedInStatus(t, f.env.db, f.projectID, f.anaID, "Sprint 0", "2026-09-01", "2026-09-14", domain.SprintStatusClosed)
+			storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+			completedAt := time.Date(2026, time.September, 12, 17, 0, 0, 0, time.UTC)
+			outcome := domain.StoryOutcomeCompleted
+			sprintSeedCommitment(t, f.env.db, closedID, storyID, sprintDate(t, "2026-09-01"), &outcome, &completedAt)
+			sprintSetStoryStatus(t, f.env.db, storyID, backlogdomain.StoryStatusCompleted)
+			sprintBefore := sprintStored(t, f.env.db, closedID.String())
+			rowsBefore := sprintStoredRows(t, f.env.db, closedID)
+
+			rec := tc.send(f.env, t, f.brunoToken, closedID)
+
+			// El cierre repetido usa el texto exacto del contrato; el inicio, el rechazo que ya
+			// fija US3 para un sprint cerrado.
+			require.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+			if tc.message != "" {
+				assert.JSONEq(t, `{"error":"`+tc.message+`"}`, rec.Body.String())
+			} else {
+				assert.NotEmpty(t, sprintRawBody(t, rec)["error"], "el 409 debe explicar el rechazo: %s", rec.Body.String())
+			}
+			assert.Equal(t, sprintBefore, sprintStored(t, f.env.db, closedID.String()), "la fila del sprint cerrado no debe cambiar")
+			assert.Equal(t, rowsBefore, sprintStoredRows(t, f.env.db, closedID), "la fila congelada no debe cambiar")
+			assert.Equal(t, backlogdomain.StoryStatusCompleted, sprintStoredStory(t, f.env.db, storyID).Status)
+		})
+	}
+}
+
+// Escenario: Proyecto finalizado (004/US5)
+// En un proyecto Finalizado con un sprint Activo que tiene una historia En progreso, cerrar el sprint
+// se rechaza con 409 porque sus sprints son de solo lectura: el sprint sigue active sin datos de
+// cierre, la historia sigue in_progress y su compromiso sigue abierto (FR-059, RN-19). La historia
+// se crea con la 003 mientras el proyecto está En curso y después se finaliza el proyecto en la base.
+func TestUS5_ProyectoFinalizado(t *testing.T) {
+	f := newSprintUS5Fixture(t, "2026-10-15", "2026-10-28")
+	activeID := sprintSeedInStatus(t, f.env.db, f.projectID, f.anaID, "Sprint 2", "2026-11-01", "2026-11-14", domain.SprintStatusActive)
+	storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
+	sprintSeedCommitment(t, f.env.db, activeID, storyID, sprintDate(t, "2026-11-01"), nil, nil)
+	sprintSetStoryStatus(t, f.env.db, storyID, backlogdomain.StoryStatusInProgress)
+	require.NoError(t, f.env.db.Model(&projectsdomain.Project{}).Where("id = ?", f.projectID).
+		Update("status", projectsdomain.ProjectStatusFinished).Error, "no se pudo finalizar el proyecto")
+	before := sprintStored(t, f.env.db, activeID.String())
+
+	rec := f.env.closeSprint(t, f.brunoToken, activeID)
+
+	require.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+	assert.JSONEq(t, `{"error":"`+sprintReadOnlyMessage+`"}`, rec.Body.String())
+	requireStoredUnchanged(t, f.env.db, before)
+	after := sprintStored(t, f.env.db, activeID.String())
+	assert.Nil(t, after.ClosedAt, "closed_at debe seguir en null")
+	assert.Nil(t, after.ClosedByID, "closed_by_id debe seguir en null")
+	assert.Equal(t, backlogdomain.StoryStatusInProgress, sprintStoredStory(t, f.env.db, storyID).Status)
+	assert.EqualValues(t, 1, sprintCommitmentCount(t, f.env.db, "story_id = ? AND outcome IS NULL", storyID), "el compromiso sigue abierto")
+}
+
+// Sin etiqueta de escenario: cerrar un sprint no cambia el estado del proyecto, esté Planificado o
+// En curso, ni escribe su fila (FR-049, RN-07).
+func TestSprintClose_ProjectStatusUntouched(t *testing.T) {
+	for _, status := range []projectsdomain.ProjectStatus{projectsdomain.ProjectStatusPlanned, projectsdomain.ProjectStatusInProgress} {
+		t.Run(string(status), func(t *testing.T) {
+			env := newSprintTestEnv(t)
+			anaID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+			brunoID, brunoToken := env.signUp(t, "Bruno Díaz", "bruno@example.com")
+			projectID := sprintSeedProject(t, env.db, anaID, status, brunoID)
+			sprintID := sprintSeedInStatus(t, env.db, projectID, anaID, "Sprint 1", "2026-10-15", "2026-10-28", domain.SprintStatusActive)
+			before := sprintStoredProject(t, env.db, projectID)
+
+			rec := env.closeSprint(t, brunoToken, sprintID)
+
+			requireClosedSprint(t, rec, sprintID, brunoID, "Bruno Díaz")
+			env.requireProjectUntouched(t, brunoToken, before, status)
+		})
+	}
+}
+
+// Sin etiqueta de escenario: closedBy es el titular de la sesión que cierra, no el autor del sprint.
+// Ana crea el sprint y Bruno, integrante que no es el propietario, lo cierra: la respuesta informa a
+// Bruno en closedBy y a Ana en createdBy, y closed_by_id guarda a Bruno (FR-040, RN-01).
+func TestSprintClose_ClosedByIsSessionHolder(t *testing.T) {
+	f := newSprintUS5Fixture(t, "2026-10-15", "2026-10-28")
+	f.activeWith(t, 5)
+
+	rec := f.env.closeSprint(t, f.brunoToken, f.sprintOneID)
+
+	body, _ := requireClosedSprint(t, rec, f.sprintOneID, f.brunoID, "Bruno Díaz")
+	assert.Equal(t, f.anaID.String(), body.CreatedBy.ID, "createdBy sigue siendo la autora")
+	require.NotNil(t, body.ClosedBy)
+	assert.NotEqual(t, body.CreatedBy.ID, body.ClosedBy.ID, "quien cierra no es la autora")
+	requireStoredClosed(t, f.env.db, f.sprintOneID, f.brunoID)
 }

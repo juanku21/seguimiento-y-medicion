@@ -615,17 +615,17 @@ completadas por 13, `POST /api/v1/sprints/{sprintId}/close` devuelve `results` c
 
 ### Pruebas de la Historia 5 ⚠️
 
-- [ ] T062 [P] [US5] Pruebas unitarias **obligatorias** de `Outcome` en
+- [X] T062 [P] [US5] Pruebas unitarias **obligatorias** de `Outcome` en
       `backend/internal/sprints/domain/progress_test.go` (`completed` → `completed`; `pending` e
       `in_progress` → `not_completed`) (RN-15). Los totales de la instantánea no tienen prueba
       unitaria propia: se calculan solo en SQL y los verifica T064 contra la base (FR-045 con
       `TestUS5_SprintVacio`) — depende de T061
-- [ ] T063 [P] [US5] Pruebas unitarias **obligatorias** de `Close` en el servicio en
+- [X] T063 [P] [US5] Pruebas unitarias **obligatorias** de `Close` en el servicio en
       `backend/internal/sprints/service/sprint_service_test.go`, con dobles y reloj fijo: proyecto
       Finalizado → `ErrSprintsReadOnly`; sprint `planned` → `ErrSprintNotActive`; sprint `closed` →
       `ErrSprintClosed` (RN-18); el actor llega como `closedBy` y el instante es el del reloj; y el
       servicio no llama a ninguna operación de proyectos (RN-07) — depende de T061
-- [ ] T064 [US5] Pruebas de integración de la historia en
+- [X] T064 [US5] Pruebas de integración de la historia en
       `backend/internal/sprints/delivery/handler_test.go`, con `// Escenario: <nombre> (004/US5)`:
       `TestUS5_CierreParcial` (21 planificados, 13 completados, las dos no completadas `pending` y sin
       compromiso abierto, y **cuatro** filas congeladas), `TestUS5_TodasCompletadas`,
@@ -638,7 +638,7 @@ completadas por 13, `POST /api/v1/sprints/{sprintId}/close` devuelve `results` c
       iniciar → `409`) y `TestUS5_ProyectoFinalizado` (proyecto sembrado `finished` con el sprint
       Activo). Además, sin etiqueta de escenario, que el estado del proyecto no cambia al cerrar
       (RN-07) y que `closedBy` es el titular de la sesión (FR-040) — depende de T061
-- [ ] T065 [P] [US5] Pruebas de frontend en
+- [X] T065 [P] [US5] Pruebas de frontend en
       `frontend/src/features/sprints/components/sprint-lifecycle-actions.test.tsx` y
       `frontend/src/features/sprints/components/sprint-results.test.tsx`, con
       `describe("004/US5 - Cerrar un sprint y congelar su resultado")` y un `it` por escenario,
@@ -648,9 +648,9 @@ completadas por 13, `POST /api/v1/sprints/{sprintId}/close` devuelve `results` c
 
 ### Implementación de la Historia 5
 
-- [ ] T066 [US5] Implementar `Outcome(status)` en `backend/internal/sprints/domain/progress.go` —
+- [X] T066 [US5] Implementar `Outcome(status)` en `backend/internal/sprints/domain/progress.go` —
       depende de T062
-- [ ] T067 [US5] Implementar `Close` en `backend/internal/sprints/repository/sprint_repository.go` en
+- [X] T067 [US5] Implementar `Close` en `backend/internal/sprints/repository/sprint_repository.go` en
       **una transacción**: bloquear el sprint (`FOR UPDATE`) y leer el estado del proyecto;
       validar la transición con el estado releído; leer y bloquear las historias comprometidas
       (`FOR UPDATE`, **ordenadas por `id`**); completar en cada fila `title_at_close`,
@@ -662,21 +662,29 @@ completadas por 13, `POST /api/v1/sprints/{sprintId}/close` devuelve `results` c
       `COALESCE(SUM(story_points_at_close), 0)` y su versión filtrada por `completed`, que es la
       **única** fuente de los totales derivados (research.md sección 11) y que `FindDetail` usa
       para un sprint `closed` — depende de T064 y T066
-- [ ] T068 [US5] Implementar `Close(ctx, access, actorID)` en
+- [X] T068 [US5] Implementar `Close(ctx, access, actorID)` en
       `backend/internal/sprints/service/sprint_service.go` con el instante del reloj, y extender
       `buildDetail` para un sprint `closed`: historias desde las filas congeladas, `results` leído por
       `FindDetail` con `sprintResultsSelect`, `hoursPerStoryPoint` desde las centésimas copiadas y `closedBy` — depende de T063
       y T067
-- [ ] T069 [US5] Declarar `SprintResults` en `backend/internal/sprints/delivery/dto.go`, implementar
+- [X] T069 [US5] Declarar `SprintResults` en `backend/internal/sprints/delivery/dto.go`, implementar
       el manejador `closeSprint` en `backend/internal/sprints/delivery/handler.go` con anotaciones
       `swag` en español y registrar `POST /close` en el grupo del sprint en
       `backend/internal/sprints/delivery/routes.go`. Respuestas: `200` con `SprintDetail`, `401`, `404`
       y `409` — depende de T068
-- [ ] T070 [US5] Implementar la llamada de cierre en `frontend/src/features/sprints/api.ts`, la acción
+- [X] T070 [US5] Implementar la llamada de cierre en `frontend/src/features/sprints/api.ts`, la acción
       de cerrar con confirmación en
       `frontend/src/features/sprints/components/sprint-lifecycle-actions.tsx` y el componente
       `SprintResults` en `frontend/src/features/sprints/components/sprint-results.tsx`, integrado en
       la pantalla de detalle — depende de T065 y T069
+- [X] T097 [US5] Prueba de frontend en
+      `frontend/src/features/sprints/components/sprint-story-list.test.tsx`, dentro de
+      `describe("004/US5 - Cerrar un sprint y congelar su resultado")`, que verifique que en un sprint
+      Cerrado cada historia muestra su resultado congelado (Completada / No completada según
+      `outcome`) y no su estado vigente en el backlog per FR-043 (partial)
+- [X] T098 [US5] Mostrar en `frontend/src/features/sprints/components/sprint-story-list.tsx` el
+      resultado de cada historia con `STORY_OUTCOME_LABELS` cuando el sprint está Cerrado,
+      conservando el estado vigente para los sprints abiertos per FR-043 (partial) — depende de T097
 
 **Checkpoint**: US1 a US5 funcionan de forma independiente. Cada sprint cerrado deja una instantánea
 inmutable lista para las métricas (008).
@@ -902,6 +910,23 @@ T088 es de caracterización sin RED y T089 y T090 siguen el ciclo normal.
       comprometidas, las pruebas de concurrencia y la verificación de que las pruebas corrieron contra
       `smye_test` en el puerto 5433 y no contra desarrollo — depende de T050, T090, T091, T092 y
       T095
+
+---
+
+## Phase 10: Convergence and Security
+
+Propósito: ajustes transversales detectados por /speckit-converge y /revisar-seguridad.
+
+- [ ] T099 Prueba de concurrencia en `backend/internal/sprints/delivery/sprint_concurrency_test.go`
+      que lance a la vez el cierre de un sprint Activo y avances de sus historias, y verifique que
+      ninguna petición responde `500` y que el resultado es coherente (o el avance entra antes del
+      cierre o se rechaza con `409`) per plan: research.md §13 serialización del avance contra el
+      cierre (partial) — origen: converge, detectado en hu/004-us5-cerrar-un-sprint
+- [ ] T100 Reordenar los bloqueos de `ChangeStoryProgress` en
+      `backend/internal/sprints/repository/sprint_repository.go` para que tome el bloqueo del sprint
+      antes que el de la historia (mismo orden que `Close`) y revalide el compromiso abierto tras
+      bloquear, eliminando el interbloqueo con el cierre per plan: research.md §13 (partial) —
+      origen: converge, detectado en hu/004-us5-cerrar-un-sprint
 
 ---
 

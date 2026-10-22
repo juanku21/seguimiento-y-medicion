@@ -20,9 +20,9 @@ import (
 var errNotImplemented = errors.New("not implemented")
 
 // SprintRepository implementa domain.SprintRepository con GORM sobre las tablas sprints y
-// sprint_stories. FindAccessible, Create, Start, AssignStories, RemoveStories, ChangeStoryProgress y
-// FindDetail están implementadas; las demás operaciones conservan la firma mínima de T013 y se
-// implementan en la tarea de su historia.
+// sprint_stories. FindAccessible, Create, Start, Close, AssignStories, RemoveStories,
+// ChangeStoryProgress, FindOpenCommitment y FindDetail están implementadas; las demás operaciones
+// conservan la firma mínima de T013 y se implementan en la tarea de su historia.
 type SprintRepository struct {
 	db *gorm.DB
 }
@@ -268,9 +268,103 @@ func activeSprintExistsError(tx *gorm.DB, projectID, sprintID uuid.UUID, updateE
 	return &domain.ActiveSprintExistsError{Sprint: *active}
 }
 
-// Close cierra un sprint. Firma mínima.
+// sprintResultsSelect es el único fragmento de consulta que deriva los totales de la instantánea de
+// cierre a partir de las filas congeladas de sprint_stories (research.md sección 11; data-model.md
+// sección 7): historias planificadas y completadas, y Story Points planificados y completados, con
+// COALESCE para que un sprint vacío dé 0 y no NULL (FR-045). Los alias coinciden con los campos de
+// SprintResults. Lo usan FindDetail para un sprint Cerrado y List como subconsulta agregada por
+// sprint; no hay una segunda implementación en Go.
+const sprintResultsSelect = "COUNT(*) AS planned_story_count, " +
+	"COUNT(*) FILTER (WHERE outcome = 'completed') AS completed_story_count, " +
+	"COALESCE(SUM(story_points_at_close), 0) AS planned_story_points, " +
+	"COALESCE(SUM(story_points_at_close) FILTER (WHERE outcome = 'completed'), 0) AS completed_story_points"
+
+// Close cierra el sprint en una sola transacción (research.md sección 14): si algo falla, el sprint
+// sigue Activo y ninguna historia se movió. Bloquea el sprint con lockOpenSprint, que lee en la misma
+// consulta el estado del proyecto y rechaza el proyecto Finalizado con ErrSprintsReadOnly (FR-059) y
+// el sprint Cerrado con ErrSprintClosed (RN-18); con el estado releído valida la transición hacia
+// closed y, si no corresponde, devuelve ErrSprintNotActive (FR-047). Después bloquea las historias
+// comprometidas, ordenadas por id para no interbloquearse con las demás escrituras, y congela cada
+// fila de sprint_stories con el título, la prioridad, los Story Points y el resultado según Outcome
+// (FR-042, FR-043); las no completadas vuelven a pending (FR-041) con UpdateColumn, igual que
+// RemoveStories, para no tocar updated_at. Por último copia el factor del proyecto y fija
+// closed_at = now, closed_by_id y status = closed (FR-040, FR-044). No toca el estado del proyecto
+// (RN-07) ni compara now con la fecha de fin, de modo que el cierre anticipado o tardío es igual.
 func (r *SprintRepository) Close(ctx context.Context, sprintID, closedBy uuid.UUID, now time.Time) error {
-	return errNotImplemented
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		sprint, err := lockOpenSprint(tx, sprintID)
+		if err != nil {
+			return err
+		}
+		if err := sprint.Status.ValidateTransition(domain.SprintStatusClosed); err != nil {
+			return domain.ErrSprintNotActive
+		}
+
+		var stories []backlogdomain.UserStory
+		err = tx.
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id, title, priority, story_points, status").
+			Where("id IN (?)", tx.Model(&domain.SprintStory{}).Select("story_id").Where("sprint_id = ?", sprintID)).
+			Order("id ASC").
+			Find(&stories).Error
+		if err != nil {
+			return fmt.Errorf("bloquear las historias comprometidas: %w", err)
+		}
+
+		// Cada fila del sprint se congela con los datos vigentes de su historia; las no completadas
+		// se juntan para devolverlas al backlog en una sola escritura.
+		var notCompleted []uuid.UUID
+		for _, story := range stories {
+			outcome := domain.Outcome(story.Status)
+			err = tx.
+				Model(&domain.SprintStory{}).
+				Where("sprint_id = ? AND story_id = ?", sprintID, story.ID).
+				Updates(map[string]any{
+					"title_at_close":        story.Title,
+					"priority_at_close":     story.Priority,
+					"story_points_at_close": story.StoryPoints,
+					"outcome":               outcome,
+				}).Error
+			if err != nil {
+				return fmt.Errorf("congelar la historia del sprint: %w", err)
+			}
+			if outcome == domain.StoryOutcomeNotCompleted {
+				notCompleted = append(notCompleted, story.ID)
+			}
+		}
+		if len(notCompleted) > 0 {
+			err = tx.
+				Model(&backlogdomain.UserStory{}).
+				Where("id IN ?", notCompleted).
+				UpdateColumn("status", backlogdomain.StoryStatusPending).Error
+			if err != nil {
+				return fmt.Errorf("devolver las historias no completadas a pendiente: %w", err)
+			}
+		}
+
+		// El factor vigente del proyecto se copia en el sprint junto con los datos de cierre.
+		var project projectsdomain.Project
+		err = tx.
+			Select("hours_per_story_point_hundredths").
+			Where("id = ?", sprint.ProjectID).
+			Take(&project).Error
+		if err != nil {
+			return fmt.Errorf("leer el factor del proyecto: %w", err)
+		}
+		err = tx.
+			Model(&domain.Sprint{}).
+			Where("id = ?", sprintID).
+			Updates(map[string]any{
+				"status":                           domain.SprintStatusClosed,
+				"closed_at":                        now,
+				"closed_by_id":                     closedBy,
+				"hours_per_story_point_hundredths": project.HoursPerStoryPointHundredths,
+			}).Error
+		if err != nil {
+			return fmt.Errorf("cerrar el sprint: %w", err)
+		}
+		return nil
+	})
 }
 
 // AssignStories compromete un lote de historias en el sprint, todo o nada, en una transacción
@@ -404,17 +498,12 @@ type lockedSprintRow struct {
 	ProjectStatus projectsdomain.ProjectStatus
 }
 
-// lockSprintAndStories toma, dentro de la transacción recibida, los bloqueos comunes de
-// AssignStories y RemoveStories y verifica con los datos releídos que el sprint admita cambios
-// (research.md sección 8, paso 1). Primero bloquea solo la fila del sprint (FOR UPDATE OF sprints) y,
-// en la misma consulta, lee su proyecto, su estado y el estado del proyecto; si no existe devuelve
-// ErrSprintNotFound. Después, en el mismo orden que el servicio, rechaza el proyecto Finalizado con
-// ErrSprintsReadOnly (FR-059) y el sprint Cerrado con ErrSprintClosed (RN-09, RN-18). Por último
-// bloquea con FOR UPDATE las historias pedidas de ese mismo proyecto, ordenadas por id para que dos
-// lotes que comparten historias no se interbloqueen. Las historias de otro proyecto quedan fuera del
-// filtro, así que si no se encuentran todas, porque alguna no existe o es ajena, devuelve
-// ErrStoryNotFound.
-func lockSprintAndStories(tx *gorm.DB, sprintID uuid.UUID, storyIDs []uuid.UUID) ([]backlogdomain.UserStory, error) {
+// lockOpenSprint bloquea, dentro de la transacción recibida, solo la fila del sprint (FOR UPDATE OF
+// sprints) y, en la misma consulta, lee su proyecto, su estado y el estado del proyecto; si no existe
+// devuelve ErrSprintNotFound. Con los datos releídos y en el mismo orden que el servicio, rechaza el
+// proyecto Finalizado con ErrSprintsReadOnly (FR-059) y el sprint Cerrado con ErrSprintClosed
+// (RN-09, RN-18). La comparten lockSprintAndStories y Close.
+func lockOpenSprint(tx *gorm.DB, sprintID uuid.UUID) (*lockedSprintRow, error) {
 	var sprint lockedSprintRow
 	err := tx.
 		Table("sprints").
@@ -434,6 +523,21 @@ func lockSprintAndStories(tx *gorm.DB, sprintID uuid.UUID, storyIDs []uuid.UUID)
 	}
 	if sprint.Status == domain.SprintStatusClosed {
 		return nil, domain.ErrSprintClosed
+	}
+	return &sprint, nil
+}
+
+// lockSprintAndStories toma, dentro de la transacción recibida, los bloqueos comunes de
+// AssignStories y RemoveStories y verifica con los datos releídos que el sprint admita cambios
+// (research.md sección 8, paso 1). Primero bloquea el sprint con lockOpenSprint, que rechaza el
+// proyecto Finalizado y el sprint Cerrado. Después bloquea con FOR UPDATE las historias pedidas de
+// ese mismo proyecto, ordenadas por id para que dos lotes que comparten historias no se
+// interbloqueen. Las historias de otro proyecto quedan fuera del filtro, así que si no se encuentran
+// todas, porque alguna no existe o es ajena, devuelve ErrStoryNotFound.
+func lockSprintAndStories(tx *gorm.DB, sprintID uuid.UUID, storyIDs []uuid.UUID) ([]backlogdomain.UserStory, error) {
+	sprint, err := lockOpenSprint(tx, sprintID)
+	if err != nil {
+		return nil, err
 	}
 
 	var stories []backlogdomain.UserStory
@@ -696,28 +800,55 @@ func (r *SprintRepository) HasSprints(ctx context.Context, projectID uuid.UUID) 
 
 // sprintDetailRow es la fila que lee FindDetail: las columnas del sprint más el identificador y el
 // nombre completo del autor, que llegan por el JOIN a users con los alias author_id y
-// author_full_name.
+// author_full_name, y los de quien lo cerró, que llegan por el LEFT JOIN a users con los alias
+// closer_id y closer_full_name y valen NULL mientras el sprint no está Cerrado.
 type sprintDetailRow struct {
 	domain.Sprint  `gorm:"embedded"`
 	AuthorID       uuid.UUID
 	AuthorFullName string
+	CloserID       *uuid.UUID
+	CloserFullName *string
 }
 
-// FindDetail lee el detalle del sprint en dos consultas (research.md sección 19). La primera une
-// sprints con users y de users selecciona solo id y full_name, de modo que password_hash nunca entra
-// al módulo; si no hay fila devuelve ErrSprintNotFound, nunca gorm.ErrRecordNotFound ni (nil, nil).
-// La segunda lee las historias vivas del sprint, uniendo sprint_stories con user_stories para tomar
-// los datos vigentes de cada historia, ordenadas por prioridad Alta, Media, Baja, luego por momento
-// de compromiso y por último por id; sin historias devuelve una lista vacía, nunca nil. ClosedBy y
-// Results quedan en nil: el detalle de un sprint Cerrado se completa en la historia de cierre.
+// liveStoriesSelect y liveStoriesOrder leen las historias de un sprint abierto con los datos vigentes
+// de user_stories, ordenadas por prioridad Alta, Media, Baja, luego por momento de compromiso y por
+// último por id.
+const (
+	liveStoriesSelect = "user_stories.id AS story_id, user_stories.title, user_stories.priority, " +
+		"user_stories.story_points, user_stories.status, sprint_stories.completed_at"
+	liveStoriesOrder = "CASE user_stories.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, " +
+		"sprint_stories.committed_at ASC, user_stories.id ASC"
+)
+
+// frozenStoriesSelect y frozenStoriesOrder leen las historias de un sprint Cerrado con los datos
+// congelados de sprint_stories (US6-8), con el mismo orden que un sprint abierto pero sobre la
+// prioridad al cierre; el estado es el vigente de la historia en el backlog, como fija el contrato.
+const (
+	frozenStoriesSelect = "sprint_stories.story_id, sprint_stories.title_at_close AS title, " +
+		"sprint_stories.priority_at_close AS priority, sprint_stories.story_points_at_close AS story_points, " +
+		"user_stories.status, sprint_stories.completed_at, sprint_stories.outcome"
+	frozenStoriesOrder = "CASE sprint_stories.priority_at_close WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, " +
+		"sprint_stories.committed_at ASC, sprint_stories.story_id ASC"
+)
+
+// FindDetail lee el detalle del sprint (research.md secciones 11 y 19). La primera consulta une
+// sprints con users para el autor y, con LEFT JOIN, para quien lo cerró, seleccionando de users solo
+// id y full_name, de modo que password_hash nunca entra al módulo; si no hay fila devuelve
+// ErrSprintNotFound, nunca gorm.ErrRecordNotFound ni (nil, nil). La segunda lee las historias del
+// sprint: en uno abierto, los datos vigentes de user_stories; en uno Cerrado, los congelados de
+// sprint_stories; sin historias devuelve una lista vacía, nunca nil. Solo en un sprint Cerrado
+// completa ClosedBy y Results, estos con sprintResultsSelect sobre las filas congeladas y los Story
+// Points comprometidos al inicio; en otro caso ambos quedan en nil.
 func (r *SprintRepository) FindDetail(ctx context.Context, sprintID uuid.UUID) (*domain.SprintDetail, error) {
 	db := r.db.WithContext(ctx)
 
 	var row sprintDetailRow
 	err := db.
 		Table("sprints").
-		Select("sprints.*, users.id AS author_id, users.full_name AS author_full_name").
+		Select("sprints.*, users.id AS author_id, users.full_name AS author_full_name, "+
+			"closers.id AS closer_id, closers.full_name AS closer_full_name").
 		Joins("JOIN users ON users.id = sprints.created_by_id").
+		Joins("LEFT JOIN users AS closers ON closers.id = sprints.closed_by_id").
 		Where("sprints.id = ?", sprintID).
 		Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -727,28 +858,53 @@ func (r *SprintRepository) FindDetail(ctx context.Context, sprintID uuid.UUID) (
 		return nil, fmt.Errorf("buscar el detalle del sprint: %w", err)
 	}
 
+	closed := row.Status == domain.SprintStatusClosed
+	selectStories, orderStories := liveStoriesSelect, liveStoriesOrder
+	if closed {
+		selectStories, orderStories = frozenStoriesSelect, frozenStoriesOrder
+	}
 	stories := []domain.SprintStoryView{}
 	err = db.
 		Table("sprint_stories").
-		Select("user_stories.id AS story_id, user_stories.title, user_stories.priority, "+
-			"user_stories.story_points, user_stories.status, sprint_stories.completed_at").
+		Select(selectStories).
 		Joins("JOIN user_stories ON user_stories.id = sprint_stories.story_id").
 		Where("sprint_stories.sprint_id = ?", sprintID).
-		Order("CASE user_stories.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, " +
-			"sprint_stories.committed_at ASC, user_stories.id ASC").
+		Order(orderStories).
 		Scan(&stories).Error
 	if err != nil {
 		return nil, fmt.Errorf("leer las historias del sprint: %w", err)
 	}
 
-	return &domain.SprintDetail{
+	detail := &domain.SprintDetail{
 		Sprint: row.Sprint,
 		CreatedBy: domain.SprintUserRef{
 			ID:       row.AuthorID,
 			FullName: row.AuthorFullName,
 		},
 		Stories: stories,
-	}, nil
+	}
+	if !closed {
+		return detail, nil
+	}
+
+	// En un sprint Cerrado se agregan quién lo cerró y los totales derivados de la instantánea.
+	if row.CloserID != nil && row.CloserFullName != nil {
+		detail.ClosedBy = &domain.SprintUserRef{ID: *row.CloserID, FullName: *row.CloserFullName}
+	}
+	var results domain.SprintResults
+	err = db.
+		Model(&domain.SprintStory{}).
+		Select(sprintResultsSelect).
+		Where("sprint_id = ?", sprintID).
+		Scan(&results).Error
+	if err != nil {
+		return nil, fmt.Errorf("calcular los totales de la instantánea: %w", err)
+	}
+	if row.CommittedStoryPoints != nil {
+		results.CommittedStoryPoints = *row.CommittedStoryPoints
+	}
+	detail.Results = &results
+	return detail, nil
 }
 
 // ListForStory devuelve el historial de sprints de una historia. Firma mínima.

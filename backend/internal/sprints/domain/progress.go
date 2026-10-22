@@ -19,3 +19,13 @@ func ValidateStoryProgress(from, to backlogdomain.StoryStatus) error {
 		return ErrInvalidStoryTransition
 	}
 }
+
+// Outcome traduce el estado de una historia al resultado que se congela al cerrar el sprint
+// (data-model.md sección 6; FR-043, RN-15): completed si la historia está Completada y
+// not_completed en cualquier otro caso.
+func Outcome(status backlogdomain.StoryStatus) StoryOutcome {
+	if status == backlogdomain.StoryStatusCompleted {
+		return StoryOutcomeCompleted
+	}
+	return StoryOutcomeNotCompleted
+}

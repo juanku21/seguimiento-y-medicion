@@ -6,7 +6,8 @@ import (
 
 // RegisterRoutes registra las rutas de colección de sprints en el subgrupo
 // /api/v1/projects/:projectId que devuelve projectsdelivery.RegisterRoutes, recibido desde cmd/app
-// para no importar ese paquete. Firma mínima de T013: el registro de POST /sprints corresponde a
-// T020.
+// para no importar ese paquete. El subgrupo ya exige sesión y RequireMembership, así que quien no es
+// integrante recibe el 404 indistinguible antes de llegar al manejador.
 func RegisterRoutes(projectGroup *gin.RouterGroup, handler *Handler) {
+	projectGroup.POST("/sprints", handler.createSprint)
 }

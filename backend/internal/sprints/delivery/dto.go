@@ -95,11 +95,11 @@ type SprintStoryItem struct {
 	// Título de la historia.
 	Title string `json:"title" validate:"required" example:"Exportar el reporte de velocidad a PDF"`
 	// Prioridad de la historia: high (Alta), medium (Media) o low (Baja).
-	Priority backlogdomain.StoryPriority `json:"priority" validate:"required" enums:"high,medium,low" example:"high"`
+	Priority backlogdomain.StoryPriority `json:"priority" validate:"required" swaggertype:"string" enums:"high,medium,low" example:"high"`
 	// Story Points vigentes, o los del cierre en un sprint cerrado.
 	StoryPoints int `json:"storyPoints" validate:"required" example:"5"`
 	// Estado vigente de la historia en el backlog: pending, in_progress o completed.
-	Status backlogdomain.StoryStatus `json:"status" validate:"required" enums:"pending,in_progress,completed" example:"in_progress"`
+	Status backlogdomain.StoryStatus `json:"status" validate:"required" swaggertype:"string" enums:"pending,in_progress,completed" example:"in_progress"`
 	// Fecha y hora del último completado dentro de este sprint (RFC 3339), o null.
 	CompletedAt *string `json:"completedAt" validate:"required" format:"date-time" extensions:"x-nullable" example:"2026-10-20T14:30:00Z"`
 	// Resultado en un sprint cerrado: completed o not_completed; null mientras está abierto.

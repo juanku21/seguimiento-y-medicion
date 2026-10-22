@@ -273,7 +273,7 @@ solapa un día responde `409` con el nombre del primero.
       `ValidationErrorResponse` de la 001. Las fechas se serializan con `time.DateOnly`; `startedAt`,
       `closedAt`, `closedBy`, `results`, `hoursPerStoryPoint` y `schedule` como `null` cuando no
       tienen valor, y `stories` como `[]`, nunca como `null` — depende de T018
-- [ ] T020 [US1] Implementar el manejador `createSprint` en
+- [X] T020 [US1] Implementar el manejador `createSprint` en
       `backend/internal/sprints/delivery/handler.go` con anotaciones `swag` en español, que lee al
       titular con `authdelivery.CurrentUserID` y el proyecto del parámetro `projectId` ya validado
       por `RequireMembership`; crear `RegisterRoutes` en

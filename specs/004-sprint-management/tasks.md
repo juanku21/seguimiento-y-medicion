@@ -620,7 +620,7 @@ completadas por 13, `POST /api/v1/sprints/{sprintId}/close` devuelve `results` c
       `in_progress` → `not_completed`) (RN-15). Los totales de la instantánea no tienen prueba
       unitaria propia: se calculan solo en SQL y los verifica T064 contra la base (FR-045 con
       `TestUS5_SprintVacio`) — depende de T061
-- [ ] T063 [P] [US5] Pruebas unitarias **obligatorias** de `Close` en el servicio en
+- [X] T063 [P] [US5] Pruebas unitarias **obligatorias** de `Close` en el servicio en
       `backend/internal/sprints/service/sprint_service_test.go`, con dobles y reloj fijo: proyecto
       Finalizado → `ErrSprintsReadOnly`; sprint `planned` → `ErrSprintNotActive`; sprint `closed` →
       `ErrSprintClosed` (RN-18); el actor llega como `closedBy` y el instante es el del reloj; y el

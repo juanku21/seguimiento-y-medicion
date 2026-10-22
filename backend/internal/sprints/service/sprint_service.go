@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -108,6 +109,12 @@ func (s *SprintService) Start(ctx context.Context, access *domain.SprintAccess) 
 	}
 
 	return s.buildDetail(ctx, access.SprintID)
+}
+
+// Close cierra el sprint del acceso atribuido al actor y devuelve su detalle con la instantánea
+// (FR-039 a FR-047). Firma mínima de T063: la implementación llega en T068.
+func (s *SprintService) Close(ctx context.Context, access *domain.SprintAccess, actorID uuid.UUID) (*SprintView, error) {
+	return nil, errors.New("not implemented")
 }
 
 // ChangeStoryProgress cambia el estado de una historia del sprint activo con el instante del reloj

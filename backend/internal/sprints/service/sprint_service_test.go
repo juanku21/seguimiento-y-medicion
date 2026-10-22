@@ -651,3 +651,103 @@ func TestSprintService_ChangeStoryProgress_PropagaRechazos(t *testing.T) {
 		})
 	}
 }
+
+// Pruebas unitarias obligatorias del cierre de un sprint en el servicio (T063; RN-02, RN-07, RN-18,
+// RN-19, FR-039 a FR-047). Siguen la tabla de operaciones por estado de data-model.md sección 4: la
+// solo lectura del proyecto Finalizado se evalúa primero y sin tocar el repositorio; después, el
+// estado del sprint leído con FindDetail (planned → ErrSprintNotActive, closed → ErrSprintClosed).
+// Superados los controles, el servicio delega en el repositorio con el actor como closedBy y el
+// instante del reloj inyectado. Igual que las anteriores, no llevan etiqueta de escenario: los
+// TestUS5_* son las pruebas de integración de T064.
+
+// expectSuccessfulClose configura el detalle active del sprint, que el servicio lee antes y después
+// del cierre, y el repositorio para aceptar el cierre del actor con el instante del reloj fijo.
+func expectSuccessfulClose(d serviceDoubles, sprintID, actorID uuid.UUID) {
+	d.repo.On("FindDetail", mock.Anything, sprintID).
+		Return(sprintDetailWithStatus(sprintID, domain.SprintStatusActive), nil)
+	d.repo.On("Close", mock.Anything, sprintID, actorID, serviceFixedNow).Return(nil).Once()
+}
+
+// RN-19: con el proyecto Finalizado el cierre se rechaza con ErrSprintsReadOnly sin leer el sprint
+// ni escribir.
+func TestSprintService_Close_ProyectoFinalizado(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(true)
+
+	view, err := svc.Close(context.Background(), access, uuid.New())
+
+	require.ErrorIs(t, err, domain.ErrSprintsReadOnly)
+	assert.Nil(t, view)
+	d.repo.AssertNotCalled(t, "FindDetail", mock.Anything, mock.Anything)
+	d.repo.AssertNotCalled(t, "Close", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+// RN-02: solo se cierra un sprint Activo; uno planned se rechaza con ErrSprintNotActive (no con la
+// transición genérica) y no llega al repositorio.
+func TestSprintService_Close_SprintPlanificado(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(false)
+	d.repo.On("FindDetail", mock.Anything, access.SprintID).
+		Return(sprintDetailWithStatus(access.SprintID, domain.SprintStatusPlanned), nil).Once()
+
+	view, err := svc.Close(context.Background(), access, uuid.New())
+
+	require.ErrorIs(t, err, domain.ErrSprintNotActive)
+	assert.NotErrorIs(t, err, domain.ErrInvalidSprintTransition)
+	assert.Nil(t, view)
+	d.repo.AssertNotCalled(t, "Close", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+// RN-18: un sprint closed es definitivo; cerrarlo de nuevo se rechaza con ErrSprintClosed (no con
+// ErrSprintNotActive ni con la transición genérica) y no llega al repositorio.
+func TestSprintService_Close_SprintCerrado(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(false)
+	d.repo.On("FindDetail", mock.Anything, access.SprintID).
+		Return(sprintDetailWithStatus(access.SprintID, domain.SprintStatusClosed), nil).Once()
+
+	view, err := svc.Close(context.Background(), access, uuid.New())
+
+	require.ErrorIs(t, err, domain.ErrSprintClosed)
+	assert.NotErrorIs(t, err, domain.ErrSprintNotActive)
+	assert.NotErrorIs(t, err, domain.ErrInvalidSprintTransition)
+	assert.Nil(t, view)
+	d.repo.AssertNotCalled(t, "Close", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+// FR-040: un sprint active se cierra delegando en el repositorio con el sprint del acceso, el actor
+// recibido como closedBy (el titular de la sesión) y el instante del reloj inyectado, que queda como
+// momento real de cierre; la respuesta es el detalle del sprint.
+func TestSprintService_Close_ActorEInstanteDelReloj(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(false)
+	actorID := uuid.New()
+	expectSuccessfulClose(d, access.SprintID, actorID)
+
+	view, err := svc.Close(context.Background(), access, actorID)
+
+	require.NoError(t, err)
+	require.NotNil(t, view)
+	require.NotNil(t, view.Detail)
+	assert.Equal(t, access.SprintID, view.Detail.Sprint.ID)
+	d.repo.AssertCalled(t, "Close", mock.Anything, access.SprintID, actorID, serviceFixedNow)
+	d.repo.AssertExpectations(t)
+}
+
+// RN-07: cerrar un sprint no cambia el estado del proyecto. El servicio solo lee el sprint e invoca
+// Close una vez, sin consultar el puerto de esfuerzo. Los dobles atados a t fallan ante cualquier
+// llamada no configurada (m.Called), de modo que otra operación del repositorio haría fallar la
+// prueba; y el servicio no recibe dependencia alguna del módulo de proyectos.
+func TestSprintService_Close_NoTocaElProyecto(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(false)
+	actorID := uuid.New()
+	expectSuccessfulClose(d, access.SprintID, actorID)
+
+	_, err := svc.Close(context.Background(), access, actorID)
+
+	require.NoError(t, err)
+	d.repo.AssertExpectations(t)
+	d.repo.AssertNumberOfCalls(t, "Close", 1)
+	d.effort.AssertNotCalled(t, "HasEffort", mock.Anything, mock.Anything)
+}

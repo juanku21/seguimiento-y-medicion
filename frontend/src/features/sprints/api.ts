@@ -9,7 +9,10 @@ import {
 import type {
   SprintDetail,
   SprintInput,
+  SprintListResponse,
+  SprintStatus,
   StoryProgressResponse,
+  StorySprintHistoryResponse,
 } from "@/types/sprint";
 import type { StoryStatus } from "@/types/story";
 
@@ -161,5 +164,52 @@ export function closeSprint(
     `${sprintPath(sprintId)}/close`,
     undefined,
     isSprintDetail,
+  );
+}
+
+// Reconoce el listado de sprints (SprintListResponse) que devuelve el 200, sin confiar en el cuerpo
+// recibido: sprints es siempre una lista y emptyReason llega como texto o en null.
+function isSprintListResponse(value: unknown): value is SprintListResponse {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.sprints) &&
+    isRecord(value.appliedFilters) &&
+    (value.emptyReason === null || typeof value.emptyReason === "string")
+  );
+}
+
+// Lista los sprints del proyecto con GET /api/v1/projects/{projectId}/sprints, usando la sesión de
+// la pestaña (004/US6). Cada estado pedido viaja como parámetro status repetido; sin estados no se
+// filtra. El orden, el filtrado y el motivo del vacío los resuelve el backend (FR-050 a FR-054) y el
+// proyecto inexistente o ajeno llega como 404 con su mensaje.
+export function listSprints(
+  projectId: string,
+  statuses: SprintStatus[] = [],
+): Promise<ApiResult<SprintListResponse>> {
+  const query = new URLSearchParams();
+  statuses.forEach((status) => query.append("status", status));
+  const suffix = statuses.length > 0 ? `?${query.toString()}` : "";
+  return getJson(
+    `${projectSprintsPath(projectId)}${suffix}`,
+    isSprintListResponse,
+  );
+}
+
+// Reconoce el historial de sprints de una historia (StorySprintHistoryResponse) que devuelve el 200.
+function isStorySprintHistoryResponse(
+  value: unknown,
+): value is StorySprintHistoryResponse {
+  return isRecord(value) && Array.isArray(value.sprints);
+}
+
+// Consulta los sprints en los que estuvo una historia con GET /api/v1/stories/{storyId}/sprints,
+// usando la sesión de la pestaña (004/US6, FR-055). El orden y el resultado en cada sprint los
+// resuelve el backend; la historia inexistente o ajena llega como 404 con su mensaje.
+export function listStorySprints(
+  storyId: string,
+): Promise<ApiResult<StorySprintHistoryResponse>> {
+  return getJson(
+    `/api/v1/stories/${encodeURIComponent(storyId)}/sprints`,
+    isStorySprintHistoryResponse,
   );
 }

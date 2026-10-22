@@ -583,7 +583,7 @@ y el salto directo de `pending` a `completed` responde `409` con las transicione
 - [X] T059 [US4] Implementar `ChangeStoryProgress(ctx, storyID, to)` en
       `backend/internal/sprints/service/sprint_service.go` con el instante del reloj — depende de
       T054 y T058
-- [ ] T060 [US4] Declarar `StoryStatusInput` y `StoryProgressResponse` en
+- [X] T060 [US4] Declarar `StoryStatusInput` y `StoryProgressResponse` en
       `backend/internal/sprints/delivery/dto.go`, implementar su validación en
       `backend/internal/sprints/delivery/validation.go` y el manejador `changeStoryStatus` en
       `backend/internal/sprints/delivery/handler.go` con anotaciones `swag` en español; crear en

@@ -124,6 +124,18 @@ func (s *SprintService) ChangeStoryProgress(ctx context.Context, storyID uuid.UU
 	return nil
 }
 
+// FindOpenCommitment devuelve el compromiso abierto de la historia, o nil sin error si no tiene
+// ninguno. Es una lectura sin reglas de negocio: delivery la usa después de ChangeStoryProgress para
+// armar la respuesta del avance con el sprint y la fecha de completado registrada.
+func (s *SprintService) FindOpenCommitment(ctx context.Context, storyID uuid.UUID) (*domain.SprintStory, error) {
+	commitment, err := s.repo.FindOpenCommitment(ctx, storyID)
+	if err != nil {
+		return nil, fmt.Errorf("leer compromiso abierto de historia: %w", err)
+	}
+
+	return commitment, nil
+}
+
 // Detail devuelve el detalle del sprint del acceso con sus historias vivas (FR-053). Es una lectura:
 // no aplica la solo lectura del proyecto Finalizado ni el estado del sprint, que cualquier integrante
 // puede consultar. La consulta del sprint (US6) le agrega la instantánea y los días restantes.

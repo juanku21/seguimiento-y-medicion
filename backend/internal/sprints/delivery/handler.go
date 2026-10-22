@@ -23,7 +23,9 @@ import (
 // sprint inexistente lo comparten el middleware (sprint inexistente, ajeno o identificador mal
 // formado) y los manejadores (FR-057, FR-058); los del 404 de historia, del sprint cerrado, del lote
 // no admitido y de la historia Completada son los de la asignación y la baja de historias (US2). Los
-// del otro sprint activo, que lo nombra, y de la transición inválida son los del inicio (US3).
+// del otro sprint activo, que lo nombra, y de la transición inválida son los del inicio (US3). Los de
+// la historia fuera del sprint Activo y de la transición de avance no admitida, que enumera las tres
+// permitidas, son los del avance de las historias (US4).
 const (
 	msgInvalidFields          = "Hay campos inválidos en la solicitud."
 	msgInvalidBody            = "El cuerpo de la solicitud debe ser un JSON válido."
@@ -37,6 +39,8 @@ const (
 	msgCompletedStoryRemoval  = "No se puede quitar una historia Completada. Primero devolvela a En progreso."
 	msgActiveSprintExists     = "El proyecto ya tiene el sprint activo «%s». Cerralo antes de iniciar otro."
 	msgInvalidStartTransition = "Transición no permitida: solo se inicia un sprint Planificado."
+	msgProgressOutsideActive  = "Solo se registra avance sobre historias del sprint activo."
+	msgInvalidStoryTransition = "Transición no permitida. Las admitidas son: Pendiente → En progreso, En progreso → Completada y Completada → En progreso."
 	msgInternalError          = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
 )
 
@@ -288,6 +292,74 @@ func (h *Handler) startSprint(c *gin.Context) {
 	c.JSON(http.StatusOK, newSprintDetail(view))
 }
 
+// changeStoryStatus godoc
+//
+//	@Summary		Registra el avance de una historia del sprint Activo
+//	@Description	Cambia el estado de una historia comprometida en el sprint active de su proyecto
+//	@Description	(FR-033). Transiciones admitidas: pending → in_progress, in_progress → completed y
+//	@Description	completed → in_progress. Al completar se registra la fecha y hora; al devolverla a En
+//	@Description	progreso se borra (FR-034, FR-035). Se rechaza con 409 si la historia no está en el
+//	@Description	sprint Activo (FR-036, FR-037) o si la transición no está admitida, incluido el salto
+//	@Description	de pending a completed (FR-038). Cualquier integrante puede registrar avance (RN-01).
+//	@Tags			Sprints
+//	@ID				changeStoryStatus
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			storyId	path		string								true	"Identificador de la historia"	format(uuid)
+//	@Param			request	body		StoryStatusInput					true	"Estado destino de la historia"
+//	@Success		200		{object}	StoryProgressResponse				"Estado registrado."
+//	@Failure		400		{object}	delivery.ValidationErrorResponse	"Estado ausente o desconocido; señala status. Si el cuerpo no es un JSON válido o está vacío, la respuesta es ErrorResponse."
+//	@Failure		401		{object}	delivery.ErrorResponse				"Se requiere iniciar sesión."
+//	@Failure		404		{object}	delivery.ErrorResponse				"La historia no existe o pertenece a un proyecto del que quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo."
+//	@Failure		409		{object}	delivery.ErrorResponse				"Proyecto finished (\"El proyecto está finalizado y sus sprints son de solo lectura.\"), historia de un sprint Planificado o sin sprint (\"Solo se registra avance sobre historias del sprint activo.\"), historia de un sprint Cerrado (\"El sprint está cerrado y no admite cambios.\") o transición no admitida (\"Transición no permitida. Las admitidas son: Pendiente → En progreso, En progreso → Completada y Completada → En progreso.\")."
+//	@Failure		500		{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."
+//	@Router			/api/v1/stories/{storyId}/status [put]
+func (h *Handler) changeStoryStatus(c *gin.Context) {
+	// RequireStoryAccess de la 003 ya respondió 404 ante un identificador mal formado, así que un
+	// storyId que no sea UUID solo es posible si la ruta se registró fuera de ese middleware: es un
+	// error de composición y responde 500.
+	storyID, err := uuid.Parse(c.Param("storyId"))
+	if err != nil {
+		respondInternalError(c, "changeStoryStatus sin un storyId válido en la ruta", "error", err)
+		return
+	}
+
+	// Se decodifica y valida el cuerpo antes de llegar al servicio: un JSON mal formado responde 400
+	// con ErrorResponse y un estado ausente o desconocido, 400 con el campo status.
+	var req StoryStatusInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, authdelivery.ErrorResponse{Error: msgInvalidBody})
+		return
+	}
+	status, fields := ValidateStoryStatusInput(req)
+	if len(fields) > 0 {
+		c.JSON(http.StatusBadRequest, authdelivery.ValidationErrorResponse{Error: msgInvalidFields, Fields: fields})
+		return
+	}
+
+	// Se aplica la transición y se traducen los rechazos de dominio con respondServiceError.
+	ctx := c.Request.Context()
+	if err := h.sprints.ChangeStoryProgress(ctx, storyID, status); err != nil {
+		respondServiceError(c, err, "no se pudo registrar el avance de la historia")
+		return
+	}
+
+	// La respuesta toma el sprint y la fecha de completado del compromiso abierto releído. Si ya no
+	// existe, un cierre se intercaló después del cambio: es inesperado y responde 500 sin detalles.
+	commitment, err := h.sprints.FindOpenCommitment(ctx, storyID)
+	if err != nil {
+		respondInternalError(c, "no se pudo leer el compromiso abierto de la historia", "error", err)
+		return
+	}
+	if commitment == nil {
+		respondInternalError(c, "la historia no tiene compromiso abierto después de registrar su avance", "story_id", storyID)
+		return
+	}
+
+	c.JSON(http.StatusOK, newStoryProgressResponse(status, commitment))
+}
+
 // sessionAndProject devuelve el titular de la sesión y el proyecto de la ruta. Sin sesión responde el
 // 401 del contrato. Un projectId que no sea UUID solo es posible si la ruta se registró fuera del
 // subgrupo protegido por RequireMembership, así que es un error de composición: responde 500
@@ -327,7 +399,8 @@ func bindSprintInput(c *gin.Context) (domain.SprintInput, bool) {
 // respondServiceError traduce los errores de dominio del servicio de sprints a la respuesta HTTP del
 // contrato: la superposición de períodos y el otro sprint activo son 409 con el sprint en conflicto,
 // el lote no admitido es 409 con un problema por historia, y el proyecto finalizado, el sprint
-// cerrado y la historia Completada que se quiere quitar son 409 con su mensaje. El sprint que
+// cerrado, la historia Completada que se quiere quitar, el avance fuera del sprint Activo y la
+// transición de avance no admitida son 409 con su mensaje. El sprint que
 // desapareció entre el middleware y el servicio y la historia inexistente, ajena o fuera del sprint
 // son 404. Lo que no es un error de dominio conocido se registra en el log con el mensaje recibido y
 // se responde 500 genérico, sin exponer la causa (Principio VII).
@@ -350,6 +423,10 @@ func respondServiceError(c *gin.Context, err error, logMessage string) {
 		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgSprintClosed})
 	case errors.Is(err, domain.ErrCompletedStoryRemoval):
 		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgCompletedStoryRemoval})
+	case errors.Is(err, domain.ErrProgressOutsideActiveSprint):
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgProgressOutsideActive})
+	case errors.Is(err, domain.ErrInvalidStoryTransition):
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgInvalidStoryTransition})
 	case errors.Is(err, domain.ErrSprintNotFound):
 		c.JSON(http.StatusNotFound, authdelivery.ErrorResponse{Error: msgSprintNotFound})
 	case errors.Is(err, backlogdomain.ErrStoryNotFound):

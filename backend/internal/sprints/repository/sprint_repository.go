@@ -665,9 +665,23 @@ func progressWithoutCommitmentError(tx *gorm.DB, storyID uuid.UUID, status backl
 	return domain.ErrProgressOutsideActiveSprint
 }
 
-// FindOpenCommitment devuelve el compromiso abierto de una historia. Firma mínima.
+// FindOpenCommitment devuelve el compromiso abierto (outcome IS NULL) de la historia, o nil sin error
+// si no tiene ninguno (data-model.md sección 9). Es una lectura simple, sin bloqueos, que arma la
+// respuesta del avance después de ChangeStoryProgress; se lee con Find y LIMIT 1 para que la ausencia
+// no pase por gorm.ErrRecordNotFound. El índice único parcial garantiza a lo sumo una fila.
 func (r *SprintRepository) FindOpenCommitment(ctx context.Context, storyID uuid.UUID) (*domain.SprintStory, error) {
-	return nil, errNotImplemented
+	var rows []domain.SprintStory
+	err := r.db.WithContext(ctx).
+		Where("story_id = ? AND outcome IS NULL", storyID).
+		Limit(1).
+		Find(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("leer el compromiso abierto de la historia: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	return &rows[0], nil
 }
 
 // List devuelve los sprints de un proyecto. Firma mínima.

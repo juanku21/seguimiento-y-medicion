@@ -299,3 +299,28 @@ type StoryStatusInput struct {
 	// Estado destino de la historia: pending, in_progress o completed.
 	Status string `json:"status" validate:"required" enums:"pending,in_progress,completed" example:"in_progress"`
 }
+
+// StoryProgressResponse es la respuesta del registro del avance de una historia (contracts/openapi.yaml,
+// FR-033 a FR-035): la historia, el sprint Activo en el que está comprometida, su estado nuevo y la
+// fecha y hora del completado, que siempre está presente y vale null si la historia no está Completada.
+type StoryProgressResponse struct {
+	// Identificador de la historia.
+	StoryID string `json:"storyId" validate:"required" format:"uuid" example:"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"`
+	// Identificador del sprint Activo en el que está comprometida la historia.
+	SprintID string `json:"sprintId" validate:"required" format:"uuid" example:"7c1d2e9a-5b8f-4b7e-9c0a-1f2e3d4c5b6a"`
+	// Estado registrado de la historia: pending, in_progress o completed.
+	Status backlogdomain.StoryStatus `json:"status" validate:"required" swaggertype:"string" enums:"pending,in_progress,completed" example:"completed"`
+	// Fecha y hora del completado dentro del sprint (RFC 3339), o null.
+	CompletedAt *string `json:"completedAt" validate:"required" format:"date-time" extensions:"x-nullable" example:"2026-10-20T14:30:00Z"`
+}
+
+// newStoryProgressResponse arma la respuesta del avance con el estado aplicado y el compromiso abierto
+// releído después del cambio, del que toma el sprint y la fecha de completado.
+func newStoryProgressResponse(status backlogdomain.StoryStatus, commitment *domain.SprintStory) StoryProgressResponse {
+	return StoryProgressResponse{
+		StoryID:     commitment.StoryID.String(),
+		SprintID:    commitment.SprintID.String(),
+		Status:      status,
+		CompletedAt: formatOptionalTime(commitment.CompletedAt),
+	}
+}

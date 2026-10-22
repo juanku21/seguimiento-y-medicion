@@ -214,7 +214,7 @@ solapa un día responde `409` con el nombre del primero.
       recibido y no un dato de la entrada (FR-060); un actor que no es el propietario crea igual
       (RN-01); y los errores `ErrSprintsReadOnly` y `SprintOverlapError` del repositorio se
       propagan sin envolverlos de forma que se pierdan (RN-19) — depende de T009
-- [ ] T013 [US1] Pruebas de integración de la historia en
+- [X] T013 [US1] Pruebas de integración de la historia en
       `backend/internal/sprints/delivery/handler_test.go`, con un ayudante `newSprintTestEnv` que
       compone el router como `cmd/app` (sesión de la 001, rutas de la 002 con su subgrupo
       `/:projectId`, rutas de la 003 con `RequireStoryAccess`, rutas de sprints y

@@ -550,7 +550,7 @@ y el salto directo de `pending` a `completed` responde `409` con las transicione
       instante pasado al repositorio es el del reloj, y `ErrProgressOutsideActiveSprint`,
       `ErrSprintClosed`, `ErrInvalidStoryTransition` y `ErrSprintsReadOnly` del repositorio se
       propagan (RN-11, SC-011) — depende de T051
-- [ ] T055 [US4] Pruebas de integración de la historia en
+- [X] T055 [US4] Pruebas de integración de la historia en
       `backend/internal/sprints/delivery/handler_test.go`, con `// Escenario: <nombre> (004/US4)`:
       `TestUS4_AvanceHastaCompletada` (`completedAt` igual al reloj en la respuesta y en
       `sprint_stories`), `TestUS4_DesmarcarCompletada` (`completedAt: null`),

@@ -25,3 +25,9 @@ func RegisterSprintRoutes(router *gin.Engine, requireSession gin.HandlerFunc, sp
 	sprintGroup.DELETE("/stories", handler.removeSprintStories)
 	sprintGroup.POST("/start", handler.startSprint)
 }
+
+// RegisterStoryRoutes registra las rutas de sprints sobre una historia en el grupo plano
+// /api/v1/stories/:storyId, con el middleware de sesión y el RequireStoryAccess de la 003 recibidos
+// desde cmd/app para no importar backlog/delivery (research.md sección 2). Firma mínima.
+func RegisterStoryRoutes(router *gin.Engine, requireSession, requireStoryAccess gin.HandlerFunc, handler *Handler) {
+}

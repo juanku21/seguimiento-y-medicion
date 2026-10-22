@@ -569,7 +569,7 @@ y el salto directo de `pending` a `completed` responde `409` con las transicione
 
 ### Implementación de la Historia 4
 
-- [ ] T057 [US4] Implementar `ValidateStoryProgress(from, to backlogdomain.StoryStatus) error` en
+- [X] T057 [US4] Implementar `ValidateStoryProgress(from, to backlogdomain.StoryStatus) error` en
       `backend/internal/sprints/domain/progress.go` — depende de T052
 - [ ] T058 [US4] Implementar `ChangeStoryProgress` en
       `backend/internal/sprints/repository/sprint_repository.go` en **una transacción**: bloquear la

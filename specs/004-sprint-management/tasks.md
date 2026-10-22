@@ -402,7 +402,7 @@ responde `409` y no asigna ninguna; y quitarlas las devuelve al backlog como `pe
       con `ErrCompletedStoryRemoval` si alguna está `completed`, responde `ErrStoryNotFound` si
       alguna no está comprometida en este sprint, y si no borra las filas y deja las historias en
       `pending` (FR-022, FR-023) — depende de T028, T031 y T033
-- [ ] T035 [US2] Implementar `AssignStories(ctx, access, storyIDs)` y
+- [X] T035 [US2] Implementar `AssignStories(ctx, access, storyIDs)` y
       `RemoveStories(ctx, access, storyIDs)` en `backend/internal/sprints/service/sprint_service.go`,
       con solo lectura primero y estado del sprint después, y devolviendo el detalle actualizado con
       `buildDetail` — depende de T027 y T034

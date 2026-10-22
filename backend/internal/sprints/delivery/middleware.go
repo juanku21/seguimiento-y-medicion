@@ -12,10 +12,6 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
 
-// msgSprintNotFound es el mensaje del 404 de sprint inexistente que fija contracts/openapi.yaml; lo
-// comparten el sprint inexistente, el ajeno y el identificador mal formado (FR-057, FR-058).
-const msgSprintNotFound = "El sprint no existe."
-
 // contextKeySprintAccess es la clave con la que RequireSprintAccess deja en el contexto de gin el
 // SprintAccess de quien pide sobre el sprint de la ruta.
 const contextKeySprintAccess = "sprints.sprintAccess"

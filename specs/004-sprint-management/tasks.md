@@ -411,7 +411,7 @@ responde `409` y no asigna ninguna; y quitarlas las devuelve al backlog como `pe
       `backend/internal/sprints/delivery/validation.go` la validación de la lista de identificadores
       del cuerpo y de los parámetros `storyId` repetidos: **entre 1 y 100, UUID válidos y sin
       repetidos**, con el campo `storyIds[i]` o `storyId` en el `FieldError` — depende de T028
-- [ ] T037 [US2] Crear en `backend/internal/sprints/delivery/routes.go` el grupo plano
+- [X] T037 [US2] Crear en `backend/internal/sprints/delivery/routes.go` el grupo plano
       `/api/v1/sprints/:sprintId` con el middleware de sesión inyectado desde `cmd/app/main.go` y
       `RequireSprintAccess`; implementar en `backend/internal/sprints/delivery/handler.go` con
       anotaciones `swag` en español los manejadores `assignSprintStories`

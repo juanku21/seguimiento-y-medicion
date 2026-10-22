@@ -88,6 +88,13 @@ func (s *SprintService) RemoveStories(ctx context.Context, access *domain.Sprint
 	return s.buildDetail(ctx, access.SprintID)
 }
 
+// Detail devuelve el detalle del sprint del acceso con sus historias vivas (FR-053). Es una lectura:
+// no aplica la solo lectura del proyecto Finalizado ni el estado del sprint, que cualquier integrante
+// puede consultar. La consulta del sprint (US6) le agrega la instantánea y los días restantes.
+func (s *SprintService) Detail(ctx context.Context, access *domain.SprintAccess) (*SprintView, error) {
+	return s.buildDetail(ctx, access.SprintID)
+}
+
 // ensureEditable verifica que el sprint del acceso admita cambios en sus historias: el proyecto
 // Finalizado se rechaza con ErrSprintsReadOnly sin consultar el repositorio (RN-19) y el sprint
 // cerrado con ErrSprintClosed. El repositorio repite ambos controles dentro de su transacción.

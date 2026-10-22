@@ -246,7 +246,7 @@ solapa un día responde `409` con el nombre del primero.
 - [X] T015 [US1] Implementar `Period` y `PeriodsOverlap(a, b Period) bool` en
       `backend/internal/sprints/domain/period.go` con la condición
       `a.Start < b.End && b.Start < a.End` (research.md sección 4) — depende de T010
-- [ ] T016 [US1] Implementar la normalización y validación del cuerpo `SprintInput` en
+- [X] T016 [US1] Implementar la normalización y validación del cuerpo `SprintInput` en
       `backend/internal/sprints/delivery/validation.go`, con los límites 100 y 500 declarados como
       **constantes nombradas en un único lugar**, las fechas parseadas con `time.DateOnly` y un
       `FieldError` por cada campo inválido. Se reutilizará sin cambios en la modificación (US7). La

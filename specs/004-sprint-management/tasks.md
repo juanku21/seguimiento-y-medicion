@@ -385,7 +385,7 @@ responde `409` y no asigna ninguna; y quitarlas las devuelve al backlog como `pe
       `backend/internal/sprints/delivery/middleware.go` con **una única salida `404`** para el
       sprint inexistente, el ajeno y el identificador mal formado, que deja el `SprintAccess` en el
       contexto; cualquier otro error responde `500` genérico registrado en el log — depende de T026
-- [ ] T033 [US2] Reemplazar el cuerpo de `backend/internal/backlog/repository/sprint_assignments.go`
+- [X] T033 [US2] Reemplazar el cuerpo de `backend/internal/backlog/repository/sprint_assignments.go`
       para que `Find` lea `EXISTS (sprint_stories WHERE story_id = ? AND outcome IS NULL)` y
       `user_stories.ever_committed` sobre los modelos de Go (no nombres de tabla en texto), con
       constructor que recibe la conexión; actualizar su composición en `backend/cmd/app/main.go` y en

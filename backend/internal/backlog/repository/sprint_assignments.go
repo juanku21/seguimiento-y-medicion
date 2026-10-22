@@ -1,5 +1,7 @@
 // Package repository persiste las entidades del módulo de backlog con GORM e implementa los puertos
-// hacia las features que todavía no existen.
+// hacia otras features: los de proyectos y sprints leen los datos reales de la 002 y la 004, y los
+// de esfuerzo, defectos y sesiones de estimación responden sin historial mientras esas features no
+// existan.
 package repository
 
 import (

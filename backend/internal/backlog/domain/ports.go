@@ -16,9 +16,10 @@ type SprintAssignment struct {
 	EverAssigned          bool
 }
 
-// SprintAssignments es el puerto hacia la asignación de historias a sprints. El dato lo producirá
-// specs/004-sprint-management; hasta entonces la implementación de backlog/repository informa que
-// ninguna historia está ni estuvo en un sprint (research.md sección 11).
+// SprintAssignments es el puerto hacia la asignación de historias a sprints. El dato lo produce
+// specs/004-sprint-management: la implementación de backlog/repository lee los compromisos abiertos
+// de sprint_stories y la marca ever_committed de la historia (research.md de la 004, secciones 9 y
+// 17.2).
 type SprintAssignments interface {
 	Find(ctx context.Context, storyID uuid.UUID) (SprintAssignment, error)
 }

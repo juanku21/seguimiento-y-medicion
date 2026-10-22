@@ -762,7 +762,7 @@ el detalle de un sprint Activo con fin el 2026-10-14 consultado el 2026-10-04 in
       `schedule` calculado con `Schedule`, el reloj y la zona solo para un sprint `active`, e
       implementar `StoryHistory(ctx, storyID)` en `backend/internal/sprints/service/sprint_service.go`
       — depende de T073, T076 y T077
-- [ ] T079 [US6] Declarar `SprintListItem`, `SprintListResponse`, `SprintSchedule`,
+- [X] T079 [US6] Declarar `SprintListItem`, `SprintListResponse`, `SprintSchedule`,
       `StorySprintHistoryItem` y `StorySprintHistoryResponse` en
       `backend/internal/sprints/delivery/dto.go` (`sprints` y `appliedFilters.status` nunca son
       `null`); implementar el parseo del filtro con `c.QueryArray("status")` en

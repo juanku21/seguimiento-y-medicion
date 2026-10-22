@@ -508,7 +508,7 @@ proyecto responde `409` con el nombre del activo; y diez inicios simultáneos de
       En `newStatusTestEnv`, el directorio recibe **la misma sesión con contador** que los
       repositorios del servicio. **No** se toca `projects/service` (research.md sección 17.1) —
       depende de T043
-- [ ] T050 [US3] Verificar que la prueba de conteo de consultas de la vista de estado de la 002 siga
+- [X] T050 [US3] Verificar que la prueba de conteo de consultas de la vista de estado de la 002 siga
       dentro del límite de **4 consultas** de su SC-003 ahora que el directorio de sprints hace una
       consulta real, y que la prueba de la 002 que rechaza finalizar con un sprint activo pase con un
       sprint `active` sembrado en la base; ajustar sus comentarios si cuentan un número distinto —

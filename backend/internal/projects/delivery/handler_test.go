@@ -27,6 +27,7 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/domain"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/repository"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/service"
+	sprintsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
 
 // Pruebas de integración de punta a punta del módulo de proyectos: atraviesan el router de Gin, el
@@ -1375,8 +1376,10 @@ func (f fixedBacklog) Summarize(context.Context, uuid.UUID) (domain.BacklogSumma
 	return f.summary, nil
 }
 
-// fixedSprint es un doble del puerto SprintDirectory que informa siempre el mismo sprint activo,
-// para preparar el "Dado" de un sprint activo sin depender de la spec 004.
+// fixedSprint es un doble del puerto SprintDirectory que informa siempre el mismo sprint activo.
+// Aunque la spec 004 ya existe, las pruebas que solo necesitan el "Dado" de un sprint activo lo
+// fijan con este doble sin sembrarlo en la base; el directorio real se verifica en
+// projects/repository y en TestUS6_FinalizarConSprintActivo.
 type fixedSprint struct {
 	sprint *domain.ActiveSprint
 }
@@ -1465,13 +1468,34 @@ func setProjectStatus(t *testing.T, db *gorm.DB, projectID string, status domain
 		"no se pudo fijar el estado del proyecto")
 }
 
+// seedActiveSprint inserta en la base un sprint active del proyecto, creado por la cuenta recibida,
+// directamente sobre el modelo sprintsdomain.Sprint que lee el directorio de sprints, como en
+// projects/repository/sprint_directory_test.go; iniciar un sprint por la API pertenece a la 004.
+func seedActiveSprint(t *testing.T, db *gorm.DB, projectID, createdByID uuid.UUID) uuid.UUID {
+	t.Helper()
+	start := time.Date(2026, 10, 5, 0, 0, 0, 0, time.UTC)
+	sprint := sprintsdomain.Sprint{
+		ID:          uuid.New(),
+		ProjectID:   projectID,
+		Name:        "Sprint 4",
+		Goal:        "Objetivo de prueba",
+		StartDate:   start,
+		EndDate:     start.AddDate(0, 0, 13),
+		Status:      sprintsdomain.SprintStatusActive,
+		CreatedByID: createdByID,
+	}
+	require.NoError(t, db.Create(&sprint).Error, "no se pudo sembrar el sprint activo")
+	return sprint.ID
+}
+
 // Escenario: Estado completo (002/US4)
 // Un proyecto En curso con tres integrantes, un sprint activo y un backlog con historias en
 // distintos estados: un integrante que no es el propietario obtiene en una sola respuesta todos los
 // campos de FR-042, con el propietario identificado, el sprint activo, los contadores por estado y
 // los Story Points estimados con su equivalente en horas. El sprint lo informa un doble del puerto,
-// porque la spec 004 todavía no existe, y el backlog otro doble, que fija el resumen sin sembrar
-// historias; el proveedor real se verifica en las pruebas de projects/repository.
+// que fija el sprint activo sin sembrarlo en la base, y el backlog otro doble, que fija el resumen
+// sin sembrar historias; el directorio de sprints y el proveedor del backlog reales se verifican en
+// las pruebas de projects/repository.
 func TestUS4_EstadoCompleto(t *testing.T) {
 	sprintID := uuid.New()
 	env := newStatusTestEnv(t,
@@ -1559,8 +1583,8 @@ func TestUS4_ProyectoFinalizado(t *testing.T) {
 
 // Escenario: Sin sprint activo (002/US4)
 // Un proyecto sin sprint activo responde 200, con hasActiveSprint en falso y activeSprint presente y
-// nulo: la ausencia se informa de forma explícita y no como un error (FR-043). Se usa el adaptador
-// provisorio de sprints, que es el que hoy compone cmd/app.
+// nulo: la ausencia se informa de forma explícita y no como un error (FR-043). Se usa el directorio
+// real de sprints de la spec 004, el mismo que compone cmd/app, sobre una base sin sprints.
 func TestUS4_SinSprintActivo(t *testing.T) {
 	env := newProjectsTestEnv(t)
 	ownerID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
@@ -1674,9 +1698,9 @@ func TestUS4_SinSesion(t *testing.T) {
 // inestable, así que se verifica lo que el diseño exige para cumplirlo: el servicio arma la vista en
 // a lo sumo 4 consultas (proyecto, integrantes con JOIN, resumen del backlog y sprint activo) y esa
 // cantidad no crece al agregar integrantes. Se cuentan solo las consultas de los repositorios del
-// servicio, sin la sesión de la 001 ni la verificación de membresía del middleware. Hoy se cuentan
-// 3 (proyecto, integrantes y resumen del backlog), porque el directorio de sprints todavía no
-// consulta la base: la cuarta llega con la spec 004.
+// servicio, sin la sesión de la 001 ni la verificación de membresía del middleware. Con el
+// directorio real de sprints de la spec 004 se cuentan las 4, y la del sprint activo es una sola
+// consulta, haya o no sprint.
 func TestUS4_VistaDeEstadoSinNMasUno(t *testing.T) {
 	counter := &queryCounter{}
 	env := newStatusTestEnv(t, nil, nil, counter)
@@ -2371,13 +2395,13 @@ func TestUS6_NoEsPropietario(t *testing.T) {
 // Escenario: Finalizar con sprint activo (002/US6)
 // El propietario intenta finalizar un proyecto En curso que tiene un sprint activo: la transición
 // se rechaza con 409 indicando que primero debe cerrar el sprint, y el proyecto sigue En curso sin
-// fecha de finalización real (FR-041, RN-16). El sprint activo se prepara con un doble del puerto
-// SprintDirectory.
+// fecha de finalización real (FR-041, RN-16). El sprint active se siembra en la base de test y lo
+// lee el directorio real de sprints de la spec 004, el mismo que compone cmd/app.
 func TestUS6_FinalizarConSprintActivo(t *testing.T) {
-	sprints := fixedSprint{sprint: &domain.ActiveSprint{ID: uuid.New(), Name: "Sprint 4"}}
-	env := newStatusTestEnv(t, nil, sprints, nil)
+	env := newProjectsTestEnv(t)
 	ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
 	projectID := seedProjectInStatus(t, env.db, ownerID, domain.ProjectStatusInProgress)
+	seedActiveSprint(t, env.db, projectID, ownerID)
 	before := findStoredProject(t, env.db, projectID.String())
 
 	rec := env.patchStatus(t, token, projectID, domain.ProjectStatusFinished)

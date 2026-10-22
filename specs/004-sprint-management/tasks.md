@@ -940,6 +940,11 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       antes que el de la historia (mismo orden que `Close`) y revalide el compromiso abierto tras
       bloquear, eliminando el interbloqueo con el cierre per plan: research.md §13 (partial) —
       origen: converge, detectado en hu/004-us5-cerrar-un-sprint
+- [ ] T103 Marcar `outcome` como `nullable: true` en el esquema `StorySprintHistoryItem` de
+      `specs/004-sprint-management/contracts/openapi.yaml`, con la descripción "`null` mientras el
+      sprint está abierto", alineándolo con data-model.md y con la respuesta de
+      `GET /api/v1/stories/{storyId}/sprints` per plan: contrato de la API (contradicts) — origen:
+      converge, detectado en hu/004-us6-consultar-el-historial
 
 ---
 

@@ -4,7 +4,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -112,9 +111,17 @@ func (s *SprintService) Start(ctx context.Context, access *domain.SprintAccess) 
 }
 
 // ChangeStoryProgress cambia el estado de una historia del sprint activo con el instante del reloj
-// (FR-033 a FR-038). Firma mínima: la implementa T059.
+// (FR-033 a FR-038). Las guardas dependen de la historia bloqueada, así que las decide el
+// repositorio dentro de su transacción: historia fuera del sprint activo, sprint cerrado, transición
+// no admitida y proyecto Finalizado (RN-11, RN-18, RN-19). El servicio le pasa el instante del reloj
+// inyectado, una sola vez, y propaga sus rechazos envueltos con %w para que delivery los reconozca
+// con errors.Is.
 func (s *SprintService) ChangeStoryProgress(ctx context.Context, storyID uuid.UUID, to backlogdomain.StoryStatus) error {
-	return errors.New("not implemented")
+	if err := s.repo.ChangeStoryProgress(ctx, storyID, to, s.now()); err != nil {
+		return fmt.Errorf("cambiar avance de historia: %w", err)
+	}
+
+	return nil
 }
 
 // Detail devuelve el detalle del sprint del acceso con sus historias vivas (FR-053). Es una lectura:

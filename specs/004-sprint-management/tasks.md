@@ -580,7 +580,7 @@ y el salto directo de `pending` a `completed` responde `409` con las transicione
       `planned` → `ErrProgressOutsideActiveSprint`. Validar con `ValidateStoryProgress`; escribir
       `user_stories.status` y `sprint_stories.completed_at` (`now` al completar, `NULL` al volver a
       `in_progress`) (research.md sección 13) — depende de T055 y T057
-- [ ] T059 [US4] Implementar `ChangeStoryProgress(ctx, storyID, to)` en
+- [X] T059 [US4] Implementar `ChangeStoryProgress(ctx, storyID, to)` en
       `backend/internal/sprints/service/sprint_service.go` con el instante del reloj — depende de
       T054 y T058
 - [ ] T060 [US4] Declarar `StoryStatusInput` y `StoryProgressResponse` en

@@ -315,3 +315,64 @@ describe("004/US2 - Comprometer historias en un sprint", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("004/US5 - Cerrar un sprint y congelar su resultado", () => {
+  let onChanged: ChangedMock;
+
+  // Cada prueba arranca con una sesión válida en la pestaña; la lista de un sprint Cerrado no llama
+  // al backend, así que fetch se sustituye solo para detectar una llamada indebida.
+  beforeEach(() => {
+    sessionStorage.clear();
+    writeToken(sessionToken);
+    onChanged = vi.fn<(sprint: SprintDetail) => void>();
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>());
+  });
+
+  // Sin globals de Vitest, la limpieza del DOM de Testing Library se hace a mano.
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  // Caso normal (FR-042, FR-043): el sprint Cerrado conserva el registro de sus historias con el
+  // resultado que tuvo cada una. La historia no completada ya volvió al backlog como Pendiente, pero
+  // la lista muestra su resultado congelado ("No completada") y no su estado vigente.
+  it("Cierre parcial", () => {
+    const returnedStory: SprintStoryItem = {
+      ...pendingStory,
+      status: "pending",
+      outcome: "not_completed",
+    };
+    const doneStory: SprintStoryItem = {
+      ...completedStory,
+      status: "completed",
+      outcome: "completed",
+    };
+    renderList(sprintWith("closed", [returnedStory, doneStory]), onChanged);
+
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    const returnedText = itemOf(returnedStory).textContent;
+    expect(returnedText).toContain("No completada");
+    expect(returnedText).not.toContain("Pendiente");
+    expect(itemOf(doneStory).textContent).toContain("Completada");
+    expect(itemOf(doneStory).textContent).not.toContain("No completada");
+  });
+
+  // Caso alternativo (FR-043, FR-044): una historia que no se completó en este sprint y después se
+  // completó en otro tiene hoy el estado Completada en el backlog; el sprint Cerrado sigue mostrando
+  // "No completada", porque el resultado congelado no cambia por modificaciones posteriores.
+  it("Inmutable tras el cierre", () => {
+    const laterCompleted: SprintStoryItem = {
+      ...inProgressStory,
+      status: "completed",
+      completedAt: "2026-11-12T15:00:00Z",
+      outcome: "not_completed",
+    };
+    renderList(sprintWith("closed", [laterCompleted]), onChanged);
+
+    const text = itemOf(laterCompleted).textContent;
+    expect(text).toContain("No completada");
+    // "Completada" con mayúscula solo aparece si se muestra el estado vigente en lugar del resultado.
+    expect(text).not.toMatch(/Completada/);
+  });
+});

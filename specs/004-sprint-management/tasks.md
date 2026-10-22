@@ -677,7 +677,7 @@ completadas por 13, `POST /api/v1/sprints/{sprintId}/close` devuelve `results` c
       `frontend/src/features/sprints/components/sprint-lifecycle-actions.tsx` y el componente
       `SprintResults` en `frontend/src/features/sprints/components/sprint-results.tsx`, integrado en
       la pantalla de detalle — depende de T065 y T069
-- [ ] T097 [US5] Prueba de frontend en
+- [X] T097 [US5] Prueba de frontend en
       `frontend/src/features/sprints/components/sprint-story-list.test.tsx`, dentro de
       `describe("004/US5 - Cerrar un sprint y congelar su resultado")`, que verifique que en un sprint
       Cerrado cada historia muestra su resultado congelado (Completada / No completada según

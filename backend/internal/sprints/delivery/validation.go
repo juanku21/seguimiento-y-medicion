@@ -199,3 +199,10 @@ func ValidateStoryStatusInput(req StoryStatusInput) (backlogdomain.StoryStatus, 
 		return "", []authdelivery.FieldError{{Field: "status", Message: msgStatusInvalid}}
 	}
 }
+
+// ParseSprintStatusFilter valida los valores repetibles del filtro status del listado de sprints, tal
+// como los entrega c.QueryArray, y devuelve los estados del dominio o un FieldError en status que
+// indica los valores admitidos (FR-050, FR-051).
+func ParseSprintStatusFilter(values []string) ([]domain.SprintStatus, []authdelivery.FieldError) {
+	return nil, nil
+}

@@ -392,3 +392,79 @@ func TestValidateStoryStatusInput_EstadoDesconocido(t *testing.T) {
 		})
 	}
 }
+
+// Pruebas unitarias obligatorias de la validación del filtro status del listado de sprints (T072;
+// FR-050, FR-051; contracts/openapi.yaml, parámetro status de listSprints). El parámetro es
+// repetible y solo admite planned, active y closed. No llevan la etiqueta de un escenario: los
+// nombres TestUS6_* son de las pruebas de integración (T074).
+
+// validationSprintFilterAdmitted son los valores que el mensaje de rechazo del filtro debe enumerar.
+var validationSprintFilterAdmitted = []string{"planned", "active", "closed"}
+
+// Sin el parámetro status la consulta se acepta y el filtro queda vacío, sin acotar por estado. El
+// resultado no es nil porque appliedFilters.status nunca es null en la respuesta (T079).
+func TestParseSprintStatusFilter_SinFiltro(t *testing.T) {
+	statuses, fields := ParseSprintStatusFilter(nil)
+
+	require.Empty(t, fields, "la ausencia de filtro debe aceptarse")
+	require.NotNil(t, statuses, "el filtro vacío no debe ser nil")
+	assert.Empty(t, statuses)
+}
+
+// Cada estado admitido se acepta solo y el parámetro es repetible: varios valores llegan juntos al
+// filtro, en el orden recibido.
+func TestParseSprintStatusFilter_EstadosAdmitidosYRepetibles(t *testing.T) {
+	cases := []struct {
+		name   string
+		values []string
+		want   []domain.SprintStatus
+	}{
+		{"planned", []string{"planned"}, []domain.SprintStatus{domain.SprintStatusPlanned}},
+		{"active", []string{"active"}, []domain.SprintStatus{domain.SprintStatusActive}},
+		{"closed", []string{"closed"}, []domain.SprintStatus{domain.SprintStatusClosed}},
+		{"planned y active repetidos", []string{"planned", "active"},
+			[]domain.SprintStatus{domain.SprintStatusPlanned, domain.SprintStatusActive}},
+		{"los tres estados", []string{"planned", "active", "closed"},
+			[]domain.SprintStatus{domain.SprintStatusPlanned, domain.SprintStatusActive, domain.SprintStatusClosed}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			statuses, fields := ParseSprintStatusFilter(tc.values)
+
+			require.Empty(t, fields, "los estados admitidos deben aceptarse")
+			assert.Equal(t, tc.want, statuses)
+		})
+	}
+}
+
+// Un valor fuera de planned, active y closed se rechaza en el campo status con un mensaje que
+// enumera los admitidos, también junto a valores válidos, con otra grafía o vacío; la comparación
+// es exacta, como el enum del contrato.
+func TestParseSprintStatusFilter_EstadoNoAdmitido(t *testing.T) {
+	cases := []struct {
+		name   string
+		values []string
+	}{
+		{"estado inexistente", []string{"archived"}},
+		{"estado de una historia", []string{"completed"}},
+		{"estado en español", []string{"cerrado"}},
+		{"estado con otra grafía", []string{"Closed"}},
+		{"estado con espacios", []string{" active"}},
+		{"estado vacío", []string{""}},
+		{"estado inválido junto a uno válido", []string{"closed", "done"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			statuses, fields := ParseSprintStatusFilter(tc.values)
+
+			require.NotEmpty(t, fields, "el filtro con un valor no admitido debe rechazarse")
+			for _, f := range fields {
+				require.Equal(t, "status", f.Field, "solo debe informarse el filtro status")
+				for _, value := range validationSprintFilterAdmitted {
+					assert.Contains(t, f.Message, value, "el mensaje debe indicar el valor admitido %q", value)
+				}
+			}
+			assert.Empty(t, statuses)
+		})
+	}
+}

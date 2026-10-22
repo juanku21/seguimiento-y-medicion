@@ -711,7 +711,7 @@ el detalle de un sprint Activo con fin el 2026-10-14 consultado el 2026-10-04 in
       `nil`; hoy 2026-10-14 → 0 y `nil`; hoy 2026-10-17 → `nil` y 3; y el **borde de medianoche**:
       un instante que en UTC ya es el día siguiente pero en la zona del sistema todavía es el día de
       fin devuelve 0 — depende de T070
-- [ ] T072 [P] [US6] Pruebas unitarias de la validación del filtro del listado en
+- [X] T072 [P] [US6] Pruebas unitarias de la validación del filtro del listado en
       `backend/internal/sprints/delivery/validation_test.go`: `status` repetible, valores fuera de
       `planned`/`active`/`closed` rechazados indicando los admitidos, y ausencia de filtro aceptada —
       depende de T070

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Alert } from "@/components/alert";
 import { getSprint } from "@/features/sprints/api";
 import { CommitStoriesDialog } from "@/features/sprints/components/commit-stories-dialog";
+import { SprintLifecycleActions } from "@/features/sprints/components/sprint-lifecycle-actions";
 import { SprintStoryList } from "@/features/sprints/components/sprint-story-list";
 import { useRequireSession } from "@/hooks/use-session";
 import type { SprintDetail } from "@/types/sprint";
@@ -21,9 +22,9 @@ type DetailState =
   | { status: "loaded"; sprint: SprintDetail }
   | { status: "error"; message: string };
 
-// Vista del detalle de un sprint (004/US2): pide el sprint con un token vigente y muestra sus datos,
-// la lista de historias comprometidas y, mientras el sprint está abierto, el diálogo para
-// comprometer más. Cada cambio reemplaza el sprint mostrado por el detalle que devuelve el backend.
+// Vista del detalle de un sprint (004/US2 y US3): pide el sprint con un token vigente y muestra sus
+// datos, las acciones del ciclo de vida, la lista de historias comprometidas y, mientras el sprint
+// está abierto, el diálogo para comprometer más. Cada cambio reemplaza el sprint mostrado por el detalle que devuelve el backend.
 // El sprint inexistente o ajeno llega como 404 y se muestra solo su mensaje; ante un 401 el cliente
 // HTTP borra el token y la guardia lleva a /login.
 export function SprintDetailView({ sprintId }: SprintDetailViewProps) {
@@ -78,6 +79,8 @@ export function SprintDetailView({ sprintId }: SprintDetailViewProps) {
         </p>
         <p className="text-sm">{sprint.goal}</p>
       </section>
+
+      <SprintLifecycleActions sprint={sprint} onChanged={showSprint} />
 
       <SprintStoryList sprint={sprint} onChanged={showSprint} />
 

@@ -161,7 +161,7 @@ func newBacklogTestEnv(t *testing.T, overrides ...func(*backlogTestPorts)) backl
 
 	// Módulo del backlog con los puertos por defecto o los dobles que pida la prueba.
 	ports := backlogTestPorts{
-		sprints:  repository.NewSprintAssignments(),
+		sprints:  repository.NewSprintAssignments(db),
 		effort:   repository.NewEffortRecords(),
 		defects:  repository.NewDefectRecords(),
 		sessions: repository.NewEstimationSessions(),

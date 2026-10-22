@@ -6,24 +6,24 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/domain"
 )
 
-// SprintAssignments implementa domain.SprintAssignments mientras la feature
-// specs/004-sprint-management no exista (research.md sección 11). Cuando esa feature llegue,
-// reemplaza el cuerpo de este archivo con la lectura real de la asignación a sprints, sin tocar
-// backlog/service.
-type SprintAssignments struct{}
-
-// NewSprintAssignments crea el puerto de asignaciones a sprints. No recibe dependencias porque hoy
-// no consulta ninguna tabla.
-func NewSprintAssignments() *SprintAssignments {
-	return &SprintAssignments{}
+// SprintAssignments implementa domain.SprintAssignments leyendo la asignación de historias a
+// sprints de specs/004-sprint-management (research.md secciones 9 y 17.2).
+type SprintAssignments struct {
+	db *gorm.DB
 }
 
-// Find informa que la historia no está comprometida en un sprint abierto ni estuvo nunca en un
-// sprint. No es un dato inventado: en el estado actual del producto no existen sprints.
+// NewSprintAssignments crea el puerto de asignaciones a sprints sobre la conexión recibida.
+func NewSprintAssignments(db *gorm.DB) *SprintAssignments {
+	return &SprintAssignments{db: db}
+}
+
+// Find informa si la historia está comprometida en un sprint abierto y si estuvo alguna vez en un
+// sprint. Firma mínima de T029: la lectura real la implementa T033.
 func (a *SprintAssignments) Find(_ context.Context, _ uuid.UUID) (domain.SprintAssignment, error) {
 	return domain.SprintAssignment{}, nil
 }

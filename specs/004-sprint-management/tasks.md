@@ -359,7 +359,7 @@ responde `409` y no asigna ninguna; y quitarlas las devuelve al backlog como `pe
       `null` y `PATCH` con `acceptanceCriteria: []` de la 003 → `409` y la historia intacta). Además,
       sin etiqueta de escenario: el lote con un identificador repetido o con más de 100 → `400`, y
       `ever_committed` en `true` tras asignar y tras quitar (RC-06) — depende de T024
-- [ ] T029 [P] [US2] Prueba de integración del puerto de la 003 en
+- [X] T029 [P] [US2] Prueba de integración del puerto de la 003 en
       `backend/internal/backlog/repository/sprint_assignments_test.go`, contra la base de test: sin
       compromisos → `CommittedToOpenSprint` y `EverAssigned` falsos; con compromiso abierto → los dos
       verdaderos; con la fila congelada de un sprint cerrado → `CommittedToOpenSprint` falso y

@@ -320,7 +320,7 @@ responde `409` y no asigna ninguna; y quitarlas las devuelve al backlog como `pe
 
 ### Pruebas de la Historia 2 ⚠️
 
-- [ ] T025 [P] [US2] Pruebas unitarias **obligatorias** de `Admission` en
+- [X] T025 [P] [US2] Pruebas unitarias **obligatorias** de `Admission` en
       `backend/internal/sprints/domain/admission_test.go`, cubriendo RN-08 y SC-007: historia lista,
       `pending` y sin compromiso abierto → sin problemas; sin Story Points, sin criterios y sin
       ninguno de los dos → `not_ready` con `missing` igual al de `Readiness` de la 003;

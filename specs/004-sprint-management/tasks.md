@@ -476,7 +476,7 @@ proyecto responde `409` con el nombre del activo; y diez inicios simultáneos de
       `backend/internal/projects/repository/sprint_directory_test.go`, contra la base de test: sin
       sprints o solo con Planificados y Cerrados → `(nil, nil)`; con uno Activo → su `ID` y su
       `Name`; y el Activo de otro proyecto no cuenta — depende de T038
-- [ ] T044 [P] [US3] Pruebas de frontend en
+- [X] T044 [P] [US3] Pruebas de frontend en
       `frontend/src/features/sprints/components/sprint-lifecycle-actions.test.tsx`, con
       `describe("004/US3 - Iniciar un sprint")` y un `it` por escenario, incluido que el botón de
       inicio solo aparece en un sprint Planificado y que el `409` muestra el nombre del sprint

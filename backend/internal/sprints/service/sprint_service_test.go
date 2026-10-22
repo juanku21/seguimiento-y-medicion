@@ -290,3 +290,181 @@ func TestSprintService_Create_Superposicion(t *testing.T) {
 	d.repo.AssertExpectations(t)
 	d.repo.AssertNotCalled(t, "FindDetail", mock.Anything, mock.Anything)
 }
+
+// Pruebas unitarias obligatorias de la asignación y la baja de historias en el servicio (T027;
+// RN-09, RN-18, RN-19, RN-21, FR-017 a FR-023). Siguen el orden de research.md sección 18: la solo
+// lectura del proyecto Finalizado, que llega en SprintAccess, se evalúa antes que cualquier otra
+// regla y sin tocar el repositorio; después, el estado del sprint leído con FindDetail. Los
+// rechazos que el repositorio decide dentro de su transacción (historias no admitidas y quitar una
+// completada) se propagan reconocibles con errors.Is y errors.As. Igual que las de creación, no
+// llevan etiqueta de escenario: los TestUS2_* son las pruebas de integración de T028.
+
+// sprintAccessFor arma el acceso que deja RequireSprintAccess para un sprint de un proyecto con el
+// estado de finalización indicado.
+func sprintAccessFor(finished bool) *domain.SprintAccess {
+	return &domain.SprintAccess{SprintID: uuid.New(), ProjectID: uuid.New(), ProjectFinished: finished}
+}
+
+// sprintDetailWithStatus arma el detalle de un sprint en el estado indicado, como lo devuelve
+// FindDetail.
+func sprintDetailWithStatus(sprintID uuid.UUID, status domain.SprintStatus) *domain.SprintDetail {
+	detail := &domain.SprintDetail{Stories: []domain.SprintStoryView{}}
+	detail.Sprint.ID = sprintID
+	detail.Sprint.Status = status
+	return detail
+}
+
+// RN-09: en un sprint planned o active la asignación se delega al repositorio con el sprint del
+// acceso, el lote completo y el instante del reloj inyectado, y la respuesta es el detalle
+// actualizado del sprint.
+func TestSprintService_AssignStories_SprintAbierto(t *testing.T) {
+	for _, status := range []domain.SprintStatus{domain.SprintStatusPlanned, domain.SprintStatusActive} {
+		t.Run(string(status), func(t *testing.T) {
+			svc, d := newSprintServiceWithDoubles(t)
+			access := sprintAccessFor(false)
+			storyIDs := []uuid.UUID{uuid.New(), uuid.New(), uuid.New()}
+			d.repo.On("FindDetail", mock.Anything, access.SprintID).
+				Return(sprintDetailWithStatus(access.SprintID, status), nil)
+			d.repo.On("AssignStories", mock.Anything, access.SprintID, storyIDs, serviceFixedNow).
+				Return(nil).Once()
+
+			view, err := svc.AssignStories(context.Background(), access, storyIDs)
+
+			require.NoError(t, err)
+			require.NotNil(t, view)
+			require.NotNil(t, view.Detail)
+			assert.Equal(t, access.SprintID, view.Detail.Sprint.ID)
+			d.repo.AssertExpectations(t)
+		})
+	}
+}
+
+// RN-19: con el proyecto Finalizado la asignación se rechaza con ErrSprintsReadOnly sin leer el
+// sprint ni escribir: la solo lectura vuelve irrelevante cualquier otra regla.
+func TestSprintService_AssignStories_ProyectoFinalizado(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(true)
+
+	view, err := svc.AssignStories(context.Background(), access, []uuid.UUID{uuid.New()})
+
+	require.ErrorIs(t, err, domain.ErrSprintsReadOnly)
+	assert.Nil(t, view)
+	d.repo.AssertNotCalled(t, "FindDetail", mock.Anything, mock.Anything)
+	d.repo.AssertNotCalled(t, "AssignStories", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+// RN-09, RN-18: un sprint closed no admite historias; la asignación se rechaza con ErrSprintClosed
+// y no llega al repositorio.
+func TestSprintService_AssignStories_SprintCerrado(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(false)
+	d.repo.On("FindDetail", mock.Anything, access.SprintID).
+		Return(sprintDetailWithStatus(access.SprintID, domain.SprintStatusClosed), nil).Once()
+
+	view, err := svc.AssignStories(context.Background(), access, []uuid.UUID{uuid.New()})
+
+	require.ErrorIs(t, err, domain.ErrSprintClosed)
+	assert.Nil(t, view)
+	d.repo.AssertNotCalled(t, "AssignStories", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+// FR-019, SC-007: si el repositorio rechaza el lote con StoriesNotAdmittedError, el servicio lo
+// propaga extraíble con errors.As y con todos los problemas intactos, incluida la historia con
+// varios motivos, y no vuelve a leer el detalle después del rechazo.
+func TestSprintService_AssignStories_HistoriasNoAdmitidas(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(false)
+	notReadyID, completedID, multiID := uuid.New(), uuid.New(), uuid.New()
+	storyIDs := []uuid.UUID{notReadyID, completedID, multiID}
+	elsewhere := &domain.ConflictingSprint{ID: uuid.New(), Name: "Sprint 2"}
+	problems := []domain.AdmissionProblem{
+		{StoryID: notReadyID, Reason: domain.AdmissionReasonNotReady, Missing: []string{"story_points"}},
+		{StoryID: completedID, Reason: domain.AdmissionReasonCompleted},
+		{StoryID: multiID, Reason: domain.AdmissionReasonNotReady, Missing: []string{"story_points", "acceptance_criteria"}},
+		{StoryID: multiID, Reason: domain.AdmissionReasonCommittedElsewhere, Sprint: elsewhere},
+	}
+	d.repo.On("FindDetail", mock.Anything, access.SprintID).
+		Return(sprintDetailWithStatus(access.SprintID, domain.SprintStatusPlanned), nil).Once()
+	d.repo.On("AssignStories", mock.Anything, access.SprintID, storyIDs, serviceFixedNow).
+		Return(&domain.StoriesNotAdmittedError{Problems: problems}).Once()
+
+	view, err := svc.AssignStories(context.Background(), access, storyIDs)
+
+	var notAdmitted *domain.StoriesNotAdmittedError
+	require.ErrorAs(t, err, &notAdmitted)
+	assert.Equal(t, problems, notAdmitted.Problems)
+	assert.Nil(t, view)
+	d.repo.AssertExpectations(t)
+}
+
+// RN-09: en un sprint planned o active la baja se delega al repositorio con el sprint del acceso y
+// el lote completo, y la respuesta es el detalle actualizado del sprint.
+func TestSprintService_RemoveStories_SprintAbierto(t *testing.T) {
+	for _, status := range []domain.SprintStatus{domain.SprintStatusPlanned, domain.SprintStatusActive} {
+		t.Run(string(status), func(t *testing.T) {
+			svc, d := newSprintServiceWithDoubles(t)
+			access := sprintAccessFor(false)
+			storyIDs := []uuid.UUID{uuid.New(), uuid.New()}
+			d.repo.On("FindDetail", mock.Anything, access.SprintID).
+				Return(sprintDetailWithStatus(access.SprintID, status), nil)
+			d.repo.On("RemoveStories", mock.Anything, access.SprintID, storyIDs).
+				Return(nil).Once()
+
+			view, err := svc.RemoveStories(context.Background(), access, storyIDs)
+
+			require.NoError(t, err)
+			require.NotNil(t, view)
+			require.NotNil(t, view.Detail)
+			assert.Equal(t, access.SprintID, view.Detail.Sprint.ID)
+			d.repo.AssertExpectations(t)
+		})
+	}
+}
+
+// RN-19: con el proyecto Finalizado la baja se rechaza con ErrSprintsReadOnly sin leer el sprint ni
+// escribir.
+func TestSprintService_RemoveStories_ProyectoFinalizado(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(true)
+
+	view, err := svc.RemoveStories(context.Background(), access, []uuid.UUID{uuid.New()})
+
+	require.ErrorIs(t, err, domain.ErrSprintsReadOnly)
+	assert.Nil(t, view)
+	d.repo.AssertNotCalled(t, "FindDetail", mock.Anything, mock.Anything)
+	d.repo.AssertNotCalled(t, "RemoveStories", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// RN-09, RN-18: de un sprint closed no se quitan historias; la baja se rechaza con ErrSprintClosed
+// y no llega al repositorio.
+func TestSprintService_RemoveStories_SprintCerrado(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(false)
+	d.repo.On("FindDetail", mock.Anything, access.SprintID).
+		Return(sprintDetailWithStatus(access.SprintID, domain.SprintStatusClosed), nil).Once()
+
+	view, err := svc.RemoveStories(context.Background(), access, []uuid.UUID{uuid.New()})
+
+	require.ErrorIs(t, err, domain.ErrSprintClosed)
+	assert.Nil(t, view)
+	d.repo.AssertNotCalled(t, "RemoveStories", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// RN-21: si el lote incluye una historia completed, el repositorio rechaza la baja con
+// ErrCompletedStoryRemoval y el servicio lo propaga reconocible con errors.Is, sin respuesta de
+// detalle.
+func TestSprintService_RemoveStories_HistoriaCompletada(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	access := sprintAccessFor(false)
+	storyIDs := []uuid.UUID{uuid.New(), uuid.New()}
+	d.repo.On("FindDetail", mock.Anything, access.SprintID).
+		Return(sprintDetailWithStatus(access.SprintID, domain.SprintStatusActive), nil).Once()
+	d.repo.On("RemoveStories", mock.Anything, access.SprintID, storyIDs).
+		Return(domain.ErrCompletedStoryRemoval).Once()
+
+	view, err := svc.RemoveStories(context.Background(), access, storyIDs)
+
+	require.ErrorIs(t, err, domain.ErrCompletedStoryRemoval)
+	assert.Nil(t, view)
+	d.repo.AssertExpectations(t)
+}

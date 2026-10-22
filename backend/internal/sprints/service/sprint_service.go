@@ -59,6 +59,60 @@ func (s *SprintService) Create(ctx context.Context, projectID, actorID uuid.UUID
 	return s.buildDetail(ctx, sprint.ID)
 }
 
+// AssignStories compromete en el sprint del acceso un lote de historias, todo o nada, y devuelve el
+// detalle actualizado (FR-017 a FR-021). Primero aplica la solo lectura del proyecto Finalizado y
+// después el estado del sprint; superados ambos controles delega en el repositorio con el instante
+// del reloj inyectado y propaga sus rechazos envueltos con %w, como StoriesNotAdmittedError.
+func (s *SprintService) AssignStories(ctx context.Context, access *domain.SprintAccess, storyIDs []uuid.UUID) (*SprintView, error) {
+	if err := s.ensureEditable(ctx, access); err != nil {
+		return nil, err
+	}
+	if err := s.repo.AssignStories(ctx, access.SprintID, storyIDs, s.now()); err != nil {
+		return nil, fmt.Errorf("asignar historias al sprint: %w", err)
+	}
+
+	return s.buildDetail(ctx, access.SprintID)
+}
+
+// RemoveStories quita del sprint del acceso un lote de historias, que vuelven al backlog como
+// pending, y devuelve el detalle actualizado (FR-022, FR-023). Aplica los mismos controles que
+// AssignStories y propaga envueltos los rechazos del repositorio, como ErrCompletedStoryRemoval.
+func (s *SprintService) RemoveStories(ctx context.Context, access *domain.SprintAccess, storyIDs []uuid.UUID) (*SprintView, error) {
+	if err := s.ensureEditable(ctx, access); err != nil {
+		return nil, err
+	}
+	if err := s.repo.RemoveStories(ctx, access.SprintID, storyIDs); err != nil {
+		return nil, fmt.Errorf("quitar historias del sprint: %w", err)
+	}
+
+	return s.buildDetail(ctx, access.SprintID)
+}
+
+// Detail devuelve el detalle del sprint del acceso con sus historias vivas (FR-053). Es una lectura:
+// no aplica la solo lectura del proyecto Finalizado ni el estado del sprint, que cualquier integrante
+// puede consultar. La consulta del sprint (US6) le agrega la instantánea y los días restantes.
+func (s *SprintService) Detail(ctx context.Context, access *domain.SprintAccess) (*SprintView, error) {
+	return s.buildDetail(ctx, access.SprintID)
+}
+
+// ensureEditable verifica que el sprint del acceso admita cambios en sus historias: el proyecto
+// Finalizado se rechaza con ErrSprintsReadOnly sin consultar el repositorio (RN-19) y el sprint
+// cerrado con ErrSprintClosed. El repositorio repite ambos controles dentro de su transacción.
+func (s *SprintService) ensureEditable(ctx context.Context, access *domain.SprintAccess) error {
+	if access.ProjectFinished {
+		return domain.ErrSprintsReadOnly
+	}
+	detail, err := s.repo.FindDetail(ctx, access.SprintID)
+	if err != nil {
+		return fmt.Errorf("leer sprint a modificar: %w", err)
+	}
+	if detail.Sprint.Status == domain.SprintStatusClosed {
+		return domain.ErrSprintClosed
+	}
+
+	return nil
+}
+
 // buildDetail arma la vista de un sprint a partir de su detalle persistido; la respuesta de toda
 // escritura y de la consulta del detalle pasa por acá. Si el sprint no existe, el error envuelve
 // ErrSprintNotFound del repositorio. Es el punto donde se agregan los datos derivados de la vista,

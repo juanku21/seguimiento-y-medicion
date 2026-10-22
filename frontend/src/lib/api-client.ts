@@ -5,12 +5,20 @@ import type { FieldError } from "@/types/auth";
 // Error de una llamada a la API ya traducido a un mensaje en español. fields trae el detalle por
 // campo cuando el backend lo informa (ValidationErrorResponse) y queda vacío en cualquier otro caso.
 // reasons trae los mensajes de los motivos, en el orden recibido, solo cuando el cuerpo los informa
-// (DeletionBlockedResponse de la spec 003).
+// (DeletionBlockedResponse de la spec 003). stories trae el motivo de cada historia rechazada solo
+// cuando el cuerpo los informa (StoriesNotAdmittedResponse de la spec 004).
 export type ApiError = {
   status: number;
   message: string;
   fields: FieldError[];
   reasons?: string[];
+  stories?: StoryProblem[];
+};
+
+// Motivo por el que el backend rechazó una historia concreta, identificada por su storyId.
+export type StoryProblem = {
+  storyId: string;
+  message: string;
 };
 
 // Resultado de una llamada: los datos de la respuesta exitosa o el error, sin lanzar excepciones.
@@ -46,6 +54,15 @@ function isReason(value: unknown): value is { message: string } {
   return isRecord(value) && typeof value.message === "string";
 }
 
+// Reconoce el motivo de una historia rechazada, como AdmissionProblem de la spec 004.
+function isStoryProblem(value: unknown): value is StoryProblem {
+  return (
+    isRecord(value) &&
+    typeof value.storyId === "string" &&
+    typeof value.message === "string"
+  );
+}
+
 // Lee el cuerpo como JSON; si está vacío o no es JSON válido devuelve undefined en lugar de fallar.
 async function readJson(response: Response): Promise<unknown> {
   try {
@@ -56,8 +73,9 @@ async function readJson(response: Response): Promise<unknown> {
 }
 
 // Traduce un cuerpo de error a ApiError. Distingue las formas del contrato: con "fields" es un
-// ValidationErrorResponse, con "reasons" un DeletionBlockedResponse y sin ninguno un ErrorResponse;
-// si no coincide con ninguna, usa un mensaje genérico para no mostrar nada técnico.
+// ValidationErrorResponse, con "reasons" un DeletionBlockedResponse, con "stories" un
+// StoriesNotAdmittedResponse y sin ninguno un ErrorResponse; si no coincide con ninguna, usa un
+// mensaje genérico para no mostrar nada técnico.
 function toApiError(status: number, body: unknown): ApiError {
   if (!isRecord(body) || typeof body.error !== "string") {
     return genericError(status, UNEXPECTED_ERROR_MESSAGE);
@@ -65,11 +83,18 @@ function toApiError(status: number, body: unknown): ApiError {
   const fields = Array.isArray(body.fields)
     ? body.fields.filter(isFieldError)
     : [];
-  if (!Array.isArray(body.reasons)) {
-    return { status, message: body.error, fields };
+  const error: ApiError = { status, message: body.error, fields };
+  if (Array.isArray(body.reasons)) {
+    error.reasons = body.reasons
+      .filter(isReason)
+      .map((reason) => reason.message);
   }
-  const reasons = body.reasons.filter(isReason).map((reason) => reason.message);
-  return { status, message: body.error, fields, reasons };
+  if (Array.isArray(body.stories)) {
+    error.stories = body.stories
+      .filter(isStoryProblem)
+      .map(({ storyId, message }) => ({ storyId, message }));
+  }
+  return error;
 }
 
 // Envía la petición a la ruta indicada de la API usando fetch nativo y traduce la respuesta a
@@ -195,4 +220,13 @@ export function patchAuthorizedJson<T>(
 // (204) no trae contenido.
 export function deleteEmpty(path: string): Promise<ApiResult<undefined>> {
   return authorizedRequest(path, "DELETE", isEmpty);
+}
+
+// Envía un DELETE autenticado a la ruta indicada de la API, para las bajas cuya respuesta exitosa
+// trae el recurso actualizado, como la baja de historias de un sprint.
+export function deleteAuthorizedJson<T>(
+  path: string,
+  isData: (value: unknown) => value is T,
+): Promise<ApiResult<T>> {
+  return authorizedRequest(path, "DELETE", isData);
 }

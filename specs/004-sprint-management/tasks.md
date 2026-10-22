@@ -320,27 +320,27 @@ responde `409` y no asigna ninguna; y quitarlas las devuelve al backlog como `pe
 
 ### Pruebas de la Historia 2 ⚠️
 
-- [ ] T025 [P] [US2] Pruebas unitarias **obligatorias** de `Admission` en
+- [X] T025 [P] [US2] Pruebas unitarias **obligatorias** de `Admission` en
       `backend/internal/sprints/domain/admission_test.go`, cubriendo RN-08 y SC-007: historia lista,
       `pending` y sin compromiso abierto → sin problemas; sin Story Points, sin criterios y sin
       ninguno de los dos → `not_ready` con `missing` igual al de `Readiness` de la 003;
       `completed` → `completed`; con compromiso abierto en otro sprint o en este mismo →
       `committed_elsewhere` con ese sprint; y una historia que cumple varias condiciones informa
       **todos** sus motivos — depende de T024
-- [ ] T026 [P] [US2] Pruebas de integración de `RequireSprintAccess` en
+- [X] T026 [P] [US2] Pruebas de integración de `RequireSprintAccess` en
       `backend/internal/sprints/delivery/middleware_test.go`, montado sobre un manejador de prueba:
       un integrante que no es el propietario pasa y recibe en el contexto un `SprintAccess` con el
       sprint, su proyecto y si está Finalizado (RN-01); el sprint inexistente, el de un proyecto
       ajeno, el de un integrante ya quitado y un identificador que no es UUID responden **el mismo
       `404` byte a byte** (`{"error":"El sprint no existe."}`) con una sola consulta; y sin titular
       en el contexto responde el `401` de la 001 (research.md sección 3) — depende de T024
-- [ ] T027 [P] [US2] Pruebas unitarias **obligatorias** de asignar y quitar en el servicio en
+- [X] T027 [P] [US2] Pruebas unitarias **obligatorias** de asignar y quitar en el servicio en
       `backend/internal/sprints/service/sprint_service_test.go`, con dobles: proyecto Finalizado →
       `ErrSprintsReadOnly` (RN-19); sprint `closed` → `ErrSprintClosed` al asignar y al quitar
       (RN-09, RN-18); problemas de admisión → `StoriesNotAdmittedError` con todos los motivos;
       historia `completed` en el lote a quitar → `ErrCompletedStoryRemoval` (RN-21) — depende de
       T024
-- [ ] T028 [US2] Pruebas de integración de la historia en
+- [X] T028 [US2] Pruebas de integración de la historia en
       `backend/internal/sprints/delivery/handler_test.go`, con `// Escenario: <nombre> (004/US2)`:
       `TestUS2_AsignacionDeTresHistorias` (las tres en `stories`, `pending`, y una cuarta asignación a
       otro sprint abierto rechazada), `TestUS2_AsignacionEnSprintActivo` (sprint `active` sembrado en
@@ -359,13 +359,13 @@ responde `409` y no asigna ninguna; y quitarlas las devuelve al backlog como `pe
       `null` y `PATCH` con `acceptanceCriteria: []` de la 003 → `409` y la historia intacta). Además,
       sin etiqueta de escenario: el lote con un identificador repetido o con más de 100 → `400`, y
       `ever_committed` en `true` tras asignar y tras quitar (RC-06) — depende de T024
-- [ ] T029 [P] [US2] Prueba de integración del puerto de la 003 en
+- [X] T029 [P] [US2] Prueba de integración del puerto de la 003 en
       `backend/internal/backlog/repository/sprint_assignments_test.go`, contra la base de test: sin
       compromisos → `CommittedToOpenSprint` y `EverAssigned` falsos; con compromiso abierto → los dos
       verdaderos; con la fila congelada de un sprint cerrado → `CommittedToOpenSprint` falso y
       `EverAssigned` verdadero; tras quitar la historia → `EverAssigned` sigue verdadero — depende de
       T024
-- [ ] T030 [P] [US2] Pruebas de frontend en
+- [X] T030 [P] [US2] Pruebas de frontend en
       `frontend/src/features/sprints/components/commit-stories-dialog.test.tsx` y
       `frontend/src/features/sprints/components/sprint-story-list.test.tsx`, con
       `describe("004/US2 - Comprometer historias en un sprint")` y un `it` por escenario, incluido que
@@ -375,23 +375,23 @@ responde `409` y no asigna ninguna; y quitarlas las devuelve al backlog como `pe
 
 ### Implementación de la Historia 2
 
-- [ ] T031 [US2] Implementar `Admission` en `backend/internal/sprints/domain/admission.go`, usando
+- [X] T031 [US2] Implementar `Admission` en `backend/internal/sprints/domain/admission.go`, usando
       `backlogdomain.Readiness` como **única** fuente de "lista para planificar" (research.md
       sección 8) — depende de T025
-- [ ] T032 [US2] Implementar `FindAccessible` en
+- [X] T032 [US2] Implementar `FindAccessible` en
       `backend/internal/sprints/repository/sprint_repository.go` con **una sola consulta**
       `sprints JOIN project_members (project_id, user_id = titular) JOIN projects`, devolviendo
       `ErrSprintNotFound` si no hay fila, e implementar `RequireSprintAccess` en
       `backend/internal/sprints/delivery/middleware.go` con **una única salida `404`** para el
       sprint inexistente, el ajeno y el identificador mal formado, que deja el `SprintAccess` en el
       contexto; cualquier otro error responde `500` genérico registrado en el log — depende de T026
-- [ ] T033 [US2] Reemplazar el cuerpo de `backend/internal/backlog/repository/sprint_assignments.go`
+- [X] T033 [US2] Reemplazar el cuerpo de `backend/internal/backlog/repository/sprint_assignments.go`
       para que `Find` lea `EXISTS (sprint_stories WHERE story_id = ? AND outcome IS NULL)` y
       `user_stories.ever_committed` sobre los modelos de Go (no nombres de tabla en texto), con
       constructor que recibe la conexión; actualizar su composición en `backend/cmd/app/main.go` y en
       los ayudantes de prueba de `backend/internal/backlog/delivery/handler_test.go`. **No** se toca
       `backlog/service` (research.md secciones 9 y 17.2) — depende de T029
-- [ ] T034 [US2] Implementar `AssignStories` y `RemoveStories` en
+- [X] T034 [US2] Implementar `AssignStories` y `RemoveStories` en
       `backend/internal/sprints/repository/sprint_repository.go`, cada uno en **una transacción**:
       bloquear el sprint (`FOR UPDATE`) y leer el estado del proyecto; bloquear las historias pedidas
       (`FOR UPDATE`, **ordenadas por `id`**); si alguna no existe o es de otro proyecto →
@@ -402,23 +402,23 @@ responde `409` y no asigna ninguna; y quitarlas las devuelve al backlog como `pe
       con `ErrCompletedStoryRemoval` si alguna está `completed`, responde `ErrStoryNotFound` si
       alguna no está comprometida en este sprint, y si no borra las filas y deja las historias en
       `pending` (FR-022, FR-023) — depende de T028, T031 y T033
-- [ ] T035 [US2] Implementar `AssignStories(ctx, access, storyIDs)` y
+- [X] T035 [US2] Implementar `AssignStories(ctx, access, storyIDs)` y
       `RemoveStories(ctx, access, storyIDs)` en `backend/internal/sprints/service/sprint_service.go`,
       con solo lectura primero y estado del sprint después, y devolviendo el detalle actualizado con
       `buildDetail` — depende de T027 y T034
-- [ ] T036 [US2] Declarar `StoryIdsInput`, `AdmissionProblem` y `StoriesNotAdmittedResponse` en
+- [X] T036 [US2] Declarar `StoryIdsInput`, `AdmissionProblem` y `StoriesNotAdmittedResponse` en
       `backend/internal/sprints/delivery/dto.go`, e implementar en
       `backend/internal/sprints/delivery/validation.go` la validación de la lista de identificadores
       del cuerpo y de los parámetros `storyId` repetidos: **entre 1 y 100, UUID válidos y sin
       repetidos**, con el campo `storyIds[i]` o `storyId` en el `FieldError` — depende de T028
-- [ ] T037 [US2] Crear en `backend/internal/sprints/delivery/routes.go` el grupo plano
+- [X] T037 [US2] Crear en `backend/internal/sprints/delivery/routes.go` el grupo plano
       `/api/v1/sprints/:sprintId` con el middleware de sesión inyectado desde `cmd/app/main.go` y
       `RequireSprintAccess`; implementar en `backend/internal/sprints/delivery/handler.go` con
       anotaciones `swag` en español los manejadores `assignSprintStories`
       (`POST /stories`), `removeSprintStories` (`DELETE /stories?storyId=...`) y un `getSprint`
       básico (`GET`, detalle con las historias vivas, que US6 completa con instantánea y días
       restantes). Respuestas según contracts/openapi.yaml — depende de T032, T035 y T036
-- [ ] T038 [US2] Implementar las llamadas de detalle, asignación y baja en
+- [X] T038 [US2] Implementar las llamadas de detalle, asignación y baja en
       `frontend/src/features/sprints/api.ts`, los componentes `CommitStoriesDialog` en
       `frontend/src/features/sprints/components/commit-stories-dialog.tsx` (lista las historias del
       backlog con la llamada de listado de la 003) y `SprintStoryList` en

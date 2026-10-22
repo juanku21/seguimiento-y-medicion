@@ -126,8 +126,9 @@ func run() error {
 	projectGroup, _ := projectsdelivery.RegisterRoutes(router, handler.RequireSession, projectsdelivery.NewHandler(projects, members, status), projectMembers, projectRepository)
 
 	// El módulo del backlog se compone sobre el repositorio de historias y los cinco puertos hacia
-	// otras features: sprints, esfuerzo, defectos y sesiones de estimación, que todavía no existen y
-	// responden sin historial, y el directorio de proyectos, que lee el estado de la 002. Sus rutas
+	// otras features: esfuerzo, defectos y sesiones de estimación, que todavía no existen y
+	// responden sin historial; las asignaciones a sprints, que leen los compromisos de la 004, y el
+	// directorio de proyectos, que lee el estado de la 002. Sus rutas
 	// cuelgan del subgrupo /api/v1/projects/:projectId, que ya exige sesión y membresía, recibido
 	// aquí para que backlog/delivery no importe projects/delivery. Las rutas de ítem van en el grupo
 	// plano /api/v1/stories/:storyId, que exige sesión y RequireStoryAccess sobre la misma instancia
@@ -135,7 +136,7 @@ func run() error {
 	storyRepository := backlogrepository.NewStoryRepository(db)
 	stories := backlogservice.NewStoryService(
 		storyRepository,
-		backlogrepository.NewSprintAssignments(),
+		backlogrepository.NewSprintAssignments(db),
 		backlogrepository.NewEffortRecords(),
 		backlogrepository.NewDefectRecords(),
 		backlogrepository.NewEstimationSessions(),
@@ -148,14 +149,19 @@ func run() error {
 	// El módulo de sprints se compone sobre su repositorio y el puerto de esfuerzo, que todavía no
 	// existe y responde sin esfuerzo, con la zona horaria del sistema y el reloj. Sus rutas de
 	// colección cuelgan del subgrupo /api/v1/projects/:projectId, que ya exige sesión y membresía,
-	// recibido aquí para que sprints/delivery no importe projects/delivery.
+	// recibido aquí para que sprints/delivery no importe projects/delivery. Las rutas de ítem van en el
+	// grupo plano /api/v1/sprints/:sprintId, que exige sesión y RequireSprintAccess sobre la misma
+	// instancia del repositorio de sprints que usa el servicio.
+	sprintRepository := sprintsrepository.NewSprintRepository(db)
 	sprints := sprintsservice.NewSprintService(
-		sprintsrepository.NewSprintRepository(db),
+		sprintRepository,
 		sprintsrepository.NewSprintEffort(),
 		cfg.Location,
 		time.Now,
 	)
-	sprintsdelivery.RegisterRoutes(projectGroup, sprintsdelivery.NewHandler(sprints))
+	sprintsHandler := sprintsdelivery.NewHandler(sprints)
+	sprintsdelivery.RegisterRoutes(projectGroup, sprintsHandler)
+	sprintsdelivery.RegisterSprintRoutes(router, handler.RequireSession, sprintRepository, sprintsHandler)
 
 	// ReadHeaderTimeout acota el tiempo para recibir las cabeceras y ReadTimeout el de la solicitud
 	// completa, cuerpo incluido, para evitar conexiones colgadas.

@@ -1,6 +1,7 @@
 package delivery
 
 import (
+	"fmt"
 	"time"
 
 	backlogdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/domain"
@@ -59,6 +60,86 @@ func newSprintConflictResponse(message string, sprint domain.ConflictingSprint) 
 		Error:  message,
 		Sprint: SprintRef{ID: sprint.ID.String(), Name: sprint.Name},
 	}
+}
+
+// StoryIDsInput es el cuerpo de la asignación de historias a un sprint (contracts/openapi.yaml,
+// FR-017). Los identificadores llegan como texto para que la validación responda por posición con
+// storyIds[i]; las etiquetas de cantidad solo documentan el contrato en Swagger: la validación real
+// la hace ValidateStoryIDsInput.
+type StoryIDsInput struct {
+	// Historias del backlog del mismo proyecto que se comprometen en el sprint; entre 1 y 100, sin
+	// repetidos.
+	StoryIDs []string `json:"storyIds" validate:"required" minItems:"1" maxItems:"100" uniqueItems:"true" format:"uuid" example:"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"`
+}
+
+// AdmissionProblem describe una historia no admitida en una asignación (RN-08). Missing solo
+// aparece con not_ready y Sprint solo con committed_elsewhere; en los demás motivos se omiten.
+type AdmissionProblem struct {
+	// Identificador de la historia rechazada.
+	StoryID string `json:"storyId" validate:"required" format:"uuid" example:"0b8f3a1e-2c4d-4e5f-8a9b-0c1d2e3f4a5b"`
+	// Motivo del rechazo: not_ready, completed o committed_elsewhere.
+	Reason domain.AdmissionReason `json:"reason" validate:"required" swaggertype:"string" enums:"not_ready,completed,committed_elsewhere" example:"not_ready"`
+	// Solo con not_ready; lo que le falta a la historia: story_points y/o acceptance_criteria.
+	Missing []string `json:"missing,omitempty" enums:"story_points,acceptance_criteria" example:"acceptance_criteria"`
+	// Solo con committed_elsewhere; el sprint en el que la historia está comprometida.
+	Sprint *SprintRef `json:"sprint,omitempty"`
+	// Mensaje del motivo dirigido a la persona.
+	Message string `json:"message" validate:"required" example:"No está lista para planificar: le faltan Story Points o criterios de aceptación."`
+}
+
+// StoriesNotAdmittedResponse es el cuerpo del 409 que rechaza en bloque una asignación con historias
+// no admisibles, con un problema por cada motivo de cada historia rechazada (FR-023).
+type StoriesNotAdmittedResponse struct {
+	// Mensaje general del rechazo.
+	Error string `json:"error" validate:"required" example:"Algunas historias no se pueden comprometer en el sprint; no se asignó ninguna."`
+	// Problemas de las historias rechazadas; al menos uno.
+	Stories []AdmissionProblem `json:"stories" validate:"required" minItems:"1"`
+}
+
+// Mensajes de los motivos de no admisión según la tabla de data-model.md sección 9. El de
+// committed_elsewhere lleva el nombre del sprint del compromiso.
+const (
+	msgAdmissionNotReady           = "No está lista para planificar: le faltan Story Points o criterios de aceptación."
+	msgAdmissionCompleted          = "La historia ya está terminada."
+	msgAdmissionCommittedElsewhere = "Ya está comprometida en el sprint «%s»."
+)
+
+// newStoriesNotAdmittedResponse arma el cuerpo del 409 a partir del mensaje general y de los
+// problemas que informa el error de dominio, conservando su orden. Missing queda nil cuando está
+// vacío y Sprint solo se completa si el problema lo trae, para que ambos se omitan en el JSON.
+func newStoriesNotAdmittedResponse(message string, problems []domain.AdmissionProblem) StoriesNotAdmittedResponse {
+	stories := make([]AdmissionProblem, 0, len(problems))
+	for _, problem := range problems {
+		item := AdmissionProblem{
+			StoryID: problem.StoryID.String(),
+			Reason:  problem.Reason,
+			Message: admissionMessage(problem),
+		}
+		if len(problem.Missing) > 0 {
+			item.Missing = problem.Missing
+		}
+		if problem.Sprint != nil {
+			item.Sprint = &SprintRef{ID: problem.Sprint.ID.String(), Name: problem.Sprint.Name}
+		}
+		stories = append(stories, item)
+	}
+	return StoriesNotAdmittedResponse{Error: message, Stories: stories}
+}
+
+// admissionMessage devuelve el mensaje de un motivo de no admisión; el de committed_elsewhere nombra
+// el sprint del compromiso, que el dominio siempre informa con ese motivo.
+func admissionMessage(problem domain.AdmissionProblem) string {
+	switch problem.Reason {
+	case domain.AdmissionReasonNotReady:
+		return msgAdmissionNotReady
+	case domain.AdmissionReasonCompleted:
+		return msgAdmissionCompleted
+	case domain.AdmissionReasonCommittedElsewhere:
+		if problem.Sprint != nil {
+			return fmt.Sprintf(msgAdmissionCommittedElsewhere, problem.Sprint.Name)
+		}
+	}
+	return ""
 }
 
 // SprintResults son los totales congelados en la instantánea de un sprint cerrado (FR-043, FR-051).

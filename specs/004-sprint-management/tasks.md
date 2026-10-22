@@ -261,7 +261,7 @@ solapa un día responde `409` con el nombre del primero.
       vivas desde `sprint_stories JOIN user_stories`, en dos consultas, y devuelve
       `ErrSprintNotFound` si no hay fila (research.md secciones 4 y 19) — depende de T005, T013 y
       T015
-- [ ] T018 [US1] Implementar en `backend/internal/sprints/service/sprint_service.go` el constructor
+- [X] T018 [US1] Implementar en `backend/internal/sprints/service/sprint_service.go` el constructor
       `NewSprintService(repo SprintRepository, effort SprintEffort, location *time.Location, now
       func() time.Time)`, con la firma definitiva para que no cambie en las historias siguientes; el
       método `Create(ctx, projectID, actorID, input)`, que construye el sprint con UUID, estado

@@ -23,4 +23,5 @@ func RegisterSprintRoutes(router *gin.Engine, requireSession gin.HandlerFunc, sp
 	sprintGroup.GET("", handler.getSprint)
 	sprintGroup.POST("/stories", handler.assignSprintStories)
 	sprintGroup.DELETE("/stories", handler.removeSprintStories)
+	sprintGroup.POST("/start", handler.startSprint)
 }

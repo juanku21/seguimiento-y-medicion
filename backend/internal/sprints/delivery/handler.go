@@ -22,19 +22,22 @@ import (
 // mensaje de superposición nombra el sprint en conflicto con el formato del contrato. El 404 de
 // sprint inexistente lo comparten el middleware (sprint inexistente, ajeno o identificador mal
 // formado) y los manejadores (FR-057, FR-058); los del 404 de historia, del sprint cerrado, del lote
-// no admitido y de la historia Completada son los de la asignación y la baja de historias (US2).
+// no admitido y de la historia Completada son los de la asignación y la baja de historias (US2). Los
+// del otro sprint activo, que lo nombra, y de la transición inválida son los del inicio (US3).
 const (
-	msgInvalidFields         = "Hay campos inválidos en la solicitud."
-	msgInvalidBody           = "El cuerpo de la solicitud debe ser un JSON válido."
-	msgSessionRequired       = "Se requiere iniciar sesión."
-	msgSprintNotFound        = "El sprint no existe."
-	msgStoryNotFound         = "La historia no existe."
-	msgSprintsReadOnly       = "El proyecto está finalizado y sus sprints son de solo lectura."
-	msgSprintOverlap         = "El período se superpone con el del sprint «%s»."
-	msgSprintClosed          = "El sprint está cerrado y no admite cambios."
-	msgStoriesNotAdmitted    = "Algunas historias no se pueden comprometer en el sprint; no se asignó ninguna."
-	msgCompletedStoryRemoval = "No se puede quitar una historia Completada. Primero devolvela a En progreso."
-	msgInternalError         = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
+	msgInvalidFields          = "Hay campos inválidos en la solicitud."
+	msgInvalidBody            = "El cuerpo de la solicitud debe ser un JSON válido."
+	msgSessionRequired        = "Se requiere iniciar sesión."
+	msgSprintNotFound         = "El sprint no existe."
+	msgStoryNotFound          = "La historia no existe."
+	msgSprintsReadOnly        = "El proyecto está finalizado y sus sprints son de solo lectura."
+	msgSprintOverlap          = "El período se superpone con el del sprint «%s»."
+	msgSprintClosed           = "El sprint está cerrado y no admite cambios."
+	msgStoriesNotAdmitted     = "Algunas historias no se pueden comprometer en el sprint; no se asignó ninguna."
+	msgCompletedStoryRemoval  = "No se puede quitar una historia Completada. Primero devolvela a En progreso."
+	msgActiveSprintExists     = "El proyecto ya tiene el sprint activo «%s». Cerralo antes de iniciar otro."
+	msgInvalidStartTransition = "Transición no permitida: solo se inicia un sprint Planificado."
+	msgInternalError          = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
 )
 
 // Handler agrupa los manejadores HTTP del módulo de sprints sobre el servicio de sprints.
@@ -241,6 +244,50 @@ func (h *Handler) removeSprintStories(c *gin.Context) {
 	c.JSON(http.StatusOK, newSprintDetail(view))
 }
 
+// startSprint godoc
+//
+//	@Summary		Inicia un sprint Planificado
+//	@Description	Pasa el sprint de planned a active, registra el momento real de inicio y congela los
+//	@Description	Story Points comprometidos al inicio (FR-026, FR-028). Se admite sin historias (FR-030)
+//	@Description	y antes de la fecha de inicio prevista (FR-031). No cambia el estado del proyecto
+//	@Description	(FR-029). Se rechaza con 409 si ya hay otro sprint active en el proyecto, indicando
+//	@Description	cuál (FR-027), si el sprint no está planned (FR-032) o si el proyecto está finished.
+//	@Description	Cualquier integrante puede iniciar un sprint (RN-01).
+//	@Tags			Sprints
+//	@ID				startSprint
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			sprintId	path		string					true	"Identificador del sprint"	format(uuid)
+//	@Success		200			{object}	SprintDetail			"Sprint iniciado. El cuerpo es el detalle del sprint."
+//	@Failure		401			{object}	delivery.ErrorResponse	"Se requiere iniciar sesión."
+//	@Failure		404			{object}	delivery.ErrorResponse	"El sprint no existe, fue eliminado o pertenece a un proyecto del que quien pide no es integrante; las tres situaciones devuelven el mismo cuerpo."
+//	@Failure		409			{object}	SprintConflictResponse	"Ya hay otro sprint activo en el proyecto, que se nombra en el cuerpo (FR-027). Si el sprint no está planned, está closed o el proyecto está finished, la respuesta es ErrorResponse con el mensaje \"Transición no permitida: solo se inicia un sprint Planificado.\", \"El sprint está cerrado y no admite cambios.\" o \"El proyecto está finalizado y sus sprints son de solo lectura.\""
+//	@Failure		500			{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/sprints/{sprintId}/start [post]
+func (h *Handler) startSprint(c *gin.Context) {
+	// RequireSprintAccess ya verificó la sesión y la membresía y dejó el acceso en el contexto. Si no
+	// está, la ruta se registró fuera de ese middleware: es un error de composición y responde 500.
+	access, ok := sprintAccessFromContext(c)
+	if !ok {
+		respondInternalError(c, "startSprint sin acceso al sprint en el contexto")
+		return
+	}
+
+	// Se inicia el sprint. La transición inválida tiene un mensaje propio del inicio, así que se
+	// traduce acá; los demás rechazos de dominio pasan por respondServiceError.
+	view, err := h.sprints.Start(c.Request.Context(), access)
+	if errors.Is(err, domain.ErrInvalidSprintTransition) {
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgInvalidStartTransition})
+		return
+	}
+	if err != nil {
+		respondServiceError(c, err, "no se pudo iniciar el sprint")
+		return
+	}
+
+	c.JSON(http.StatusOK, newSprintDetail(view))
+}
+
 // sessionAndProject devuelve el titular de la sesión y el proyecto de la ruta. Sin sesión responde el
 // 401 del contrato. Un projectId que no sea UUID solo es posible si la ruta se registró fuera del
 // subgrupo protegido por RequireMembership, así que es un error de composición: responde 500
@@ -278,19 +325,23 @@ func bindSprintInput(c *gin.Context) (domain.SprintInput, bool) {
 }
 
 // respondServiceError traduce los errores de dominio del servicio de sprints a la respuesta HTTP del
-// contrato: la superposición de períodos es 409 con el sprint en conflicto, el lote no admitido es
-// 409 con un problema por historia, y el proyecto finalizado, el sprint cerrado y la historia
+// contrato: la superposición de períodos y el otro sprint activo son 409 con el sprint en conflicto,
+// el lote no admitido es 409 con un problema por historia, y el proyecto finalizado, el sprint cerrado y la historia
 // Completada que se quiere quitar son 409 con su mensaje. El sprint que desapareció entre el
 // middleware y el servicio y la historia inexistente, ajena o fuera del sprint son 404. Lo que no es
 // un error de dominio conocido se registra en el log con el mensaje recibido y se responde 500
 // genérico, sin exponer la causa (Principio VII).
 func respondServiceError(c *gin.Context, err error, logMessage string) {
 	var overlap *domain.SprintOverlapError
+	var activeExists *domain.ActiveSprintExistsError
 	var notAdmitted *domain.StoriesNotAdmittedError
 	switch {
 	case errors.As(err, &overlap):
 		message := fmt.Sprintf(msgSprintOverlap, overlap.Sprint.Name)
 		c.JSON(http.StatusConflict, newSprintConflictResponse(message, overlap.Sprint))
+	case errors.As(err, &activeExists):
+		message := fmt.Sprintf(msgActiveSprintExists, activeExists.Sprint.Name)
+		c.JSON(http.StatusConflict, newSprintConflictResponse(message, activeExists.Sprint))
 	case errors.As(err, &notAdmitted):
 		c.JSON(http.StatusConflict, newStoriesNotAdmittedResponse(msgStoriesNotAdmitted, notAdmitted.Problems))
 	case errors.Is(err, domain.ErrSprintsReadOnly):

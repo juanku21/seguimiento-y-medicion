@@ -290,7 +290,7 @@ solapa un día responde `409` con el nombre del primero.
       (`planned` → Planificado, `active` → Activo, `closed` → Cerrado) y del resultado
       (`completed` → Completada, `not_completed` → No completada). **Prohibido el tipo `any`**
       (Principio VIII)
-- [ ] T022 [US1] Implementar la llamada de creación en `frontend/src/features/sprints/api.ts` sobre
+- [X] T022 [US1] Implementar la llamada de creación en `frontend/src/features/sprints/api.ts` sobre
       el cliente `fetch` de la 001, y las reglas del formulario en
       `frontend/src/features/sprints/validation.ts` con los límites 100 y 500 como constantes
       nombradas en un único lugar — depende de T014 y T021

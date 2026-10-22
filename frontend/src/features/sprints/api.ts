@@ -3,6 +3,7 @@ import {
   getJson,
   isRecord,
   postAuthorizedJson,
+  putAuthorizedJson,
   type ApiResult,
 } from "@/lib/api-client";
 import type {
@@ -118,13 +119,33 @@ export function startSprint(
   );
 }
 
-// Registra el avance de una historia del sprint Activo con PUT /api/v1/stories/{storyId}/status
-// (004/US4). Pendiente de implementar en T061.
+// Reconoce el avance registrado (StoryProgressResponse) que devuelve el 200, sin confiar en el cuerpo
+// recibido: el estado debe ser uno de los conocidos y completedAt llega como texto o en null.
+function isStoryProgressResponse(
+  value: unknown,
+): value is StoryProgressResponse {
+  return (
+    isRecord(value) &&
+    typeof value.storyId === "string" &&
+    typeof value.sprintId === "string" &&
+    (value.status === "pending" ||
+      value.status === "in_progress" ||
+      value.status === "completed") &&
+    (value.completedAt === null || typeof value.completedAt === "string")
+  );
+}
+
+// Registra el avance de una historia del sprint Activo con PUT /api/v1/stories/{storyId}/status y
+// el cuerpo { status }, usando la sesión de la pestaña (004/US4). Las reglas del avance (transiciones
+// admitidas, sprint Activo, sprint Cerrado) las resuelve el backend y llegan como rechazo con su
+// mensaje; con el 200 llega el estado registrado y su completedAt.
 export function changeStoryStatus(
   storyId: string,
   status: StoryStatus,
 ): Promise<ApiResult<StoryProgressResponse>> {
-  void storyId;
-  void status;
-  throw new Error("not implemented");
+  return putAuthorizedJson(
+    `/api/v1/stories/${encodeURIComponent(storyId)}/status`,
+    { status },
+    isStoryProgressResponse,
+  );
 }

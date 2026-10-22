@@ -592,7 +592,7 @@ y el salto directo de `pending` a `completed` responde `409` con las transicione
       `gin.HandlerFunc` desde `backend/cmd/app/main.go`**, sin que `sprints/delivery` importe
       `backlog/delivery` (research.md sección 2). El mensaje de `ErrInvalidStoryTransition` enumera
       las tres transiciones admitidas — depende de T053 y T059
-- [ ] T061 [US4] Implementar la llamada de avance en `frontend/src/features/sprints/api.ts` y el
+- [X] T061 [US4] Implementar la llamada de avance en `frontend/src/features/sprints/api.ts` y el
       componente `StoryProgressControl` en
       `frontend/src/features/sprints/components/story-progress-control.tsx`, integrado en cada fila
       de `SprintStoryList` cuando el sprint está Activo — depende de T056 y T060

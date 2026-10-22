@@ -268,7 +268,8 @@ y `null` en el sprint abierto en el que está. El orden es `start_date ASC, spri
 ## 9. Interfaces de repositorio y puertos (capa `domain`)
 
 Declaran solo las operaciones que se usan (Principio III). Ninguna devuelve
-`gorm.ErrRecordNotFound` ni `(nil, nil)` para un recurso obligatorio.
+`gorm.ErrRecordNotFound` ni `(nil, nil)` para un recurso obligatorio; `FindOpenCommitment` devuelve
+`nil` sin error porque el compromiso abierto es opcional.
 
 ```text
 SprintRepository
@@ -281,6 +282,7 @@ SprintRepository
   AssignStories(ctx, sprintID, storyIDs, now) error                     // bloquea sprint e historias; StoriesNotAdmittedError, todo o nada
   RemoveStories(ctx, sprintID, storyIDs) error                          // bloquea; rechaza completed; borra filas; historias a pending
   ChangeStoryProgress(ctx, storyID, to, now) error                      // bloquea historia, FOR SHARE del sprint; transición y completed_at
+  FindOpenCommitment(ctx, storyID) (*SprintStory, error)                // compromiso abierto (outcome NULL) de la historia, o nil; arma la respuesta del avance
   List(ctx, projectID, statuses []SprintStatus) ([]SprintListItem, error)
   HasSprints(ctx, projectID) (bool, error)                              // solo cuando el listado filtrado viene vacío
   FindDetail(ctx, sprintID) (*SprintDetail, error)

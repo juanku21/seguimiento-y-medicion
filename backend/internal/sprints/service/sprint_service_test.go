@@ -72,6 +72,12 @@ func (m *mockSprintRepository) ChangeStoryProgress(ctx context.Context, storyID 
 	return args.Error(0)
 }
 
+func (m *mockSprintRepository) FindOpenCommitment(ctx context.Context, storyID uuid.UUID) (*domain.SprintStory, error) {
+	args := m.Called(ctx, storyID)
+	commitment, _ := args.Get(0).(*domain.SprintStory)
+	return commitment, args.Error(1)
+}
+
 func (m *mockSprintRepository) List(ctx context.Context, projectID uuid.UUID, statuses []domain.SprintStatus) ([]domain.SprintListItem, error) {
 	args := m.Called(ctx, projectID, statuses)
 	items, _ := args.Get(0).([]domain.SprintListItem)

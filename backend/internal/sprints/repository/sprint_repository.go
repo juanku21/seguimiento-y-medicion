@@ -665,6 +665,11 @@ func progressWithoutCommitmentError(tx *gorm.DB, storyID uuid.UUID, status backl
 	return domain.ErrProgressOutsideActiveSprint
 }
 
+// FindOpenCommitment devuelve el compromiso abierto de una historia. Firma mínima.
+func (r *SprintRepository) FindOpenCommitment(ctx context.Context, storyID uuid.UUID) (*domain.SprintStory, error) {
+	return nil, errNotImplemented
+}
+
 // List devuelve los sprints de un proyecto. Firma mínima.
 func (r *SprintRepository) List(ctx context.Context, projectID uuid.UUID, statuses []domain.SprintStatus) ([]domain.SprintListItem, error) {
 	return nil, errNotImplemented

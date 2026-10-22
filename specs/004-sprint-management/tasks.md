@@ -391,7 +391,7 @@ responde `409` y no asigna ninguna; y quitarlas las devuelve al backlog como `pe
       constructor que recibe la conexión; actualizar su composición en `backend/cmd/app/main.go` y en
       los ayudantes de prueba de `backend/internal/backlog/delivery/handler_test.go`. **No** se toca
       `backlog/service` (research.md secciones 9 y 17.2) — depende de T029
-- [ ] T034 [US2] Implementar `AssignStories` y `RemoveStories` en
+- [X] T034 [US2] Implementar `AssignStories` y `RemoveStories` en
       `backend/internal/sprints/repository/sprint_repository.go`, cada uno en **una transacción**:
       bloquear el sprint (`FOR UPDATE`) y leer el estado del proyecto; bloquear las historias pedidas
       (`FOR UPDATE`, **ordenadas por `id`**); si alguna no existe o es de otro proyecto →

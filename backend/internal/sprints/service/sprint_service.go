@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -37,6 +38,40 @@ func NewSprintService(repo domain.SprintRepository, effort domain.SprintEffort, 
 type SprintView struct {
 	Detail             *domain.SprintDetail
 	HoursPerStoryPoint *float64
+	Schedule           *ScheduleView
+}
+
+// ScheduleView son los días restantes de un sprint active hasta su fecha de fin, o los días que
+// lleva vencido, calculados con Schedule, el reloj y la zona inyectados (FR-053, RN-23). Exactamente
+// uno de los dos valores es distinto de nil; la vista de un sprint planned o closed no lo lleva.
+type ScheduleView struct {
+	RemainingDays *int
+	OverdueDays   *int
+}
+
+// EmptyReason explica por qué el listado de sprints vino vacío, para que la pantalla distinga el
+// proyecto sin sprints del filtro sin coincidencias (FR-054). Viaja como texto en el campo
+// emptyReason del contrato; su ausencia (nil) significa que hay resultados.
+type EmptyReason string
+
+// Motivos posibles de un listado vacío: el proyecto no tiene sprints, aunque se haya filtrado, o
+// los tiene pero ninguno cumple el filtro de estado.
+const (
+	EmptyReasonNoSprints EmptyReason = "no_sprints"
+	EmptyReasonNoMatches EmptyReason = "no_matches"
+)
+
+// SprintListView es el resultado del listado: los sprints en el orden de FR-052, nunca nil, y el
+// motivo del vacío, nil cuando hay resultados.
+type SprintListView struct {
+	Sprints     []domain.SprintListItem
+	EmptyReason *EmptyReason
+}
+
+// List devuelve los sprints del proyecto filtrados por estado, con el motivo del vacío cuando no
+// hay resultados (FR-050 a FR-054). Firma mínima de T073: la implementación corresponde a T078.
+func (s *SprintService) List(ctx context.Context, projectID uuid.UUID, statuses []domain.SprintStatus) (*SprintListView, error) {
+	return nil, errors.New("not implemented")
 }
 
 // Create registra un sprint en el proyecto atribuido al actor y devuelve su detalle (FR-006, FR-060).

@@ -715,7 +715,7 @@ el detalle de un sprint Activo con fin el 2026-10-14 consultado el 2026-10-04 in
       `backend/internal/sprints/delivery/validation_test.go`: `status` repetible, valores fuera de
       `planned`/`active`/`closed` rechazados indicando los admitidos, y ausencia de filtro aceptada —
       depende de T070
-- [ ] T073 [P] [US6] Pruebas unitarias del listado y del detalle en el servicio en
+- [X] T073 [P] [US6] Pruebas unitarias del listado y del detalle en el servicio en
       `backend/internal/sprints/service/sprint_service_test.go`, con dobles y reloj fijo:
       `emptyReason` `null` con resultados, `no_sprints` sin sprints aunque haya filtro y `no_matches`
       con sprints que no cumplen el filtro, llamando a `HasSprints` **solo** cuando el resultado

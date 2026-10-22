@@ -682,7 +682,7 @@ completadas por 13, `POST /api/v1/sprints/{sprintId}/close` devuelve `results` c
       `describe("004/US5 - Cerrar un sprint y congelar su resultado")`, que verifique que en un sprint
       Cerrado cada historia muestra su resultado congelado (Completada / No completada según
       `outcome`) y no su estado vigente en el backlog per FR-043 (partial)
-- [ ] T098 [US5] Mostrar en `frontend/src/features/sprints/components/sprint-story-list.tsx` el
+- [X] T098 [US5] Mostrar en `frontend/src/features/sprints/components/sprint-story-list.tsx` el
       resultado de cada historia con `STORY_OUTCOME_LABELS` cuando el sprint está Cerrado,
       conservando el estado vigente para los sprints abiertos per FR-043 (partial) — depende de T097
 

@@ -465,7 +465,7 @@ proyecto responde `409` con el nombre del activo; y diez inicios simultáneos de
       `TestUS3_InicioAntesDeLaFecha`, `TestUS3_OtroSprintActivo` (`409` con `sprint`),
       `TestUS3_SprintYaActivo`, `TestUS3_SprintCerrado` y `TestUS3_ProyectoFinalizado` — depende de
       T038
-- [ ] T042 [P] [US3] Agregar al archivo
+- [X] T042 [P] [US3] Agregar al archivo
       `backend/internal/sprints/delivery/sprint_concurrency_test.go` de T013 la prueba, **sin**
       etiqueta `004/USn`:
       `TestSprintStart_Concurrency` crea diez sprints Planificados no superpuestos en el mismo

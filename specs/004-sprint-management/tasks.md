@@ -734,7 +734,7 @@ el detalle de un sprint Activo con fin el 2026-10-14 consultado el 2026-10-04 in
       `TestUS6_SprintInexistente` (`404` de sprint). Además, sin etiqueta de escenario, que el
       listado **no incluye sprints de otro proyecto** y que una historia quitada antes del cierre no
       figura en el historial de ese sprint — depende de T070
-- [ ] T075 [P] [US6] Pruebas de frontend en
+- [X] T075 [P] [US6] Pruebas de frontend en
       `frontend/src/features/sprints/components/sprint-list.test.tsx`,
       `frontend/src/features/sprints/components/sprint-history-table.test.tsx`,
       `frontend/src/features/sprints/components/sprint-schedule.test.tsx` y

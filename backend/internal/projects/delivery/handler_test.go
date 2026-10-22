@@ -1410,7 +1410,7 @@ func (q *queryCounter) Trace(context.Context, time.Time, func() (string, int64),
 // la sesión de la 001 y los middlewares de membresía y propiedad usan la conexión sin contar: así se
 // cuentan solo las consultas con que el servicio arma la vista de estado (SC-003). Si backlog es nil,
 // usa el proveedor real del resumen del backlog sobre esa misma sesión, para que su consulta también
-// se cuente.
+// se cuente; si sprints es nil, hace lo mismo con el directorio real de sprints.
 func newStatusTestEnv(t *testing.T, backlog domain.BacklogSummaryProvider, sprints domain.SprintDirectory, counter *queryCounter) projectsTestEnv {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -1427,6 +1427,9 @@ func newStatusTestEnv(t *testing.T, backlog domain.BacklogSummaryProvider, sprin
 	}
 	if backlog == nil {
 		backlog = repository.NewBacklogSummaryProvider(serviceDB)
+	}
+	if sprints == nil {
+		sprints = repository.NewSprintDirectory(serviceDB)
 	}
 	projectRepository := repository.NewProjectRepository(serviceDB)
 	projectMembers := repository.NewProjectMemberRepository(serviceDB)
@@ -1607,7 +1610,7 @@ func TestUS4_HorasEstimadas(t *testing.T) {
 			CountsByState:        map[string]int{"to_do": 4},
 			EstimatedStoryPoints: 3 + 5 + 8,
 		}},
-		repository.NewSprintDirectory(nil),
+		nil,
 		nil,
 	)
 	ownerID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
@@ -1676,7 +1679,7 @@ func TestUS4_SinSesion(t *testing.T) {
 // consulta la base: la cuarta llega con la spec 004.
 func TestUS4_VistaDeEstadoSinNMasUno(t *testing.T) {
 	counter := &queryCounter{}
-	env := newStatusTestEnv(t, nil, repository.NewSprintDirectory(nil), counter)
+	env := newStatusTestEnv(t, nil, nil, counter)
 	_, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
 	created := requireCreatedProject(t, env.postProject(t, ownerToken, validProjectInputBody()))
 	projectID := uuid.MustParse(created.ID)
@@ -2255,7 +2258,7 @@ func TestUS6_ArranqueSinCondiciones(t *testing.T) {
 				CountsByState:        map[string]int{"to_do": 3, "in_progress": 1},
 				EstimatedStoryPoints: 13,
 			}},
-			sprints: repository.NewSprintDirectory(nil),
+			sprints: nil,
 		},
 	}
 	for _, tc := range cases {

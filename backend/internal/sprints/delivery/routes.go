@@ -24,6 +24,7 @@ func RegisterSprintRoutes(router *gin.Engine, requireSession gin.HandlerFunc, sp
 	sprintGroup.POST("/stories", handler.assignSprintStories)
 	sprintGroup.DELETE("/stories", handler.removeSprintStories)
 	sprintGroup.POST("/start", handler.startSprint)
+	sprintGroup.POST("/close", handler.closeSprint)
 }
 
 // RegisterStoryRoutes registra las rutas de sprints sobre una historia en el grupo plano

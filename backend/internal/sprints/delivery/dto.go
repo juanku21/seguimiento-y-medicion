@@ -143,7 +143,6 @@ func admissionMessage(problem domain.AdmissionProblem) string {
 }
 
 // SprintResults son los totales congelados en la instantánea de un sprint cerrado (FR-043, FR-051).
-// Se declara para tipar el campo results del detalle; lo completa la historia de cierre.
 type SprintResults struct {
 	// Story Points comprometidos al iniciar el sprint (FR-028).
 	CommittedStoryPoints int `json:"committedStoryPoints" validate:"required" example:"20"`
@@ -230,9 +229,9 @@ type SprintDetail struct {
 
 // newSprintDetail arma SprintDetail del contrato a partir de la vista que entrega el servicio. Es el
 // único lugar que garantiza la forma de la respuesta: la lista de historias nunca queda nula, de
-// modo que se serializa como [], y los momentos ausentes quedan en null. Results, ClosedBy,
-// HoursPerStoryPoint y Schedule quedan en null: los completan las historias de cierre y de
-// consulta del sprint.
+// modo que se serializa como [], y los momentos ausentes quedan en null. Results, ClosedBy y
+// HoursPerStoryPoint solo tienen valor en un sprint cerrado, porque el servicio los entrega nil en
+// los demás estados; Schedule queda en null: lo completa la historia de consulta del sprint.
 func newSprintDetail(view *service.SprintView) SprintDetail {
 	sprint := view.Detail.Sprint
 
@@ -241,7 +240,7 @@ func newSprintDetail(view *service.SprintView) SprintDetail {
 		stories = append(stories, newSprintStoryItem(story))
 	}
 
-	return SprintDetail{
+	detail := SprintDetail{
 		ID:        sprint.ID.String(),
 		ProjectID: sprint.ProjectID.String(),
 		Name:      sprint.Name,
@@ -255,9 +254,32 @@ func newSprintDetail(view *service.SprintView) SprintDetail {
 			ID:       view.Detail.CreatedBy.ID.String(),
 			FullName: view.Detail.CreatedBy.FullName,
 		},
-		CreatedAt: sprint.CreatedAt.UTC().Format(time.RFC3339),
-		UpdatedAt: sprint.UpdatedAt.UTC().Format(time.RFC3339),
-		Stories:   stories,
+		CreatedAt:          sprint.CreatedAt.UTC().Format(time.RFC3339),
+		UpdatedAt:          sprint.UpdatedAt.UTC().Format(time.RFC3339),
+		Stories:            stories,
+		Results:            newSprintResults(view.Detail.Results),
+		HoursPerStoryPoint: view.HoursPerStoryPoint,
+	}
+	if closedBy := view.Detail.ClosedBy; closedBy != nil {
+		detail.ClosedBy = &UserRef{ID: closedBy.ID.String(), FullName: closedBy.FullName}
+	}
+
+	return detail
+}
+
+// newSprintResults arma los totales de la instantánea, o devuelve nil para que results se serialice
+// como null en un sprint que no está cerrado.
+func newSprintResults(results *domain.SprintResults) *SprintResults {
+	if results == nil {
+		return nil
+	}
+
+	return &SprintResults{
+		CommittedStoryPoints: results.CommittedStoryPoints,
+		PlannedStoryPoints:   results.PlannedStoryPoints,
+		CompletedStoryPoints: results.CompletedStoryPoints,
+		PlannedStoryCount:    results.PlannedStoryCount,
+		CompletedStoryCount:  results.CompletedStoryCount,
 	}
 }
 

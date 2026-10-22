@@ -667,7 +667,7 @@ completadas por 13, `POST /api/v1/sprints/{sprintId}/close` devuelve `results` c
       `buildDetail` para un sprint `closed`: historias desde las filas congeladas, `results` leído por
       `FindDetail` con `sprintResultsSelect`, `hoursPerStoryPoint` desde las centésimas copiadas y `closedBy` — depende de T063
       y T067
-- [ ] T069 [US5] Declarar `SprintResults` en `backend/internal/sprints/delivery/dto.go`, implementar
+- [X] T069 [US5] Declarar `SprintResults` en `backend/internal/sprints/delivery/dto.go`, implementar
       el manejador `closeSprint` en `backend/internal/sprints/delivery/handler.go` con anotaciones
       `swag` en español y registrar `POST /close` en el grupo del sprint en
       `backend/internal/sprints/delivery/routes.go`. Respuestas: `200` con `SprintDetail`, `401`, `404`

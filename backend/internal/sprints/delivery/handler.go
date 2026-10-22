@@ -25,7 +25,9 @@ import (
 // no admitido y de la historia Completada son los de la asignación y la baja de historias (US2). Los
 // del otro sprint activo, que lo nombra, y de la transición inválida son los del inicio (US3). Los de
 // la historia fuera del sprint Activo y de la transición de avance no admitida, que enumera las tres
-// permitidas, son los del avance de las historias (US4).
+// permitidas, son los del avance de las historias (US4). Los del sprint no Activo y del sprint ya
+// Cerrado son propios del cierre (US5): este último difiere a propósito del de las demás escrituras
+// porque el contrato remarca que el estado Cerrado es definitivo.
 const (
 	msgInvalidFields          = "Hay campos inválidos en la solicitud."
 	msgInvalidBody            = "El cuerpo de la solicitud debe ser un JSON válido."
@@ -41,6 +43,8 @@ const (
 	msgInvalidStartTransition = "Transición no permitida: solo se inicia un sprint Planificado."
 	msgProgressOutsideActive  = "Solo se registra avance sobre historias del sprint activo."
 	msgInvalidStoryTransition = "Transición no permitida. Las admitidas son: Pendiente → En progreso, En progreso → Completada y Completada → En progreso."
+	msgCloseNotActive         = "Solo se puede cerrar un sprint Activo."
+	msgCloseClosed            = "El sprint ya está cerrado; el estado Cerrado es definitivo."
 	msgInternalError          = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
 )
 
@@ -286,6 +290,62 @@ func (h *Handler) startSprint(c *gin.Context) {
 	}
 	if err != nil {
 		respondServiceError(c, err, "no se pudo iniciar el sprint")
+		return
+	}
+
+	c.JSON(http.StatusOK, newSprintDetail(view))
+}
+
+// closeSprint godoc
+//
+//	@Summary		Cierra el sprint Activo y congela su instantánea
+//	@Description	Pasa el sprint de active a closed en cualquier momento, antes o después de la fecha de
+//	@Description	fin prevista, registrando el momento real de cierre y quién cerró: el titular de la
+//	@Description	sesión (FR-039, FR-040). En la misma operación congela de cada historia comprometida su
+//	@Description	título, prioridad, Story Points y resultado; copia el factor de horas por Story Point
+//	@Description	vigente del proyecto; y devuelve al backlog como pending y sin sprint las historias no
+//	@Description	completadas (FR-041 a FR-043). Un sprint sin historias cierra con la instantánea en
+//	@Description	cero (FR-045). Desde el cierre, nada de lo congelado cambia (FR-044, RN-16). No cambia
+//	@Description	el estado del proyecto (FR-049). Cualquier integrante puede cerrar un sprint (RN-01).
+//	@Tags			Sprints
+//	@ID				closeSprint
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			sprintId	path		string					true	"Identificador del sprint"	format(uuid)
+//	@Success		200			{object}	SprintDetail			"Sprint cerrado. El cuerpo es el detalle con la instantánea."
+//	@Failure		401			{object}	delivery.ErrorResponse	"Se requiere iniciar sesión."
+//	@Failure		404			{object}	delivery.ErrorResponse	"El sprint no existe, fue eliminado o pertenece a un proyecto del que quien pide no es integrante; las tres situaciones devuelven el mismo cuerpo."
+//	@Failure		409			{object}	delivery.ErrorResponse	"Proyecto finished o sprint no active: \"El proyecto está finalizado y sus sprints son de solo lectura.\", \"Solo se puede cerrar un sprint Activo.\" (sprint planned) o \"El sprint ya está cerrado; el estado Cerrado es definitivo.\" (sprint closed)."
+//	@Failure		500			{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/sprints/{sprintId}/close [post]
+func (h *Handler) closeSprint(c *gin.Context) {
+	// RequireSprintAccess ya verificó la sesión y dejó el acceso en el contexto, así que la falta del
+	// titular o del acceso solo es posible si la ruta se registró fuera de ese middleware: es un error
+	// de composición y responde 500.
+	actorID, ok := authdelivery.CurrentUserID(c)
+	if !ok {
+		respondInternalError(c, "closeSprint sin titular de la sesión en el contexto")
+		return
+	}
+	access, ok := sprintAccessFromContext(c)
+	if !ok {
+		respondInternalError(c, "closeSprint sin acceso al sprint en el contexto")
+		return
+	}
+
+	// Se cierra el sprint atribuido al titular de la sesión. El sprint no Activo y el ya Cerrado
+	// tienen mensajes propios del cierre, así que se traducen acá; los demás rechazos de dominio
+	// pasan por respondServiceError.
+	view, err := h.sprints.Close(c.Request.Context(), access, actorID)
+	switch {
+	case errors.Is(err, domain.ErrSprintNotActive):
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgCloseNotActive})
+		return
+	case errors.Is(err, domain.ErrSprintClosed):
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgCloseClosed})
+		return
+	case err != nil:
+		respondServiceError(c, err, "no se pudo cerrar el sprint")
 		return
 	}
 

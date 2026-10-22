@@ -15,14 +15,8 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
 
-// errNotImplemented es el error de las firmas mínimas que crearon las pruebas de integración de T013;
-// cada operación se implementa en la tarea de su historia (T017 en adelante).
-var errNotImplemented = errors.New("not implemented")
-
 // SprintRepository implementa domain.SprintRepository con GORM sobre las tablas sprints y
-// sprint_stories. FindAccessible, Create, Start, Close, AssignStories, RemoveStories,
-// ChangeStoryProgress, FindOpenCommitment y FindDetail están implementadas; las demás operaciones
-// conservan la firma mínima de T013 y se implementan en la tarea de su historia.
+// sprint_stories; todas las operaciones de la interfaz están implementadas.
 type SprintRepository struct {
 	db *gorm.DB
 }
@@ -107,14 +101,97 @@ func (r *SprintRepository) Create(ctx context.Context, sprint *domain.Sprint) er
 	})
 }
 
-// Update modifica un sprint planificado. Firma mínima.
+// Update modifica un sprint planificado en una transacción (FR-012 a FR-016). Bloquea el proyecto y
+// luego el sprint con lockProjectAndSprint, que rechaza el proyecto Finalizado con ErrSprintsReadOnly
+// (FR-059), y con el estado releído rechaza el sprint Cerrado con ErrSprintClosed (RN-18) y cualquier
+// otro que no esté planned con ErrSprintNotPlanned (FR-016). Después busca la superposición igual que
+// Create pero excluyendo al propio sprint (FR-013) y, si la hay, devuelve SprintOverlapError con el de
+// inicio más temprano. Si no, escribe solo name, goal, start_date y end_date; updated_at lo completa
+// GORM. El estado, las historias y la instantánea no se tocan (FR-015).
 func (r *SprintRepository) Update(ctx context.Context, sprintID uuid.UUID, input domain.SprintInput) error {
-	return errNotImplemented
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		sprint, err := lockProjectAndSprint(tx, sprintID)
+		if err != nil {
+			return err
+		}
+		if sprint.Status == domain.SprintStatusClosed {
+			return domain.ErrSprintClosed
+		}
+		if sprint.Status != domain.SprintStatusPlanned {
+			return domain.ErrSprintNotPlanned
+		}
+
+		var conflicts []domain.ConflictingSprint
+		err = tx.
+			Model(&domain.Sprint{}).
+			Select("id, name").
+			Where("project_id = ? AND id <> ?", sprint.ProjectID, sprintID).
+			Where("start_date < ? AND ? < end_date", input.EndDate, input.StartDate).
+			Order("start_date ASC, id ASC").
+			Limit(1).
+			Find(&conflicts).Error
+		if err != nil {
+			return fmt.Errorf("buscar sprints superpuestos: %w", err)
+		}
+		if len(conflicts) > 0 {
+			return &domain.SprintOverlapError{Sprint: conflicts[0]}
+		}
+
+		err = tx.
+			Model(&domain.Sprint{}).
+			Where("id = ?", sprintID).
+			Updates(map[string]any{
+				"name":       input.Name,
+				"goal":       input.Goal,
+				"start_date": input.StartDate,
+				"end_date":   input.EndDate,
+			}).Error
+		if err != nil {
+			return fmt.Errorf("modificar el sprint: %w", err)
+		}
+		return nil
+	})
 }
 
-// Delete elimina un sprint planificado. Firma mínima.
+// Delete elimina un sprint planificado en una transacción (research.md sección 16). Bloquea el
+// proyecto y luego el sprint con lockProjectAndSprint, que rechaza el proyecto Finalizado con
+// ErrSprintsReadOnly (FR-059), y con el estado releído rechaza el sprint que no está planned con
+// ErrSprintAlreadyStarted (RN-20). Si no, deja en pending las historias comprometidas, aunque ya lo
+// estén, para que la regla sea explícita; borra sus filas de sprint_stories y por último el sprint.
+// status se escribe con UpdateColumn, igual que RemoveStories, para no tocar updated_at, y
+// ever_committed no se toca y sigue en true (US7-7). El esfuerzo registrado lo verifica el servicio
+// con el puerto SprintEffort antes de llamar a esta operación.
 func (r *SprintRepository) Delete(ctx context.Context, sprintID uuid.UUID) error {
-	return errNotImplemented
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		sprint, err := lockProjectAndSprint(tx, sprintID)
+		if err != nil {
+			return err
+		}
+		if sprint.Status != domain.SprintStatusPlanned {
+			return domain.ErrSprintAlreadyStarted
+		}
+
+		err = tx.
+			Model(&backlogdomain.UserStory{}).
+			Where("id IN (?)", tx.Model(&domain.SprintStory{}).Select("story_id").Where("sprint_id = ?", sprintID)).
+			UpdateColumn("status", backlogdomain.StoryStatusPending).Error
+		if err != nil {
+			return fmt.Errorf("devolver las historias del sprint a pendiente: %w", err)
+		}
+		err = tx.
+			Where("sprint_id = ?", sprintID).
+			Delete(&domain.SprintStory{}).Error
+		if err != nil {
+			return fmt.Errorf("borrar los compromisos del sprint: %w", err)
+		}
+		err = tx.
+			Where("id = ?", sprintID).
+			Delete(&domain.Sprint{}).Error
+		if err != nil {
+			return fmt.Errorf("borrar el sprint: %w", err)
+		}
+		return nil
+	})
 }
 
 // Start inicia el sprint en una transacción (research.md sección 5). Primero lee el proyecto del
@@ -185,7 +262,7 @@ func (r *SprintRepository) Start(ctx context.Context, sprintID uuid.UUID, now ti
 
 // lockWritableProject bloquea con FOR UPDATE, dentro de la transacción recibida, la fila del proyecto
 // para serializar las escrituras de calendario de ese proyecto, y con el estado releído rechaza el
-// proyecto Finalizado con ErrSprintsReadOnly (FR-059). La comparten Create y Start.
+// proyecto Finalizado con ErrSprintsReadOnly (FR-059). La comparten Create, Update, Delete y Start.
 func lockWritableProject(tx *gorm.DB, projectID uuid.UUID) error {
 	var project projectsdomain.Project
 	err := tx.
@@ -202,9 +279,10 @@ func lockWritableProject(tx *gorm.DB, projectID uuid.UUID) error {
 	return nil
 }
 
-// lockProjectAndSprint toma, dentro de la transacción recibida, los bloqueos del inicio: lee el
-// proyecto del sprint sin bloquear (si no existe devuelve ErrSprintNotFound), bloquea el proyecto con
-// lockWritableProject y por último bloquea la fila del sprint y relee su estado ya serializado.
+// lockProjectAndSprint toma, dentro de la transacción recibida, los bloqueos de Start, Update y
+// Delete: lee el proyecto del sprint sin bloquear (si no existe devuelve ErrSprintNotFound), bloquea
+// el proyecto con lockWritableProject y por último bloquea la fila del sprint y relee su estado ya
+// serializado.
 func lockProjectAndSprint(tx *gorm.DB, sprintID uuid.UUID) (*domain.Sprint, error) {
 	var owner domain.Sprint
 	err := tx.Select("project_id").Where("id = ?", sprintID).Take(&owner).Error

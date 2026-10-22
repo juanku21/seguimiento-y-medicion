@@ -234,7 +234,7 @@ solapa un día responde `409` con el nombre del primero.
       sprints del mismo proyecto con períodos que se superponen de a pares; al terminar, ningún par
       de sprints del proyecto cumple `PeriodsOverlap` (SC-004). Repetida varias veces para que el
       intercalado sea real — depende de T009
-- [ ] T014 [P] [US1] Pruebas de frontend en
+- [X] T014 [P] [US1] Pruebas de frontend en
       `frontend/src/features/sprints/components/sprint-form.test.tsx` y
       `frontend/src/features/sprints/validation.test.ts`, con
       `describe("004/US1 - Planificar un sprint")` y un `it` por escenario de la spec, incluido que

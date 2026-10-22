@@ -445,7 +445,7 @@ proyecto responde `409` con el nombre del activo; y diez inicios simultáneos de
 
 ### Pruebas de la Historia 3 ⚠️
 
-- [ ] T039 [P] [US3] Pruebas unitarias **obligatorias** de `SprintStatus.ValidateTransition` en
+- [X] T039 [P] [US3] Pruebas unitarias **obligatorias** de `SprintStatus.ValidateTransition` en
       `backend/internal/sprints/domain/status_test.go`, recorriendo la **matriz completa de 9
       pares** origen-destino: solo `planned → active` y `active → closed` devuelven `nil`; los
       otros siete, incluida la permanencia, `ErrInvalidSprintTransition` (RN-02, RN-18, SC-006) —

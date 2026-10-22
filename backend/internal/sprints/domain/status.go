@@ -1,5 +1,7 @@
 package domain
 
+import "errors"
+
 // SprintStatus es el estado de un sprint; se guarda como texto en la columna sprints.status y no
 // como enum de PostgreSQL (data-model.md sección 4). Los valores están en inglés y la etiqueta en
 // español vive en el frontend.
@@ -13,3 +15,9 @@ const (
 	SprintStatusActive  SprintStatus = "active"
 	SprintStatusClosed  SprintStatus = "closed"
 )
+
+// ValidateTransition indica si el sprint puede pasar del estado actual al destino. Firma mínima
+// para que compilen las pruebas de T039; la implementación corresponde a T045.
+func (s SprintStatus) ValidateTransition(to SprintStatus) error {
+	return errors.New("not implemented")
+}

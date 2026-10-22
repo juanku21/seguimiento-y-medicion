@@ -299,7 +299,7 @@ solapa un día responde `409` con el nombre del primero.
       límites visibles antes de enviar y la indicación del sprint en conflicto cuando la respuesta es
       `409`. Antes de escribir código, leer la documentación de Next.js de
       `frontend/node_modules/next/dist/docs/` — depende de T022
-- [ ] T024 [US1] Crear la pantalla `frontend/src/app/projects/[projectId]/sprints/new/page.tsx`,
+- [X] T024 [US1] Crear la pantalla `frontend/src/app/projects/[projectId]/sprints/new/page.tsx`,
       protegida con la guardia de sesión de la 001 — depende de T023
 
 **Checkpoint**: US1 funciona y se prueba sola. El MVP está entregable.

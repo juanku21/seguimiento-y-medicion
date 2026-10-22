@@ -1,4 +1,10 @@
-import { isRecord, postAuthorizedJson, type ApiResult } from "@/lib/api-client";
+import {
+  deleteAuthorizedJson,
+  getJson,
+  isRecord,
+  postAuthorizedJson,
+  type ApiResult,
+} from "@/lib/api-client";
 import type { SprintDetail, SprintInput } from "@/types/sprint";
 
 // Reconoce el detalle del sprint (SprintDetail) que devuelve la creación exitosa (201), sin confiar
@@ -46,6 +52,48 @@ export function createSprint(
   return postAuthorizedJson(
     projectSprintsPath(projectId),
     body,
+    isSprintDetail,
+  );
+}
+
+// Arma la ruta de un sprint codificando el identificador, por el mismo motivo que la de los sprints
+// del proyecto.
+function sprintPath(sprintId: string): string {
+  return `/api/v1/sprints/${encodeURIComponent(sprintId)}`;
+}
+
+// Consulta el detalle de un sprint con GET /api/v1/sprints/{sprintId}, usando la sesión de la
+// pestaña. El sprint inexistente o ajeno llega como 404 con su mensaje y ante un 401 el cliente
+// HTTP descarta la sesión.
+export function getSprint(sprintId: string): Promise<ApiResult<SprintDetail>> {
+  return getJson(sprintPath(sprintId), isSprintDetail);
+}
+
+// Compromete un lote de historias en el sprint con POST /api/v1/sprints/{sprintId}/stories
+// (004/US2). La admisión y la atomicidad las resuelve el backend: el 409 de historias no admitidas
+// llega con el motivo de cada una en stories, los demás rechazos solo con su mensaje.
+export function assignSprintStories(
+  sprintId: string,
+  storyIds: string[],
+): Promise<ApiResult<SprintDetail>> {
+  return postAuthorizedJson(
+    `${sprintPath(sprintId)}/stories`,
+    { storyIds },
+    isSprintDetail,
+  );
+}
+
+// Quita historias del sprint con DELETE /api/v1/sprints/{sprintId}/stories, enviando cada
+// identificador como parámetro storyId repetido (004/US2). Con el 200 llega el detalle actualizado;
+// las reglas (historia Completada, sprint Cerrado) las resuelve el backend.
+export function removeSprintStories(
+  sprintId: string,
+  storyIds: string[],
+): Promise<ApiResult<SprintDetail>> {
+  const query = new URLSearchParams();
+  storyIds.forEach((storyId) => query.append("storyId", storyId));
+  return deleteAuthorizedJson(
+    `${sprintPath(sprintId)}/stories?${query.toString()}`,
     isSprintDetail,
   );
 }

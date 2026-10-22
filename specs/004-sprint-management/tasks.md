@@ -418,7 +418,7 @@ responde `409` y no asigna ninguna; y quitarlas las devuelve al backlog como `pe
       (`POST /stories`), `removeSprintStories` (`DELETE /stories?storyId=...`) y un `getSprint`
       básico (`GET`, detalle con las historias vivas, que US6 completa con instantánea y días
       restantes). Respuestas según contracts/openapi.yaml — depende de T032, T035 y T036
-- [ ] T038 [US2] Implementar las llamadas de detalle, asignación y baja en
+- [X] T038 [US2] Implementar las llamadas de detalle, asignación y baja en
       `frontend/src/features/sprints/api.ts`, los componentes `CommitStoriesDialog` en
       `frontend/src/features/sprints/components/commit-stories-dialog.tsx` (lista las historias del
       backlog con la llamada de listado de la 003) y `SprintStoryList` en

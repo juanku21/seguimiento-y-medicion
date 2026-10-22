@@ -31,9 +31,41 @@ func NewSprintRepository(db *gorm.DB) *SprintRepository {
 	return &SprintRepository{db: db}
 }
 
-// FindAccessible resuelve el acceso de un usuario a un sprint. Firma mínima.
+// sprintAccessRow es la fila que lee FindAccessible: los identificadores del sprint y de su proyecto,
+// y el estado del proyecto que llega por el JOIN a projects con el alias project_status.
+type sprintAccessRow struct {
+	SprintID      uuid.UUID
+	ProjectID     uuid.UUID
+	ProjectStatus projectsdomain.ProjectStatus
+}
+
+// FindAccessible resuelve el acceso a un sprint para RequireSprintAccess con una sola consulta
+// (research.md sección 3): une sprints con la membresía vigente del usuario en project_members y con
+// projects. Si no hay fila, el sprint no existe o el usuario no es integrante de su proyecto, y ambos
+// casos se reportan igual con ErrSprintNotFound, nunca gorm.ErrRecordNotFound ni (nil, nil). El
+// estado del proyecto se compara con ProjectStatusFinished para la regla de solo lectura (FR-059).
 func (r *SprintRepository) FindAccessible(ctx context.Context, sprintID, userID uuid.UUID) (*domain.SprintAccess, error) {
-	return nil, errNotImplemented
+	var row sprintAccessRow
+	err := r.db.WithContext(ctx).
+		Table("sprints").
+		Select(`sprints.id AS sprint_id, sprints.project_id AS project_id,
+			projects.status AS project_status`).
+		Joins(`JOIN project_members ON project_members.project_id = sprints.project_id
+			AND project_members.user_id = ?`, userID).
+		Joins("JOIN projects ON projects.id = sprints.project_id").
+		Where("sprints.id = ?", sprintID).
+		Take(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, domain.ErrSprintNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("resolver el acceso al sprint: %w", err)
+	}
+	return &domain.SprintAccess{
+		SprintID:        row.SprintID,
+		ProjectID:       row.ProjectID,
+		ProjectFinished: row.ProjectStatus == projectsdomain.ProjectStatusFinished,
+	}, nil
 }
 
 // Create registra el sprint en una transacción (research.md sección 4). Primero toma un bloqueo

@@ -450,7 +450,7 @@ proyecto responde `409` con el nombre del activo; y diez inicios simultáneos de
       pares** origen-destino: solo `planned → active` y `active → closed` devuelven `nil`; los
       otros siete, incluida la permanencia, `ErrInvalidSprintTransition` (RN-02, RN-18, SC-006) —
       depende de T038
-- [ ] T040 [P] [US3] Pruebas unitarias **obligatorias** de `Start` en el servicio en
+- [X] T040 [P] [US3] Pruebas unitarias **obligatorias** de `Start` en el servicio en
       `backend/internal/sprints/service/sprint_service_test.go`, con dobles y reloj fijo: proyecto
       Finalizado → `ErrSprintsReadOnly`; sprint `active` → `ErrInvalidSprintTransition`; sprint
       `closed` → `ErrSprintClosed`; otro activo → `ActiveSprintExistsError` con ese sprint (RN-06);

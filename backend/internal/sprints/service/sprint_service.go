@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -86,6 +87,12 @@ func (s *SprintService) RemoveStories(ctx context.Context, access *domain.Sprint
 	}
 
 	return s.buildDetail(ctx, access.SprintID)
+}
+
+// Start inicia el sprint del acceso y devuelve su detalle actualizado (FR-026 a FR-032). Firma
+// mínima para que compilen las pruebas de T040; la implementación corresponde a T047.
+func (s *SprintService) Start(ctx context.Context, access *domain.SprintAccess) (*SprintView, error) {
+	return nil, errors.New("not implemented")
 }
 
 // Detail devuelve el detalle del sprint del acceso con sus historias vivas (FR-053). Es una lectura:

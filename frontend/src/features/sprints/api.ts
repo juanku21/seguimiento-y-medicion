@@ -149,3 +149,17 @@ export function changeStoryStatus(
     isStoryProgressResponse,
   );
 }
+
+// Cierra un sprint Activo con POST /api/v1/sprints/{sprintId}/close, sin cuerpo y con la sesión de
+// la pestaña (004/US5). La instantánea, el destino de cada historia y las reglas del cierre (sprint
+// no Activo, sprint ya Cerrado, proyecto Finalizado) las resuelve el backend y llegan como rechazo
+// con su mensaje; con el 200 llega el detalle Cerrado con results, closedBy y el factor copiado.
+export function closeSprint(
+  sprintId: string,
+): Promise<ApiResult<SprintDetail>> {
+  return postAuthorizedJson(
+    `${sprintPath(sprintId)}/close`,
+    undefined,
+    isSprintDetail,
+  );
+}

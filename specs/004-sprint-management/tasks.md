@@ -672,7 +672,7 @@ completadas por 13, `POST /api/v1/sprints/{sprintId}/close` devuelve `results` c
       `swag` en español y registrar `POST /close` en el grupo del sprint en
       `backend/internal/sprints/delivery/routes.go`. Respuestas: `200` con `SprintDetail`, `401`, `404`
       y `409` — depende de T068
-- [ ] T070 [US5] Implementar la llamada de cierre en `frontend/src/features/sprints/api.ts`, la acción
+- [X] T070 [US5] Implementar la llamada de cierre en `frontend/src/features/sprints/api.ts`, la acción
       de cerrar con confirmación en
       `frontend/src/features/sprints/components/sprint-lifecycle-actions.tsx` y el componente
       `SprintResults` en `frontend/src/features/sprints/components/sprint-results.tsx`, integrado en

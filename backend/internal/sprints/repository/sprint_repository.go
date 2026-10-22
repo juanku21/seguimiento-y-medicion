@@ -80,21 +80,12 @@ func (r *SprintRepository) FindAccessible(ctx context.Context, sprintID, userID 
 // los completa GORM.
 func (r *SprintRepository) Create(ctx context.Context, sprint *domain.Sprint) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var project projectsdomain.Project
-		err := tx.
-			Clauses(clause.Locking{Strength: "UPDATE"}).
-			Select("status").
-			Where("id = ?", sprint.ProjectID).
-			Take(&project).Error
-		if err != nil {
-			return fmt.Errorf("bloquear el proyecto del sprint: %w", err)
-		}
-		if project.Status == projectsdomain.ProjectStatusFinished {
-			return domain.ErrSprintsReadOnly
+		if err := lockWritableProject(tx, sprint.ProjectID); err != nil {
+			return err
 		}
 
 		var conflicts []domain.ConflictingSprint
-		err = tx.
+		err := tx.
 			Model(&domain.Sprint{}).
 			Select("id, name").
 			Where("project_id = ?", sprint.ProjectID).
@@ -192,10 +183,28 @@ func (r *SprintRepository) Start(ctx context.Context, sprintID uuid.UUID, now ti
 	})
 }
 
+// lockWritableProject bloquea con FOR UPDATE, dentro de la transacción recibida, la fila del proyecto
+// para serializar las escrituras de calendario de ese proyecto, y con el estado releído rechaza el
+// proyecto Finalizado con ErrSprintsReadOnly (FR-059). La comparten Create y Start.
+func lockWritableProject(tx *gorm.DB, projectID uuid.UUID) error {
+	var project projectsdomain.Project
+	err := tx.
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("status").
+		Where("id = ?", projectID).
+		Take(&project).Error
+	if err != nil {
+		return fmt.Errorf("bloquear el proyecto del sprint: %w", err)
+	}
+	if project.Status == projectsdomain.ProjectStatusFinished {
+		return domain.ErrSprintsReadOnly
+	}
+	return nil
+}
+
 // lockProjectAndSprint toma, dentro de la transacción recibida, los bloqueos del inicio: lee el
-// proyecto del sprint sin bloquear (si no existe devuelve ErrSprintNotFound), bloquea con FOR UPDATE
-// la fila del proyecto y rechaza el proyecto Finalizado con ErrSprintsReadOnly, y por último bloquea
-// la fila del sprint y relee su estado ya serializado.
+// proyecto del sprint sin bloquear (si no existe devuelve ErrSprintNotFound), bloquea el proyecto con
+// lockWritableProject y por último bloquea la fila del sprint y relee su estado ya serializado.
 func lockProjectAndSprint(tx *gorm.DB, sprintID uuid.UUID) (*domain.Sprint, error) {
 	var owner domain.Sprint
 	err := tx.Select("project_id").Where("id = ?", sprintID).Take(&owner).Error
@@ -206,17 +215,8 @@ func lockProjectAndSprint(tx *gorm.DB, sprintID uuid.UUID) (*domain.Sprint, erro
 		return nil, fmt.Errorf("leer el proyecto del sprint: %w", err)
 	}
 
-	var project projectsdomain.Project
-	err = tx.
-		Clauses(clause.Locking{Strength: "UPDATE"}).
-		Select("status").
-		Where("id = ?", owner.ProjectID).
-		Take(&project).Error
-	if err != nil {
-		return nil, fmt.Errorf("bloquear el proyecto del sprint: %w", err)
-	}
-	if project.Status == projectsdomain.ProjectStatusFinished {
-		return nil, domain.ErrSprintsReadOnly
+	if err := lockWritableProject(tx, owner.ProjectID); err != nil {
+		return nil, err
 	}
 
 	var sprint domain.Sprint

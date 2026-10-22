@@ -486,7 +486,7 @@ proyecto responde `409` con el nombre del activo; y diez inicios simultáneos de
 
 - [X] T045 [US3] Implementar `ValidateTransition(to)` en `backend/internal/sprints/domain/status.go`
       con el mismo patrón de mapa de transiciones que `ProjectStatus` de la 002 — depende de T039
-- [ ] T046 [US3] Implementar `Start` en `backend/internal/sprints/repository/sprint_repository.go` en
+- [X] T046 [US3] Implementar `Start` en `backend/internal/sprints/repository/sprint_repository.go` en
       **una transacción**: bloquear el proyecto (`FOR UPDATE`) y el sprint; Finalizado →
       `ErrSprintsReadOnly`; validar la transición con el estado releído; buscar otro sprint `active`
       del proyecto (si existe → `ActiveSprintExistsError`); fijar `status = active`,

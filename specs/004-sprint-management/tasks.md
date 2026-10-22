@@ -781,7 +781,7 @@ el detalle de un sprint Activo con fin el 2026-10-14 consultado el 2026-10-04 in
       cerrados y el acceso a "Nuevo sprint"; y la sección "Sprints en los que estuvo" en
       `frontend/src/app/projects/[projectId]/backlog/[storyId]/page.tsx` de la 003 (FR-055) —
       depende de T075 y T079
-- [ ] T101 [US6] Agregar en `backend/internal/sprints/delivery/validation_test.go` una prueba
+- [X] T101 [US6] Agregar en `backend/internal/sprints/delivery/validation_test.go` una prueba
       unitaria de `ParseSprintStatusFilter` con miles de valores repetidos de `status` (por ejemplo,
       70.000 `closed` intercalados con `planned`) que verifique que el filtro resultante contiene cada
       valor admitido una sola vez, en el orden de su primera aparición, y en

@@ -3195,3 +3195,31 @@ func TestStorySprints_RemovedBeforeCloseNotListed(t *testing.T) {
 		assert.Equal(t, 1, list.Sprints[0].StoryCount, "el sprint cuenta solo la historia que quedó")
 	}
 }
+
+// Sin etiqueta de escenario: un listado con miles de status=closed responde 200 con solo el sprint
+// cerrado y el filtro aplicado una sola vez, porque la cláusula IN debe recibir cada estado admitido
+// una vez y no un parámetro por repetición (T101, hallazgo de seguridad: filtro de estado repetible
+// sin deduplicar). Las repeticiones quedan por debajo del tope de 10000 parámetros de consulta de
+// net/url: por encima de ese tope la consulta no se interpreta y el manejador no recibe ningún valor
+// de status, de modo que la petición nunca llegaría a la cláusula IN.
+func TestSprintList_EstadoRepetidoMilesDeVeces(t *testing.T) {
+	const repetitions = 9000
+	f := newSprintUS6Fixture(t)
+	closedID := f.runClosed(t, sprintClosedRun{
+		name: "Sprint 1", start: "2026-09-15", end: "2026-09-28",
+		startedAt: sprintMoment(t, "2026-09-15", 12, 0), closedAt: sprintMoment(t, "2026-09-28", 20, 0),
+		points: []int{5, 3}, completed: 1,
+	})
+	f.createSprint(t, "Sprint 2", "2026-11-01", "2026-11-14")
+	statuses := make([]string, repetitions)
+	for i := range statuses {
+		statuses[i] = "closed"
+	}
+
+	rec := f.env.listSprints(t, f.brunoToken, f.projectID, statuses...)
+
+	// Solo se lista el cerrado y el filtro informado contiene closed una única vez.
+	body, _ := requireSprintList(t, rec)
+	assert.Equal(t, []string{"closed"}, body.AppliedFilters.Status, "el filtro aplicado debe informar closed una sola vez")
+	assert.Equal(t, []string{closedID.String()}, sprintListIDs(body), "el listado muestra solo el cerrado")
+}

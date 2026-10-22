@@ -468,3 +468,26 @@ func TestParseSprintStatusFilter_EstadoNoAdmitido(t *testing.T) {
 		})
 	}
 }
+
+// TestParseSprintStatusFilter_ValoresRepetidosSinDuplicados verifica que 70.000 valores de status,
+// con closed intercalado con planned, producen un filtro con cada valor admitido una sola vez y en
+// el orden de su primera aparición, de modo que la cláusula IN del listado nunca reciba más de tres
+// parámetros (T101, hallazgo de seguridad: filtro de estado repetible sin deduplicar).
+func TestParseSprintStatusFilter_ValoresRepetidosSinDuplicados(t *testing.T) {
+	const repetitions = 70000
+	values := make([]string, 0, repetitions)
+	for i := 0; i < repetitions; i++ {
+		if i%2 == 0 {
+			values = append(values, "closed")
+		} else {
+			values = append(values, "planned")
+		}
+	}
+
+	statuses, fields := ParseSprintStatusFilter(values)
+
+	require.Empty(t, fields, "los valores admitidos repetidos deben aceptarse")
+	require.Equal(t, 2, len(statuses), "el filtro debe tener cada estado admitido una sola vez")
+	assert.Equal(t, []domain.SprintStatus{domain.SprintStatusClosed, domain.SprintStatusPlanned}, statuses,
+		"cada estado admitido debe figurar una sola vez, en el orden de su primera aparición")
+}

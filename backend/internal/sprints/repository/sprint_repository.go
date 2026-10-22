@@ -66,32 +66,15 @@ func (r *SprintRepository) FindAccessible(ctx context.Context, sprintID, userID 
 // Create registra el sprint en una transacción (research.md sección 4). Primero toma un bloqueo
 // FOR UPDATE sobre la fila del proyecto y lee su estado: así las escrituras de calendario de un mismo
 // proyecto quedan serializadas y un proyecto Finalizado se rechaza con ErrSprintsReadOnly (FR-059).
-// Después busca, entre todos los sprints del proyecto y cualquiera sea su estado, uno cuyo período se
-// superponga con el nuevo, con la traducción de PeriodsOverlap a desigualdades estrictas; si lo hay,
-// devuelve SprintOverlapError con el de inicio más temprano (y luego menor id), para que el mensaje
-// sea determinista (FR-005); se lee con Find y LIMIT 1 para que la ausencia de conflicto, que es el
-// caso normal, no pase por gorm.ErrRecordNotFound. Si no, inserta el sprint; CreatedAt y UpdatedAt
-// los completa GORM.
+// Después rechaza con checkOverlap la superposición con cualquier sprint del proyecto (FR-005). Si
+// no la hay, inserta el sprint; CreatedAt y UpdatedAt los completa GORM.
 func (r *SprintRepository) Create(ctx context.Context, sprint *domain.Sprint) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockWritableProject(tx, sprint.ProjectID); err != nil {
 			return err
 		}
-
-		var conflicts []domain.ConflictingSprint
-		err := tx.
-			Model(&domain.Sprint{}).
-			Select("id, name").
-			Where("project_id = ?", sprint.ProjectID).
-			Where("start_date < ? AND ? < end_date", sprint.EndDate, sprint.StartDate).
-			Order("start_date ASC, id ASC").
-			Limit(1).
-			Find(&conflicts).Error
-		if err != nil {
-			return fmt.Errorf("buscar sprints superpuestos: %w", err)
-		}
-		if len(conflicts) > 0 {
-			return &domain.SprintOverlapError{Sprint: conflicts[0]}
+		if err := checkOverlap(tx, sprint.ProjectID, uuid.Nil, sprint.StartDate, sprint.EndDate); err != nil {
+			return err
 		}
 
 		if err := tx.Create(sprint).Error; err != nil {
@@ -104,10 +87,10 @@ func (r *SprintRepository) Create(ctx context.Context, sprint *domain.Sprint) er
 // Update modifica un sprint planificado en una transacción (FR-012 a FR-016). Bloquea el proyecto y
 // luego el sprint con lockProjectAndSprint, que rechaza el proyecto Finalizado con ErrSprintsReadOnly
 // (FR-059), y con el estado releído rechaza el sprint Cerrado con ErrSprintClosed (RN-18) y cualquier
-// otro que no esté planned con ErrSprintNotPlanned (FR-016). Después busca la superposición igual que
-// Create pero excluyendo al propio sprint (FR-013) y, si la hay, devuelve SprintOverlapError con el de
-// inicio más temprano. Si no, escribe solo name, goal, start_date y end_date; updated_at lo completa
-// GORM. El estado, las historias y la instantánea no se tocan (FR-015).
+// otro que no esté planned con ErrSprintNotPlanned (FR-016). Después rechaza con checkOverlap la
+// superposición, igual que Create pero excluyendo al propio sprint (FR-013). Si no la hay, escribe
+// solo name, goal, start_date y end_date; updated_at lo completa GORM. El estado, las historias y la
+// instantánea no se tocan (FR-015).
 func (r *SprintRepository) Update(ctx context.Context, sprintID uuid.UUID, input domain.SprintInput) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		sprint, err := lockProjectAndSprint(tx, sprintID)
@@ -121,20 +104,8 @@ func (r *SprintRepository) Update(ctx context.Context, sprintID uuid.UUID, input
 			return domain.ErrSprintNotPlanned
 		}
 
-		var conflicts []domain.ConflictingSprint
-		err = tx.
-			Model(&domain.Sprint{}).
-			Select("id, name").
-			Where("project_id = ? AND id <> ?", sprint.ProjectID, sprintID).
-			Where("start_date < ? AND ? < end_date", input.EndDate, input.StartDate).
-			Order("start_date ASC, id ASC").
-			Limit(1).
-			Find(&conflicts).Error
-		if err != nil {
-			return fmt.Errorf("buscar sprints superpuestos: %w", err)
-		}
-		if len(conflicts) > 0 {
-			return &domain.SprintOverlapError{Sprint: conflicts[0]}
+		if err := checkOverlap(tx, sprint.ProjectID, sprintID, input.StartDate, input.EndDate); err != nil {
+			return err
 		}
 
 		err = tx.
@@ -275,6 +246,36 @@ func lockWritableProject(tx *gorm.DB, projectID uuid.UUID) error {
 	}
 	if project.Status == projectsdomain.ProjectStatusFinished {
 		return domain.ErrSprintsReadOnly
+	}
+	return nil
+}
+
+// checkOverlap busca, dentro de la transacción recibida y entre todos los sprints del proyecto
+// cualquiera sea su estado, uno cuyo período se superponga con [startDate, endDate), con la traducción
+// de PeriodsOverlap a desigualdades estrictas. excludeID es el sprint que se está modificando, que no
+// cuenta como conflicto; uuid.Nil indica que no se excluye ninguno (alta). Si hay superposición,
+// devuelve SprintOverlapError con el de inicio más temprano (y luego menor id), para que el mensaje
+// sea determinista (FR-005, FR-013); se lee con Find y LIMIT 1 para que la ausencia de conflicto, que
+// es el caso normal, no pase por gorm.ErrRecordNotFound. La comparten Create y Update.
+func checkOverlap(tx *gorm.DB, projectID, excludeID uuid.UUID, startDate, endDate time.Time) error {
+	query := tx.
+		Model(&domain.Sprint{}).
+		Select("id, name").
+		Where("project_id = ?", projectID)
+	if excludeID != uuid.Nil {
+		query = query.Where("id <> ?", excludeID)
+	}
+	var conflicts []domain.ConflictingSprint
+	err := query.
+		Where("start_date < ? AND ? < end_date", endDate, startDate).
+		Order("start_date ASC, id ASC").
+		Limit(1).
+		Find(&conflicts).Error
+	if err != nil {
+		return fmt.Errorf("buscar sprints superpuestos: %w", err)
+	}
+	if len(conflicts) > 0 {
+		return &domain.SprintOverlapError{Sprint: conflicts[0]}
 	}
 	return nil
 }

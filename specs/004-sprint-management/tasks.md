@@ -844,7 +844,7 @@ backlog; y los mismos intentos sobre un sprint Activo responden `409`.
 
 ### Implementación de la Historia 7
 
-- [ ] T084 [US7] Implementar `Update` y `Delete` en
+- [X] T084 [US7] Implementar `Update` y `Delete` en
       `backend/internal/sprints/repository/sprint_repository.go`: `Update` en **una transacción** que
       bloquea el proyecto y el sprint, verifica solo lectura y estado `planned` con los datos
       releídos, busca superposición **excluyendo al propio sprint** y escribe **solo** `name`,

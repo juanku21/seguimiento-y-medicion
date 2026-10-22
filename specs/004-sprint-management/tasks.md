@@ -495,7 +495,7 @@ proyecto responde `409` con el nombre del activo; y diez inicios simultáneos de
       mismo `ActiveSprintExistsError` (research.md sección 5) — depende de T041, T042 y T045
 - [X] T047 [US3] Implementar `Start(ctx, access)` en `backend/internal/sprints/service/sprint_service.go`
       con el instante del reloj inyectado — depende de T040 y T046
-- [ ] T048 [US3] Implementar el manejador `startSprint` en
+- [X] T048 [US3] Implementar el manejador `startSprint` en
       `backend/internal/sprints/delivery/handler.go` con anotaciones `swag` en español y registrar
       `POST /start` en el grupo del sprint en `backend/internal/sprints/delivery/routes.go`.
       Respuestas: `200` con `SprintDetail`, `401`, `404` y `409` con `SprintConflictResponse` o

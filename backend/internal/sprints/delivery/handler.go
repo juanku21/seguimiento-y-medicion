@@ -326,11 +326,11 @@ func bindSprintInput(c *gin.Context) (domain.SprintInput, bool) {
 
 // respondServiceError traduce los errores de dominio del servicio de sprints a la respuesta HTTP del
 // contrato: la superposición de períodos y el otro sprint activo son 409 con el sprint en conflicto,
-// el lote no admitido es 409 con un problema por historia, y el proyecto finalizado, el sprint cerrado y la historia
-// Completada que se quiere quitar son 409 con su mensaje. El sprint que desapareció entre el
-// middleware y el servicio y la historia inexistente, ajena o fuera del sprint son 404. Lo que no es
-// un error de dominio conocido se registra en el log con el mensaje recibido y se responde 500
-// genérico, sin exponer la causa (Principio VII).
+// el lote no admitido es 409 con un problema por historia, y el proyecto finalizado, el sprint
+// cerrado y la historia Completada que se quiere quitar son 409 con su mensaje. El sprint que
+// desapareció entre el middleware y el servicio y la historia inexistente, ajena o fuera del sprint
+// son 404. Lo que no es un error de dominio conocido se registra en el log con el mensaje recibido y
+// se responde 500 genérico, sin exponer la causa (Principio VII).
 func respondServiceError(c *gin.Context, err error, logMessage string) {
 	var overlap *domain.SprintOverlapError
 	var activeExists *domain.ActiveSprintExistsError

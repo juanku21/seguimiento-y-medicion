@@ -789,7 +789,7 @@ el detalle de un sprint Activo con fin el 2026-10-14 consultado el 2026-10-04 in
       `GET /api/v1/projects/{projectId}/sprints` con más de 65.535 `status=closed` que espere `200`,
       no `500`, y `appliedFilters.status` igual a `["closed"]` per hallazgo de seguridad: filtro de
       estado repetible sin deduplicar que arma una cláusula IN con un parámetro por valor (security)
-- [ ] T102 [US6] Eliminar los valores duplicados en `ParseSprintStatusFilter` de
+- [X] T102 [US6] Eliminar los valores duplicados en `ParseSprintStatusFilter` de
       `backend/internal/sprints/delivery/validation.go`, conservando el orden de la primera
       aparición, de modo que la cláusula `IN` de `List` y `appliedFilters.status` reciban como máximo
       los tres estados admitidos per hallazgo de seguridad: filtro de estado repetible sin deduplicar

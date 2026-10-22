@@ -212,14 +212,20 @@ const (
 // indica los valores admitidos (FR-050, FR-051). Sin valores devuelve una lista vacía y no nil,
 // porque appliedFilters.status nunca es null. La comparación es exacta, como el enum del contrato:
 // no se recortan espacios ni se ignoran mayúsculas. Ante un valor no admitido devuelve nil y un
-// único FieldError.
+// único FieldError. Los valores repetidos se descartan conservando el orden de su primera aparición,
+// de modo que la cláusula IN y appliedFilters.status reciban como máximo los tres estados admitidos
+// (hallazgo de seguridad: filtro de estado repetible sin deduplicar).
 func ParseSprintStatusFilter(values []string) ([]domain.SprintStatus, []authdelivery.FieldError) {
-	statuses := make([]domain.SprintStatus, 0, len(values))
+	statuses := []domain.SprintStatus{}
+	seen := map[domain.SprintStatus]bool{}
 	for _, value := range values {
 		status := domain.SprintStatus(value)
 		switch status {
 		case domain.SprintStatusPlanned, domain.SprintStatusActive, domain.SprintStatusClosed:
-			statuses = append(statuses, status)
+			if !seen[status] {
+				seen[status] = true
+				statuses = append(statuses, status)
+			}
 		default:
 			return nil, []authdelivery.FieldError{{Field: sprintStatusQueryField, Message: msgSprintStatusFilterInvalid}}
 		}

@@ -119,10 +119,10 @@ func run() error {
 		projectRepository,
 		projectMembers,
 		projectsrepository.NewBacklogSummaryProvider(db),
-		projectsrepository.NewSprintDirectory(),
+		projectsrepository.NewSprintDirectory(db),
 	)
 	members := projectsservice.NewMemberService(projectRepository, projectMembers, projectsrepository.NewUserDirectory(db))
-	status := projectsservice.NewStatusService(projectRepository, projectsrepository.NewSprintDirectory(), cfg.Location, time.Now)
+	status := projectsservice.NewStatusService(projectRepository, projectsrepository.NewSprintDirectory(db), cfg.Location, time.Now)
 	projectGroup, _ := projectsdelivery.RegisterRoutes(router, handler.RequireSession, projectsdelivery.NewHandler(projects, members, status), projectMembers, projectRepository)
 
 	// El módulo del backlog se compone sobre el repositorio de historias y los cinco puertos hacia

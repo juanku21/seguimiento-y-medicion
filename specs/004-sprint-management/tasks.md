@@ -472,7 +472,7 @@ proyecto responde `409` con el nombre del activo; y diez inicios simultáneos de
       proyecto y los inicia a la vez desde diez goroutines; exactamente una respuesta es `200`, nueve
       son `409`, y la base tiene **un** sprint `active` (SC-005). Repetida varias veces para que el
       intercalado sea real — depende de T038
-- [ ] T043 [P] [US3] Prueba de integración del puerto de la 002 en
+- [X] T043 [P] [US3] Prueba de integración del puerto de la 002 en
       `backend/internal/projects/repository/sprint_directory_test.go`, contra la base de test: sin
       sprints o solo con Planificados y Cerrados → `(nil, nil)`; con uno Activo → su `ID` y su
       `Name`; y el Activo de otro proyecto no cuenta — depende de T038

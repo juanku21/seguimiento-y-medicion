@@ -152,10 +152,10 @@ func newBacklogTestEnv(t *testing.T, overrides ...func(*backlogTestPorts)) backl
 		projectRepository,
 		projectMembers,
 		projectsrepository.NewBacklogSummaryProvider(db),
-		projectsrepository.NewSprintDirectory(),
+		projectsrepository.NewSprintDirectory(db),
 	)
 	members := projectsservice.NewMemberService(projectRepository, projectMembers, projectsrepository.NewUserDirectory(db))
-	status := projectsservice.NewStatusService(projectRepository, projectsrepository.NewSprintDirectory(), cfg.Location, time.Now)
+	status := projectsservice.NewStatusService(projectRepository, projectsrepository.NewSprintDirectory(db), cfg.Location, time.Now)
 	projectGroup, _ := projectsdelivery.RegisterRoutes(router, authHandler.RequireSession,
 		projectsdelivery.NewHandler(projects, members, status), projectMembers, projectRepository)
 

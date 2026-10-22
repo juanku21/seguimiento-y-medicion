@@ -128,10 +128,10 @@ func newProjectsTestEnv(t *testing.T) projectsTestEnv {
 		projectRepository,
 		projectMembers,
 		repository.NewBacklogSummaryProvider(db),
-		repository.NewSprintDirectory(),
+		repository.NewSprintDirectory(db),
 	)
 	members := service.NewMemberService(projectRepository, projectMembers, repository.NewUserDirectory(db))
-	status := service.NewStatusService(projectRepository, repository.NewSprintDirectory(), cfg.Location, time.Now)
+	status := service.NewStatusService(projectRepository, repository.NewSprintDirectory(db), cfg.Location, time.Now)
 	router := gin.New()
 	router.Use(httpserver.LimitRequestBody())
 	authHandler := authdelivery.NewHandler(auth)
@@ -1607,7 +1607,7 @@ func TestUS4_HorasEstimadas(t *testing.T) {
 			CountsByState:        map[string]int{"to_do": 4},
 			EstimatedStoryPoints: 3 + 5 + 8,
 		}},
-		repository.NewSprintDirectory(),
+		repository.NewSprintDirectory(nil),
 		nil,
 	)
 	ownerID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
@@ -1676,7 +1676,7 @@ func TestUS4_SinSesion(t *testing.T) {
 // consulta la base: la cuarta llega con la spec 004.
 func TestUS4_VistaDeEstadoSinNMasUno(t *testing.T) {
 	counter := &queryCounter{}
-	env := newStatusTestEnv(t, nil, repository.NewSprintDirectory(), counter)
+	env := newStatusTestEnv(t, nil, repository.NewSprintDirectory(nil), counter)
 	_, ownerToken := env.signUp(t, "Ana Pérez", "ana@example.com")
 	created := requireCreatedProject(t, env.postProject(t, ownerToken, validProjectInputBody()))
 	projectID := uuid.MustParse(created.ID)
@@ -2255,7 +2255,7 @@ func TestUS6_ArranqueSinCondiciones(t *testing.T) {
 				CountsByState:        map[string]int{"to_do": 3, "in_progress": 1},
 				EstimatedStoryPoints: 13,
 			}},
-			sprints: repository.NewSprintDirectory(),
+			sprints: repository.NewSprintDirectory(nil),
 		},
 	}
 	for _, tc := range cases {

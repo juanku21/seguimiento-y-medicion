@@ -267,7 +267,7 @@ solapa un día responde `409` con el nombre del primero.
       método `Create(ctx, projectID, actorID, input)`, que construye el sprint con UUID, estado
       `planned` y autor el actor; y el armado del detalle (`buildDetail`), que reutilizarán todas las
       historias — depende de T012 y T017
-- [ ] T019 [US1] Declarar en `backend/internal/sprints/delivery/dto.go` los esquemas de
+- [X] T019 [US1] Declarar en `backend/internal/sprints/delivery/dto.go` los esquemas de
       contracts/openapi.yaml `SprintInput`, `SprintDetail`, `SprintStoryItem`, `UserRef`,
       `SprintRef` y `SprintConflictResponse`, reutilizando `ErrorResponse`, `FieldError` y
       `ValidationErrorResponse` de la 001. Las fechas se serializan con `time.DateOnly`; `startedAt`,

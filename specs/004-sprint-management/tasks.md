@@ -705,7 +705,7 @@ el detalle de un sprint Activo con fin el 2026-10-14 consultado el 2026-10-04 in
 
 ### Pruebas de la Historia 6 ⚠️
 
-- [ ] T071 [P] [US6] Pruebas unitarias **obligatorias** de `Schedule` en
+- [X] T071 [P] [US6] Pruebas unitarias **obligatorias** de `Schedule` en
       `backend/internal/sprints/domain/schedule_test.go`, cubriendo RN-23 con la tabla de
       data-model.md sección 6: fin 2026-10-14 y hoy 2026-10-04 → `remainingDays` 10 y `overdueDays`
       `nil`; hoy 2026-10-14 → 0 y `nil`; hoy 2026-10-17 → `nil` y 3; y el **borde de medianoche**:

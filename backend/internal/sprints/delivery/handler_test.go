@@ -955,7 +955,8 @@ func TestUS2_AsignacionEnSprintActivo(t *testing.T) {
 
 // Escenario: Quitar de un sprint Planificado (004/US2)
 // Quitar una historia comprometida en un sprint Planificado la devuelve al backlog en pending y sin
-// sprint (sin fila en sprint_stories), y después puede asignarse a otro sprint (FR-021, FR-022).
+// sprint (sin fila en sprint_stories), y después puede asignarse a otro sprint (FR-021, FR-022,
+// RN-10).
 func TestUS2_QuitarDeSprintPlanificado(t *testing.T) {
 	f := newSprintUS2Fixture(t)
 	storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
@@ -997,7 +998,7 @@ func TestUS2_ReestimacionDeComprometida(t *testing.T) {
 
 // Escenario: Quitar la única historia de un sprint Activo (004/US2)
 // Quitar la única historia de un sprint Activo lo deja sin historias y sigue active, sin que sea un
-// error; la historia, que estaba en progreso, vuelve a pending (FR-022).
+// error; la historia, que estaba en progreso, vuelve a pending (FR-022, RN-10).
 func TestUS2_QuitarUnicaHistoriaDeSprintActivo(t *testing.T) {
 	f := newSprintUS2Fixture(t)
 	activeID := sprintSeedInStatus(t, f.env.db, f.projectID, f.anaID, "Sprint 2", "2026-10-15", "2026-10-28", domain.SprintStatusActive)
@@ -2194,7 +2195,7 @@ func (f sprintUS5Fixture) advance(t *testing.T, storyID uuid.UUID, to string) {
 // Bruno cierra un sprint Activo con cuatro historias de 8, 5, 5 y 3 Story Points (21), dos completadas
 // por 13, una en progreso y una pendiente: responde 200 con el sprint closed, 21 planificados y 13
 // completados; las dos no completadas vuelven pending y sin compromiso abierto, y el sprint conserva
-// cuatro filas congeladas (FR-039, FR-041 a FR-043, RN-15).
+// cuatro filas congeladas (FR-039, FR-041 a FR-043, RN-13, RN-14, RN-15).
 func TestUS5_CierreParcial(t *testing.T) {
 	f := newSprintUS5Fixture(t, "2026-10-15", "2026-10-28")
 	ids := f.activeWith(t, 8, 5, 5, 3)
@@ -2288,7 +2289,7 @@ func TestUS5_AlcanceAgregado(t *testing.T) {
 // Cerrado un sprint con una historia completada de 8 y una pendiente de 5, renombrar y reestimar la
 // pendiente con la 003 y cambiar el factor del proyecto a 8 con la 002 no altera el sprint: el
 // detalle es idéntico byte a byte antes y después, y la fila del sprint y sus filas congeladas en la
-// base no cambian (FR-044, SC-008).
+// base no cambian (FR-044, RN-16, SC-008).
 func TestUS5_InmutableTrasElCierre(t *testing.T) {
 	f := newSprintUS5Fixture(t, "2026-10-15", "2026-10-28")
 	ids := f.activeWith(t, 8, 5)
@@ -2338,7 +2339,7 @@ func TestUS5_InmutableTrasElCierre(t *testing.T) {
 // Escenario: Sin completadas (004/US5)
 // Un sprint Activo con una historia pendiente (5) y una en progreso (3) se cierra igual: los Story
 // Points completados quedan en 0, las dos historias vuelven al backlog y el sprint conserva sus dos
-// filas como not_completed (FR-045).
+// filas como not_completed (FR-045, RN-13, RN-14).
 func TestUS5_SinCompletadas(t *testing.T) {
 	f := newSprintUS5Fixture(t, "2026-10-15", "2026-10-28")
 	ids := f.activeWith(t, 5, 3)
@@ -3019,7 +3020,8 @@ func TestUS6_SinDiasRestantesFueraDeActivo(t *testing.T) {
 // Escenario: Detalle desde la instantánea (004/US6)
 // Cerrado un sprint con una historia no completada ("Historia de Sprint 1 1", prioridad alta, 5 Story
 // Points), renombrarla, cambiarle la prioridad y reestimarla con la 003 no cambia el detalle del
-// sprint: muestra el título, la prioridad y los Story Points que tenía al cerrarse (FR-043, FR-053).
+// sprint: muestra el título, la prioridad y los Story Points que tenía al cerrarse (FR-043, FR-053,
+// RN-16).
 func TestUS6_DetalleDesdeLaInstantanea(t *testing.T) {
 	f := newSprintUS6Fixture(t)
 	sprintID := f.createSprint(t, "Sprint 1", "2026-10-01", "2026-10-14")
@@ -3668,4 +3670,309 @@ func TestUS7_SprintEliminado(t *testing.T) {
 			assert.Equal(t, sprintNotFoundBody, rec.Body.String())
 		})
 	}
+}
+
+// Pruebas de caracterización transversales de la fase de cierre (T088), sin etiqueta 004/USn: fijan
+// comportamiento que ya existe porque las once rutas de contracts/openapi.yaml ya están detrás de los
+// middlewares de sesión y de acceso, y las reglas de solo lectura ya están implementadas, así que no
+// tienen etapa RED. Cubren la sesión obligatoria en cada acción (SC-013), los 404 indistinguibles
+// entre recurso ajeno e inexistente (SC-014), la solo lectura del proyecto Finalizado (SC-012) y que
+// ninguna respuesta exponga el hash de la contraseña (Principio VI).
+
+// sprintEndpointIDs son los identificadores con los que se arman las rutas y los cuerpos de los once
+// endpoints: el proyecto, el sprint Planificado (detalle, modificación, eliminación, historias e
+// inicio), el sprint Activo (cierre), la historia libre que se asigna, la comprometida en el
+// Planificado que se quita y la comprometida en el Activo que avanza y cuyo historial se consulta.
+type sprintEndpointIDs struct {
+	projectID      uuid.UUID
+	plannedID      uuid.UUID
+	activeID       uuid.UUID
+	freeStoryID    uuid.UUID
+	plannedStoryID uuid.UUID
+	activeStoryID  uuid.UUID
+}
+
+// sprintEndpointRequest es una solicitud válida a uno de los once endpoints. scope indica de qué
+// recurso de la ruta depende el 404 (colección, sprint o historia) y write, si la acción escribe.
+type sprintEndpointRequest struct {
+	name   string
+	method string
+	path   string
+	body   map[string]any
+	scope  string
+	write  bool
+}
+
+// Ámbitos de los endpoints según el recurso de la ruta.
+const (
+	sprintScopeCollection = "collection"
+	sprintScopeSprint     = "sprint"
+	sprintScopeStory      = "story"
+)
+
+// sprintEndpointRequests arma, en el orden de contracts/openapi.yaml, una solicitud válida a cada uno
+// de los once endpoints de la feature con los identificadores recibidos: dos de colección del
+// proyecto, siete sobre un sprint y dos sobre una historia; ocho escriben y tres leen.
+func sprintEndpointRequests(ids sprintEndpointIDs) []sprintEndpointRequest {
+	return []sprintEndpointRequest{
+		{"createSprint", http.MethodPost, sprintsPath(ids.projectID), sprintBody("Sprint 3", sprintGoal, "2026-11-01", "2026-11-14"), sprintScopeCollection, true},
+		{"listSprints", http.MethodGet, sprintsPath(ids.projectID), nil, sprintScopeCollection, false},
+		{"getSprint", http.MethodGet, sprintPath(ids.plannedID), nil, sprintScopeSprint, false},
+		{"updateSprint", http.MethodPut, sprintPath(ids.plannedID), sprintBody("Sprint 1 corregido", sprintGoal, "2026-10-01", "2026-10-14"), sprintScopeSprint, true},
+		{"deleteSprint", http.MethodDelete, sprintPath(ids.plannedID), nil, sprintScopeSprint, true},
+		{"assignSprintStories", http.MethodPost, sprintStoriesPath(ids.plannedID), map[string]any{"storyIds": []string{ids.freeStoryID.String()}}, sprintScopeSprint, true},
+		{"removeSprintStories", http.MethodDelete, sprintStoriesPath(ids.plannedID) + "?storyId=" + ids.plannedStoryID.String(), nil, sprintScopeSprint, true},
+		{"startSprint", http.MethodPost, sprintStartPath(ids.plannedID), nil, sprintScopeSprint, true},
+		{"closeSprint", http.MethodPost, sprintClosePath(ids.activeID), nil, sprintScopeSprint, true},
+		{"changeStoryStatus", http.MethodPut, sprintStoryStatusPath(ids.activeStoryID), map[string]any{"status": "in_progress"}, sprintScopeStory, true},
+		{"listStorySprints", http.MethodGet, "/api/v1/stories/" + ids.activeStoryID.String() + "/sprints", nil, sprintScopeStory, false},
+	}
+}
+
+// sprintEndpointsFixture es el "Dado" común de las pruebas de caracterización: Ana es propietaria y
+// Bruno integrante de un proyecto con un sprint Planificado y uno Activo, cada uno con una historia
+// comprometida, y una historia lista sin sprint.
+type sprintEndpointsFixture struct {
+	env        sprintTestEnv
+	brunoToken string
+	ids        sprintEndpointIDs
+}
+
+// newSprintEndpointsFixture siembra el "Dado" común con el proyecto En curso, para que la 003 admita
+// crear las historias, y después lo deja en el estado indicado directamente en la base.
+func newSprintEndpointsFixture(t *testing.T, status projectsdomain.ProjectStatus) sprintEndpointsFixture {
+	t.Helper()
+	env := newSprintTestEnv(t)
+	anaID, _ := env.signUp(t, "Ana Pérez", "ana@example.com")
+	brunoID, brunoToken := env.signUp(t, "Bruno Díaz", "bruno@example.com")
+	projectID := sprintSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress, brunoID)
+
+	// Sprint Planificado con una historia comprometida y sprint Activo, que contiene al reloj por
+	// defecto, con otra; la tercera historia queda lista y sin sprint.
+	plannedID := sprintSeed(t, env.db, projectID, anaID, "Sprint 1", "2026-10-01", "2026-10-14")
+	activeID := sprintSeedInStatus(t, env.db, projectID, anaID, "Sprint 2", "2026-10-15", "2026-10-28", domain.SprintStatusActive)
+	plannedStoryID := env.createReadyStory(t, brunoToken, projectID, "Alta de clientes")
+	sprintSeedCommitment(t, env.db, plannedID, plannedStoryID, sprintDate(t, "2026-09-30"), nil, nil)
+	activeStoryID := env.createReadyStory(t, brunoToken, projectID, "Exportar el reporte")
+	sprintSeedCommitment(t, env.db, activeID, activeStoryID, sprintDate(t, "2026-10-15"), nil, nil)
+	freeStoryID := env.createReadyStory(t, brunoToken, projectID, "Buscar clientes")
+
+	if status != projectsdomain.ProjectStatusInProgress {
+		require.NoError(t, env.db.Model(&projectsdomain.Project{}).Where("id = ?", projectID).
+			Update("status", status).Error, "no se pudo fijar el estado del proyecto")
+	}
+	return sprintEndpointsFixture{
+		env:        env,
+		brunoToken: brunoToken,
+		ids: sprintEndpointIDs{
+			projectID:      projectID,
+			plannedID:      plannedID,
+			activeID:       activeID,
+			freeStoryID:    freeStoryID,
+			plannedStoryID: plannedStoryID,
+			activeStoryID:  activeStoryID,
+		},
+	}
+}
+
+// sendSprintEndpoint envía la solicitud con la cabecera Authorization recibida, o sin ella si viene
+// vacía, a diferencia de sprintDo, que siempre la agrega. Toda respuesta pasa por la verificación de
+// que no expone el hash de la contraseña.
+func (e sprintTestEnv) sendSprintEndpoint(t *testing.T, req sprintEndpointRequest, authorization string) *httptest.ResponseRecorder {
+	t.Helper()
+	var payload []byte
+	if req.body != nil {
+		var err error
+		payload, err = json.Marshal(req.body)
+		require.NoError(t, err, "no se pudo serializar la solicitud")
+	}
+	httpReq := httptest.NewRequest(req.method, req.path, bytes.NewReader(payload))
+	httpReq.Header.Set("Content-Type", "application/json")
+	if authorization != "" {
+		httpReq.Header.Set("Authorization", authorization)
+	}
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, httpReq)
+	requireNoPasswordHash(t, rec)
+	return rec
+}
+
+// sprintTamperedToken altera el primer carácter de la firma del JWT, de modo que el token conserva su
+// forma pero la firma ya no verifica.
+func sprintTamperedToken(t *testing.T, token string) string {
+	t.Helper()
+	parts := strings.Split(token, ".")
+	require.Len(t, parts, 3, "el token de prueba no tiene la forma de un JWT")
+	replacement := "A"
+	if strings.HasPrefix(parts[2], "A") {
+		replacement = "B"
+	}
+	parts[2] = replacement + parts[2][1:]
+	return strings.Join(parts, ".")
+}
+
+// requireNoPasswordHash exige que la respuesta no contenga el hash de la contraseña en ninguna de
+// sus dos grafías (Principio VI).
+func requireNoPasswordHash(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	body := rec.Body.String()
+	assert.NotContains(t, body, "password_hash", "la respuesta no debe exponer el hash de la contraseña")
+	assert.NotContains(t, body, "passwordHash", "la respuesta no debe exponer el hash de la contraseña")
+}
+
+// sprintDatabaseSnapshot lee como JSON, ordenadas por id, todas las filas de las tablas que pueden
+// tocar las acciones de la feature, para verificar que un rechazo no produjo ningún cambio. El "Dado"
+// de sprintEndpointsFixture siembra filas en las seis, así que una tabla vacía indica que la lectura
+// falló y que la comparación no probaría nada.
+func sprintDatabaseSnapshot(t *testing.T, db *gorm.DB) map[string][]string {
+	t.Helper()
+	tables := []string{"projects", "project_members", "user_stories", "acceptance_criteria", "sprints", "sprint_stories"}
+	snapshot := make(map[string][]string, len(tables))
+	for _, table := range tables {
+		var rows []string
+		require.NoError(t, db.Raw("SELECT row_to_json(t)::text FROM "+table+" t ORDER BY t.id").Scan(&rows).Error,
+			"no se pudieron leer las filas de %s", table)
+		require.NotEmpty(t, rows, "la foto de %s no debería estar vacía", table)
+		snapshot[table] = rows
+	}
+	return snapshot
+}
+
+// Caracterización: sesión obligatoria en cada acción (SC-013)
+// Cada uno de los once endpoints, sin cabecera Authorization y con un token de firma adulterada,
+// responde 401 con el mensaje de la 001 y no cambia ninguna fila.
+func TestSprintEndpoints_SinSesion(t *testing.T) {
+	f := newSprintEndpointsFixture(t, projectsdomain.ProjectStatusInProgress)
+	tampered := "Bearer " + sprintTamperedToken(t, f.brunoToken)
+
+	requests := sprintEndpointRequests(f.ids)
+	require.Len(t, requests, 11, "la feature expone once endpoints")
+	for _, req := range requests {
+		t.Run(req.name, func(t *testing.T) {
+			for _, auth := range []struct {
+				name   string
+				header string
+			}{{"sin cabecera", ""}, {"token adulterado", tampered}} {
+				before := sprintDatabaseSnapshot(t, f.env.db)
+
+				rec := f.env.sendSprintEndpoint(t, req, auth.header)
+
+				assert.Equal(t, http.StatusUnauthorized, rec.Code, "%s: cuerpo: %s", auth.name, rec.Body.String())
+				assert.JSONEq(t, sprintAccessSessionBody, rec.Body.String(), auth.name)
+				assert.Equal(t, before, sprintDatabaseSnapshot(t, f.env.db), "%s: no debería cambiar ninguna fila", auth.name)
+			}
+		})
+	}
+}
+
+// Caracterización: 404 indistinguible entre recurso ajeno e inexistente (SC-014)
+// Carla, que no integra el proyecto, recibe en las siete acciones de sprint el mismo 404 ante el
+// sprint ajeno que ante un sprintId inexistente, y en las dos de colección el mismo 404 ante el
+// proyecto ajeno que ante un projectId inexistente: igual código, tipo de contenido y cuerpo byte a
+// byte, sin cambiar ninguna fila.
+func TestSprintEndpoints_NotFoundIndistinguible(t *testing.T) {
+	f := newSprintEndpointsFixture(t, projectsdomain.ProjectStatusInProgress)
+	_, carlaToken := f.env.signUp(t, "Carla Gómez", "carla@example.com")
+	carla := "Bearer " + carlaToken
+
+	// Las solicitudes "inexistentes" son las mismas con proyecto y sprints que no existen; las
+	// historias de cuerpos y consultas no cambian, porque el 404 lo decide el recurso de la ruta.
+	missingIDs := f.ids
+	missingIDs.projectID = uuid.New()
+	missingIDs.plannedID = uuid.New()
+	missingIDs.activeID = uuid.New()
+	foreign := sprintEndpointRequests(f.ids)
+	missing := sprintEndpointRequests(missingIDs)
+
+	checked := map[string]int{}
+	for i, req := range foreign {
+		if req.scope == sprintScopeStory {
+			continue
+		}
+		checked[req.scope]++
+		t.Run(req.name, func(t *testing.T) {
+			before := sprintDatabaseSnapshot(t, f.env.db)
+
+			foreignRec := f.env.sendSprintEndpoint(t, req, carla)
+			missingRec := f.env.sendSprintEndpoint(t, missing[i], carla)
+
+			want := sprintNotFoundBody
+			if req.scope == sprintScopeCollection {
+				want = `{"error":"` + sprintProjectNotFound + `"}`
+			}
+			assert.Equal(t, http.StatusNotFound, foreignRec.Code, "cuerpo: %s", foreignRec.Body.String())
+			assert.JSONEq(t, want, foreignRec.Body.String())
+			assert.Equal(t, missingRec.Code, foreignRec.Code, "los códigos de estado deberían ser idénticos")
+			assert.Equal(t, missingRec.Header().Get("Content-Type"), foreignRec.Header().Get("Content-Type"), "los tipos de contenido deberían ser idénticos")
+			assert.Equal(t, missingRec.Body.Bytes(), foreignRec.Body.Bytes(), "los cuerpos deberían ser idénticos byte a byte")
+			assert.Equal(t, before, sprintDatabaseSnapshot(t, f.env.db), "no debería cambiar ninguna fila")
+		})
+	}
+	assert.Equal(t, map[string]int{sprintScopeSprint: 7, sprintScopeCollection: 2}, checked,
+		"se comparan siete acciones de sprint y dos de colección")
+}
+
+// Caracterización: 404 indistinguible en el historial de sprints de una historia (SC-014)
+// Carla, que no integra el proyecto, recibe al consultar el historial de sprints de la historia
+// comprometida en el sprint Activo el mismo 404 que ante un storyId inexistente: igual código, tipo
+// de contenido y cuerpo byte a byte, sin cambiar ninguna fila.
+func TestSprintEndpoints_StorySprintsNotFoundIndistinguible(t *testing.T) {
+	f := newSprintEndpointsFixture(t, projectsdomain.ProjectStatusInProgress)
+	_, carlaToken := f.env.signUp(t, "Carla Gómez", "carla@example.com")
+	carla := "Bearer " + carlaToken
+
+	// Se toma la solicitud listStorySprints de la tabla común, con la historia ajena y con una
+	// historia que no existe; el resto de los identificadores no interviene en la ruta.
+	missingIDs := f.ids
+	missingIDs.activeStoryID = uuid.New()
+	findListStorySprints := func(ids sprintEndpointIDs) sprintEndpointRequest {
+		for _, req := range sprintEndpointRequests(ids) {
+			if req.name == "listStorySprints" {
+				return req
+			}
+		}
+		require.FailNow(t, "falta la solicitud listStorySprints en la tabla de endpoints")
+		return sprintEndpointRequest{}
+	}
+	foreign := findListStorySprints(f.ids)
+	missing := findListStorySprints(missingIDs)
+	before := sprintDatabaseSnapshot(t, f.env.db)
+
+	foreignRec := f.env.sendSprintEndpoint(t, foreign, carla)
+	missingRec := f.env.sendSprintEndpoint(t, missing, carla)
+
+	// La historia ajena responde el 404 del contrato, idéntico al de la inexistente, y nada cambia.
+	assert.Equal(t, http.StatusNotFound, foreignRec.Code, "cuerpo: %s", foreignRec.Body.String())
+	assert.JSONEq(t, `{"error":"`+sprintStoryNotFound+`"}`, foreignRec.Body.String())
+	assert.Equal(t, missingRec.Code, foreignRec.Code, "los códigos de estado deberían ser idénticos")
+	assert.Equal(t, missingRec.Header().Get("Content-Type"), foreignRec.Header().Get("Content-Type"), "los tipos de contenido deberían ser idénticos")
+	assert.Equal(t, missingRec.Body.Bytes(), foreignRec.Body.Bytes(), "los cuerpos deberían ser idénticos byte a byte")
+	assert.Equal(t, before, sprintDatabaseSnapshot(t, f.env.db), "no debería cambiar ninguna fila")
+}
+
+// Caracterización: solo lectura del proyecto Finalizado (SC-012)
+// Bruno, integrante de un proyecto Finalizado, recibe 409 con el mensaje de solo lectura en las ocho
+// escrituras, sin que cambie ninguna fila, y 200 en las tres lecturas.
+func TestSprintEndpoints_ProyectoFinalizado(t *testing.T) {
+	f := newSprintEndpointsFixture(t, projectsdomain.ProjectStatusFinished)
+	bruno := "Bearer " + f.brunoToken
+
+	counts := map[bool]int{}
+	for _, req := range sprintEndpointRequests(f.ids) {
+		counts[req.write]++
+		t.Run(req.name, func(t *testing.T) {
+			before := sprintDatabaseSnapshot(t, f.env.db)
+
+			rec := f.env.sendSprintEndpoint(t, req, bruno)
+
+			if !req.write {
+				assert.Equal(t, http.StatusOK, rec.Code, "cuerpo: %s", rec.Body.String())
+				return
+			}
+			assert.Equal(t, http.StatusConflict, rec.Code, "cuerpo: %s", rec.Body.String())
+			assert.JSONEq(t, `{"error":"`+sprintReadOnlyMessage+`"}`, rec.Body.String())
+			assert.Equal(t, before, sprintDatabaseSnapshot(t, f.env.db), "no debería cambiar ninguna fila")
+		})
+	}
+	assert.Equal(t, map[bool]int{true: 8, false: 3}, counts, "la feature tiene ocho escrituras y tres lecturas")
 }

@@ -881,7 +881,7 @@ T088 es de caracterización sin RED y T089 y T090 siguen el ciclo normal.
 
 **Rama**: `fase/004-polish`
 
-- [ ] T088 Pruebas de integración de caracterización en
+- [X] T088 Pruebas de integración de caracterización en
       `backend/internal/sprints/delivery/handler_test.go`, **sin** etiqueta `004/USn`:
       `TestSprintEndpoints_SinSesion`, con un subtest por cada uno de los **once** endpoints sin
       cabecera y con token adulterado → `401` y ningún cambio (SC-013);
@@ -892,37 +892,47 @@ T088 es de caracterización sin RED y T089 y T090 siguen el ciclo normal.
       que ninguna respuesta contiene `password_hash` ni `passwordHash` (Principio VI). Prueba de
       caracterización: las rutas ya están detrás de los middlewares y las reglas ya existen, así que
       no tiene RED; el commit lo justifica — depende de T087
-- [ ] T089 [P] Prueba de frontend en
+- [X] T089 [P] Prueba de frontend en
       `frontend/src/features/projects/components/project-overview.test.tsx`: la vista del proyecto
       ofrece un enlace a `/projects/{projectId}/sprints` — depende de T080
-- [ ] T090 Implementar el enlace a los sprints en
+- [X] T090 Implementar el enlace a los sprints en
       `frontend/src/features/projects/components/project-overview.tsx` — depende de T089
-- [ ] T091 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
+- [X] T091 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
       `backend/docs/` coincida con [contracts/openapi.yaml](./contracts/openapi.yaml) en las **once**
       operaciones, sus códigos de respuesta (todas declaran `500`) y sus esquemas; corregir las
       anotaciones si difieren (Principio VIII) — depende de T087
-- [ ] T092 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona la
+- [X] T092 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona la
       gestión de sprints, y se agregan los once endpoints y las cuatro pantallas nuevas, manteniendo
       el criterio de que alguien que no conoce el proyecto pueda ejecutarlo siguiendo el documento —
       depende de T087
-- [ ] T093 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
+- [X] T093 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
-- [ ] T094 [P] Ejecutar los comandos de cobertura de los dos lados —
+- [X] T094 [P] Ejecutar los comandos de cobertura de los dos lados —
       `go test ./... -coverprofile=coverage.out` más `go tool cover -func=coverage.out` en
       `backend/`, y `npm run test:coverage` en `frontend/` — y revisar que el módulo
       `internal/sprints/` y `frontend/src/features/sprints/` estén cubiertos — depende de T087
-- [ ] T095 Verificar la trazabilidad y las puertas de seguridad recorriendo
+- [X] T095 Verificar la trazabilidad y las puertas de seguridad recorriendo
       `backend/internal/sprints/` y `frontend/src/features/sprints/`: que buscar `004/US1` a
       `004/US7` en el código de pruebas devuelva los **82** escenarios; que las **23** reglas RN-01 a
       RN-23 tengan prueba asociada (SC-017); que los **once** endpoints tengan su prueba de `401`
       (SC-013); que los `404` sean indistinguibles (SC-014); que **ninguna** operación de esta
       feature escriba `projects` (FR-049); que solo esta feature escriba `user_stories.status` y
       `ever_committed`; y que ninguna respuesta incluya `password_hash` — depende de T088
-- [ ] T096 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluidas la
+- [X] T096 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluidas la
       vista de estado de la 002 con el sprint activo real, el puerto de la 003 con historias
       comprometidas, las pruebas de concurrencia y la verificación de que las pruebas corrieron contra
       `smye_test` en el puerto 5433 y no contra desarrollo — depende de T050, T090, T091, T092 y
       T095
+- [X] T107 Agregar en `backend/internal/sprints/delivery/handler_test.go` una prueba de
+      caracterización, sin etiqueta `004/USn`, que verifique que `GET /api/v1/stories/{storyId}/sprints`
+      responde a quien no integra el proyecto el mismo `404` ante una historia ajena que ante un
+      `storyId` inexistente (código, tipo de contenido y cuerpo byte a byte, sin cambiar filas)
+      per SC-014 (partial)
+- [X] T108 Agregar la referencia `RN-10`, `RN-13`, `RN-14` y `RN-16` al comentario de las pruebas
+      que ya cubren esas reglas en `backend/internal/sprints/` (retiro de una historia del sprint,
+      devolución al backlog al cerrar, registro de historias del sprint cerrado e inmutabilidad de
+      la instantánea), sin cambiar su lógica, para que buscar cada regla en las pruebas la encuentre
+      per SC-017 (partial)
 
 ---
 
@@ -959,6 +969,12 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       `LimitRequestBody`, actualizar las respuestas `400` de Swagger de los listados afectados y el
       comentario de `TestSprintList_EstadoRepetidoMilesDeVeces` per hallazgo de seguridad: query mal
       formada que ignora los filtros sin aviso (security) — origen: seguridad, detectado en 004/US6
+- [ ] T106 Actualizar next a la versión estable 16.4.2 o posterior en `frontend/package.json` y
+      `frontend/package-lock.json`, registrar la versión nueva en
+      `specs/004-sprint-management/plan.md` y `specs/004-sprint-management/research.md`, y verificar
+      que `npm audit --omit=dev` ya no informa avisos sobre next per hallazgo de seguridad: versión de
+      Next.js con ejecución remota de código conocida (security) — origen: seguridad, detectado en
+      fase/004-polish (Fase 9: Polish)
 
 ---
 

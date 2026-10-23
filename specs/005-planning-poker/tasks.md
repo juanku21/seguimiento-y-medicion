@@ -380,7 +380,7 @@ nadie ve el valor ajeno.
       votó; `myVote` lleva la carta del espectador y `nil` si no votó; dos espectadores distintos
       nunca reciben la carta del otro; las rondas anteriores `revealed` muestran sus votos — depende
       de T032
-- [ ] T036 [US2] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
+- [X] T036 [US2] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
       escenario con `// Escenario: <nombre> (005/US2)`: `TestUS2_VotoOculto`,
       `TestUS2_PropiaCartaVisible` (también en una segunda conexión del autor, FR-024),
       `TestUS2_CambioDeVoto` (8 → 13; en la base queda **una** fila con `13`),

@@ -856,7 +856,7 @@ backlog; y los mismos intentos sobre un sprint Activo responden `409`.
       `backend/internal/sprints/service/sprint_service.go`; `Delete` consulta `SprintEffort.HasEffort`
       después de las reglas de solo lectura y estado y antes de llamar al repositorio — depende de
       T081 y T084
-- [ ] T086 [US7] Implementar los manejadores `updateSprint` (reutiliza la validación de T016) y
+- [X] T086 [US7] Implementar los manejadores `updateSprint` (reutiliza la validación de T016) y
       `deleteSprint` en `backend/internal/sprints/delivery/handler.go` con anotaciones `swag` en
       español, y registrar `PUT` y `DELETE` en el grupo del sprint en
       `backend/internal/sprints/delivery/routes.go`. Respuestas según contracts/openapi.yaml —

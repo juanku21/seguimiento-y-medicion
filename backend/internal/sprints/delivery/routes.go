@@ -22,6 +22,8 @@ func RegisterRoutes(projectGroup *gin.RouterGroup, handler *Handler) {
 func RegisterSprintRoutes(router *gin.Engine, requireSession gin.HandlerFunc, sprints domain.SprintRepository, handler *Handler) {
 	sprintGroup := router.Group("/api/v1/sprints/:sprintId", requireSession, RequireSprintAccess(sprints))
 	sprintGroup.GET("", handler.getSprint)
+	sprintGroup.PUT("", handler.updateSprint)
+	sprintGroup.DELETE("", handler.deleteSprint)
 	sprintGroup.POST("/stories", handler.assignSprintStories)
 	sprintGroup.DELETE("/stories", handler.removeSprintStories)
 	sprintGroup.POST("/start", handler.startSprint)

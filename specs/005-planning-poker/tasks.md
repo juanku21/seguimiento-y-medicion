@@ -299,7 +299,7 @@ desconectado.
 - [X] T024 [US1] Implementar `RequireEstimationAccess` en
       `backend/internal/poker/delivery/middleware.go` con una única salida `404` y el mensaje
       `La sesión de estimación no existe.` — depende de T014, T022
-- [ ] T025 [US1] Declarar en `backend/internal/poker/delivery/dto.go` los esquemas de
+- [X] T025 [US1] Declarar en `backend/internal/poker/delivery/dto.go` los esquemas de
       contracts/openapi.yaml `EstimationSession`, `EstimationStory`, `EstimationParticipant`,
       `EstimationRound`, `UserRef`, `OpenSessionExistsResponse` y `SessionClosedResponse`,
       reutilizando `ErrorResponse`, `FieldError` y `ValidationErrorResponse` de la 001. Los campos

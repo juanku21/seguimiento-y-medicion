@@ -1,9 +1,12 @@
 "use client";
 
-import type { ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 import { Alert } from "@/components/alert";
+import { castEstimationVote } from "@/features/poker/api";
+import { CardDeck } from "@/features/poker/components/card-deck";
 import { ParticipantList } from "@/features/poker/components/participant-list";
 import { useEstimationStream } from "@/features/poker/use-estimation-stream";
+import type { Card } from "@/types/poker";
 
 // Propiedades de la sala en vivo: la sesión de estimación tomada de la ruta.
 export type PokerRoomProps = {
@@ -14,9 +17,22 @@ export type PokerRoomProps = {
 // quien entra como participante conectado, y con cada instantánea muestra el título, la descripción
 // y los criterios de aceptación vigentes de la historia y la lista de participantes, sin recargar
 // (FR-011, FR-013, FR-075). Si el canal se rechaza (sesión inexistente o ajena) muestra solo el
-// mensaje recibido.
+// mensaje recibido. El mazo de la ronda vigente envía el voto propio (005/US2); la sesión resultante
+// llega por el canal y, si el voto se rechaza, se muestra el motivo recibido.
 export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
   const { session, error } = useEstimationStream(sessionId);
+  const [voteError, setVoteError] = useState<string | null>(null);
+
+  // Envía la carta jugada; ante un rechazo muestra el detalle del campo si lo hay o el mensaje
+  // general, y ante un voto aceptado limpia el aviso anterior.
+  const handleVote = async (card: Card) => {
+    const result = await castEstimationVote(sessionId, card);
+    setVoteError(
+      result.ok
+        ? null
+        : (result.error.fields[0]?.message ?? result.error.message),
+    );
+  };
 
   if (error !== null) {
     return <Alert>{error.message}</Alert>;
@@ -30,6 +46,7 @@ export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
   }
 
   const { story } = session;
+  const currentRound = session.rounds.at(-1);
   return (
     <div className="flex flex-col gap-6">
       {/* Historia que se estima con su texto vigente; sin criterios la lista queda vacía y se
@@ -61,7 +78,21 @@ export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
         </section>
       </article>
 
-      {/* Participantes de la sesión con su conexión y la marca de facilitador. */}
+      {/* Mazo de la ronda vigente con la carta propia resaltada y el motivo de un voto rechazado. */}
+      {currentRound !== undefined && (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-lg font-semibold">Tu voto</h2>
+          {voteError !== null && <Alert>{voteError}</Alert>}
+          <CardDeck
+            cards={session.cards}
+            myVote={session.myVote}
+            roundStatus={currentRound.status}
+            onVote={(card) => void handleVote(card)}
+          />
+        </section>
+      )}
+
+      {/* Participantes de la sesión con su conexión, la marca de facilitador y la de voto. */}
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold">Participantes</h2>
         <ParticipantList participants={session.participants} />

@@ -417,7 +417,7 @@ nadie ve el valor ajeno.
       `La ronda ya está revelada. Esperá una ronda nueva para votar.`) y su registro en
       `backend/internal/poker/delivery/routes.go`; `DTO` `VoteRequest` en `dto.go` — depende de T039,
       T042
-- [ ] T044 [US2] Implementar la llamada de voto en `frontend/src/features/poker/api.ts` y
+- [X] T044 [US2] Implementar la llamada de voto en `frontend/src/features/poker/api.ts` y
       `CardDeck` en `frontend/src/features/poker/components/card-deck.tsx`, con la marca "ya votó"
       en `ParticipantList` — depende de T037, T043
 

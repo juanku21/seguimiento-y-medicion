@@ -18,8 +18,13 @@ import (
 // 401 es el de la 001 y el 500 genérico el de los demás módulos, sin detalles internos. El 404 de
 // sesión inexistente lo comparten el middleware de acceso (sesión inexistente, ajena o
 // identificador mal formado) y el canal; el 404 de historia es el de la 003. Los tres 409 de
-// apertura y el 409 de sesión cerrada los fija contracts/openapi.yaml.
+// apertura y el 409 de sesión cerrada los fija contracts/openapi.yaml, igual que el 403 de quien no
+// participa y el 409 de ronda revelada del voto. Los dos 400 de cuerpo son los de los demás módulos.
 const (
+	msgInvalidFields            = "Hay campos inválidos en la solicitud."
+	msgInvalidBody              = "El cuerpo de la solicitud debe ser un JSON válido."
+	msgNotParticipant           = "No participás de esta sesión de estimación."
+	msgRoundRevealed            = "La ronda ya está revelada. Esperá una ronda nueva para votar."
 	msgSessionRequired          = "Se requiere iniciar sesión."
 	msgEstimationSessionMissing = "La sesión de estimación no existe."
 	msgStoryNotFound            = "La historia no existe."
@@ -101,6 +106,82 @@ func (h *Handler) openEstimationSession(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, newEstimationSession(view))
+}
+
+// castEstimationVote godoc
+//
+//	@Summary		Emite o cambia el voto en la ronda vigente
+//	@Description	Registra la carta del titular en la ronda vigente, oculta para el resto (FR-021, FR-023).
+//	@Description	Un voto nuevo reemplaza al anterior y el anterior no queda registrado (FR-022). Si con este
+//	@Description	voto todos los participantes conectados votaron, la ronda se revela automáticamente en la
+//	@Description	misma operación (FR-030, FR-031). Cartas admitidas: 0, 1, 2, 3, 5, 8, 13, 20, 40, 100 y ?,
+//	@Description	siempre como texto (FR-020). Cualquier otro valor se rechaza con 400 sin alterar el voto
+//	@Description	vigente (FR-025). Un voto no se retira: una carta ausente, nula o vacía se rechaza con 400
+//	@Description	indicando que solo se cambia por otra carta, incluida ? (FR-022, RN-36).
+//	@Tags			Planning Poker
+//	@ID				castEstimationVote
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			sessionId	path		string							true	"Identificador de la sesión de estimación"	format(uuid)
+//	@Param			body		body		VoteRequest						true	"Carta jugada"
+//	@Success		200			{object}	EstimationSession				"Voto registrado; sesión resultante vista por quien votó."
+//	@Failure		400			{object}	delivery.ValidationErrorResponse	"Carta no admitida («La carta no es válida. Cartas admitidas: 0, 1, 2, 3, 5, 8, 13, 20, 40, 100 y ?.») o intento de retirar el voto («Un voto emitido no se retira: solo se cambia por otra carta, incluida «?».»), con el detalle en card. Si el cuerpo no es un JSON válido o está vacío, la respuesta es ErrorResponse."
+//	@Failure		401			{object}	delivery.ErrorResponse			"Se requiere iniciar sesión."
+//	@Failure		403			{object}	delivery.ErrorResponse			"Quien pide no es participante conectado de la sesión («No participás de esta sesión de estimación.», FR-028)."
+//	@Failure		404			{object}	delivery.ErrorResponse			"La sesión de estimación no existe o pertenece a un proyecto del que quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo."
+//	@Failure		409			{object}	SessionClosedResponse			"La sesión está cerrada, con el resultado registrado («La sesión de estimación ya está cerrada.», FR-027), o la ronda vigente ya fue revelada («La ronda ya está revelada. Esperá una ronda nueva para votar.», como ErrorResponse, FR-026)."
+//	@Failure		500			{object}	delivery.ErrorResponse			"Error interno sin detalles expuestos."
+//	@Router			/api/v1/estimation-sessions/{sessionId}/vote [put]
+func (h *Handler) castEstimationVote(c *gin.Context) {
+	// RequireEstimationAccess y la sesión de la 001 ya dejaron el acceso y el titular en el contexto;
+	// su ausencia aquí es un error de composición y responde 500.
+	access, ok := sessionAccessFromContext(c)
+	if !ok {
+		respondInternalError(c, "castEstimationVote sin acceso a la sesión en el contexto")
+		return
+	}
+	userID, ok := authdelivery.CurrentUserID(c)
+	if !ok {
+		respondInternalError(c, "castEstimationVote sin titular de sesión en el contexto")
+		return
+	}
+
+	// El cuerpo se decodifica y se valida antes de llegar al servicio, así un cuerpo mal formado, una
+	// carta no admitida o un intento de retirar el voto no alteran el voto vigente (Principio VII).
+	var req VoteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, authdelivery.ErrorResponse{Error: msgInvalidBody})
+		return
+	}
+	card, fields := ValidateVoteRequest(req)
+	if fields != nil {
+		c.JSON(http.StatusBadRequest, authdelivery.ValidationErrorResponse{Error: msgInvalidFields, Fields: fields})
+		return
+	}
+
+	// Se registra el voto y se traducen los rechazos de dominio a los 403, 404 y 409 del contrato.
+	view, err := h.sessions.Vote(c.Request.Context(), access.SessionID, userID, card)
+	var closed *domain.SessionClosedError
+	switch {
+	case errors.As(err, &closed):
+		c.JSON(http.StatusConflict, newSessionClosedResponse(msgSessionClosed, closed))
+		return
+	case errors.Is(err, domain.ErrRoundRevealed):
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgRoundRevealed})
+		return
+	case errors.Is(err, domain.ErrNotParticipant):
+		c.JSON(http.StatusForbidden, authdelivery.ErrorResponse{Error: msgNotParticipant})
+		return
+	case errors.Is(err, domain.ErrSessionNotFound):
+		abortEstimationSessionNotFound(c)
+		return
+	case err != nil:
+		respondInternalError(c, "no se pudo registrar el voto", "error", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, newEstimationSession(view))
 }
 
 // respondInternalError registra el error en el log con sus atributos y responde 500 con el mensaje

@@ -412,7 +412,7 @@ nadie ve el valor ajeno.
       y `version + 1` — depende de T036
 - [X] T042 [US2] Implementar `Vote` en `backend/internal/poker/service/session_service.go`, con
       publicación después de confirmar — depende de T040, T041
-- [ ] T043 [US2] Implementar el manejador `castEstimationVote` (`PUT /vote`) con anotaciones `swag`
+- [X] T043 [US2] Implementar el manejador `castEstimationVote` (`PUT /vote`) con anotaciones `swag`
       en `backend/internal/poker/delivery/handler.go`, la traducción de errores (`403`, `409`
       `La ronda ya está revelada. Esperá una ronda nueva para votar.`) y su registro en
       `backend/internal/poker/delivery/routes.go`; `DTO` `VoteRequest` en `dto.go` — depende de T039,

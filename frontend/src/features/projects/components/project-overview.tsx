@@ -31,7 +31,7 @@ export function isViewerOwner(project: ProjectDetail): boolean {
 }
 
 // Vista del proyecto en una sola pantalla (002/US4, SC-003): pide el estado una sola vez y reparte
-// la respuesta entre la tarjeta de estado, el enlace al backlog (003), las acciones de cambio de estado (002/US6) y la lista de
+// la respuesta entre la tarjeta de estado, los enlaces al backlog (003) y a los sprints (004), las acciones de cambio de estado (002/US6) y la lista de
 // integrantes, que para el propietario ya incluye el formulario de alta (002/US3). El 404 llega con el mensaje del backend, que no revela
 // si el proyecto existe (FR-049); ante un 401 el cliente HTTP borra el token y la guardia lleva a
 // /login (FR-016).
@@ -75,19 +75,27 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
   // Estado y equipo del proyecto, ambos a partir de la misma respuesta. Solo el propietario ve
   // las acciones de administración, y ninguna se ofrece si el proyecto es de solo lectura: en ese
   // caso la tarjeta muestra la fecha de finalización real (FR-018, US4-2). El proyecto que devuelve
-  // un cambio de estado reemplaza al vigente (002/US6). El enlace al backlog se ofrece a todo
-  // integrante, propietario o no (003).
+  // un cambio de estado reemplaza al vigente (002/US6). Los enlaces al backlog (003) y a los
+  // sprints (004) se ofrecen a todo integrante, propietario o no.
   const { project } = state;
   const viewerIsOwner = isViewerOwner(project);
   return (
     <div className="flex flex-col gap-8">
       <ProjectStatusCard project={project} />
-      <Link
-        href={`/projects/${project.id}/backlog`}
-        className="self-start text-sm font-medium underline underline-offset-4"
-      >
-        Ver backlog
-      </Link>
+      <nav aria-label="Secciones del proyecto" className="flex gap-6">
+        <Link
+          href={`/projects/${project.id}/backlog`}
+          className="text-sm font-medium underline underline-offset-4"
+        >
+          Ver backlog
+        </Link>
+        <Link
+          href={`/projects/${project.id}/sprints`}
+          className="text-sm font-medium underline underline-offset-4"
+        >
+          Ver sprints
+        </Link>
+      </nav>
       {viewerIsOwner && !project.readOnly && (
         <StatusActions
           project={project}

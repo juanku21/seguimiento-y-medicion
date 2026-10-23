@@ -895,7 +895,7 @@ T088 es de caracterización sin RED y T089 y T090 siguen el ciclo normal.
 - [X] T089 [P] Prueba de frontend en
       `frontend/src/features/projects/components/project-overview.test.tsx`: la vista del proyecto
       ofrece un enlace a `/projects/{projectId}/sprints` — depende de T080
-- [ ] T090 Implementar el enlace a los sprints en
+- [X] T090 Implementar el enlace a los sprints en
       `frontend/src/features/projects/components/project-overview.tsx` — depende de T089
 - [ ] T091 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
       `backend/docs/` coincida con [contracts/openapi.yaml](./contracts/openapi.yaml) en las **once**

@@ -204,7 +204,7 @@ desconectado.
       ("la última gana", capacidad 1); `CloseSession` cierra todos los canales de la sesión y
       `CloseUser` los de una persona en una sesión; darse de baja dos veces no falla. Seguro para uso
       concurrente (`go test -race`) — depende de T009
-- [ ] T013 [P] [US1] Pruebas unitarias **obligatorias** de `ViewFor` (parte de US1) en
+- [X] T013 [P] [US1] Pruebas unitarias **obligatorias** de `ViewFor` (parte de US1) en
       `backend/internal/poker/domain/view_test.go`: la vista lleva la historia con título,
       descripción y criterios **en su orden** y sin Story Points (FR-012, FR-075); `cards` igual a
       las once cartas; cada participante con `connected` e `isFacilitator`, exactamente uno

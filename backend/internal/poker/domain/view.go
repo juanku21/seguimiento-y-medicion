@@ -145,6 +145,13 @@ type SessionView struct {
 	FacilitatorAvailableAt *time.Time
 }
 
+// ViewFor arma la vista de la sesión para quien pide a partir de la instantánea completa; es el único
+// punto por el que una sesión sale hacia la API (research.md sección 8). Firma mínima de T013: la
+// implementa T021.
+func ViewFor(snapshot SessionSnapshot, viewerID uuid.UUID) SessionView {
+	return SessionView{}
+}
+
 // SessionSummary es una sesión cerrada del historial de una historia (FR-079, FR-080), sin votos de
 // ninguna ronda (research.md sección 8). ClosedBy es nil si la cerró el sistema, y RoundCount es la
 // cantidad de rondas de la sesión.

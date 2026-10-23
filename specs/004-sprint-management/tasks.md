@@ -918,7 +918,7 @@ T088 es de caracterización sin RED y T089 y T090 siguen el ciclo normal.
       (SC-013); que los `404` sean indistinguibles (SC-014); que **ninguna** operación de esta
       feature escriba `projects` (FR-049); que solo esta feature escriba `user_stories.status` y
       `ever_committed`; y que ninguna respuesta incluya `password_hash` — depende de T088
-- [ ] T096 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluidas la
+- [X] T096 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluidas la
       vista de estado de la 002 con el sprint activo real, el puerto de la 003 con historias
       comprometidas, las pruebas de concurrencia y la verificación de que las pruebas corrieron contra
       `smye_test` en el puerto 5433 y no contra desarrollo — depende de T050, T090, T091, T092 y

@@ -188,7 +188,7 @@ desconectado.
       motivo o valor); `finished` con valor 8 → `SessionClosedError` con `Status` `finished` y
       `AgreedStoryPoints` 8; `canceled` con motivo `inactivity` y sin motivo → `SessionClosedError`
       con `Status` `canceled` y `CancelReason` `inactivity` o `nil` según el caso — depende de T009
-- [ ] T011 [P] [US1] Pruebas unitarias **obligatorias** de `Presence` en
+- [X] T011 [P] [US1] Pruebas unitarias **obligatorias** de `Presence` en
       `backend/internal/poker/service/presence_test.go`, cubriendo RN-23 y RN-34, con instantes
       explícitos: la primera conexión de un par (sesión, usuario) informa "llegó" y la segunda no; al
       cerrar una de dos conexiones no informa nada; al cerrar la última anota el instante y no

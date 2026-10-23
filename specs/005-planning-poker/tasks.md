@@ -374,7 +374,7 @@ nadie ve el valor ajeno.
       `La carta no es válida. Cartas admitidas: 0, 1, 2, 3, 5, 8, 13, 20, 40, 100 y ?.`; carta
       ausente, `null` o `""` → `FieldError` en `card` con
       `Un voto emitido no se retira: solo se cambia por otra carta, incluida "?".` — depende de T032
-- [ ] T035 [P] [US2] Pruebas unitarias **obligatorias** de `ViewFor` (secreto del voto) en
+- [X] T035 [P] [US2] Pruebas unitarias **obligatorias** de `ViewFor` (secreto del voto) en
       `backend/internal/poker/domain/view_test.go`, cubriendo RN-08: con la ronda vigente `voting`,
       `votes` es `nil` para todo espectador, incluido el autor; `hasVoted` verdadero solo para quien
       votó; `myVote` lleva la carta del espectador y `nil` si no votó; dos espectadores distintos

@@ -37,14 +37,15 @@ func buildCards() []Card {
 func ParseCard(text string) (Card, error) {
 	card := Card(text)
 	if !slices.Contains(Cards, card) {
-		return "", fmt.Errorf("la carta %q no es válida; cartas admitidas: %s", text, admittedCardsList())
+		return "", fmt.Errorf("la carta %q no es válida; cartas admitidas: %s", text, AdmittedCardsList())
 	}
 	return card, nil
 }
 
-// admittedCardsList arma la lista legible de cartas en orden, separadas por comas y con "y" antes de
-// la última, por ejemplo "0, 1, 2, 3, 5, 8, 13, 20, 40, 100 y ?".
-func admittedCardsList() string {
+// AdmittedCardsList arma la lista legible de cartas en orden, separadas por comas y con "y" antes de
+// la última, por ejemplo "0, 1, 2, 3, 5, 8, 13, 20, 40, 100 y ?". Se exporta para que delivery arme
+// su mensaje de validación sin repetir la escala.
+func AdmittedCardsList() string {
 	texts := make([]string, len(Cards))
 	for i, card := range Cards {
 		texts[i] = string(card)

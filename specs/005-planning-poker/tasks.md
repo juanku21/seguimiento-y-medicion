@@ -400,7 +400,7 @@ nadie ve el valor ajeno.
 
 - [X] T038 [P] [US2] Implementar `ParseCard` en `backend/internal/poker/domain/card.go` — depende de
       T033
-- [ ] T039 [US2] Implementar la validación del cuerpo del voto en
+- [X] T039 [US2] Implementar la validación del cuerpo del voto en
       `backend/internal/poker/delivery/validation.go`, con los dos mensajes como constantes nombradas
       en un único lugar y sin llegar al servicio ante un error (Principio VII) — depende de T034, T038
 - [ ] T040 [P] [US2] Completar `ViewFor` en `backend/internal/poker/domain/view.go` con `hasVoted`,

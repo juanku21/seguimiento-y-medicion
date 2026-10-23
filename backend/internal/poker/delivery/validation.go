@@ -8,9 +8,10 @@ import (
 )
 
 // Mensajes de validación del voto dirigidos a la persona, declarados en un único lugar
-// (contracts/openapi.yaml, ejemplos cartaInvalida y retiro; FR-025, RN-36).
-const (
-	msgInvalidCard  = "La carta no es válida. Cartas admitidas: 0, 1, 2, 3, 5, 8, 13, 20, 40, 100 y ?."
+// (contracts/openapi.yaml, ejemplos cartaInvalida y retiro; FR-025, RN-36). La enumeración de cartas
+// se toma de domain.AdmittedCardsList para que la escala se declare una sola vez.
+var (
+	msgInvalidCard  = "La carta no es válida. Cartas admitidas: " + domain.AdmittedCardsList() + "."
 	msgWithdrawVote = `Un voto emitido no se retira: solo se cambia por otra carta, incluida "?".`
 )
 

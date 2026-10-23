@@ -3205,8 +3205,8 @@ func TestStorySprints_RemovedBeforeCloseNotListed(t *testing.T) {
 // cerrado y el filtro aplicado una sola vez, porque la cláusula IN debe recibir cada estado admitido
 // una vez y no un parámetro por repetición (T101, hallazgo de seguridad: filtro de estado repetible
 // sin deduplicar). Las repeticiones quedan por debajo del tope de 10000 parámetros de consulta de
-// net/url: por encima de ese tope la consulta no se interpreta y el manejador no recibe ningún valor
-// de status, de modo que la petición nunca llegaría a la cláusula IN.
+// net/url: por encima de ese tope la consulta no se interpreta y RejectMalformedQuery la rechaza con
+// 400 antes de llegar al manejador (T105), de modo que la petición nunca llegaría a la cláusula IN.
 func TestSprintList_EstadoRepetidoMilesDeVeces(t *testing.T) {
 	const repetitions = 9000
 	f := newSprintUS6Fixture(t)

@@ -310,7 +310,7 @@ func (h *Handler) deleteStory(c *gin.Context) {
 //	@Param			status		query		[]string							false	"Filtra por estado; se puede repetir."		collectionFormat(multi)	Enums(pending, in_progress, completed)
 //	@Param			priority	query		[]string							false	"Filtra por prioridad; se puede repetir."	collectionFormat(multi)	Enums(high, medium, low)
 //	@Success		200			{object}	StoryListResponse					"Listado del backlog."
-//	@Failure		400			{object}	delivery.ValidationErrorResponse	"Un filtro tiene un valor que no existe (FR-037)."
+//	@Failure		400			{object}	delivery.ValidationErrorResponse	"Un filtro tiene un valor que no existe (FR-037). También responde 400, solo con el campo error, si la query está mal formada: más de 10000 parámetros, un escape inválido o un separador ;."
 //	@Failure		401			{object}	delivery.ErrorResponse				"Se requiere iniciar sesión (FR-045)."
 //	@Failure		404			{object}	delivery.ErrorResponse				"El proyecto no existe o quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo (FR-047, SC-006)."
 //	@Failure		500			{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."

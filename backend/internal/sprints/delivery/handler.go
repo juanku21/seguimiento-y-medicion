@@ -135,7 +135,7 @@ func (h *Handler) createSprint(c *gin.Context) {
 //	@Param			projectId	path		string								true	"Identificador del proyecto"	format(uuid)
 //	@Param			status		query		[]string							false	"Filtro por estado; puede repetirse"	collectionFormat(multi)	Enums(planned, active, closed)
 //	@Success		200			{object}	SprintListResponse					"Lista de sprints, posiblemente vacía."
-//	@Failure		400			{object}	delivery.ValidationErrorResponse	"Algún valor de status no es planned, active ni closed; señala status."
+//	@Failure		400			{object}	delivery.ValidationErrorResponse	"Algún valor de status no es planned, active ni closed; señala status. También responde 400, solo con el campo error, si la query está mal formada: más de 10000 parámetros, un escape inválido o un separador ;."
 //	@Failure		401			{object}	delivery.ErrorResponse				"Se requiere iniciar sesión."
 //	@Failure		404			{object}	delivery.ErrorResponse				"El proyecto no existe o quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo."
 //	@Failure		500			{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."

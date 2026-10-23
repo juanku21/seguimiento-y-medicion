@@ -963,7 +963,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       `backend/internal/backlog/delivery/handler_test.go`, más una prueba del middleware en
       `backend/internal/platform/httpserver/` per hallazgo de seguridad: query mal formada que ignora
       los filtros sin aviso (security) — origen: seguridad, detectado en 004/US6
-- [ ] T105 Agregar en `backend/internal/platform/httpserver/` un middleware que valide
+- [X] T105 Agregar en `backend/internal/platform/httpserver/` un middleware que valide
       `c.Request.URL.RawQuery` con `url.ParseQuery` y responda `400` con un mensaje descriptivo si
       hay error, registrarlo con `router.Use` en `backend/cmd/app/main.go` junto a
       `LimitRequestBody`, actualizar las respuestas `400` de Swagger de los listados afectados y el

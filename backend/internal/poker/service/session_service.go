@@ -91,6 +91,26 @@ func (s *SessionService) Join(ctx context.Context, access *domain.SessionAccess,
 	return conn, nil
 }
 
+// Vote registra o cambia la carta de la persona en la ronda vigente y devuelve la sesión resultante
+// vista por ella. Recién después de que el repositorio confirma la transacción publica la
+// instantánea, para que nadie reciba un voto que no quedó escrito (research.md sección 7). Los
+// errores del repositorio se devuelven tal cual, para que el manejador los traduzca.
+func (s *SessionService) Vote(ctx context.Context, sessionID, userID uuid.UUID, card domain.Card) (*domain.SessionView, error) {
+	if err := s.repo.Vote(ctx, sessionID, userID, card, s.now()); err != nil {
+		return nil, err
+	}
+	if err := s.publish(ctx, sessionID); err != nil {
+		return nil, err
+	}
+
+	snapshot, err := s.repo.FindSnapshot(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("reading voted session snapshot: %w", err)
+	}
+	view := domain.ViewFor(*snapshot, userID)
+	return &view, nil
+}
+
 // Leave da de baja la suscripción de la conexión y la descuenta de la presencia; si era la última
 // de la persona, empieza a correr la gracia de FR-014.
 func (s *SessionService) Leave(conn *Connection) {

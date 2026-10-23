@@ -18,9 +18,10 @@ func RegisterStoryRoutes(router *gin.Engine, requireSession, requireStoryAccess 
 
 // RegisterSessionRoutes crea el grupo plano /api/v1/estimation-sessions/:sessionId con el middleware
 // de sesión inyectado desde cmd/app y RequireEstimationAccess sobre el repositorio recibido, y
-// registra en él el canal de eventos. Quien no es integrante del proyecto de la sesión recibe el 404
+// registra en él el canal de eventos y el voto. Quien no es integrante del proyecto de la sesión recibe el 404
 // indistinguible del middleware antes de llegar al manejador.
 func RegisterSessionRoutes(router *gin.Engine, requireSession gin.HandlerFunc, repo domain.SessionRepository, handler *Handler) {
 	sessionGroup := router.Group("/api/v1/estimation-sessions/:sessionId", requireSession, RequireEstimationAccess(repo))
 	sessionGroup.GET("/events", handler.streamEstimationSession)
+	sessionGroup.PUT("/vote", handler.castEstimationVote)
 }

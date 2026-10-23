@@ -149,9 +149,11 @@ type SessionView struct {
 // ViewFor arma la vista de la sesión para quien pide a partir de la instantánea completa; es el único
 // punto por el que una sesión sale hacia la API (research.md sección 8). Es una función pura sobre la
 // instantánea, sin I/O, porque Hub.Publish la ejecuta con su mutex tomado. Copia los datos de la
-// sesión, de la historia y de sus participantes y rondas; los votos se agregan en US2.
+// sesión, de la historia y de sus participantes y rondas, y aplica el secreto del voto: de la ronda
+// vigente solo salen quiénes votaron y la carta propia de quien pide (FR-023, FR-024, FR-082).
 func ViewFor(snapshot SessionSnapshot, viewerID uuid.UUID) SessionView {
 	session := snapshot.Session
+	currentVotes := currentRoundVotes(snapshot.Rounds)
 	return SessionView{
 		ID:           session.ID,
 		Version:      session.Version,
@@ -163,9 +165,31 @@ func ViewFor(snapshot SessionSnapshot, viewerID uuid.UUID) SessionView {
 		ClosedBy:     snapshot.ClosedBy,
 		ClosedAt:     session.ClosedAt,
 		Cards:        slices.Clone(Cards),
-		Participants: participantViews(snapshot.Participants, session.FacilitatorID),
+		Participants: participantViews(snapshot.Participants, session.FacilitatorID, currentVotes),
 		Rounds:       roundViews(snapshot.Rounds),
+		MyVote:       myVote(currentVotes, viewerID),
 	}
+}
+
+// currentRoundVotes devuelve los votos de la ronda vigente, que es la última de la instantánea
+// porque las rondas llegan ordenadas de la 1 a la vigente; sin rondas no hay votos.
+func currentRoundVotes(rounds []SnapshotRound) []SessionVote {
+	if len(rounds) == 0 {
+		return nil
+	}
+	return rounds[len(rounds)-1].Votes
+}
+
+// myVote busca la carta de quien pide entre los votos de la ronda vigente y devuelve una copia, o
+// nil si todavía no votó en ella.
+func myVote(votes []SessionVote, viewerID uuid.UUID) *Card {
+	for _, v := range votes {
+		if v.User.ID == viewerID {
+			card := v.Card
+			return &card
+		}
+	}
+	return nil
 }
 
 // storyView copia la historia con sus criterios en el orden de la instantánea; una historia sin
@@ -177,33 +201,57 @@ func storyView(story SessionStory) SessionStory {
 	return story
 }
 
-// participantViews arma cada participante con su presencia y marca como facilitador solo a quien
-// coincide con el facilitador de la sesión.
-func participantViews(participants []SnapshotParticipant, facilitatorID uuid.UUID) []ParticipantView {
+// participantViews arma cada participante con su presencia, marca como facilitador solo a quien
+// coincide con el facilitador de la sesión y marca HasVoted a quien tiene voto en la ronda vigente,
+// sin exponer la carta.
+func participantViews(
+	participants []SnapshotParticipant,
+	facilitatorID uuid.UUID,
+	currentVotes []SessionVote,
+) []ParticipantView {
+	voters := make(map[uuid.UUID]bool, len(currentVotes))
+	for _, v := range currentVotes {
+		voters[v.User.ID] = true
+	}
+
 	views := make([]ParticipantView, 0, len(participants))
 	for _, p := range participants {
 		views = append(views, ParticipantView{
 			User:          p.User,
 			Connected:     p.Connected,
 			IsFacilitator: p.User.ID == facilitatorID,
+			HasVoted:      voters[p.User.ID],
 		})
 	}
 	return views
 }
 
 // roundViews arma las rondas en el orden de la instantánea con su número, su estado y sus momentos
-// de apertura y revelado.
+// de apertura y revelado. Solo las rondas reveladas llevan sus votos con sus autores; las que están
+// en votación salen con Votes nil para todos (FR-023, FR-082).
 func roundViews(rounds []SnapshotRound) []RoundView {
 	views := make([]RoundView, 0, len(rounds))
 	for _, r := range rounds {
-		views = append(views, RoundView{
+		view := RoundView{
 			Number:     r.Number,
 			Status:     r.Status,
 			OpenedAt:   r.OpenedAt,
 			RevealedAt: r.RevealedAt,
-		})
+		}
+		if r.Status == RoundStatusRevealed {
+			view.Votes = revealedVotes(r.Votes)
+		}
+		views = append(views, view)
 	}
 	return views
+}
+
+// revealedVotes copia los votos de una ronda revelada; una ronda sin votos sale con la lista vacía y
+// no nil, para que el JSON lleve un arreglo y no se confunda con una ronda en votación.
+func revealedVotes(votes []SessionVote) []SessionVote {
+	copied := make([]SessionVote, len(votes))
+	copy(copied, votes)
+	return copied
 }
 
 // SessionSummary es una sesión cerrada del historial de una historia (FR-079, FR-080), sin votos de

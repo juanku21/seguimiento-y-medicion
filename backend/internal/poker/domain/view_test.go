@@ -247,3 +247,171 @@ func TestUS1_DominioHistoriaSinCriterios(t *testing.T) {
 		})
 	}
 }
+
+// Pruebas unitarias obligatorias de ViewFor (T035) en la parte que cubre US2, el secreto del voto
+// (RN-08, FR-023, FR-024, FR-082): mientras la ronda vigente está en votación nadie recibe sus votos,
+// ni siquiera el autor; cada participante muestra solo si ya votó; MyVote lleva la carta de quien
+// pide y nunca la de otro; y las rondas anteriores, ya reveladas, muestran sus votos. Los nombres
+// llevan el infijo "Vista" para no chocar con las pruebas de ParseCard del mismo paquete.
+
+// withVotes agrega a la ronda con el número dado los votos indicados, para armar cada escenario a
+// partir de la instantánea base sin repetirla.
+func (f *viewFixture) withVotes(number int, votes ...SessionVote) {
+	for i := range f.snapshot.Rounds {
+		if f.snapshot.Rounds[i].Number == number {
+			f.snapshot.Rounds[i].Votes = append(f.snapshot.Rounds[i].Votes, votes...)
+		}
+	}
+}
+
+// cardPtr devuelve un puntero a la carta dada, para comparar contra MyVote.
+func cardPtr(c Card) *Card { return &c }
+
+// Escenario: Voto oculto (005/US2)
+// Con la ronda vigente en votación y Alice con la carta 5, Bob y Carol ven que Alice ya votó, pero
+// no reciben ningún voto de la ronda ni carta propia, porque no votaron. Cada espectador ajeno al
+// voto se verifica en su propio subtest.
+func TestUS2_DominioVistaVotoOculto(t *testing.T) {
+	cases := []struct {
+		name   string
+		viewer func(f viewFixture) UserRef
+	}{
+		{name: "espectador conectado sin voto", viewer: func(f viewFixture) UserRef { return f.bob }},
+		{name: "espectador desconectado sin voto", viewer: func(f viewFixture) UserRef { return f.carol }},
+	}
+
+	// Cada espectador recibe hasVoted solo para Alice, la ronda vigente sin votos y MyVote nil.
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newOpenViewFixture()
+			f.withVotes(2, SessionVote{User: f.alice, Card: "5"})
+
+			view := ViewFor(f.snapshot, tc.viewer(f).ID)
+
+			require.Len(t, view.Rounds, 2)
+			assert.Nil(t, view.Rounds[1].Votes, "la ronda en votación no expone votos")
+			assert.True(t, participantByID(t, view, f.alice.ID).HasVoted, "Alice ya votó")
+			assert.False(t, participantByID(t, view, f.bob.ID).HasVoted, "Bob no votó")
+			assert.False(t, participantByID(t, view, f.carol.ID).HasVoted, "Carol no votó")
+			assert.Nil(t, view.MyVote, "quien no votó no tiene carta propia")
+		})
+	}
+}
+
+// Escenario: Propia carta visible (005/US2)
+// El autor de un voto ve su propia carta en MyVote, pero tampoco recibe los votos de la ronda en
+// votación: su carta viaja solo en MyVote. Con dos autores, cada uno recibe la suya y nunca la del
+// otro (FR-024, FR-082).
+func TestUS2_DominioVistaPropiaCartaVisible(t *testing.T) {
+	// El autor recibe su carta en MyVote, figura como "ya votó" y la ronda vigente no lleva votos.
+	t.Run("el autor ve su carta y no los votos de la ronda", func(t *testing.T) {
+		f := newOpenViewFixture()
+		f.withVotes(2, SessionVote{User: f.alice, Card: "5"})
+
+		view := ViewFor(f.snapshot, f.alice.ID)
+
+		require.Len(t, view.Rounds, 2)
+		assert.Nil(t, view.Rounds[1].Votes, "ni el autor recibe los votos de la ronda en votación")
+		assert.True(t, participantByID(t, view, f.alice.ID).HasVoted)
+		require.NotNil(t, view.MyVote)
+		assert.Equal(t, Card("5"), *view.MyVote)
+	})
+
+	// Con Alice en 5 y Bob en 8, cada uno recibe solo su carta; Carol, que no votó, ninguna.
+	t.Run("dos autores nunca reciben la carta del otro", func(t *testing.T) {
+		f := newOpenViewFixture()
+		f.withVotes(2,
+			SessionVote{User: f.alice, Card: "5"},
+			SessionVote{User: f.bob, Card: "8"},
+		)
+
+		aliceView := ViewFor(f.snapshot, f.alice.ID)
+		bobView := ViewFor(f.snapshot, f.bob.ID)
+		carolView := ViewFor(f.snapshot, f.carol.ID)
+
+		assert.Equal(t, cardPtr("5"), aliceView.MyVote)
+		assert.Equal(t, cardPtr("8"), bobView.MyVote)
+		assert.Nil(t, carolView.MyVote)
+		for _, view := range []SessionView{aliceView, bobView, carolView} {
+			require.Len(t, view.Rounds, 2)
+			assert.Nil(t, view.Rounds[1].Votes)
+			assert.True(t, participantByID(t, view, f.alice.ID).HasVoted)
+			assert.True(t, participantByID(t, view, f.bob.ID).HasVoted)
+			assert.False(t, participantByID(t, view, f.carol.ID).HasVoted)
+		}
+	})
+
+	// Un voto de una ronda anterior no cuenta como voto de la ronda vigente: quien votó en la 1 y
+	// todavía no en la 2 no tiene carta propia ni figura como "ya votó".
+	t.Run("un voto de una ronda anterior no es carta propia", func(t *testing.T) {
+		f := newOpenViewFixture()
+		f.withVotes(1, SessionVote{User: f.alice, Card: "3"})
+		f.withVotes(2, SessionVote{User: f.bob, Card: "8"})
+
+		view := ViewFor(f.snapshot, f.alice.ID)
+
+		assert.Nil(t, view.MyVote)
+		assert.False(t, participantByID(t, view, f.alice.ID).HasVoted)
+		assert.True(t, participantByID(t, view, f.bob.ID).HasVoted)
+	})
+}
+
+// Escenario: Cambio de voto (005/US2)
+// Alice cambió de 8 a 13, así que la instantánea solo trae su voto vigente: ella recibe 13 en MyVote
+// y para los demás sigue figurando solamente como "ya votó", sin ningún valor.
+func TestUS2_DominioVistaCambioDeVoto(t *testing.T) {
+	f := newOpenViewFixture()
+	f.withVotes(2, SessionVote{User: f.alice, Card: "13"})
+
+	aliceView := ViewFor(f.snapshot, f.alice.ID)
+	bobView := ViewFor(f.snapshot, f.bob.ID)
+
+	assert.Equal(t, cardPtr("13"), aliceView.MyVote)
+	assert.Nil(t, bobView.MyVote)
+	require.Len(t, bobView.Rounds, 2)
+	assert.Nil(t, bobView.Rounds[1].Votes)
+	assert.True(t, participantByID(t, bobView, f.alice.ID).HasVoted)
+}
+
+// Escenario: Carta desconocida (005/US2)
+// La carta "?" cuenta como voto emitido igual que cualquier otra: su autor la recibe en MyVote y los
+// demás lo ven como "ya votó", sin el valor.
+func TestUS2_DominioVistaCartaDesconocida(t *testing.T) {
+	f := newOpenViewFixture()
+	f.withVotes(2, SessionVote{User: f.carol, Card: CardUnknown})
+
+	carolView := ViewFor(f.snapshot, f.carol.ID)
+	aliceView := ViewFor(f.snapshot, f.alice.ID)
+
+	assert.Equal(t, cardPtr(CardUnknown), carolView.MyVote)
+	assert.True(t, participantByID(t, aliceView, f.carol.ID).HasVoted)
+	assert.Nil(t, aliceView.MyVote)
+	require.Len(t, aliceView.Rounds, 2)
+	assert.Nil(t, aliceView.Rounds[1].Votes)
+}
+
+// Escenario: Ronda revelada (005/US2)
+// Las rondas anteriores ya reveladas muestran sus votos con sus autores a todos los espectadores,
+// mientras la ronda vigente en votación sigue sin exponer los suyos.
+func TestUS2_DominioVistaRondaRevelada(t *testing.T) {
+	f := newOpenViewFixture()
+	revealed := []SessionVote{
+		{User: f.alice, Card: "3"},
+		{User: f.bob, Card: "8"},
+		{User: f.carol, Card: CardUnknown},
+	}
+	f.withVotes(1, revealed...)
+	f.withVotes(2, SessionVote{User: f.alice, Card: "5"})
+
+	// Cada espectador, haya votado o no en la ronda vigente, recibe los mismos votos revelados.
+	for _, viewer := range []UserRef{f.alice, f.bob, f.carol} {
+		t.Run(viewer.FullName, func(t *testing.T) {
+			view := ViewFor(f.snapshot, viewer.ID)
+
+			require.Len(t, view.Rounds, 2)
+			assert.Equal(t, RoundStatusRevealed, view.Rounds[0].Status)
+			assert.ElementsMatch(t, revealed, view.Rounds[0].Votes)
+			assert.Nil(t, view.Rounds[1].Votes)
+		})
+	}
+}

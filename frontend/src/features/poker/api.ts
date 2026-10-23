@@ -2,9 +2,10 @@ import {
   isRecord,
   openAuthorizedStream,
   postAuthorizedJson,
+  putAuthorizedJson,
   type ApiResult,
 } from "@/lib/api-client";
-import type { EstimationSession } from "@/types/poker";
+import type { Card, EstimationSession } from "@/types/poker";
 
 // Reconoce la sesión de estimación (EstimationSession) que devuelven la apertura (201) y cada evento
 // state del canal, sin confiar en el cuerpo recibido. El cierre, el valor acordado, el motivo de
@@ -60,4 +61,20 @@ export function streamEstimationSession(
   signal: AbortSignal,
 ): Promise<ApiResult<ReadableStream<Uint8Array>>> {
   return openAuthorizedStream(`${sessionPath(sessionId)}/events`, signal);
+}
+
+// Emite o cambia el voto propio en la ronda vigente con PUT
+// /api/v1/estimation-sessions/{sessionId}/vote y cuerpo {"card": "<carta>"} (005/US2). Devuelve la
+// sesión vista por quien votó (200). Las reglas las resuelve el backend: la carta no admitida llega
+// como 400 con el detalle en fields, quien no participa como 403, la sesión inexistente como 404 y
+// la sesión cerrada o la ronda ya revelada como 409; ante un 401 el cliente HTTP descarta la sesión.
+export function castEstimationVote(
+  sessionId: string,
+  card: Card,
+): Promise<ApiResult<EstimationSession>> {
+  return putAuthorizedJson(
+    `${sessionPath(sessionId)}/vote`,
+    { card },
+    isEstimationSession,
+  );
 }

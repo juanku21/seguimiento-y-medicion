@@ -364,23 +364,23 @@ nadie ve el valor ajeno.
 
 ### Pruebas de la Historia 2 ⚠️
 
-- [ ] T033 [P] [US2] Pruebas unitarias **obligatorias** de `ParseCard` en
+- [X] T033 [P] [US2] Pruebas unitarias **obligatorias** de `ParseCard` en
       `backend/internal/poker/domain/card_test.go`, cubriendo RN-06 y SC-010: las once cartas
       admitidas aceptadas; `4`, `6`, `7`, `50`, `101`, `-1`, `1.5`, `" 5"` y `"??"` rechazados con un
       error que enumera las cartas en orden — depende de T032
-- [ ] T034 [P] [US2] Pruebas unitarias **obligatorias** de validación del voto en
+- [X] T034 [P] [US2] Pruebas unitarias **obligatorias** de validación del voto en
       `backend/internal/poker/delivery/validation_test.go`, cubriendo RN-36: cuerpo
       `{"card":"5"}` → ok; `{"card":5}` (número JSON) y cartas inválidas → `FieldError` en `card` con
       `La carta no es válida. Cartas admitidas: 0, 1, 2, 3, 5, 8, 13, 20, 40, 100 y ?.`; carta
       ausente, `null` o `""` → `FieldError` en `card` con
       `Un voto emitido no se retira: solo se cambia por otra carta, incluida "?".` — depende de T032
-- [ ] T035 [P] [US2] Pruebas unitarias **obligatorias** de `ViewFor` (secreto del voto) en
+- [X] T035 [P] [US2] Pruebas unitarias **obligatorias** de `ViewFor` (secreto del voto) en
       `backend/internal/poker/domain/view_test.go`, cubriendo RN-08: con la ronda vigente `voting`,
       `votes` es `nil` para todo espectador, incluido el autor; `hasVoted` verdadero solo para quien
       votó; `myVote` lleva la carta del espectador y `nil` si no votó; dos espectadores distintos
       nunca reciben la carta del otro; las rondas anteriores `revealed` muestran sus votos — depende
       de T032
-- [ ] T036 [US2] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
+- [X] T036 [US2] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
       escenario con `// Escenario: <nombre> (005/US2)`: `TestUS2_VotoOculto`,
       `TestUS2_PropiaCartaVisible` (también en una segunda conexión del autor, FR-024),
       `TestUS2_CambioDeVoto` (8 → 13; en la base queda **una** fila con `13`),
@@ -390,7 +390,7 @@ nadie ve el valor ajeno.
       (`403` `No participás de esta sesión de estimación.`) y `TestUS2_RetiroDeVoto` (`400`, el voto
       sigue en 5). `TestUS2_CambioSimultaneoConRevelacion` se escribe en US3 (T047) porque necesita la
       revelación — depende de T032
-- [ ] T037 [P] [US2] Pruebas de frontend en
+- [X] T037 [P] [US2] Pruebas de frontend en
       `frontend/src/features/poker/components/card-deck.test.tsx`, con
       `describe("005/US2 - Votar en secreto")`: el mazo muestra las once cartas, resalta la propia
       (`myVote`), muestra a los demás como "ya votó" sin valor y deshabilita el mazo con la ronda
@@ -398,26 +398,26 @@ nadie ve el valor ajeno.
 
 ### Implementación de la Historia 2
 
-- [ ] T038 [P] [US2] Implementar `ParseCard` en `backend/internal/poker/domain/card.go` — depende de
+- [X] T038 [P] [US2] Implementar `ParseCard` en `backend/internal/poker/domain/card.go` — depende de
       T033
-- [ ] T039 [US2] Implementar la validación del cuerpo del voto en
+- [X] T039 [US2] Implementar la validación del cuerpo del voto en
       `backend/internal/poker/delivery/validation.go`, con los dos mensajes como constantes nombradas
       en un único lugar y sin llegar al servicio ante un error (Principio VII) — depende de T034, T038
-- [ ] T040 [P] [US2] Completar `ViewFor` en `backend/internal/poker/domain/view.go` con `hasVoted`,
+- [X] T040 [P] [US2] Completar `ViewFor` en `backend/internal/poker/domain/view.go` con `hasVoted`,
       `myVote` y los votos de las rondas reveladas — depende de T035
-- [ ] T041 [US2] Implementar `Vote` en `backend/internal/poker/repository/session_repository.go`:
+- [X] T041 [US2] Implementar `Vote` en `backend/internal/poker/repository/session_repository.go`:
       bloqueo de la sesión, `EnsureOpen`, participante con `connected = true` (si no →
       `ErrNotParticipant`), ronda vigente `voting` (si no → `ErrRoundRevealed`), upsert de la fila
       única `(round_id, participant_id)` actualizando `card` y `updated_at`, `last_activity_at = now`
       y `version + 1` — depende de T036
-- [ ] T042 [US2] Implementar `Vote` en `backend/internal/poker/service/session_service.go`, con
+- [X] T042 [US2] Implementar `Vote` en `backend/internal/poker/service/session_service.go`, con
       publicación después de confirmar — depende de T040, T041
-- [ ] T043 [US2] Implementar el manejador `castEstimationVote` (`PUT /vote`) con anotaciones `swag`
+- [X] T043 [US2] Implementar el manejador `castEstimationVote` (`PUT /vote`) con anotaciones `swag`
       en `backend/internal/poker/delivery/handler.go`, la traducción de errores (`403`, `409`
       `La ronda ya está revelada. Esperá una ronda nueva para votar.`) y su registro en
       `backend/internal/poker/delivery/routes.go`; `DTO` `VoteRequest` en `dto.go` — depende de T039,
       T042
-- [ ] T044 [US2] Implementar la llamada de voto en `frontend/src/features/poker/api.ts` y
+- [X] T044 [US2] Implementar la llamada de voto en `frontend/src/features/poker/api.ts` y
       `CardDeck` en `frontend/src/features/poker/components/card-deck.tsx`, con la marca "ya votó"
       en `ParticipantList` — depende de T037, T043
 

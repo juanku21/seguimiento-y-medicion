@@ -296,7 +296,7 @@ desconectado.
       publicación), y `Run(ctx, interval)` con un `time.Ticker` que llama a `Sweep`, registra cada
       error con `slog` y sigue con la próxima pasada, sin `panic` (Principio VII) —
       depende de T019, T020, T021, T022
-- [ ] T024 [US1] Implementar `RequireEstimationAccess` en
+- [X] T024 [US1] Implementar `RequireEstimationAccess` en
       `backend/internal/poker/delivery/middleware.go` con una única salida `404` y el mensaje
       `La sesión de estimación no existe.` — depende de T014, T022
 - [ ] T025 [US1] Declarar en `backend/internal/poker/delivery/dto.go` los esquemas de

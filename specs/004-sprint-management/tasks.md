@@ -1000,7 +1000,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       compromiso abierto, después la historia, y la relectura del compromiso con los bloqueos tomados
       per plan: research.md §13 (contradicts) — origen: converge, detectado en
       fase/004-converge-and-foundational
-- [ ] T113 Actualizar la sección 9 de `specs/004-sprint-management/data-model.md` al contrato actual
+- [X] T113 Actualizar la sección 9 de `specs/004-sprint-management/data-model.md` al contrato actual
       del puerto: `ChangeStoryProgress(ctx, storyID, to, now) (*SprintStory, error)` con el comentario
       del orden de bloqueo sprint → historia y la devolución del compromiso releído dentro de la
       transacción, y quitar `FindOpenCommitment` de la interfaz y de la frase que lo exceptúa del

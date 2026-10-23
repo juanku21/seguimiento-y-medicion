@@ -104,7 +104,7 @@ estructuras y contratos, sin lógica de negocio.
       declarado con la opción `where` de la etiqueta de índice de GORM, e índice
       `idx_estimation_sessions_story_created (story_id, created_at)`. Claves foráneas **sin
       `ON DELETE`**
-- [ ] T002 [P] Declarar la entidad `EstimationRound` en `backend/internal/poker/domain/round.go` con
+- [X] T002 [P] Declarar la entidad `EstimationRound` en `backend/internal/poker/domain/round.go` con
       los campos de data-model.md sección 2: `ID uuid` PK; `SessionID uuid NOT NULL` con FK a
       `estimation_sessions.id`; `Number integer NOT NULL`; `Status varchar(16) NOT NULL` (`voting` o
       `revealed`); `RevealedAt timestamptz` **anulable**; `CreatedAt` (momento de apertura de la

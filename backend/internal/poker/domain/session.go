@@ -13,11 +13,12 @@ import (
 
 // EstimationSession es el encuentro de Planning Poker sobre una única historia, contenedor de sus
 // rondas, participantes y votos; se persiste en la tabla estimation_sessions (data-model.md sección
-// 1). El ID lo genera la aplicación con google/uuid y StoryID no cambia nunca. Status se guarda como
-// texto (open, finished, canceled) y no como enum de PostgreSQL; la sesión nace open. Los campos
-// anulables reflejan las invariantes por estado: AgreedStoryPoints solo se completa al finalizar,
-// CancelReason (inactivity, story_completed, project_finished) solo en las cancelaciones del
-// sistema, y ClosedByID y ClosedAt al cerrar, con ClosedByID nulo si cerró el sistema.
+// 1). El ID lo genera la aplicación con google/uuid y StoryID no cambia nunca. Status es un
+// SessionStatus (open, finished, canceled) guardado como texto y no como enum de PostgreSQL; la
+// sesión nace open. Los campos anulables reflejan las invariantes por estado: AgreedStoryPoints solo
+// se completa al finalizar, CancelReason (inactivity, story_completed, project_finished) solo en las
+// cancelaciones del sistema, y ClosedByID y ClosedAt al cerrar, con ClosedByID nulo si cerró el
+// sistema.
 // LastActivityAt es el momento del último hecho y Version sube con cada hecho. CreatedAt es el
 // momento de apertura. El índice único parcial sobre story_id con status = 'open' respalda en la
 // base que una historia tenga como máximo una sesión abierta (RN-04), y el índice (story_id,
@@ -31,9 +32,9 @@ type EstimationSession struct {
 	Story             *backlogdomain.UserStory `gorm:"foreignKey:StoryID;references:ID"`
 	FacilitatorID     uuid.UUID                `gorm:"type:uuid;not null"`
 	Facilitator       *authdomain.User         `gorm:"foreignKey:FacilitatorID;references:ID"`
-	Status            string                   `gorm:"type:varchar(16);not null"`
+	Status            SessionStatus            `gorm:"type:varchar(16);not null"`
 	AgreedStoryPoints *int                     `gorm:"type:smallint"`
-	CancelReason      *string                  `gorm:"type:varchar(24)"`
+	CancelReason      *CancelReason            `gorm:"type:varchar(24)"`
 	OpenedByID        uuid.UUID                `gorm:"type:uuid;not null"`
 	OpenedBy          *authdomain.User         `gorm:"foreignKey:OpenedByID;references:ID"`
 	ClosedByID        *uuid.UUID               `gorm:"type:uuid"`

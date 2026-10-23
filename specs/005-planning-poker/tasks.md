@@ -124,7 +124,7 @@ estructuras y contratos, sin lógica de negocio.
       `Card varchar(3) NOT NULL`; `CreatedAt` y `UpdatedAt` (momento en que quedó emitida la carta
       vigente) `timestamptz NOT NULL`. **Índice único** `idx_estimation_votes_round_participant
       (round_id, participant_id)`
-- [ ] T005 [P] Declarar en `backend/internal/poker/domain/status.go` los tipos `SessionStatus`
+- [X] T005 [P] Declarar en `backend/internal/poker/domain/status.go` los tipos `SessionStatus`
       (`open`, `finished`, `canceled`), `RoundStatus` (`voting`, `revealed`), `CancelReason`
       (`inactivity`, `story_completed`, `project_finished`) y `OutcomeKind` (`consensus`,
       `divergence`, `no_numeric_votes`), y en `backend/internal/poker/domain/card.go` el tipo `Card`

@@ -560,7 +560,7 @@ func (h *Handler) changeStoryStatus(c *gin.Context) {
 
 	// Se aplica la transición y se traducen los rechazos de dominio con respondServiceError.
 	ctx := c.Request.Context()
-	if err := h.sprints.ChangeStoryProgress(ctx, storyID, status); err != nil {
+	if _, err := h.sprints.ChangeStoryProgress(ctx, storyID, status); err != nil {
 		respondServiceError(c, err, "no se pudo registrar el avance de la historia")
 		return
 	}

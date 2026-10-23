@@ -125,7 +125,7 @@ type SprintRepository interface {
 	Close(ctx context.Context, sprintID, closedBy uuid.UUID, now time.Time) error
 	AssignStories(ctx context.Context, sprintID uuid.UUID, storyIDs []uuid.UUID, now time.Time) error
 	RemoveStories(ctx context.Context, sprintID uuid.UUID, storyIDs []uuid.UUID) error
-	ChangeStoryProgress(ctx context.Context, storyID uuid.UUID, to backlogdomain.StoryStatus, now time.Time) error
+	ChangeStoryProgress(ctx context.Context, storyID uuid.UUID, to backlogdomain.StoryStatus, now time.Time) (*SprintStory, error)
 	FindOpenCommitment(ctx context.Context, storyID uuid.UUID) (*SprintStory, error)
 	List(ctx context.Context, projectID uuid.UUID, statuses []SprintStatus) ([]SprintListItem, error)
 	HasSprints(ctx context.Context, projectID uuid.UUID) (bool, error)

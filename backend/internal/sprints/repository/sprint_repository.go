@@ -746,8 +746,8 @@ type storyCommitmentRow struct {
 // valida la transición con ValidateStoryProgress (FR-038). Si se admite, escribe user_stories.status
 // con UpdateColumn, igual que RemoveStories, para no tocar updated_at, y sprint_stories.completed_at
 // con now al completar y NULL al volver a in_progress (FR-034, FR-035).
-func (r *SprintRepository) ChangeStoryProgress(ctx context.Context, storyID uuid.UUID, to backlogdomain.StoryStatus, now time.Time) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+func (r *SprintRepository) ChangeStoryProgress(ctx context.Context, storyID uuid.UUID, to backlogdomain.StoryStatus, now time.Time) (*domain.SprintStory, error) {
+	return nil, r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		located, err := openCommitmentForProgress(tx, storyID)
 		if err != nil {
 			return err

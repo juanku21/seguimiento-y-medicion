@@ -975,7 +975,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       que `npm audit --omit=dev` ya no informa avisos sobre next per hallazgo de seguridad: versión de
       Next.js con ejecución remota de código conocida (security) — origen: seguridad, detectado en
       fase/004-polish (Fase 9: Polish)
-- [ ] T109 Prueba unitaria en `backend/internal/sprints/service/sprint_service_test.go` que, con un
+- [X] T109 Prueba unitaria en `backend/internal/sprints/service/sprint_service_test.go` que, con un
       repositorio falso en el que el compromiso abierto ya no existe después de confirmar el avance
       (un cierre se intercaló), verifique que el avance devuelve el sprint y la fecha de completado
       leídos dentro de la transacción y no un error interno per plan: research.md §13 serialización

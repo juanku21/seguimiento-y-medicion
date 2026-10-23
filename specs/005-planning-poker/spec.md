@@ -71,6 +71,14 @@ el equipo llegó a cada cifra y de cuánto fue mejorando su capacidad de estimar
   tener defectos asociados. La decisión enmienda `specs/003-product-backlog` (FR-041, FR-043, RN-16 y
   RC-05) y vale tanto para las sesiones Finalizadas como para las Canceladas.
 
+### Session 2026-10-23
+
+- Q: ¿Desde cuándo corren los 2 segundos en que el resto ve a alguien como desconectado, si FR-014
+  da 30 segundos de gracia? (US1-3, US6-1, FR-073) → A: desde que vence la gracia. El hecho de
+  desconexión ocurre cuando la persona lleva 30 segundos sin ninguna conexión viva (FR-014), y a
+  partir de ese momento el resto lo ve en menos de 2 segundos. Cerrar la pantalla y perder la red se
+  tratan igual: no existe una salida explícita e inmediata.
+
 ---
 
 ## Entradas y Salidas Esperadas
@@ -797,7 +805,8 @@ participante y sus valores acordados.
   recarguen la pantalla y en menos de 2 segundos, cada uno de estos hechos: incorporación de un
   participante, salida o desconexión de un participante, emisión de un voto (sin su valor), cambio de
   ronda, revelación, cambio de facilitador, cierre con estimación acordada y cancelación. El límite de 2
-  segundos DEBE cumplirse en las condiciones de escala de RC-14.
+  segundos DEBE cumplirse en las condiciones de escala de RC-14. Para la salida o desconexión de un
+  participante, el límite se cuenta desde que se cumple la condición de FR-014.
 - **FR-074**: El sistema DEBE reflejar en la sesión, en menos de 2 segundos, los cambios de título,
   descripción y criterios de aceptación que la historia reciba mientras la sesión está Abierta.
 - **FR-075**: El sistema DEBE aceptar la reestimación directa de los Story Points de una historia desde

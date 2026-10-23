@@ -90,7 +90,7 @@ estructuras y contratos, sin lógica de negocio.
 
 **Rama**: `fase/005-foundational`
 
-- [ ] T001 [P] Declarar la entidad `EstimationSession` en `backend/internal/poker/domain/session.go`
+- [X] T001 [P] Declarar la entidad `EstimationSession` en `backend/internal/poker/domain/session.go`
       con los campos de data-model.md sección 1: `ID uuid` PK generado con `google/uuid`;
       `StoryID uuid NOT NULL` con FK a `user_stories.id` (campo `Story *backlogdomain.UserStory` solo
       para la FK, nunca precargado); `FacilitatorID uuid NOT NULL` con FK a `users.id`;

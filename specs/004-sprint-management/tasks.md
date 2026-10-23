@@ -990,7 +990,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       para que un cierre confirmado justo después del avance no produzca un `500` per plan:
       research.md §13 serialización del avance contra el cierre (partial) — origen: converge,
       detectado en fase/004-converge-and-foundational
-- [ ] T111 Reemplazar `go test ./...` por `go test -p 1 ./...`, incluido el comando de cobertura, en
+- [X] T111 Reemplazar `go test ./...` por `go test -p 1 ./...`, incluido el comando de cobertura, en
       `README.md` y `specs/004-sprint-management/quickstart.md`, con una línea que explique que el
       advisory lock de `backend/internal/platform/testsupport/database.go` serializa los paquetes y
       que correrlos en paralelo puede superar su espera máxima per Constitución VIII (partial) —

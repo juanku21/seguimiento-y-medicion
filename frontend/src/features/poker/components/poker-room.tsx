@@ -1,0 +1,71 @@
+"use client";
+
+import type { ReactElement } from "react";
+import { Alert } from "@/components/alert";
+import { ParticipantList } from "@/features/poker/components/participant-list";
+import { useEstimationStream } from "@/features/poker/use-estimation-stream";
+
+// Propiedades de la sala en vivo: la sesión de estimación tomada de la ruta.
+export type PokerRoomProps = {
+  sessionId: string;
+};
+
+// Sala en vivo de una sesión de Planning Poker (005/US1). Abre el canal de la sesión, que une a
+// quien entra como participante conectado, y con cada instantánea muestra el título, la descripción
+// y los criterios de aceptación vigentes de la historia y la lista de participantes, sin recargar
+// (FR-011, FR-013, FR-075). Si el canal se rechaza (sesión inexistente o ajena) muestra solo el
+// mensaje recibido.
+export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
+  const { session, error } = useEstimationStream(sessionId);
+
+  if (error !== null) {
+    return <Alert>{error.message}</Alert>;
+  }
+  if (session === null) {
+    return (
+      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
+        Conectando con la sesión…
+      </p>
+    );
+  }
+
+  const { story } = session;
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Historia que se estima con su texto vigente; sin criterios la lista queda vacía y se
+          avisa con un texto aparte. */}
+      <article className="flex flex-col gap-4 rounded-md border border-zinc-300 px-5 py-5 dark:border-zinc-700">
+        <h2 className="text-xl font-semibold break-words">{story.title}</h2>
+        {story.description !== null && (
+          <p className="text-sm break-words whitespace-pre-line">
+            {story.description}
+          </p>
+        )}
+        <section className="flex flex-col gap-2">
+          <h3 className="text-base font-medium">Criterios de aceptación</h3>
+          <ul
+            aria-label="Criterios de aceptación"
+            className="flex list-disc flex-col gap-1 pl-5 text-sm"
+          >
+            {story.acceptanceCriteria.map((criterion, index) => (
+              <li key={index} className="break-words">
+                {criterion}
+              </li>
+            ))}
+          </ul>
+          {story.acceptanceCriteria.length === 0 && (
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              La historia no tiene criterios de aceptación.
+            </p>
+          )}
+        </section>
+      </article>
+
+      {/* Participantes de la sesión con su conexión y la marca de facilitador. */}
+      <section className="flex flex-col gap-3">
+        <h2 className="text-lg font-semibold">Participantes</h2>
+        <ParticipantList participants={session.participants} />
+      </section>
+    </div>
+  );
+}

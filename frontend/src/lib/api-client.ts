@@ -6,13 +6,15 @@ import type { FieldError } from "@/types/auth";
 // campo cuando el backend lo informa (ValidationErrorResponse) y queda vacío en cualquier otro caso.
 // reasons trae los mensajes de los motivos, en el orden recibido, solo cuando el cuerpo los informa
 // (DeletionBlockedResponse de la spec 003). stories trae el motivo de cada historia rechazada solo
-// cuando el cuerpo los informa (StoriesNotAdmittedResponse de la spec 004).
+// cuando el cuerpo los informa (StoriesNotAdmittedResponse de la spec 004). sessionId trae la sesión
+// de estimación en curso solo cuando el cuerpo la informa (OpenSessionExistsResponse de la spec 005).
 export type ApiError = {
   status: number;
   message: string;
   fields: FieldError[];
   reasons?: string[];
   stories?: StoryProblem[];
+  sessionId?: string;
 };
 
 // Motivo por el que el backend rechazó una historia concreta, identificada por su storyId.
@@ -74,8 +76,8 @@ async function readJson(response: Response): Promise<unknown> {
 
 // Traduce un cuerpo de error a ApiError. Distingue las formas del contrato: con "fields" es un
 // ValidationErrorResponse, con "reasons" un DeletionBlockedResponse, con "stories" un
-// StoriesNotAdmittedResponse y sin ninguno un ErrorResponse; si no coincide con ninguna, usa un
-// mensaje genérico para no mostrar nada técnico.
+// StoriesNotAdmittedResponse, con "sessionId" un OpenSessionExistsResponse y sin ninguno un
+// ErrorResponse; si no coincide con ninguna, usa un mensaje genérico para no mostrar nada técnico.
 function toApiError(status: number, body: unknown): ApiError {
   if (!isRecord(body) || typeof body.error !== "string") {
     return genericError(status, UNEXPECTED_ERROR_MESSAGE);
@@ -93,6 +95,9 @@ function toApiError(status: number, body: unknown): ApiError {
     error.stories = body.stories
       .filter(isStoryProblem)
       .map(({ storyId, message }) => ({ storyId, message }));
+  }
+  if (typeof body.sessionId === "string") {
+    error.sessionId = body.sessionId;
   }
   return error;
 }
@@ -143,8 +148,15 @@ export function postJson<T>(
   );
 }
 
-// Envía una petición autenticada con el token de la pestaña en la cabecera Authorization
-// (research.md, sección 9); si recibe body, lo envía como JSON. Ante un 401 borra la sesión y deja
+// Arma la cabecera Authorization con el token de la pestaña (research.md, sección 9), o ninguna
+// cabecera si no hay sesión.
+function authorizationHeaders(): Record<string, string> {
+  const token = readToken();
+  return token === null ? {} : { Authorization: `Bearer ${token}` };
+}
+
+// Envía una petición autenticada con el token de la pestaña en la cabecera Authorization; si recibe
+// body, lo envía como JSON. Ante un 401 borra la sesión y deja
 // la marca del rechazo, para que la guardia lleve a /login con el aviso de volver a iniciar sesión
 // (FR-016).
 async function authorizedRequest<T>(
@@ -153,9 +165,7 @@ async function authorizedRequest<T>(
   isData: (value: unknown) => value is T,
   body?: unknown,
 ): Promise<ApiResult<T>> {
-  const token = readToken();
-  const headers: Record<string, string> =
-    token === null ? {} : { Authorization: `Bearer ${token}` };
+  const headers = authorizationHeaders();
   const init: RequestInit = { method, headers };
   if (body !== undefined) {
     headers["Content-Type"] = "application/json";
@@ -229,4 +239,39 @@ export function deleteAuthorizedJson<T>(
   isData: (value: unknown) => value is T,
 ): Promise<ApiResult<T>> {
   return authorizedRequest(path, "DELETE", isData);
+}
+
+// Abre con un GET autenticado un canal text/event-stream de la API y devuelve su cuerpo sin leerlo,
+// para que lo consuma el lector de eventos. signal permite abortar la petición. Las respuestas no
+// exitosas se traducen a ApiError como en las demás llamadas y, ante un 401, se descarta la sesión
+// (FR-016 de la 001); un fallo de red o una petición abortada llegan como error de red.
+export async function openAuthorizedStream(
+  path: string,
+  signal: AbortSignal,
+): Promise<ApiResult<ReadableStream<Uint8Array>>> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method: "GET",
+      headers: { ...authorizationHeaders(), Accept: "text/event-stream" },
+      signal,
+    });
+  } catch {
+    return { ok: false, error: genericError(0, NETWORK_ERROR_MESSAGE) };
+  }
+
+  if (!response.ok) {
+    const error = toApiError(response.status, await readJson(response));
+    if (error.status === 401) {
+      rejectSession();
+    }
+    return { ok: false, error };
+  }
+  if (response.body === null) {
+    return {
+      ok: false,
+      error: genericError(response.status, UNEXPECTED_ERROR_MESSAGE),
+    };
+  }
+  return { ok: true, data: response.body };
 }

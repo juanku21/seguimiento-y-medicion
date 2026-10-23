@@ -182,12 +182,13 @@ desconectado.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T010 [P] [US1] Pruebas unitarias **obligatorias** de `SessionStatus.EnsureOpen` en
-      `backend/internal/poker/domain/status_test.go`, cubriendo RN-22: `open` → ok; `finished` con
-      valor 8 → `SessionClosedError` con `Status` `finished` y `AgreedStoryPoints` 8; `canceled` con
-      motivo `inactivity` y sin motivo → `SessionClosedError` con el motivo correspondiente — depende
-      de T009
-- [ ] T011 [P] [US1] Pruebas unitarias **obligatorias** de `Presence` en
+- [X] T010 [P] [US1] Pruebas unitarias **obligatorias** de
+      `SessionStatus.EnsureOpen(reason *CancelReason, agreedStoryPoints *int) error` en
+      `backend/internal/poker/domain/status_test.go`, cubriendo RN-22: `open` → ok (aunque reciba
+      motivo o valor); `finished` con valor 8 → `SessionClosedError` con `Status` `finished` y
+      `AgreedStoryPoints` 8; `canceled` con motivo `inactivity` y sin motivo → `SessionClosedError`
+      con `Status` `canceled` y `CancelReason` `inactivity` o `nil` según el caso — depende de T009
+- [X] T011 [P] [US1] Pruebas unitarias **obligatorias** de `Presence` en
       `backend/internal/poker/service/presence_test.go`, cubriendo RN-23 y RN-34, con instantes
       explícitos: la primera conexión de un par (sesión, usuario) informa "llegó" y la segunda no; al
       cerrar una de dos conexiones no informa nada; al cerrar la última anota el instante y no
@@ -196,27 +197,27 @@ desconectado.
       no, 30 s sí) y los quita; `MarkPending(session, user, now)` deja anotada una caída para quien
       abrió la sesión sin canal (research.md sección 9); sesiones distintas de la misma persona se
       cuentan por separado. Seguro para uso concurrente (`go test -race`) — depende de T009
-- [ ] T012 [P] [US1] Pruebas unitarias del hub de difusión en
+- [X] T012 [P] [US1] Pruebas unitarias del hub de difusión en
       `backend/internal/poker/service/hub_test.go`: `Subscribe(sessionID, userID)` devuelve un canal
       y una función para darse de baja; `Publish` entrega a todas las suscripciones de esa sesión y
       a ninguna de otra; con el canal lleno, la instantánea pendiente se **reemplaza** por la nueva
       ("la última gana", capacidad 1); `CloseSession` cierra todos los canales de la sesión y
       `CloseUser` los de una persona en una sesión; darse de baja dos veces no falla. Seguro para uso
       concurrente (`go test -race`) — depende de T009
-- [ ] T013 [P] [US1] Pruebas unitarias **obligatorias** de `ViewFor` (parte de US1) en
+- [X] T013 [P] [US1] Pruebas unitarias **obligatorias** de `ViewFor` (parte de US1) en
       `backend/internal/poker/domain/view_test.go`: la vista lleva la historia con título,
       descripción y criterios **en su orden** y sin Story Points (FR-012, FR-075); `cards` igual a
       las once cartas; cada participante con `connected` e `isFacilitator`, exactamente uno
       facilitador; las rondas con `number`, `status` y `openedAt`; `openedBy`, `openedAt`,
       `closedBy` y `closedAt` copiados del snapshot; lista de criterios vacía como `[]` y no como
       `nil` (US1-4) — depende de T009
-- [ ] T014 [P] [US1] Pruebas del middleware `RequireEstimationAccess` en
+- [X] T014 [P] [US1] Pruebas del middleware `RequireEstimationAccess` en
       `backend/internal/poker/delivery/middleware_test.go`, cubriendo RN-01: sin titular en el
       contexto → `401` con el cuerpo de la 001; identificador mal formado, sesión inexistente y sesión
       de un proyecto ajeno → `404` con **el mismo cuerpo byte a byte**
       (`{"error":"La sesión de estimación no existe."}`); integrante → sigue la cadena con el
       `SessionAccess` en el contexto, sin distinguir si es propietario — depende de T009
-- [ ] T015 [US1] Pruebas de integración de la historia en
+- [X] T015 [US1] Pruebas de integración de la historia en
       `backend/internal/poker/delivery/handler_test.go`, creando en
       `backend/internal/poker/delivery/testenv_test.go` el ayudante `newPokerTestEnv` (router como
       `cmd/app` detrás de `httptest.NewServer`, reloj falso avanzable, acceso al servicio para
@@ -236,13 +237,13 @@ desconectado.
       con el mismo cuerpo que un `sessionId` inexistente). Cada instantánea recibida se verifica
       **sin recargar**: llega por el canal ya abierto, dentro del plazo de 2 segundos de `Next` —
       depende de T009
-- [ ] T016 [US1] Prueba de concurrencia `TestPokerOpen_Concurrency` en
+- [X] T016 [US1] Prueba de concurrencia `TestPokerOpen_Concurrency` en
       `backend/internal/poker/delivery/poker_concurrency_test.go`, **sin** etiqueta `005/USn`: diez
       cuentas integrantes abren a la vez una sesión sobre la misma historia; exactamente una recibe
       `201`, las nueve restantes `409` con el `sessionId` de la ganadora, ninguna `500`, y en la base
       hay una sola fila `open` de esa historia (SC-012). Repetida varias veces para que el intercalado
       sea real — depende de T015
-- [ ] T017 [P] [US1] Pruebas de frontend en `frontend/src/lib/event-stream.test.ts` (lector de
+- [X] T017 [P] [US1] Pruebas de frontend en `frontend/src/lib/event-stream.test.ts` (lector de
       `text/event-stream`: un evento en un fragmento, un evento partido en dos fragmentos, varios
       `data:` en un evento, comentarios `: ping` ignorados, líneas terminadas en `\r\n`), en
       `frontend/src/features/poker/components/participant-list.test.tsx` y en
@@ -253,20 +254,21 @@ desconectado.
 
 ### Implementación de la Historia 1
 
-- [ ] T018 [P] [US1] Implementar `SessionStatus.EnsureOpen` en
+- [X] T018 [P] [US1] Implementar
+      `SessionStatus.EnsureOpen(reason *CancelReason, agreedStoryPoints *int) error` en
       `backend/internal/poker/domain/status.go` — depende de T010
-- [ ] T019 [P] [US1] Implementar `Presence` en `backend/internal/poker/service/presence.go`: mapa
+- [X] T019 [P] [US1] Implementar `Presence` en `backend/internal/poker/service/presence.go`: mapa
       protegido por `sync.Mutex` de (sesión, usuario) a cantidad de conexiones y momento de la
       última caída, con `Connect`, `Release`, `MarkPending` y `Expired(now)`; la gracia de **30
       segundos** como constante nombrada (FR-014) — depende de T011
-- [ ] T020 [P] [US1] Implementar el hub en `backend/internal/poker/service/hub.go`: suscripciones por
+- [X] T020 [P] [US1] Implementar el hub en `backend/internal/poker/service/hub.go`: suscripciones por
       sesión con canales de capacidad 1 y reemplazo de la pendiente, `Subscribe`, `Publish`,
       `CloseSession` y `CloseUser`, más un mutex por sesión que `publish` del servicio usará para
       leer y difundir en orden (research.md sección 7) — depende de T012
-- [ ] T021 [P] [US1] Implementar `ViewFor(snapshot, viewerID)` en
+- [X] T021 [P] [US1] Implementar `ViewFor(snapshot, viewerID)` en
       `backend/internal/poker/domain/view.go` con lo que cubre T013; los votos se agregan en US2 —
       depende de T013
-- [ ] T022 [US1] Implementar en `backend/internal/poker/repository/session_repository.go`
+- [X] T022 [US1] Implementar en `backend/internal/poker/repository/session_repository.go`
       `FindAccessible` (una consulta `estimation_sessions → user_stories → project_members` con la
       membresía vigente del titular; sin fila → `ErrSessionNotFound`), `Open` (transacción que
       bloquea la fila de `user_stories` con `clause.Locking{Strength: "UPDATE"}`, lee su `status` y
@@ -282,7 +284,7 @@ desconectado.
       `version`) y `FindSnapshot` (sesión, historia con criterios en orden **sin**
       `story_points`, participantes, rondas y votos con `JOIN` a `users` que **selecciona solo
       `users.id` y `users.full_name`**) — depende de T007, T015, T018
-- [ ] T023 [US1] Implementar en `backend/internal/poker/service/session_service.go` el constructor
+- [X] T023 [US1] Implementar en `backend/internal/poker/service/session_service.go` el constructor
       `NewSessionService(repo SessionRepository, now func() time.Time)`, con la firma definitiva para
       que no cambie en las historias siguientes (crea `Presence` y el hub); `Open`; `Join(ctx,
       access, userID)`, que suscribe al hub, cuenta la conexión en `Presence` y, si es la primera,
@@ -294,15 +296,15 @@ desconectado.
       publicación), y `Run(ctx, interval)` con un `time.Ticker` que llama a `Sweep`, registra cada
       error con `slog` y sigue con la próxima pasada, sin `panic` (Principio VII) —
       depende de T019, T020, T021, T022
-- [ ] T024 [US1] Implementar `RequireEstimationAccess` en
+- [X] T024 [US1] Implementar `RequireEstimationAccess` en
       `backend/internal/poker/delivery/middleware.go` con una única salida `404` y el mensaje
       `La sesión de estimación no existe.` — depende de T014, T022
-- [ ] T025 [US1] Declarar en `backend/internal/poker/delivery/dto.go` los esquemas de
+- [X] T025 [US1] Declarar en `backend/internal/poker/delivery/dto.go` los esquemas de
       contracts/openapi.yaml `EstimationSession`, `EstimationStory`, `EstimationParticipant`,
       `EstimationRound`, `UserRef`, `OpenSessionExistsResponse` y `SessionClosedResponse`,
       reutilizando `ErrorResponse`, `FieldError` y `ValidationErrorResponse` de la 001. Los campos
       anulables se serializan como `null` y las listas como `[]`, nunca como `null` — depende de T023
-- [ ] T026 [US1] Implementar el manejador `openEstimationSession` en
+- [X] T026 [US1] Implementar el manejador `openEstimationSession` en
       `backend/internal/poker/delivery/handler.go` y el canal `streamEstimationSession` en
       `backend/internal/poker/delivery/stream.go`, ambos con anotaciones `swag` en español: el canal
       responde `409` con `SessionClosedResponse` si la sesión está cerrada antes de empezar a
@@ -313,7 +315,7 @@ desconectado.
       apertura: `La historia ya tiene una sesión de estimación en curso.`,
       `Una historia completada no se estima.` y
       `El proyecto está finalizado y es de solo lectura.` — depende de T024, T025
-- [ ] T027 [US1] Crear en `backend/internal/poker/delivery/routes.go` `RegisterStoryRoutes(router,
+- [X] T027 [US1] Crear en `backend/internal/poker/delivery/routes.go` `RegisterStoryRoutes(router,
       requireSession, requireStoryAccess, handler)` con `POST /api/v1/stories/:storyId/estimation-sessions`
       y `RegisterSessionRoutes(router, requireSession, repo, handler)` con el grupo plano
       `/api/v1/estimation-sessions/:sessionId` y `GET /events`, sin importar `backlog/delivery`; y
@@ -321,27 +323,27 @@ desconectado.
       `ResetPresence` antes de escuchar, `go sessions.Run(ctx, time.Second)` y
       `RequireStoryAccess` de la 003 sobre la misma instancia del repositorio de historias, más el
       `@description` general de la API para que mencione el Planning Poker — depende de T026
-- [ ] T028 [P] [US1] Declarar los tipos de petición, respuesta y evento en
+- [X] T028 [P] [US1] Declarar los tipos de petición, respuesta y evento en
       `frontend/src/types/poker.ts` y, en `frontend/src/utils/poker-labels.ts`, las etiquetas en
       español de data-model.md sección 5 (`open` → Abierta, `finished` → Finalizada, `canceled` →
       Cancelada; `voting` → En votación, `revealed` → Revelada; `inactivity` → Por inactividad,
       `story_completed` → Historia completada, `project_finished` → Proyecto finalizado;
       `consensus` → Consenso, `divergence` → Divergencia, `no_numeric_votes` → Sin votos numéricos).
       **Prohibido el tipo `any`** (Principio VIII)
-- [ ] T029 [US1] Implementar `frontend/src/lib/event-stream.ts`: lectura de `response.body` con
+- [X] T029 [US1] Implementar `frontend/src/lib/event-stream.ts`: lectura de `response.body` con
       `getReader()` y `TextDecoder`, separación por línea en blanco, campos `event:` y `data:`,
       comentarios ignorados, y un callback por evento, sin dependencias — depende de T017
-- [ ] T030 [US1] Implementar en `frontend/src/features/poker/api.ts` la apertura sobre el cliente
+- [X] T030 [US1] Implementar en `frontend/src/features/poker/api.ts` la apertura sobre el cliente
       `fetch` de la 001 (incluido el `409` con `sessionId`), y en
       `frontend/src/features/poker/use-estimation-stream.ts` el hook que abre el canal con el token
       de `session-storage` y la cabecera `Authorization`, descarta instantáneas de `version` menor
       a la vigente, se detiene ante `404` y ante `401` (`rejectSession`) y aborta la petición al
       desmontar. Antes de escribir código, leer la documentación de Next.js de
       `frontend/node_modules/next/dist/docs/` — depende de T028, T029
-- [ ] T031 [US1] Implementar `StoryEstimationSection`, `PokerRoom` (historia y lista) y
+- [X] T031 [US1] Implementar `StoryEstimationSection`, `PokerRoom` (historia y lista) y
       `ParticipantList` en `frontend/src/features/poker/components/` con mensajes en español —
       depende de T030
-- [ ] T032 [US1] Crear la pantalla
+- [X] T032 [US1] Crear la pantalla
       `frontend/src/app/projects/[projectId]/backlog/[storyId]/poker/[sessionId]/page.tsx`, protegida
       con la guardia de sesión de la 001, y sumar `StoryEstimationSection` a
       `frontend/src/app/projects/[projectId]/backlog/[storyId]/page.tsx` — depende de T031

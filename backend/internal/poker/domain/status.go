@@ -13,6 +13,20 @@ const (
 	SessionStatusCanceled SessionStatus = "canceled"
 )
 
+// EnsureOpen admite la acción si la sesión está open; si está cerrada devuelve SessionClosedError con
+// el estado y con el motivo de cancelación y el valor acordado recibidos (RN-22, data-model.md
+// sección 6).
+func (s SessionStatus) EnsureOpen(reason *CancelReason, agreedStoryPoints *int) error {
+	if s == SessionStatusOpen {
+		return nil
+	}
+	return &SessionClosedError{
+		Status:            s,
+		CancelReason:      reason,
+		AgreedStoryPoints: agreedStoryPoints,
+	}
+}
+
 // RoundStatus es el estado de una ronda de votación; se guarda como texto y no como enum de
 // PostgreSQL (data-model.md sección 5).
 type RoundStatus string

@@ -162,7 +162,7 @@ unitarias obligatorias del Principio II.
 | `Summarize(votes)` | Votos revelados con su autor | `RoundOutcome` | FR-036 a FR-042, RN-12 a RN-14 |
 | `FacilitatorTakeover(now, facilitator, requesterID)` | Participante facilitador (`connected`, `disconnected_at`) | ok o `FacilitatorUnavailableError` con `RetryAfter` | FR-068, FR-069, RN-25 |
 | `AutoCancelReason(storyStatus, projectFinished, lastActivityAt, now)` | Estado de la historia y del proyecto, último hecho | `CancelReason` o ninguno | FR-061, FR-063, RN-30, RN-31 |
-| `SessionStatus.EnsureOpen()` | Estado de la sesión | ok o `SessionClosedError` | FR-018, FR-027, FR-055, FR-060, RN-22 |
+| `SessionStatus.EnsureOpen(reason, agreedStoryPoints)` | Estado de la sesión, motivo de cancelación (`*CancelReason`, opcional) y valor acordado (`*int`, opcional) | ok si está `open`; si no, `SessionClosedError` con `Status`, `CancelReason` y `AgreedStoryPoints` copiados de las entradas | FR-018, FR-027, FR-055, FR-060, RN-22 |
 | `ViewFor(snapshot, viewerID)` | Instantánea completa | Vista con los votos ocultos según la sección 8 de research | FR-023, FR-024, FR-082, RN-08 |
 
 ### Tabla de `Summarize`
@@ -255,7 +255,8 @@ SessionRepository
 Todas las escrituras sobre una sesión abierta (desde `Connect` hasta `TakeFacilitator`) siguen el
 mismo esquema dentro de su transacción, igual que el repositorio de la 004:
 
-1. `SELECT … FOR UPDATE` de la sesión; `EnsureOpen()`.
+1. `SELECT … FOR UPDATE` de la sesión; `Status.EnsureOpen(CancelReason, AgreedStoryPoints)` con los
+   campos de la fila bloqueada.
 2. Lectura del estado de la historia y del proyecto; si `AutoCancelReason` informa un motivo, se
    cancela la sesión, se confirma la transacción y se devuelve `SessionClosedError` con ese motivo.
 3. Reglas de la sección 6 sobre los datos releídos; error de dominio si no se cumplen.

@@ -257,7 +257,7 @@ desconectado.
 - [X] T018 [P] [US1] Implementar
       `SessionStatus.EnsureOpen(reason *CancelReason, agreedStoryPoints *int) error` en
       `backend/internal/poker/domain/status.go` — depende de T010
-- [ ] T019 [P] [US1] Implementar `Presence` en `backend/internal/poker/service/presence.go`: mapa
+- [X] T019 [P] [US1] Implementar `Presence` en `backend/internal/poker/service/presence.go`: mapa
       protegido por `sync.Mutex` de (sesión, usuario) a cantidad de conexiones y momento de la
       última caída, con `Connect`, `Release`, `MarkPending` y `Expired(now)`; la gracia de **30
       segundos** como constante nombrada (FR-014) — depende de T011

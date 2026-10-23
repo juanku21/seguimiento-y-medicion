@@ -4,7 +4,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -206,15 +205,56 @@ func (s *SprintService) Close(ctx context.Context, access *domain.SprintAccess, 
 }
 
 // Update modifica nombre, fechas y Sprint Goal del sprint planned del acceso y devuelve su detalle
-// actualizado (FR-012 a FR-016). Firma mínima de T081; la implementa T085.
+// actualizado (FR-012 a FR-016). Aplica la solo lectura del proyecto Finalizado y el rechazo del
+// sprint cerrado (RN-18, RN-19); después, solo un sprint planned se modifica, y uno active se
+// rechaza con ErrSprintNotPlanned sin llegar al repositorio. Al repositorio solo le pasa el sprint
+// y los datos editables, nunca estado, historias ni instantánea (FR-015), y propaga envueltos sus
+// rechazos, como SprintOverlapError.
 func (s *SprintService) Update(ctx context.Context, access *domain.SprintAccess, input domain.SprintInput) (*SprintView, error) {
-	return nil, errors.New("not implemented")
+	detail, err := s.ensureEditable(ctx, access)
+	if err != nil {
+		return nil, err
+	}
+	if detail.Sprint.Status != domain.SprintStatusPlanned {
+		return nil, domain.ErrSprintNotPlanned
+	}
+	if err := s.repo.Update(ctx, access.SprintID, input); err != nil {
+		return nil, fmt.Errorf("modificar sprint: %w", err)
+	}
+
+	return s.buildDetail(ctx, access.SprintID)
 }
 
-// Delete elimina el sprint planned del acceso sin esfuerzo registrado (FR-048, RN-20). Firma mínima
-// de T081; la implementa T085.
+// Delete elimina el sprint planned del acceso sin esfuerzo registrado (FR-048, RN-20). El proyecto
+// Finalizado se rechaza con ErrSprintsReadOnly sin leer el sprint (RN-19) y un sprint active o
+// closed con ErrSprintAlreadyStarted. Recién superadas esas reglas consulta el puerto de esfuerzo y,
+// si hay esfuerzo registrado, rechaza con ErrSprintHasEffort sin llegar al repositorio; si no,
+// delega el borrado y propaga envueltos sus rechazos.
 func (s *SprintService) Delete(ctx context.Context, access *domain.SprintAccess) error {
-	return errors.New("not implemented")
+	if access.ProjectFinished {
+		return domain.ErrSprintsReadOnly
+	}
+	detail, err := s.repo.FindDetail(ctx, access.SprintID)
+	if err != nil {
+		return fmt.Errorf("leer sprint a eliminar: %w", err)
+	}
+	if detail.Sprint.Status != domain.SprintStatusPlanned {
+		return domain.ErrSprintAlreadyStarted
+	}
+
+	// El esfuerzo se consulta recién después de las reglas de solo lectura y estado (RN-20).
+	hasEffort, err := s.effort.HasEffort(ctx, access.SprintID)
+	if err != nil {
+		return fmt.Errorf("consultar esfuerzo del sprint: %w", err)
+	}
+	if hasEffort {
+		return domain.ErrSprintHasEffort
+	}
+	if err := s.repo.Delete(ctx, access.SprintID); err != nil {
+		return fmt.Errorf("eliminar sprint: %w", err)
+	}
+
+	return nil
 }
 
 // ChangeStoryProgress cambia el estado de una historia del sprint activo con el instante del reloj

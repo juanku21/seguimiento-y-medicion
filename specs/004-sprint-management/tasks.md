@@ -852,7 +852,7 @@ backlog; y los mismos intentos sobre un sprint Activo responden `409`.
       transacción** que bloquea el proyecto y el sprint, verifica `planned`, deja las historias
       comprometidas en `pending`, borra sus filas de `sprint_stories` y el sprint, dejando
       `ever_committed` en `true` (research.md sección 16) — depende de T082
-- [ ] T085 [US7] Implementar `Update(ctx, access, input)` y `Delete(ctx, access)` en
+- [X] T085 [US7] Implementar `Update(ctx, access, input)` y `Delete(ctx, access)` en
       `backend/internal/sprints/service/sprint_service.go`; `Delete` consulta `SprintEffort.HasEffort`
       después de las reglas de solo lectura y estado y antes de llamar al repositorio — depende de
       T081 y T084

@@ -43,7 +43,7 @@ arranque** propia: no agrega dependencias, servicios ni variables de entorno.
 
 **Decisión**: se mantienen las versiones fijadas por la 001, la 002 y la 003 (Go 1.27.2, Gin
 v1.12.0, GORM v1.31.2 con `gorm.io/driver/postgres` v1.6.3, `google/uuid` v1.6.0, `testify`
-v1.12.1, Next.js 16.3.8, React 19.3.0, Tailwind CSS 4.3.3, Vitest 5.0.3). **Esta feature no agrega
+v1.12.1, Next.js 16.4.2 (actualizado desde 16.3.8 por seguridad, T106), React 19.3.0, Tailwind CSS 4.3.3, Vitest 5.0.3). **Esta feature no agrega
 ninguna dependencia de Go ni de npm.**
 
 **Rationale**: validación con la biblioteca estándar; transacciones, bloqueos de fila

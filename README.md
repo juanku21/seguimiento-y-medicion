@@ -124,7 +124,7 @@ El repositorio separa el backend y el frontend en dos directorios de primer nive
 | --- | --- |
 | Backend | Go 1.27.3, Gin, GORM, JWT (`golang-jwt/jwt/v5`), bcrypt |
 | Base de datos | PostgreSQL 18.6 (imagen `postgres:18.6-alpine`) |
-| Frontend | Node.js 24.21.0, Next.js 16.3.8, React 19.3.0, Tailwind CSS 4.3.3, TypeScript 5.9.3 |
+| Frontend | Node.js 24.21.0, Next.js 16.4.2, React 19.3.0, Tailwind CSS 4.3.3, TypeScript 5.9.3 |
 | Documentación de la API | Swagger generado con `swag` 1.16.6 |
 | Pruebas | `go test` con testify en el backend; Vitest 5.0.3 con Testing Library en el frontend |
 | Contenedores | Docker y Docker Compose |

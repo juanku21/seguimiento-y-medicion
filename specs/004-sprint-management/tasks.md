@@ -969,7 +969,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       `LimitRequestBody`, actualizar las respuestas `400` de Swagger de los listados afectados y el
       comentario de `TestSprintList_EstadoRepetidoMilesDeVeces` per hallazgo de seguridad: query mal
       formada que ignora los filtros sin aviso (security) — origen: seguridad, detectado en 004/US6
-- [ ] T106 Actualizar next a la versión estable 16.4.2 o posterior en `frontend/package.json` y
+- [X] T106 Actualizar next a la versión estable 16.4.2 o posterior en `frontend/package.json` y
       `frontend/package-lock.json`, registrar la versión nueva en
       `specs/004-sprint-management/plan.md` y `specs/004-sprint-management/research.md`, y verificar
       que `npm audit --omit=dev` ya no informa avisos sobre next per hallazgo de seguridad: versión de

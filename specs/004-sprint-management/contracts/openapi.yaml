@@ -1070,7 +1070,10 @@ components:
           type: string
           format: date
         outcome:
-          $ref: '#/components/schemas/StoryOutcome'
+          allOf:
+            - $ref: '#/components/schemas/StoryOutcome'
+          nullable: true
+          description: "`null` mientras el sprint está abierto."
         completedAt:
           type: string
           format: date-time

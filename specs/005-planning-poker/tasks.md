@@ -261,7 +261,7 @@ desconectado.
       protegido por `sync.Mutex` de (sesión, usuario) a cantidad de conexiones y momento de la
       última caída, con `Connect`, `Release`, `MarkPending` y `Expired(now)`; la gracia de **30
       segundos** como constante nombrada (FR-014) — depende de T011
-- [ ] T020 [P] [US1] Implementar el hub en `backend/internal/poker/service/hub.go`: suscripciones por
+- [X] T020 [P] [US1] Implementar el hub en `backend/internal/poker/service/hub.go`: suscripciones por
       sesión con canales de capacidad 1 y reemplazo de la pendiente, `Subscribe`, `Publish`,
       `CloseSession` y `CloseUser`, más un mutex por sesión que `publish` del servicio usará para
       leer y difundir en orden (research.md sección 7) — depende de T012

@@ -907,7 +907,7 @@ T088 es de caracterización sin RED y T089 y T090 siguen el ciclo normal.
       depende de T087
 - [X] T093 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
-- [ ] T094 [P] Ejecutar los comandos de cobertura de los dos lados —
+- [X] T094 [P] Ejecutar los comandos de cobertura de los dos lados —
       `go test ./... -coverprofile=coverage.out` más `go tool cover -func=coverage.out` en
       `backend/`, y `npm run test:coverage` en `frontend/` — y revisar que el módulo
       `internal/sprints/` y `frontend/src/features/sprints/` estén cubiertos — depende de T087

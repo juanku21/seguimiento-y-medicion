@@ -111,7 +111,7 @@ estructuras y contratos, sin lógica de negocio.
       ronda) y `UpdatedAt` `timestamptz NOT NULL`. **Índice único**
       `idx_estimation_rounds_session_number (session_id, number)`. **Sin** columnas de resultado: se
       derivan (research.md sección 5)
-- [ ] T003 [P] Declarar la entidad `EstimationParticipant` en
+- [X] T003 [P] Declarar la entidad `EstimationParticipant` en
       `backend/internal/poker/domain/participant.go` con los campos de data-model.md sección 3:
       `ID uuid` PK; `SessionID uuid NOT NULL` con FK a `estimation_sessions.id`;
       `UserID uuid NOT NULL` con FK a `users.id`; `Connected boolean NOT NULL`;

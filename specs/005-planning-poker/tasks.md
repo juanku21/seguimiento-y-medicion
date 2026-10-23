@@ -265,7 +265,7 @@ desconectado.
       sesión con canales de capacidad 1 y reemplazo de la pendiente, `Subscribe`, `Publish`,
       `CloseSession` y `CloseUser`, más un mutex por sesión que `publish` del servicio usará para
       leer y difundir en orden (research.md sección 7) — depende de T012
-- [ ] T021 [P] [US1] Implementar `ViewFor(snapshot, viewerID)` en
+- [X] T021 [P] [US1] Implementar `ViewFor(snapshot, viewerID)` en
       `backend/internal/poker/domain/view.go` con lo que cubre T013; los votos se agregan en US2 —
       depende de T013
 - [ ] T022 [US1] Implementar en `backend/internal/poker/repository/session_repository.go`

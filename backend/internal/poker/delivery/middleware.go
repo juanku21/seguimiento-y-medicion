@@ -14,14 +14,6 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/poker/domain"
 )
 
-// Mensajes que responde el middleware de acceso: el 401 de la 001, el 404 del contrato y el 500
-// genérico.
-const (
-	msgSessionRequired          = "Se requiere iniciar sesión."
-	msgEstimationSessionMissing = "La sesión de estimación no existe."
-	msgInternalError            = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
-)
-
 // contextKeySessionAccess es la clave con la que RequireEstimationAccess deja en el contexto de gin
 // el SessionAccess de quien pide sobre la sesión de estimación de la ruta.
 const contextKeySessionAccess = "poker.sessionAccess"

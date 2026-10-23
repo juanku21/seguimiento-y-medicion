@@ -304,7 +304,7 @@ desconectado.
       `EstimationRound`, `UserRef`, `OpenSessionExistsResponse` y `SessionClosedResponse`,
       reutilizando `ErrorResponse`, `FieldError` y `ValidationErrorResponse` de la 001. Los campos
       anulables se serializan como `null` y las listas como `[]`, nunca como `null` — depende de T023
-- [ ] T026 [US1] Implementar el manejador `openEstimationSession` en
+- [X] T026 [US1] Implementar el manejador `openEstimationSession` en
       `backend/internal/poker/delivery/handler.go` y el canal `streamEstimationSession` en
       `backend/internal/poker/delivery/stream.go`, ambos con anotaciones `swag` en español: el canal
       responde `409` con `SessionClosedResponse` si la sesión está cerrada antes de empezar a

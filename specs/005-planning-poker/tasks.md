@@ -243,7 +243,7 @@ desconectado.
       `201`, las nueve restantes `409` con el `sessionId` de la ganadora, ninguna `500`, y en la base
       hay una sola fila `open` de esa historia (SC-012). Repetida varias veces para que el intercalado
       sea real — depende de T015
-- [ ] T017 [P] [US1] Pruebas de frontend en `frontend/src/lib/event-stream.test.ts` (lector de
+- [X] T017 [P] [US1] Pruebas de frontend en `frontend/src/lib/event-stream.test.ts` (lector de
       `text/event-stream`: un evento en un fragmento, un evento partido en dos fragmentos, varios
       `data:` en un evento, comentarios `: ping` ignorados, líneas terminadas en `\r\n`), en
       `frontend/src/features/poker/components/participant-list.test.tsx` y en

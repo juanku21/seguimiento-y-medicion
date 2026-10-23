@@ -182,7 +182,7 @@ desconectado.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T010 [P] [US1] Pruebas unitarias **obligatorias** de
+- [X] T010 [P] [US1] Pruebas unitarias **obligatorias** de
       `SessionStatus.EnsureOpen(reason *CancelReason, agreedStoryPoints *int) error` en
       `backend/internal/poker/domain/status_test.go`, cubriendo RN-22: `open` → ok (aunque reciba
       motivo o valor); `finished` con valor 8 → `SessionClosedError` con `Status` `finished` y

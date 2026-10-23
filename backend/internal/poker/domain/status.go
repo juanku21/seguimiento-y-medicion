@@ -1,5 +1,7 @@
 package domain
 
+import "errors"
+
 // SessionStatus es el estado de una sesión de estimación; se guarda como texto en la columna
 // estimation_sessions.status y no como enum de PostgreSQL (data-model.md sección 5). Los valores
 // están en inglés y la etiqueta en español vive en el frontend.
@@ -12,6 +14,13 @@ const (
 	SessionStatusFinished SessionStatus = "finished"
 	SessionStatusCanceled SessionStatus = "canceled"
 )
+
+// EnsureOpen admite la acción si la sesión está open; si está cerrada devuelve SessionClosedError con
+// el estado y con el motivo de cancelación y el valor acordado recibidos (RN-22, data-model.md
+// sección 6). Firma mínima de T010: la implementa T018.
+func (s SessionStatus) EnsureOpen(reason *CancelReason, agreedStoryPoints *int) error {
+	return errors.New("not implemented")
+}
 
 // RoundStatus es el estado de una ronda de votación; se guarda como texto y no como enum de
 // PostgreSQL (data-model.md sección 5).

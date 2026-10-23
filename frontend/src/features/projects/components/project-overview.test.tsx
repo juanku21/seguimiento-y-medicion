@@ -173,3 +173,34 @@ describe("003/RC-07 - Navegación de la vista del proyecto al backlog", () => {
     }
   });
 });
+
+describe("004 - Navegación de la vista del proyecto a los sprints", () => {
+  let fetchMock: FetchMock;
+
+  // Cada prueba arranca con una sesión válida en la pestaña y un fetch sustituido.
+  beforeEach(() => {
+    sessionStorage.clear();
+    writeToken(sessionToken);
+    fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  // Desmonta lo renderizado y restaura fetch para no contaminar otras pruebas.
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  // Integración con la 002 (T089): la vista del proyecto ofrece un enlace que lleva a la pantalla
+  // de sprints de ese mismo proyecto, tanto al propietario como a un integrante.
+  it("La vista del proyecto ofrece un enlace a los sprints", async () => {
+    for (const members of [membersWithEmail, membersWithoutEmail]) {
+      const project = projectWith(members);
+      await renderOverview(fetchMock, project);
+
+      const link = screen.getByRole("link", { name: /sprints/i });
+      expect(link.getAttribute("href")).toBe(`/projects/${project.id}/sprints`);
+      cleanup();
+    }
+  });
+});

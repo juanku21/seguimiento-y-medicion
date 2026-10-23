@@ -892,7 +892,7 @@ T088 es de caracterización sin RED y T089 y T090 siguen el ciclo normal.
       que ninguna respuesta contiene `password_hash` ni `passwordHash` (Principio VI). Prueba de
       caracterización: las rutas ya están detrás de los middlewares y las reglas ya existen, así que
       no tiene RED; el commit lo justifica — depende de T087
-- [ ] T089 [P] Prueba de frontend en
+- [X] T089 [P] Prueba de frontend en
       `frontend/src/features/projects/components/project-overview.test.tsx`: la vista del proyecto
       ofrece un enlace a `/projects/{projectId}/sprints` — depende de T080
 - [ ] T090 Implementar el enlace a los sprints en

@@ -923,7 +923,7 @@ T088 es de caracterización sin RED y T089 y T090 siguen el ciclo normal.
       comprometidas, las pruebas de concurrencia y la verificación de que las pruebas corrieron contra
       `smye_test` en el puerto 5433 y no contra desarrollo — depende de T050, T090, T091, T092 y
       T095
-- [ ] T107 Agregar en `backend/internal/sprints/delivery/handler_test.go` una prueba de
+- [X] T107 Agregar en `backend/internal/sprints/delivery/handler_test.go` una prueba de
       caracterización, sin etiqueta `004/USn`, que verifique que `GET /api/v1/stories/{storyId}/sprints`
       responde a quien no integra el proyecto el mismo `404` ante una historia ajena que ante un
       `storyId` inexistente (código, tipo de contenido y cuerpo byte a byte, sin cambiar filas)

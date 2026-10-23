@@ -3910,6 +3910,44 @@ func TestSprintEndpoints_NotFoundIndistinguible(t *testing.T) {
 		"se comparan siete acciones de sprint y dos de colección")
 }
 
+// Caracterización: 404 indistinguible en el historial de sprints de una historia (SC-014)
+// Carla, que no integra el proyecto, recibe al consultar el historial de sprints de la historia
+// comprometida en el sprint Activo el mismo 404 que ante un storyId inexistente: igual código, tipo
+// de contenido y cuerpo byte a byte, sin cambiar ninguna fila.
+func TestSprintEndpoints_StorySprintsNotFoundIndistinguible(t *testing.T) {
+	f := newSprintEndpointsFixture(t, projectsdomain.ProjectStatusInProgress)
+	_, carlaToken := f.env.signUp(t, "Carla Gómez", "carla@example.com")
+	carla := "Bearer " + carlaToken
+
+	// Se toma la solicitud listStorySprints de la tabla común, con la historia ajena y con una
+	// historia que no existe; el resto de los identificadores no interviene en la ruta.
+	missingIDs := f.ids
+	missingIDs.activeStoryID = uuid.New()
+	findListStorySprints := func(ids sprintEndpointIDs) sprintEndpointRequest {
+		for _, req := range sprintEndpointRequests(ids) {
+			if req.name == "listStorySprints" {
+				return req
+			}
+		}
+		require.FailNow(t, "falta la solicitud listStorySprints en la tabla de endpoints")
+		return sprintEndpointRequest{}
+	}
+	foreign := findListStorySprints(f.ids)
+	missing := findListStorySprints(missingIDs)
+	before := sprintDatabaseSnapshot(t, f.env.db)
+
+	foreignRec := f.env.sendSprintEndpoint(t, foreign, carla)
+	missingRec := f.env.sendSprintEndpoint(t, missing, carla)
+
+	// La historia ajena responde el 404 del contrato, idéntico al de la inexistente, y nada cambia.
+	assert.Equal(t, http.StatusNotFound, foreignRec.Code, "cuerpo: %s", foreignRec.Body.String())
+	assert.JSONEq(t, `{"error":"`+sprintStoryNotFound+`"}`, foreignRec.Body.String())
+	assert.Equal(t, missingRec.Code, foreignRec.Code, "los códigos de estado deberían ser idénticos")
+	assert.Equal(t, missingRec.Header().Get("Content-Type"), foreignRec.Header().Get("Content-Type"), "los tipos de contenido deberían ser idénticos")
+	assert.Equal(t, missingRec.Body.Bytes(), foreignRec.Body.Bytes(), "los cuerpos deberían ser idénticos byte a byte")
+	assert.Equal(t, before, sprintDatabaseSnapshot(t, f.env.db), "no debería cambiar ninguna fila")
+}
+
 // Caracterización: solo lectura del proyecto Finalizado (SC-012)
 // Bruno, integrante de un proyecto Finalizado, recibe 409 con el mensaje de solo lectura en las ocho
 // escrituras, sin que cambie ninguna fila, y 200 en las tres lecturas.

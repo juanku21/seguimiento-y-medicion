@@ -403,7 +403,7 @@ nadie ve el valor ajeno.
 - [X] T039 [US2] Implementar la validación del cuerpo del voto en
       `backend/internal/poker/delivery/validation.go`, con los dos mensajes como constantes nombradas
       en un único lugar y sin llegar al servicio ante un error (Principio VII) — depende de T034, T038
-- [ ] T040 [P] [US2] Completar `ViewFor` en `backend/internal/poker/domain/view.go` con `hasVoted`,
+- [X] T040 [P] [US2] Completar `ViewFor` en `backend/internal/poker/domain/view.go` con `hasVoted`,
       `myVote` y los votos de las rondas reveladas — depende de T035
 - [ ] T041 [US2] Implementar `Vote` en `backend/internal/poker/repository/session_repository.go`:
       bloqueo de la sesión, `EnsureOpen`, participante con `connected = true` (si no →

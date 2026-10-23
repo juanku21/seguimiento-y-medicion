@@ -330,7 +330,7 @@ desconectado.
       `story_completed` → Historia completada, `project_finished` → Proyecto finalizado;
       `consensus` → Consenso, `divergence` → Divergencia, `no_numeric_votes` → Sin votos numéricos).
       **Prohibido el tipo `any`** (Principio VIII)
-- [ ] T029 [US1] Implementar `frontend/src/lib/event-stream.ts`: lectura de `response.body` con
+- [X] T029 [US1] Implementar `frontend/src/lib/event-stream.ts`: lectura de `response.body` con
       `getReader()` y `TextDecoder`, separación por línea en blanco, campos `event:` y `data:`,
       comentarios ignorados, y un callback por evento, sin dependencias — depende de T017
 - [ ] T030 [US1] Implementar en `frontend/src/features/poker/api.ts` la apertura sobre el cliente

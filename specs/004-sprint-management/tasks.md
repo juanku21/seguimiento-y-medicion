@@ -911,7 +911,7 @@ T088 es de caracterización sin RED y T089 y T090 siguen el ciclo normal.
       `go test ./... -coverprofile=coverage.out` más `go tool cover -func=coverage.out` en
       `backend/`, y `npm run test:coverage` en `frontend/` — y revisar que el módulo
       `internal/sprints/` y `frontend/src/features/sprints/` estén cubiertos — depende de T087
-- [ ] T095 Verificar la trazabilidad y las puertas de seguridad recorriendo
+- [X] T095 Verificar la trazabilidad y las puertas de seguridad recorriendo
       `backend/internal/sprints/` y `frontend/src/features/sprints/`: que buscar `004/US1` a
       `004/US7` en el código de pruebas devuelva los **82** escenarios; que las **23** reglas RN-01 a
       RN-23 tengan prueba asociada (SC-017); que los **once** endpoints tengan su prueba de `401`

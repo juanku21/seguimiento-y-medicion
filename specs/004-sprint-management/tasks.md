@@ -981,7 +981,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       leídos dentro de la transacción y no un error interno per plan: research.md §13 serialización
       del avance contra el cierre (partial) — origen: converge, detectado en
       fase/004-converge-and-foundational
-- [ ] T110 Hacer que `ChangeStoryProgress` devuelva el compromiso releído dentro de su transacción
+- [X] T110 Hacer que `ChangeStoryProgress` devuelva el compromiso releído dentro de su transacción
       en `backend/internal/sprints/repository/sprint_repository.go`,
       `backend/internal/sprints/domain/repository.go` y
       `backend/internal/sprints/service/sprint_service.go`, y que `changeStoryStatus` en

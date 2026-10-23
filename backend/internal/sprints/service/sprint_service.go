@@ -262,22 +262,13 @@ func (s *SprintService) Delete(ctx context.Context, access *domain.SprintAccess)
 // repositorio dentro de su transacción: historia fuera del sprint activo, sprint cerrado, transición
 // no admitida y proyecto Finalizado (RN-11, RN-18, RN-19). El servicio le pasa el instante del reloj
 // inyectado, una sola vez, y propaga sus rechazos envueltos con %w para que delivery los reconozca
-// con errors.Is.
+// con errors.Is. Si el avance se admite, devuelve el compromiso que el repositorio releyó dentro de
+// su transacción, con el sprint y la fecha de completado registrada, para que delivery arme la
+// respuesta sin volver a leerlo (research.md sección 13).
 func (s *SprintService) ChangeStoryProgress(ctx context.Context, storyID uuid.UUID, to backlogdomain.StoryStatus) (*domain.SprintStory, error) {
-	if _, err := s.repo.ChangeStoryProgress(ctx, storyID, to, s.now()); err != nil {
-		return nil, fmt.Errorf("cambiar avance de historia: %w", err)
-	}
-
-	return nil, nil
-}
-
-// FindOpenCommitment devuelve el compromiso abierto de la historia, o nil sin error si no tiene
-// ninguno. Es una lectura sin reglas de negocio: delivery la usa después de ChangeStoryProgress para
-// armar la respuesta del avance con el sprint y la fecha de completado registrada.
-func (s *SprintService) FindOpenCommitment(ctx context.Context, storyID uuid.UUID) (*domain.SprintStory, error) {
-	commitment, err := s.repo.FindOpenCommitment(ctx, storyID)
+	commitment, err := s.repo.ChangeStoryProgress(ctx, storyID, to, s.now())
 	if err != nil {
-		return nil, fmt.Errorf("leer compromiso abierto de historia: %w", err)
+		return nil, fmt.Errorf("cambiar avance de historia: %w", err)
 	}
 
 	return commitment, nil

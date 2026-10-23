@@ -745,9 +745,13 @@ type storyCommitmentRow struct {
 // bloqueado o que no está Activo, también ErrProgressOutsideActiveSprint (FR-036). Recién entonces
 // valida la transición con ValidateStoryProgress (FR-038). Si se admite, escribe user_stories.status
 // con UpdateColumn, igual que RemoveStories, para no tocar updated_at, y sprint_stories.completed_at
-// con now al completar y NULL al volver a in_progress (FR-034, FR-035).
+// con now al completar y NULL al volver a in_progress (FR-034, FR-035). Por último relee, con los
+// bloqueos todavía tomados, el compromiso actualizado y lo devuelve con su sprint y su fecha de
+// completado, para que la respuesta no dependa de una lectura posterior que un cierre confirmado
+// justo después dejaría sin compromiso abierto.
 func (r *SprintRepository) ChangeStoryProgress(ctx context.Context, storyID uuid.UUID, to backlogdomain.StoryStatus, now time.Time) (*domain.SprintStory, error) {
-	return nil, r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var updated domain.SprintStory
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		located, err := openCommitmentForProgress(tx, storyID)
 		if err != nil {
 			return err
@@ -811,8 +815,18 @@ func (r *SprintRepository) ChangeStoryProgress(ctx context.Context, storyID uuid
 		if err != nil {
 			return fmt.Errorf("registrar la fecha de completado: %w", err)
 		}
+
+		// Se relee el compromiso dentro de la transacción para devolverlo ya actualizado.
+		err = tx.Where("id = ?", commitment.ID).Take(&updated).Error
+		if err != nil {
+			return fmt.Errorf("releer el compromiso de la historia: %w", err)
+		}
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	return &updated, nil
 }
 
 // openCommitmentForProgress devuelve, sin tomar bloqueos, el compromiso abierto (outcome IS NULL) de la
@@ -875,25 +889,6 @@ func progressWithoutCommitmentError(tx *gorm.DB, storyID uuid.UUID, status backl
 		return domain.ErrSprintClosed
 	}
 	return domain.ErrProgressOutsideActiveSprint
-}
-
-// FindOpenCommitment devuelve el compromiso abierto (outcome IS NULL) de la historia, o nil sin error
-// si no tiene ninguno (data-model.md sección 9). Es una lectura simple, sin bloqueos, que arma la
-// respuesta del avance después de ChangeStoryProgress; se lee con Find y LIMIT 1 para que la ausencia
-// no pase por gorm.ErrRecordNotFound. El índice único parcial garantiza a lo sumo una fila.
-func (r *SprintRepository) FindOpenCommitment(ctx context.Context, storyID uuid.UUID) (*domain.SprintStory, error) {
-	var rows []domain.SprintStory
-	err := r.db.WithContext(ctx).
-		Where("story_id = ? AND outcome IS NULL", storyID).
-		Limit(1).
-		Find(&rows).Error
-	if err != nil {
-		return nil, fmt.Errorf("leer el compromiso abierto de la historia: %w", err)
-	}
-	if len(rows) == 0 {
-		return nil, nil
-	}
-	return &rows[0], nil
 }
 
 // sprintListRow es la fila que lee List: las columnas del sprint más los totales que calcula

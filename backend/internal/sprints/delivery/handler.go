@@ -558,22 +558,13 @@ func (h *Handler) changeStoryStatus(c *gin.Context) {
 		return
 	}
 
-	// Se aplica la transición y se traducen los rechazos de dominio con respondServiceError.
-	ctx := c.Request.Context()
-	if _, err := h.sprints.ChangeStoryProgress(ctx, storyID, status); err != nil {
-		respondServiceError(c, err, "no se pudo registrar el avance de la historia")
-		return
-	}
-
-	// La respuesta toma el sprint y la fecha de completado del compromiso abierto releído. Si ya no
-	// existe, un cierre se intercaló después del cambio: es inesperado y responde 500 sin detalles.
-	commitment, err := h.sprints.FindOpenCommitment(ctx, storyID)
+	// Se aplica la transición y se traducen los rechazos de dominio con respondServiceError. La
+	// respuesta toma el sprint y la fecha de completado del compromiso que el servicio devuelve,
+	// releído dentro de la transacción del avance, así que un cierre confirmado justo después no la
+	// afecta.
+	commitment, err := h.sprints.ChangeStoryProgress(c.Request.Context(), storyID, status)
 	if err != nil {
-		respondInternalError(c, "no se pudo leer el compromiso abierto de la historia", "error", err)
-		return
-	}
-	if commitment == nil {
-		respondInternalError(c, "la historia no tiene compromiso abierto después de registrar su avance", "story_id", storyID)
+		respondServiceError(c, err, "no se pudo registrar el avance de la historia")
 		return
 	}
 

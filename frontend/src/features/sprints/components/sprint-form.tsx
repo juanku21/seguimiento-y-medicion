@@ -5,7 +5,7 @@ import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
 import { Input } from "@/components/input";
 import { Textarea } from "@/components/textarea";
-import { createSprint } from "@/features/sprints/api";
+import { createSprint, updateSprint } from "@/features/sprints/api";
 import {
   MAX_SPRINT_GOAL_LENGTH,
   MAX_SPRINT_NAME_LENGTH,
@@ -16,6 +16,7 @@ import {
 } from "@/features/sprints/validation";
 import type { FieldError } from "@/types/auth";
 import type { SprintDetail, SprintInput } from "@/types/sprint";
+import { formatDate } from "@/utils/format-date";
 import { SPRINT_STATUS_LABELS } from "@/utils/sprint-labels";
 
 type FieldName = keyof SprintInput;
@@ -68,20 +69,34 @@ function toFieldErrors(fields: FieldError[]): FieldErrors {
   return errors;
 }
 
-// Propiedades del formulario de sprint: el proyecto en el que se planifica el sprint nuevo.
-export type SprintFormProps = { projectId: string };
+// Propiedades del formulario de sprint: el proyecto en el que se planifica el sprint nuevo o, al
+// modificar, el sprint Planificado cuyos valores precargan el formulario.
+export type SprintFormProps = { projectId: string } | { sprint: SprintDetail };
 
-// Formulario de creación de un sprint (004/US1). Valida antes de enviar, envía solo nombre, Sprint
-// Goal y fechas (el autor lo toma el backend de la sesión, FR-060) y confirma el sprint Planificado
-// con quien lo creó. Los rechazos del backend se muestran junto al campo (400) o como mensaje
-// general (404 y 409; el de superposición ya nombra el sprint en conflicto). Ante un 401 el cliente
-// HTTP descarta la sesión.
-export function SprintForm({ projectId }: SprintFormProps) {
-  const [values, setValues] = useState<SprintInput>(EMPTY_VALUES);
+// Toma del sprint a modificar los valores editables con los que arranca el formulario.
+function valuesOf(sprint: SprintDetail): SprintInput {
+  return {
+    name: sprint.name,
+    goal: sprint.goal,
+    startDate: sprint.startDate,
+    endDate: sprint.endDate,
+  };
+}
+
+// Formulario de creación (004/US1) y de modificación (004/US7) de un sprint. Valida antes de
+// enviar, envía solo nombre, Sprint Goal y fechas (el autor lo toma el backend de la sesión, FR-060;
+// el estado y las historias no se modifican, FR-015) y confirma el sprint devuelto por el backend.
+// Los rechazos del backend se muestran junto al campo (400) o como mensaje general (404 y 409; el de
+// superposición ya nombra el sprint en conflicto). Ante un 401 el cliente HTTP descarta la sesión.
+export function SprintForm(props: SprintFormProps) {
+  const editedSprint = "sprint" in props ? props.sprint : null;
+  const [values, setValues] = useState<SprintInput>(
+    editedSprint ? valuesOf(editedSprint) : EMPTY_VALUES,
+  );
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [createdSprint, setCreatedSprint] = useState<SprintDetail | null>(null);
+  const [savedSprint, setSavedSprint] = useState<SprintDetail | null>(null);
   const submittingRef = useRef(false);
 
   // Actualiza un campo del formulario a partir de lo que se escribió o eligió.
@@ -106,12 +121,15 @@ export function SprintForm({ projectId }: SprintFormProps) {
 
     submittingRef.current = true;
     setIsSubmitting(true);
-    const result = await createSprint(projectId, values);
+    const result =
+      "sprint" in props
+        ? await updateSprint(props.sprint.id, values)
+        : await createSprint(props.projectId, values);
     submittingRef.current = false;
     setIsSubmitting(false);
 
     if (result.ok) {
-      setCreatedSprint(result.data);
+      setSavedSprint(result.data);
       return;
     }
 
@@ -121,15 +139,31 @@ export function SprintForm({ projectId }: SprintFormProps) {
     setGeneralError(result.error.message);
   }
 
+  // Confirmación de la modificación con los datos devueltos por el backend, en el lugar del
+  // formulario: nombre, estado y fechas del sprint actualizado.
+  if (savedSprint && editedSprint) {
+    return (
+      <Alert variant="success">
+        <p className="font-medium">Sprint actualizado</p>
+        <p>{savedSprint.name}</p>
+        <p>
+          Estado: {SPRINT_STATUS_LABELS[savedSprint.status]} ·{" "}
+          {formatDate(savedSprint.startDate)} al{" "}
+          {formatDate(savedSprint.endDate)}
+        </p>
+      </Alert>
+    );
+  }
+
   // Confirmación de la creación con los datos devueltos por el backend, en el lugar del formulario.
-  if (createdSprint) {
+  if (savedSprint) {
     return (
       <Alert variant="success">
         <p className="font-medium">Sprint creado</p>
-        <p>{createdSprint.name}</p>
+        <p>{savedSprint.name}</p>
         <p>
-          Estado: {SPRINT_STATUS_LABELS[createdSprint.status]} · Creado por{" "}
-          {createdSprint.createdBy.fullName}
+          Estado: {SPRINT_STATUS_LABELS[savedSprint.status]} · Creado por{" "}
+          {savedSprint.createdBy.fullName}
         </p>
       </Alert>
     );
@@ -173,7 +207,7 @@ export function SprintForm({ projectId }: SprintFormProps) {
         error={fieldErrors.endDate}
       />
       <Button type="submit" disabled={isSubmitting}>
-        Crear sprint
+        {editedSprint ? "Guardar cambios" : "Crear sprint"}
       </Button>
     </form>
   );

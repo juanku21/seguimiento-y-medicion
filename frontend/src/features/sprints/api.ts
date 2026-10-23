@@ -1,5 +1,6 @@
 import {
   deleteAuthorizedJson,
+  deleteEmpty,
   getJson,
   isRecord,
   postAuthorizedJson,
@@ -76,6 +77,31 @@ function sprintPath(sprintId: string): string {
 // HTTP descarta la sesión.
 export function getSprint(sprintId: string): Promise<ApiResult<SprintDetail>> {
   return getJson(sprintPath(sprintId), isSprintDetail);
+}
+
+// Modifica un sprint Planificado con PUT /api/v1/sprints/{sprintId}, usando la sesión de la pestaña
+// (004/US7). Solo viajan nombre, Sprint Goal y fechas: el estado y las historias no se tocan
+// (FR-015). Las reglas las resuelve el backend: el 400 llega con el detalle por campo, el 409 de
+// superposición nombra el sprint en conflicto y el sprint no Planificado o inexistente llega como 409
+// o 404 con su mensaje.
+export function updateSprint(
+  sprintId: string,
+  input: SprintInput,
+): Promise<ApiResult<SprintDetail>> {
+  const body: SprintInput = {
+    name: input.name,
+    goal: input.goal,
+    startDate: input.startDate,
+    endDate: input.endDate,
+  };
+  return putAuthorizedJson(sprintPath(sprintId), body, isSprintDetail);
+}
+
+// Elimina un sprint Planificado con DELETE /api/v1/sprints/{sprintId}, sin cuerpo y con la sesión
+// de la pestaña (004/US7). Devolver las historias al backlog lo resuelve el backend; el sprint ya
+// iniciado o con esfuerzo registrado llega como 409 y el inexistente como 404, con su mensaje.
+export function deleteSprint(sprintId: string): Promise<ApiResult<undefined>> {
+  return deleteEmpty(sprintPath(sprintId));
 }
 
 // Compromete un lote de historias en el sprint con POST /api/v1/sprints/{sprintId}/stories

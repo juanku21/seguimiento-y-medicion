@@ -27,7 +27,9 @@ import (
 // la historia fuera del sprint Activo y de la transición de avance no admitida, que enumera las tres
 // permitidas, son los del avance de las historias (US4). Los del sprint no Activo y del sprint ya
 // Cerrado son propios del cierre (US5): este último difiere a propósito del de las demás escrituras
-// porque el contrato remarca que el estado Cerrado es definitivo.
+// porque el contrato remarca que el estado Cerrado es definitivo. Los del sprint no Planificado al
+// modificar, del sprint ya iniciado y del sprint con esfuerzo registrado al eliminar son los de la
+// corrección y el descarte de un sprint (US7).
 const (
 	msgInvalidFields          = "Hay campos inválidos en la solicitud."
 	msgInvalidBody            = "El cuerpo de la solicitud debe ser un JSON válido."
@@ -45,6 +47,9 @@ const (
 	msgInvalidStoryTransition = "Transición no permitida. Las admitidas son: Pendiente → En progreso, En progreso → Completada y Completada → En progreso."
 	msgCloseNotActive         = "Solo se puede cerrar un sprint Activo."
 	msgCloseClosed            = "El sprint ya está cerrado; el estado Cerrado es definitivo."
+	msgUpdateNotPlanned       = "Solo se puede modificar un sprint Planificado."
+	msgDeleteStarted          = "Solo se puede eliminar un sprint que nunca fue iniciado."
+	msgDeleteHasEffort        = "El sprint tiene esfuerzo registrado. Primero hay que eliminar esos registros."
 	msgInternalError          = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
 )
 
@@ -201,6 +206,106 @@ func (h *Handler) getSprint(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, newSprintDetail(view))
+}
+
+// updateSprint godoc
+//
+//	@Summary		Modifica un sprint Planificado
+//	@Description	Reemplaza nombre, fechas y Sprint Goal de un sprint planned con las mismas validaciones
+//	@Description	que la creación; la superposición se verifica excluyendo al propio sprint (FR-012,
+//	@Description	FR-013). La modificación es atómica (FR-014) y no altera el estado, las historias
+//	@Description	comprometidas ni la instantánea (FR-015). Un sprint active o closed responde 409
+//	@Description	(FR-016), igual que un proyecto finished.
+//	@Tags			Sprints
+//	@ID				updateSprint
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			sprintId	path		string								true	"Identificador del sprint"	format(uuid)
+//	@Param			request		body		SprintInput							true	"Datos nuevos del sprint"
+//	@Success		200			{object}	SprintDetail						"Sprint actualizado. El cuerpo es el detalle del sprint."
+//	@Failure		400			{object}	delivery.ValidationErrorResponse	"Entrada inválida. Indica todos los campos a corregir y por qué, y no modifica nada (FR-014). Si el cuerpo no es un JSON válido o está vacío, la respuesta es ErrorResponse."
+//	@Failure		401			{object}	delivery.ErrorResponse				"Se requiere iniciar sesión."
+//	@Failure		404			{object}	delivery.ErrorResponse				"El sprint no existe, fue eliminado o pertenece a un proyecto del que quien pide no es integrante; las tres situaciones devuelven el mismo cuerpo."
+//	@Failure		409			{object}	SprintConflictResponse				"El período se superpone con el de otro sprint del proyecto, que se nombra en el cuerpo. Si el sprint no está planned, está closed o el proyecto está finished, la respuesta es ErrorResponse con el mensaje \"Solo se puede modificar un sprint Planificado.\", \"El sprint está cerrado y no admite cambios.\" o \"El proyecto está finalizado y sus sprints son de solo lectura.\""
+//	@Failure		500			{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."
+//	@Router			/api/v1/sprints/{sprintId} [put]
+func (h *Handler) updateSprint(c *gin.Context) {
+	// RequireSprintAccess ya verificó la sesión y la membresía y dejó el acceso en el contexto. Si no
+	// está, la ruta se registró fuera de ese middleware: es un error de composición y responde 500.
+	access, ok := sprintAccessFromContext(c)
+	if !ok {
+		respondInternalError(c, "updateSprint sin acceso al sprint en el contexto")
+		return
+	}
+
+	// Se decodifica y valida el cuerpo con la misma validación de la creación; ante cualquier error
+	// ya se respondió el 400 y no se modifica nada (FR-014).
+	input, ok := bindSprintInput(c)
+	if !ok {
+		return
+	}
+
+	// Se modifica el sprint. El sprint no Planificado tiene un mensaje propio de la modificación, así
+	// que se traduce acá; los demás rechazos de dominio pasan por respondServiceError.
+	view, err := h.sprints.Update(c.Request.Context(), access, input)
+	if errors.Is(err, domain.ErrSprintNotPlanned) {
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgUpdateNotPlanned})
+		return
+	}
+	if err != nil {
+		respondServiceError(c, err, "no se pudo modificar el sprint")
+		return
+	}
+
+	c.JSON(http.StatusOK, newSprintDetail(view))
+}
+
+// deleteSprint godoc
+//
+//	@Summary		Elimina un sprint Planificado que nunca fue iniciado
+//	@Description	Elimina el sprint de forma definitiva, libera su período y devuelve sus historias
+//	@Description	comprometidas al backlog como pending y sin sprint (FR-048). Esas historias quedan
+//	@Description	marcadas como que estuvieron en un sprint, así que ya no se pueden eliminar del backlog
+//	@Description	(US7-7). Se rechaza con 409 si el sprint es active o closed, si tiene esfuerzo
+//	@Description	registrado asociado (FR-048, RN-20) o si el proyecto está finished.
+//	@Tags			Sprints
+//	@ID				deleteSprint
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			sprintId	path	string					true	"Identificador del sprint"	format(uuid)
+//	@Success		204			"Sprint eliminado."
+//	@Failure		401			{object}	delivery.ErrorResponse	"Se requiere iniciar sesión."
+//	@Failure		404			{object}	delivery.ErrorResponse	"El sprint no existe, fue eliminado o pertenece a un proyecto del que quien pide no es integrante; las tres situaciones devuelven el mismo cuerpo."
+//	@Failure		409			{object}	delivery.ErrorResponse	"Proyecto finished, sprint ya iniciado o con esfuerzo registrado: \"El proyecto está finalizado y sus sprints son de solo lectura.\", \"Solo se puede eliminar un sprint que nunca fue iniciado.\" o \"El sprint tiene esfuerzo registrado. Primero hay que eliminar esos registros.\""
+//	@Failure		500			{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/sprints/{sprintId} [delete]
+func (h *Handler) deleteSprint(c *gin.Context) {
+	// RequireSprintAccess ya verificó la sesión y la membresía y dejó el acceso en el contexto. Si no
+	// está, la ruta se registró fuera de ese middleware: es un error de composición y responde 500.
+	access, ok := sprintAccessFromContext(c)
+	if !ok {
+		respondInternalError(c, "deleteSprint sin acceso al sprint en el contexto")
+		return
+	}
+
+	// Se elimina el sprint. El sprint ya iniciado y el que tiene esfuerzo registrado tienen mensajes
+	// propios de la eliminación, así que se traducen acá; los demás rechazos de dominio pasan por
+	// respondServiceError.
+	err := h.sprints.Delete(c.Request.Context(), access)
+	switch {
+	case errors.Is(err, domain.ErrSprintAlreadyStarted):
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgDeleteStarted})
+		return
+	case errors.Is(err, domain.ErrSprintHasEffort):
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgDeleteHasEffort})
+		return
+	case err != nil:
+		respondServiceError(c, err, "no se pudo eliminar el sprint")
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }
 
 // assignSprintStories godoc

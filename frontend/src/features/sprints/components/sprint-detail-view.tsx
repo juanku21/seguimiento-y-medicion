@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Alert } from "@/components/alert";
 import { getSprint } from "@/features/sprints/api";
 import { CommitStoriesDialog } from "@/features/sprints/components/commit-stories-dialog";
+import { DeleteSprintButton } from "@/features/sprints/components/delete-sprint-button";
 import { SprintLifecycleActions } from "@/features/sprints/components/sprint-lifecycle-actions";
 import { SprintResults } from "@/features/sprints/components/sprint-results";
 import { SprintSchedule } from "@/features/sprints/components/sprint-schedule";
@@ -24,11 +26,11 @@ type DetailState =
   | { status: "loaded"; sprint: SprintDetail }
   | { status: "error"; message: string };
 
-// Vista del detalle de un sprint (004/US2, US3, US5 y US6): pide el sprint con un token vigente y
-// muestra sus datos con los días restantes del sprint Activo, las acciones del ciclo de vida, el
-// resultado congelado si está cerrado, la lista de historias comprometidas y, mientras el sprint
-// está abierto, el diálogo para comprometer más. Cada cambio reemplaza el sprint mostrado por el
-// detalle que devuelve el backend.
+// Vista del detalle de un sprint (004/US2, US3, US5, US6 y US7): pide el sprint con un token vigente
+// y muestra sus datos con los días restantes del sprint Activo, las acciones del ciclo de vida, la
+// modificación y la eliminación mientras está Planificado, el resultado congelado si está cerrado,
+// la lista de historias comprometidas y, mientras el sprint está abierto, el diálogo para
+// comprometer más. Cada cambio reemplaza el sprint mostrado por el detalle que devuelve el backend.
 // El sprint inexistente o ajeno llega como 404 y se muestra solo su mensaje; ante un 401 el cliente
 // HTTP borra el token y la guardia lleva a /login.
 export function SprintDetailView({ sprintId }: SprintDetailViewProps) {
@@ -87,6 +89,18 @@ export function SprintDetailView({ sprintId }: SprintDetailViewProps) {
       </section>
 
       <SprintLifecycleActions sprint={sprint} onChanged={showSprint} />
+
+      {/* Modificación: solo en un sprint Planificado (FR-012, FR-016). */}
+      {sprint.status === "planned" && (
+        <Link
+          href={`/projects/${encodeURIComponent(sprint.projectId)}/sprints/${encodeURIComponent(sprint.id)}/edit`}
+          className="self-start text-sm font-medium underline underline-offset-4"
+        >
+          Editar sprint
+        </Link>
+      )}
+
+      <DeleteSprintButton sprint={sprint} />
 
       <SprintResults sprint={sprint} />
 

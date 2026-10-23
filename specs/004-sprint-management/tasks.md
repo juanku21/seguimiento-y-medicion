@@ -813,14 +813,14 @@ backlog; y los mismos intentos sobre un sprint Activo responden `409`.
 
 ### Pruebas de la Historia 7 ⚠️
 
-- [ ] T081 [P] [US7] Pruebas unitarias **obligatorias** de `Update` y `Delete` en el servicio en
+- [X] T081 [P] [US7] Pruebas unitarias **obligatorias** de `Update` y `Delete` en el servicio en
       `backend/internal/sprints/service/sprint_service_test.go`, con dobles: proyecto Finalizado →
       `ErrSprintsReadOnly`; modificar `active` → `ErrSprintNotPlanned` y `closed` →
       `ErrSprintClosed` (RN-18); eliminar `active` o `closed` → `ErrSprintAlreadyStarted`; con
       `SprintEffort.HasEffort` verdadero → `ErrSprintHasEffort` **sin llamar a `Delete` del
       repositorio** (RN-20); y la modificación no pasa estado, historias ni instantánea al
       repositorio (FR-015) — depende de T080
-- [ ] T082 [US7] Pruebas de integración de la historia en
+- [X] T082 [US7] Pruebas de integración de la historia en
       `backend/internal/sprints/delivery/handler_test.go`, con `// Escenario: <nombre> (004/US7)`:
       `TestUS7_ModificacionCompleta` (estado e historias sin cambios), `TestUS7_EliminacionConHistorias`
       (`204`, sin filas en `sprints` ni `sprint_stories`, historias `pending` y un sprint nuevo en el
@@ -834,7 +834,7 @@ backlog; y los mismos intentos sobre un sprint Activo responden `409`.
       `TestUS7_ModificarActivo`, `TestUS7_ModificarCerrado`, `TestUS7_EliminarActivoOCerrado`,
       `TestUS7_EsfuerzoRegistrado` (`409`, sprint e historias intactos — SC-016) y
       `TestUS7_SprintEliminado` (`GET`, `PUT` y `DELETE` → `404`) — depende de T080
-- [ ] T083 [P] [US7] Pruebas de frontend en
+- [X] T083 [P] [US7] Pruebas de frontend en
       `frontend/src/features/sprints/components/sprint-edit-view.test.tsx` y
       `frontend/src/features/sprints/components/delete-sprint-button.test.tsx`, con
       `describe("004/US7 - Corregir o descartar un sprint planificado")` y un `it` por escenario,
@@ -844,7 +844,7 @@ backlog; y los mismos intentos sobre un sprint Activo responden `409`.
 
 ### Implementación de la Historia 7
 
-- [ ] T084 [US7] Implementar `Update` y `Delete` en
+- [X] T084 [US7] Implementar `Update` y `Delete` en
       `backend/internal/sprints/repository/sprint_repository.go`: `Update` en **una transacción** que
       bloquea el proyecto y el sprint, verifica solo lectura y estado `planned` con los datos
       releídos, busca superposición **excluyendo al propio sprint** y escribe **solo** `name`,
@@ -852,16 +852,16 @@ backlog; y los mismos intentos sobre un sprint Activo responden `409`.
       transacción** que bloquea el proyecto y el sprint, verifica `planned`, deja las historias
       comprometidas en `pending`, borra sus filas de `sprint_stories` y el sprint, dejando
       `ever_committed` en `true` (research.md sección 16) — depende de T082
-- [ ] T085 [US7] Implementar `Update(ctx, access, input)` y `Delete(ctx, access)` en
+- [X] T085 [US7] Implementar `Update(ctx, access, input)` y `Delete(ctx, access)` en
       `backend/internal/sprints/service/sprint_service.go`; `Delete` consulta `SprintEffort.HasEffort`
       después de las reglas de solo lectura y estado y antes de llamar al repositorio — depende de
       T081 y T084
-- [ ] T086 [US7] Implementar los manejadores `updateSprint` (reutiliza la validación de T016) y
+- [X] T086 [US7] Implementar los manejadores `updateSprint` (reutiliza la validación de T016) y
       `deleteSprint` en `backend/internal/sprints/delivery/handler.go` con anotaciones `swag` en
       español, y registrar `PUT` y `DELETE` en el grupo del sprint en
       `backend/internal/sprints/delivery/routes.go`. Respuestas según contracts/openapi.yaml —
       depende de T085
-- [ ] T087 [US7] Implementar las llamadas de modificación y eliminación en
+- [X] T087 [US7] Implementar las llamadas de modificación y eliminación en
       `frontend/src/features/sprints/api.ts`, el componente `SprintEditView` en
       `frontend/src/features/sprints/components/sprint-edit-view.tsx` que reutiliza `SprintForm`
       precargado, `DeleteSprintButton` en

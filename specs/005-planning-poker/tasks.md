@@ -217,7 +217,7 @@ desconectado.
       de un proyecto ajeno → `404` con **el mismo cuerpo byte a byte**
       (`{"error":"La sesión de estimación no existe."}`); integrante → sigue la cadena con el
       `SessionAccess` en el contexto, sin distinguir si es propietario — depende de T009
-- [ ] T015 [US1] Pruebas de integración de la historia en
+- [X] T015 [US1] Pruebas de integración de la historia en
       `backend/internal/poker/delivery/handler_test.go`, creando en
       `backend/internal/poker/delivery/testenv_test.go` el ayudante `newPokerTestEnv` (router como
       `cmd/app` detrás de `httptest.NewServer`, reloj falso avanzable, acceso al servicio para

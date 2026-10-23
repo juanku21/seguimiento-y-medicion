@@ -410,7 +410,7 @@ nadie ve el valor ajeno.
       `ErrNotParticipant`), ronda vigente `voting` (si no → `ErrRoundRevealed`), upsert de la fila
       única `(round_id, participant_id)` actualizando `card` y `updated_at`, `last_activity_at = now`
       y `version + 1` — depende de T036
-- [ ] T042 [US2] Implementar `Vote` en `backend/internal/poker/service/session_service.go`, con
+- [X] T042 [US2] Implementar `Vote` en `backend/internal/poker/service/session_service.go`, con
       publicación después de confirmar — depende de T040, T041
 - [ ] T043 [US2] Implementar el manejador `castEstimationVote` (`PUT /vote`) con anotaciones `swag`
       en `backend/internal/poker/delivery/handler.go`, la traducción de errores (`403`, `409`

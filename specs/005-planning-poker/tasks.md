@@ -333,7 +333,7 @@ desconectado.
 - [X] T029 [US1] Implementar `frontend/src/lib/event-stream.ts`: lectura de `response.body` con
       `getReader()` y `TextDecoder`, separación por línea en blanco, campos `event:` y `data:`,
       comentarios ignorados, y un callback por evento, sin dependencias — depende de T017
-- [ ] T030 [US1] Implementar en `frontend/src/features/poker/api.ts` la apertura sobre el cliente
+- [X] T030 [US1] Implementar en `frontend/src/features/poker/api.ts` la apertura sobre el cliente
       `fetch` de la 001 (incluido el `409` con `sessionId`), y en
       `frontend/src/features/poker/use-estimation-stream.ts` el hook que abre el canal con el token
       de `session-storage` y la cabecera `Authorization`, descarta instantáneas de `version` menor

@@ -975,6 +975,31 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       que `npm audit --omit=dev` ya no informa avisos sobre next per hallazgo de seguridad: versión de
       Next.js con ejecución remota de código conocida (security) — origen: seguridad, detectado en
       fase/004-polish (Fase 9: Polish)
+- [ ] T109 Prueba unitaria en `backend/internal/sprints/service/sprint_service_test.go` que, con un
+      repositorio falso en el que el compromiso abierto ya no existe después de confirmar el avance
+      (un cierre se intercaló), verifique que el avance devuelve el sprint y la fecha de completado
+      leídos dentro de la transacción y no un error interno per plan: research.md §13 serialización
+      del avance contra el cierre (partial) — origen: converge, detectado en
+      fase/004-converge-and-foundational
+- [ ] T110 Hacer que `ChangeStoryProgress` devuelva el compromiso releído dentro de su transacción
+      en `backend/internal/sprints/repository/sprint_repository.go`,
+      `backend/internal/sprints/domain/repository.go` y
+      `backend/internal/sprints/service/sprint_service.go`, y que `changeStoryStatus` en
+      `backend/internal/sprints/delivery/handler.go` responda con ese dato en lugar de releer con
+      `FindOpenCommitment` fuera de la transacción, quitando `FindOpenCommitment` si queda sin uso,
+      para que un cierre confirmado justo después del avance no produzca un `500` per plan:
+      research.md §13 serialización del avance contra el cierre (partial) — origen: converge,
+      detectado en fase/004-converge-and-foundational
+- [ ] T111 Reemplazar `go test ./...` por `go test -p 1 ./...`, incluido el comando de cobertura, en
+      `README.md` y `specs/004-sprint-management/quickstart.md`, con una línea que explique que el
+      advisory lock de `backend/internal/platform/testsupport/database.go` serializa los paquetes y
+      que correrlos en paralelo puede superar su espera máxima per Constitución VIII (partial) —
+      origen: converge, detectado en fase/004-converge-and-foundational
+- [ ] T112 Actualizar la Decisión de `specs/004-sprint-management/research.md` §13 al orden de
+      bloqueo actual de `ChangeStoryProgress`: primero el bloqueo compartido del sprint del
+      compromiso abierto, después la historia, y la relectura del compromiso con los bloqueos tomados
+      per plan: research.md §13 (contradicts) — origen: converge, detectado en
+      fase/004-converge-and-foundational
 
 ---
 

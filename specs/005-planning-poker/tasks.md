@@ -90,7 +90,7 @@ estructuras y contratos, sin lógica de negocio.
 
 **Rama**: `fase/005-foundational`
 
-- [ ] T001 [P] Declarar la entidad `EstimationSession` en `backend/internal/poker/domain/session.go`
+- [X] T001 [P] Declarar la entidad `EstimationSession` en `backend/internal/poker/domain/session.go`
       con los campos de data-model.md sección 1: `ID uuid` PK generado con `google/uuid`;
       `StoryID uuid NOT NULL` con FK a `user_stories.id` (campo `Story *backlogdomain.UserStory` solo
       para la FK, nunca precargado); `FacilitatorID uuid NOT NULL` con FK a `users.id`;
@@ -104,41 +104,41 @@ estructuras y contratos, sin lógica de negocio.
       declarado con la opción `where` de la etiqueta de índice de GORM, e índice
       `idx_estimation_sessions_story_created (story_id, created_at)`. Claves foráneas **sin
       `ON DELETE`**
-- [ ] T002 [P] Declarar la entidad `EstimationRound` en `backend/internal/poker/domain/round.go` con
+- [X] T002 [P] Declarar la entidad `EstimationRound` en `backend/internal/poker/domain/round.go` con
       los campos de data-model.md sección 2: `ID uuid` PK; `SessionID uuid NOT NULL` con FK a
       `estimation_sessions.id`; `Number integer NOT NULL`; `Status varchar(16) NOT NULL` (`voting` o
       `revealed`); `RevealedAt timestamptz` **anulable**; `CreatedAt` (momento de apertura de la
       ronda) y `UpdatedAt` `timestamptz NOT NULL`. **Índice único**
       `idx_estimation_rounds_session_number (session_id, number)`. **Sin** columnas de resultado: se
       derivan (research.md sección 5)
-- [ ] T003 [P] Declarar la entidad `EstimationParticipant` en
+- [X] T003 [P] Declarar la entidad `EstimationParticipant` en
       `backend/internal/poker/domain/participant.go` con los campos de data-model.md sección 3:
       `ID uuid` PK; `SessionID uuid NOT NULL` con FK a `estimation_sessions.id`;
       `UserID uuid NOT NULL` con FK a `users.id`; `Connected boolean NOT NULL`;
       `DisconnectedAt timestamptz` **anulable**; `CreatedAt` (momento de incorporación) y `UpdatedAt`
       `timestamptz NOT NULL`. **Índice único** `idx_estimation_participants_session_user
       (session_id, user_id)`. **Sin** columna de facilitador: es `estimation_sessions.facilitator_id`
-- [ ] T004 [P] Declarar la entidad `EstimationVote` en `backend/internal/poker/domain/vote.go` con los
+- [X] T004 [P] Declarar la entidad `EstimationVote` en `backend/internal/poker/domain/vote.go` con los
       campos de data-model.md sección 4: `ID uuid` PK; `RoundID uuid NOT NULL` con FK a
       `estimation_rounds.id`; `ParticipantID uuid NOT NULL` con FK a `estimation_participants.id`;
       `Card varchar(3) NOT NULL`; `CreatedAt` y `UpdatedAt` (momento en que quedó emitida la carta
       vigente) `timestamptz NOT NULL`. **Índice único** `idx_estimation_votes_round_participant
       (round_id, participant_id)`
-- [ ] T005 [P] Declarar en `backend/internal/poker/domain/status.go` los tipos `SessionStatus`
+- [X] T005 [P] Declarar en `backend/internal/poker/domain/status.go` los tipos `SessionStatus`
       (`open`, `finished`, `canceled`), `RoundStatus` (`voting`, `revealed`), `CancelReason`
       (`inactivity`, `story_completed`, `project_finished`) y `OutcomeKind` (`consensus`,
       `divergence`, `no_numeric_votes`), y en `backend/internal/poker/domain/card.go` el tipo `Card`
       con la lista ordenada `Cards`, armada a partir de `backlogdomain.StoryPointsScale` más `"?"`
       (RC-04). Constantes de Go, **no** `enum` de PostgreSQL. Las reglas (`EnsureOpen`, `ParseCard`)
       se implementan en las historias
-- [ ] T006 [P] Declarar los errores de dominio en `backend/internal/poker/domain/errors.go` con la
+- [X] T006 [P] Declarar los errores de dominio en `backend/internal/poker/domain/errors.go` con la
       tabla de data-model.md sección 9: `ErrSessionNotFound`, `ErrNotParticipant`,
       `ErrFacilitatorOnly`, `ErrStoryCompleted`, `ErrProjectFinished`, `ErrRoundRevealed`,
       `ErrRoundNotRevealed`, `ErrNoVotesToReveal` y `ErrNoRevealedRound`; y los tipos con datos
       `SessionClosedError` (con `Status`, `CancelReason *CancelReason` y `AgreedStoryPoints *int`),
       `OpenSessionExistsError` (con `SessionID`) y `FacilitatorUnavailableError` (con `Facilitator`
       de `ID` y `FullName`, y `RetryAfter time.Duration`, cero si el facilitador está conectado)
-- [ ] T007 Declarar en `backend/internal/poker/domain/repository.go` la interfaz `SessionRepository`
+- [X] T007 Declarar en `backend/internal/poker/domain/repository.go` la interfaz `SessionRepository`
       con **exactamente** las diecisiete operaciones de data-model.md sección 9 (`FindAccessible`,
       `Open`, `Connect`, `Disconnect`, `Vote`, `Reveal`, `StartRound`, `Finalize`, `Cancel`,
       `TakeFacilitator`, `AutoCancel`, `ResetPresence`, `ListOpenForSweep`,
@@ -148,12 +148,12 @@ estructuras y contratos, sin lógica de negocio.
       `OpenSessionStatus`, `ParticipantRef`, `RoundOutcome` y `UserRef` (solo `ID` y `FullName`).
       `SessionSnapshot` **no** tiene campo de Story Points de la historia (FR-075). Las escrituras
       reciben el instante como parámetro — depende de T001 a T006
-- [ ] T008 Agregar `EstimationSession`, `EstimationRound`, `EstimationParticipant` y
+- [X] T008 Agregar `EstimationSession`, `EstimationRound`, `EstimationParticipant` y
       `EstimationVote`, en ese orden, al `AutoMigrate` de
       `backend/internal/platform/database/postgres.go`, **después** de `SprintStory`, de modo que los
       índices —incluido el parcial con su cláusula `WHERE`— queden creados por las etiquetas de GORM y
       no por un `CREATE INDEX` en crudo — depende de T001 a T004
-- [ ] T009 Extender el vaciado del ayudante de pruebas en
+- [X] T009 Extender el vaciado del ayudante de pruebas en
       `backend/internal/platform/testsupport/database.go` para incluir `estimation_sessions`,
       `estimation_rounds`, `estimation_participants` y `estimation_votes` en el `TRUNCATE ...
       CASCADE`, manteniendo la verificación de que la base es `smye_test` y el lock de la base de

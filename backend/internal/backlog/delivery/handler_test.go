@@ -124,9 +124,9 @@ type backlogTestEnv struct {
 }
 
 // newBacklogTestEnv abre la base de test vacía y compone, igual que cmd/app, el límite global del
-// cuerpo, la cadena real de la 001 (para el middleware de sesión), el módulo de proyectos de la 002
-// con su subgrupo /:projectId y las rutas del backlog colgadas de ese subgrupo, sin CORS ni Swagger.
-// Cada override recibe los puertos por defecto y puede reemplazar cualquiera por un doble.
+// cuerpo, el rechazo de queries mal formadas, la cadena real de la 001 (para el middleware de
+// sesión), el módulo de proyectos de la 002 con su subgrupo /:projectId y las rutas del backlog
+// colgadas de ese subgrupo, sin CORS ni Swagger. Cada override recibe los puertos por defecto y puede reemplazar cualquiera por un doble.
 func newBacklogTestEnv(t *testing.T, overrides ...func(*backlogTestPorts)) backlogTestEnv {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -141,6 +141,7 @@ func newBacklogTestEnv(t *testing.T, overrides ...func(*backlogTestPorts)) backl
 	)
 	router := gin.New()
 	router.Use(httpserver.LimitRequestBody())
+	router.Use(httpserver.RejectMalformedQuery())
 	authHandler := authdelivery.NewHandler(auth)
 	authdelivery.RegisterRoutes(router, authHandler)
 
@@ -1460,6 +1461,42 @@ func TestStoryList_EstadoRepetidoMilesDeVeces(t *testing.T) {
 	}
 	assert.Equal(t, map[string]int{"pending": 1}, appliedCounts, "el filtro aplicado debe informar pending una sola vez")
 	assert.Empty(t, body.AppliedFilters.Priority)
+}
+
+// Sin etiqueta de escenario: un listado del backlog cuya query no se puede interpretar responde 400
+// con un mensaje en el campo error y sin listado, en lugar de 200 con todas las historias porque el
+// filtro de estado se descartó sin aviso (T104, hallazgo de seguridad: query mal formada que ignora
+// los filtros sin aviso). Cada subtest es una forma de query que url.ParseQuery rechaza: más de
+// 10000 parámetros, un escape inválido y el separador ";".
+func TestStoryList_QueryMalFormada(t *testing.T) {
+	cases := []struct {
+		name     string
+		rawQuery string
+	}{
+		{name: "mas de 10000 parametros status", rawQuery: strings.TrimSuffix(strings.Repeat("status=pending&", 10001), "&")},
+		{name: "escape invalido", rawQuery: "status=%zz"},
+		{name: "separador punto y coma", rawQuery: "status=pending;x"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newBacklogTestEnv(t)
+			ownerID, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+			projectID := backlogSeedProject(t, env.db, ownerID, projectsdomain.ProjectStatusInProgress)
+			backlogSeedStories(t, env.db, projectID, ownerID,
+				backlogSeed{Priority: domain.StoryPriorityHigh, Status: domain.StoryStatusPending, Minute: 0},
+				backlogSeed{Priority: domain.StoryPriorityHigh, Status: domain.StoryStatusCompleted, Minute: 1},
+			)
+
+			rec := env.getStories(t, token, projectID, tc.rawQuery)
+
+			// Se rechaza con 400 y un motivo, sin devolver ningún listado.
+			require.Equal(t, http.StatusBadRequest, rec.Code, "la query mal formada no debe listar todas las historias: %s", rec.Body.String())
+			raw := backlogRawBody(t, rec)
+			message, _ := raw["error"].(string)
+			assert.NotEmpty(t, strings.TrimSpace(message), "el 400 debe explicar el motivo en el campo error: %s", rec.Body.String())
+			assert.NotContains(t, raw, "stories", "el 400 no debe incluir un listado")
+		})
+	}
 }
 
 // Pruebas de integración de US4 (T049): PUT /api/v1/stories/{storyId}/story-points. Las historias se

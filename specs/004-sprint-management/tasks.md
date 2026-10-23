@@ -955,7 +955,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       sprint está abierto", alineándolo con data-model.md y con la respuesta de
       `GET /api/v1/stories/{storyId}/sprints` per plan: contrato de la API (contradicts) — origen:
       converge, detectado en hu/004-us6-consultar-el-historial
-- [ ] T104 Agregar pruebas de integración que verifiquen que
+- [X] T104 Agregar pruebas de integración que verifiquen que
       `GET /api/v1/projects/{projectId}/sprints` responde `400`, no `200` con todos los sprints,
       cuando la query no se puede interpretar (más de 10.000 parámetros `status`, `status=%zz` y
       `status=closed;x`), y el mismo caso para `GET /api/v1/projects/{projectId}/stories`, en

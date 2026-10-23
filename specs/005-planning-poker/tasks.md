@@ -368,7 +368,7 @@ nadie ve el valor ajeno.
       `backend/internal/poker/domain/card_test.go`, cubriendo RN-06 y SC-010: las once cartas
       admitidas aceptadas; `4`, `6`, `7`, `50`, `101`, `-1`, `1.5`, `" 5"` y `"??"` rechazados con un
       error que enumera las cartas en orden — depende de T032
-- [ ] T034 [P] [US2] Pruebas unitarias **obligatorias** de validación del voto en
+- [X] T034 [P] [US2] Pruebas unitarias **obligatorias** de validación del voto en
       `backend/internal/poker/delivery/validation_test.go`, cubriendo RN-36: cuerpo
       `{"card":"5"}` → ok; `{"card":5}` (número JSON) y cartas inválidas → `FieldError` en `card` con
       `La carta no es válida. Cartas admitidas: 0, 1, 2, 3, 5, 8, 13, 20, 40, 100 y ?.`; carta

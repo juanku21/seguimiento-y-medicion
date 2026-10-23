@@ -1,6 +1,7 @@
 package delivery
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -114,6 +115,14 @@ type EstimationSession struct {
 	// Si el facilitador está desconectado, momento a partir del cual otro participante puede tomar el
 	// rol (FR-068); null si está conectado o la sesión está cerrada.
 	FacilitatorAvailableAt *string `json:"facilitatorAvailableAt" validate:"required" format:"date-time" extensions:"x-nullable" example:"2026-10-20T14:32:00Z"`
+}
+
+// VoteRequest es el cuerpo del voto (contracts/openapi.yaml). Card llega como json.RawMessage para
+// distinguir la carta ausente, nula o vacía, que es un intento de retirar el voto (RN-36), de un
+// número JSON, que es una carta no válida (research.md sección 10).
+type VoteRequest struct {
+	// Carta jugada, siempre como texto; "?" expresa que la persona no sabe estimar (FR-020).
+	Card json.RawMessage `json:"card" validate:"required" swaggertype:"string" enums:"0,1,2,3,5,8,13,20,40,100,?" example:"5"`
 }
 
 // OpenSessionExistsResponse es el cuerpo del 409 al abrir una sesión sobre una historia que ya tiene

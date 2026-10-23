@@ -340,7 +340,7 @@ desconectado.
       a la vigente, se detiene ante `404` y ante `401` (`rejectSession`) y aborta la petición al
       desmontar. Antes de escribir código, leer la documentación de Next.js de
       `frontend/node_modules/next/dist/docs/` — depende de T028, T029
-- [ ] T031 [US1] Implementar `StoryEstimationSection`, `PokerRoom` (historia y lista) y
+- [X] T031 [US1] Implementar `StoryEstimationSection`, `PokerRoom` (historia y lista) y
       `ParticipantList` en `frontend/src/features/poker/components/` con mensajes en español —
       depende de T030
 - [ ] T032 [US1] Crear la pantalla

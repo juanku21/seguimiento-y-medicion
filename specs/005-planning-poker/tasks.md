@@ -153,7 +153,7 @@ estructuras y contratos, sin lógica de negocio.
       `backend/internal/platform/database/postgres.go`, **después** de `SprintStory`, de modo que los
       índices —incluido el parcial con su cláusula `WHERE`— queden creados por las etiquetas de GORM y
       no por un `CREATE INDEX` en crudo — depende de T001 a T004
-- [ ] T009 Extender el vaciado del ayudante de pruebas en
+- [X] T009 Extender el vaciado del ayudante de pruebas en
       `backend/internal/platform/testsupport/database.go` para incluir `estimation_sessions`,
       `estimation_rounds`, `estimation_participants` y `estimation_votes` en el `TRUNCATE ...
       CASCADE`, manteniendo la verificación de que la base es `smye_test` y el lock de la base de

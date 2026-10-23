@@ -905,7 +905,7 @@ T088 es de caracterización sin RED y T089 y T090 siguen el ciclo normal.
       gestión de sprints, y se agregan los once endpoints y las cuatro pantallas nuevas, manteniendo
       el criterio de que alguien que no conoce el proyecto pueda ejecutarlo siguiendo el documento —
       depende de T087
-- [ ] T093 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
+- [X] T093 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
 - [ ] T094 [P] Ejecutar los comandos de cobertura de los dos lados —
       `go test ./... -coverprofile=coverage.out` más `go tool cover -func=coverage.out` en

@@ -64,12 +64,13 @@ func newSprintConflictResponse(message string, sprint domain.ConflictingSprint) 
 
 // StoryIDsInput es el cuerpo de la asignación de historias a un sprint (contracts/openapi.yaml,
 // FR-017). Los identificadores llegan como texto para que la validación responda por posición con
-// storyIds[i]; las etiquetas de cantidad solo documentan el contrato en Swagger: la validación real
-// la hace ValidateStoryIDsInput.
+// storyIds[i]; las reglas de cantidad de validate solo documentan el contrato en Swagger (swag las
+// traduce a minItems, maxItems y uniqueItems y Gin no las lee): la validación real la hace
+// ValidateStoryIDsInput.
 type StoryIDsInput struct {
 	// Historias del backlog del mismo proyecto que se comprometen en el sprint; entre 1 y 100, sin
 	// repetidos.
-	StoryIDs []string `json:"storyIds" validate:"required" minItems:"1" maxItems:"100" uniqueItems:"true" format:"uuid" example:"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"`
+	StoryIDs []string `json:"storyIds" validate:"required,min=1,max=100,unique" format:"uuid" example:"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"`
 }
 
 // AdmissionProblem describe una historia no admitida en una asignación (RN-08). Missing solo
@@ -93,7 +94,7 @@ type StoriesNotAdmittedResponse struct {
 	// Mensaje general del rechazo.
 	Error string `json:"error" validate:"required" example:"Algunas historias no se pueden comprometer en el sprint; no se asignó ninguna."`
 	// Problemas de las historias rechazadas; al menos uno.
-	Stories []AdmissionProblem `json:"stories" validate:"required" minItems:"1"`
+	Stories []AdmissionProblem `json:"stories" validate:"required,min=1"`
 }
 
 // Mensajes de los motivos de no admisión según la tabla de data-model.md sección 9. El de

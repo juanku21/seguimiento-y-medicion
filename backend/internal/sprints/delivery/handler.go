@@ -88,7 +88,7 @@ func NewHandler(sprints *service.SprintService) *Handler {
 //	@Failure		400			{object}	delivery.ValidationErrorResponse	"Entrada inválida. Indica todos los campos a corregir y por qué, y no crea nada (FR-011). Si el cuerpo no es un JSON válido o está vacío, la respuesta es ErrorResponse."
 //	@Failure		401			{object}	delivery.ErrorResponse				"Se requiere iniciar sesión."
 //	@Failure		404			{object}	delivery.ErrorResponse				"El proyecto no existe o quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo."
-//	@Failure		409			{object}	SprintConflictResponse				"El período se superpone con el de otro sprint del proyecto, que se nombra en el cuerpo (FR-005). Si el proyecto está finished, la respuesta es ErrorResponse con el mensaje \"El proyecto está finalizado y sus sprints son de solo lectura.\""
+//	@Failure		409			{object}	SprintConflictResponse				"El período se superpone con el de otro sprint del proyecto, que se nombra en el cuerpo (FR-005). Si el proyecto está finished, la respuesta es ErrorResponse con el mensaje «El proyecto está finalizado y sus sprints son de solo lectura.»"
 //	@Failure		500			{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."
 //	@Router			/api/v1/projects/{projectId}/sprints [post]
 func (h *Handler) createSprint(c *gin.Context) {
@@ -227,7 +227,7 @@ func (h *Handler) getSprint(c *gin.Context) {
 //	@Failure		400			{object}	delivery.ValidationErrorResponse	"Entrada inválida. Indica todos los campos a corregir y por qué, y no modifica nada (FR-014). Si el cuerpo no es un JSON válido o está vacío, la respuesta es ErrorResponse."
 //	@Failure		401			{object}	delivery.ErrorResponse				"Se requiere iniciar sesión."
 //	@Failure		404			{object}	delivery.ErrorResponse				"El sprint no existe, fue eliminado o pertenece a un proyecto del que quien pide no es integrante; las tres situaciones devuelven el mismo cuerpo."
-//	@Failure		409			{object}	SprintConflictResponse				"El período se superpone con el de otro sprint del proyecto, que se nombra en el cuerpo. Si el sprint no está planned, está closed o el proyecto está finished, la respuesta es ErrorResponse con el mensaje \"Solo se puede modificar un sprint Planificado.\", \"El sprint está cerrado y no admite cambios.\" o \"El proyecto está finalizado y sus sprints son de solo lectura.\""
+//	@Failure		409			{object}	SprintConflictResponse				"El período se superpone con el de otro sprint del proyecto, que se nombra en el cuerpo. Si el sprint no está planned, está closed o el proyecto está finished, la respuesta es ErrorResponse con el mensaje «Solo se puede modificar un sprint Planificado.», «El sprint está cerrado y no admite cambios.» o «El proyecto está finalizado y sus sprints son de solo lectura.»"
 //	@Failure		500			{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."
 //	@Router			/api/v1/sprints/{sprintId} [put]
 func (h *Handler) updateSprint(c *gin.Context) {
@@ -277,7 +277,7 @@ func (h *Handler) updateSprint(c *gin.Context) {
 //	@Success		204			"Sprint eliminado."
 //	@Failure		401			{object}	delivery.ErrorResponse	"Se requiere iniciar sesión."
 //	@Failure		404			{object}	delivery.ErrorResponse	"El sprint no existe, fue eliminado o pertenece a un proyecto del que quien pide no es integrante; las tres situaciones devuelven el mismo cuerpo."
-//	@Failure		409			{object}	delivery.ErrorResponse	"Proyecto finished, sprint ya iniciado o con esfuerzo registrado: \"El proyecto está finalizado y sus sprints son de solo lectura.\", \"Solo se puede eliminar un sprint que nunca fue iniciado.\" o \"El sprint tiene esfuerzo registrado. Primero hay que eliminar esos registros.\""
+//	@Failure		409			{object}	delivery.ErrorResponse	"Proyecto finished, sprint ya iniciado o con esfuerzo registrado: «El proyecto está finalizado y sus sprints son de solo lectura.», «Solo se puede eliminar un sprint que nunca fue iniciado.» o «El sprint tiene esfuerzo registrado. Primero hay que eliminar esos registros.»"
 //	@Failure		500			{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
 //	@Router			/api/v1/sprints/{sprintId} [delete]
 func (h *Handler) deleteSprint(c *gin.Context) {
@@ -328,8 +328,8 @@ func (h *Handler) deleteSprint(c *gin.Context) {
 //	@Success		200			{object}	SprintDetail						"Historias comprometidas. El cuerpo es el detalle actualizado del sprint."
 //	@Failure		400			{object}	delivery.ValidationErrorResponse	"Lista de historias vacía, con más de 100, con identificadores inválidos o repetidos; señala storyIds o storyIds[i]. Si el cuerpo no es un JSON válido o está vacío, la respuesta es ErrorResponse."
 //	@Failure		401			{object}	delivery.ErrorResponse				"Se requiere iniciar sesión."
-//	@Failure		404			{object}	delivery.ErrorResponse				"El sprint no existe o es ajeno (\"El sprint no existe.\"), o alguna historia no existe o es de otro proyecto (\"La historia no existe.\")."
-//	@Failure		409			{object}	StoriesNotAdmittedResponse			"Historias no admisibles, con un problema por historia (FR-018 a FR-020, FR-023). Si el proyecto está finished o el sprint closed, la respuesta es ErrorResponse con el mensaje \"El proyecto está finalizado y sus sprints son de solo lectura.\" o \"El sprint está cerrado y no admite cambios.\""
+//	@Failure		404			{object}	delivery.ErrorResponse				"El sprint no existe o es ajeno («El sprint no existe.»), o alguna historia no existe o es de otro proyecto («La historia no existe.»)."
+//	@Failure		409			{object}	StoriesNotAdmittedResponse			"Historias no admisibles, con un problema por historia (FR-018 a FR-020, FR-023). Si el proyecto está finished o el sprint closed, la respuesta es ErrorResponse con el mensaje «El proyecto está finalizado y sus sprints son de solo lectura.» o «El sprint está cerrado y no admite cambios.»"
 //	@Failure		500			{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."
 //	@Router			/api/v1/sprints/{sprintId}/stories [post]
 func (h *Handler) assignSprintStories(c *gin.Context) {
@@ -381,8 +381,8 @@ func (h *Handler) assignSprintStories(c *gin.Context) {
 //	@Success		200			{object}	SprintDetail						"Historias quitadas. El cuerpo es el detalle actualizado del sprint."
 //	@Failure		400			{object}	delivery.ValidationErrorResponse	"Sin storyId, con más de 100, con identificadores inválidos o repetidos; señala storyId."
 //	@Failure		401			{object}	delivery.ErrorResponse				"Se requiere iniciar sesión."
-//	@Failure		404			{object}	delivery.ErrorResponse				"El sprint no existe o es ajeno (\"El sprint no existe.\"), o alguna historia no está en este sprint (\"La historia no existe.\")."
-//	@Failure		409			{object}	delivery.ErrorResponse				"Proyecto finished, sprint closed o historia completed (\"No se puede quitar una historia Completada. Primero devolvela a En progreso.\")."
+//	@Failure		404			{object}	delivery.ErrorResponse				"El sprint no existe o es ajeno («El sprint no existe.»), o alguna historia no está en este sprint («La historia no existe.»)."
+//	@Failure		409			{object}	delivery.ErrorResponse				"Proyecto finished, sprint closed o historia completed («No se puede quitar una historia Completada. Primero devolvela a En progreso.»)."
 //	@Failure		500			{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."
 //	@Router			/api/v1/sprints/{sprintId}/stories [delete]
 func (h *Handler) removeSprintStories(c *gin.Context) {
@@ -429,7 +429,7 @@ func (h *Handler) removeSprintStories(c *gin.Context) {
 //	@Success		200			{object}	SprintDetail			"Sprint iniciado. El cuerpo es el detalle del sprint."
 //	@Failure		401			{object}	delivery.ErrorResponse	"Se requiere iniciar sesión."
 //	@Failure		404			{object}	delivery.ErrorResponse	"El sprint no existe, fue eliminado o pertenece a un proyecto del que quien pide no es integrante; las tres situaciones devuelven el mismo cuerpo."
-//	@Failure		409			{object}	SprintConflictResponse	"Ya hay otro sprint activo en el proyecto, que se nombra en el cuerpo (FR-027). Si el sprint no está planned, está closed o el proyecto está finished, la respuesta es ErrorResponse con el mensaje \"Transición no permitida: solo se inicia un sprint Planificado.\", \"El sprint está cerrado y no admite cambios.\" o \"El proyecto está finalizado y sus sprints son de solo lectura.\""
+//	@Failure		409			{object}	SprintConflictResponse	"Ya hay otro sprint activo en el proyecto, que se nombra en el cuerpo (FR-027). Si el sprint no está planned, está closed o el proyecto está finished, la respuesta es ErrorResponse con el mensaje «Transición no permitida: solo se inicia un sprint Planificado.», «El sprint está cerrado y no admite cambios.» o «El proyecto está finalizado y sus sprints son de solo lectura.»"
 //	@Failure		500			{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
 //	@Router			/api/v1/sprints/{sprintId}/start [post]
 func (h *Handler) startSprint(c *gin.Context) {
@@ -475,7 +475,7 @@ func (h *Handler) startSprint(c *gin.Context) {
 //	@Success		200			{object}	SprintDetail			"Sprint cerrado. El cuerpo es el detalle con la instantánea."
 //	@Failure		401			{object}	delivery.ErrorResponse	"Se requiere iniciar sesión."
 //	@Failure		404			{object}	delivery.ErrorResponse	"El sprint no existe, fue eliminado o pertenece a un proyecto del que quien pide no es integrante; las tres situaciones devuelven el mismo cuerpo."
-//	@Failure		409			{object}	delivery.ErrorResponse	"Proyecto finished o sprint no active: \"El proyecto está finalizado y sus sprints son de solo lectura.\", \"Solo se puede cerrar un sprint Activo.\" (sprint planned) o \"El sprint ya está cerrado; el estado Cerrado es definitivo.\" (sprint closed)."
+//	@Failure		409			{object}	delivery.ErrorResponse	"Proyecto finished o sprint no active: «El proyecto está finalizado y sus sprints son de solo lectura.», «Solo se puede cerrar un sprint Activo.» (sprint planned) o «El sprint ya está cerrado; el estado Cerrado es definitivo.» (sprint closed)."
 //	@Failure		500			{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
 //	@Router			/api/v1/sprints/{sprintId}/close [post]
 func (h *Handler) closeSprint(c *gin.Context) {
@@ -532,7 +532,7 @@ func (h *Handler) closeSprint(c *gin.Context) {
 //	@Failure		400		{object}	delivery.ValidationErrorResponse	"Estado ausente o desconocido; señala status. Si el cuerpo no es un JSON válido o está vacío, la respuesta es ErrorResponse."
 //	@Failure		401		{object}	delivery.ErrorResponse				"Se requiere iniciar sesión."
 //	@Failure		404		{object}	delivery.ErrorResponse				"La historia no existe o pertenece a un proyecto del que quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo."
-//	@Failure		409		{object}	delivery.ErrorResponse				"Proyecto finished (\"El proyecto está finalizado y sus sprints son de solo lectura.\"), historia de un sprint Planificado o sin sprint (\"Solo se registra avance sobre historias del sprint activo.\"), historia de un sprint Cerrado (\"El sprint está cerrado y no admite cambios.\") o transición no admitida (\"Transición no permitida. Las admitidas son: Pendiente → En progreso, En progreso → Completada y Completada → En progreso.\")."
+//	@Failure		409		{object}	delivery.ErrorResponse				"Proyecto finished («El proyecto está finalizado y sus sprints son de solo lectura.»), historia de un sprint Planificado o sin sprint («Solo se registra avance sobre historias del sprint activo.»), historia de un sprint Cerrado («El sprint está cerrado y no admite cambios.») o transición no admitida («Transición no permitida. Las admitidas son: Pendiente → En progreso, En progreso → Completada y Completada → En progreso.»)."
 //	@Failure		500		{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."
 //	@Router			/api/v1/stories/{storyId}/status [put]
 func (h *Handler) changeStoryStatus(c *gin.Context) {

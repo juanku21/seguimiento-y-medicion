@@ -861,7 +861,7 @@ backlog; y los mismos intentos sobre un sprint Activo responden `409`.
       español, y registrar `PUT` y `DELETE` en el grupo del sprint en
       `backend/internal/sprints/delivery/routes.go`. Respuestas según contracts/openapi.yaml —
       depende de T085
-- [ ] T087 [US7] Implementar las llamadas de modificación y eliminación en
+- [X] T087 [US7] Implementar las llamadas de modificación y eliminación en
       `frontend/src/features/sprints/api.ts`, el componente `SprintEditView` en
       `frontend/src/features/sprints/components/sprint-edit-view.tsx` que reutiliza `SprintForm`
       precargado, `DeleteSprintButton` en

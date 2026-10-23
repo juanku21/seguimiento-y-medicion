@@ -390,7 +390,7 @@ nadie ve el valor ajeno.
       (`403` `No participás de esta sesión de estimación.`) y `TestUS2_RetiroDeVoto` (`400`, el voto
       sigue en 5). `TestUS2_CambioSimultaneoConRevelacion` se escribe en US3 (T047) porque necesita la
       revelación — depende de T032
-- [ ] T037 [P] [US2] Pruebas de frontend en
+- [X] T037 [P] [US2] Pruebas de frontend en
       `frontend/src/features/poker/components/card-deck.test.tsx`, con
       `describe("005/US2 - Votar en secreto")`: el mazo muestra las once cartas, resalta la propia
       (`myVote`), muestra a los demás como "ya votó" sin valor y deshabilita el mazo con la ronda

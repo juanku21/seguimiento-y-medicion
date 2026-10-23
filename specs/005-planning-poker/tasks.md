@@ -197,7 +197,7 @@ desconectado.
       no, 30 s sí) y los quita; `MarkPending(session, user, now)` deja anotada una caída para quien
       abrió la sesión sin canal (research.md sección 9); sesiones distintas de la misma persona se
       cuentan por separado. Seguro para uso concurrente (`go test -race`) — depende de T009
-- [ ] T012 [P] [US1] Pruebas unitarias del hub de difusión en
+- [X] T012 [P] [US1] Pruebas unitarias del hub de difusión en
       `backend/internal/poker/service/hub_test.go`: `Subscribe(sessionID, userID)` devuelve un canal
       y una función para darse de baja; `Publish` entrega a todas las suscripciones de esa sesión y
       a ninguna de otra; con el canal lleno, la instantánea pendiente se **reemplaza** por la nueva

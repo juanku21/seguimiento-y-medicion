@@ -118,7 +118,7 @@ estructuras y contratos, sin lógica de negocio.
       `DisconnectedAt timestamptz` **anulable**; `CreatedAt` (momento de incorporación) y `UpdatedAt`
       `timestamptz NOT NULL`. **Índice único** `idx_estimation_participants_session_user
       (session_id, user_id)`. **Sin** columna de facilitador: es `estimation_sessions.facilitator_id`
-- [ ] T004 [P] Declarar la entidad `EstimationVote` en `backend/internal/poker/domain/vote.go` con los
+- [X] T004 [P] Declarar la entidad `EstimationVote` en `backend/internal/poker/domain/vote.go` con los
       campos de data-model.md sección 4: `ID uuid` PK; `RoundID uuid NOT NULL` con FK a
       `estimation_rounds.id`; `ParticipantID uuid NOT NULL` con FK a `estimation_participants.id`;
       `Card varchar(3) NOT NULL`; `CreatedAt` y `UpdatedAt` (momento en que quedó emitida la carta

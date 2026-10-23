@@ -131,7 +131,7 @@ estructuras y contratos, sin lógica de negocio.
       con la lista ordenada `Cards`, armada a partir de `backlogdomain.StoryPointsScale` más `"?"`
       (RC-04). Constantes de Go, **no** `enum` de PostgreSQL. Las reglas (`EnsureOpen`, `ParseCard`)
       se implementan en las historias
-- [ ] T006 [P] Declarar los errores de dominio en `backend/internal/poker/domain/errors.go` con la
+- [X] T006 [P] Declarar los errores de dominio en `backend/internal/poker/domain/errors.go` con la
       tabla de data-model.md sección 9: `ErrSessionNotFound`, `ErrNotParticipant`,
       `ErrFacilitatorOnly`, `ErrStoryCompleted`, `ErrProjectFinished`, `ErrRoundRevealed`,
       `ErrRoundNotRevealed`, `ErrNoVotesToReveal` y `ErrNoRevealedRound`; y los tipos con datos

@@ -1,0 +1,983 @@
+# Contrato de la API de Planning Poker en Tiempo Real (spec 005).
+# Fuente de verdad del diseño: specs/005-planning-poker/spec.md
+# Este archivo es el contrato acordado en la Fase 1 del plan. La documentación publicada en
+# /swagger/index.html se genera con `swag init` a partir de las anotaciones del código y DEBE
+# coincidir con este contrato (Principio VIII).
+openapi: 3.0.3
+
+info:
+  title: Software Metrics & Estimation — Planning Poker
+  description: |
+    Sesiones de Planning Poker sobre una historia del backlog: apertura, incorporación en tiempo
+    real, voto secreto, revelación, rondas, registro de la estimación acordada, cancelación, relevo
+    del facilitador e historial de estimación.
+
+    **Todas** las operaciones exigen una sesión válida, sin excepciones (FR-086). La sesión se envía
+    en la cabecera `Authorization: Bearer <token>` emitida por `/api/v1/auth/login` de la spec 001,
+    también en el canal de eventos.
+
+    Reglas que gobiernan todas las respuestas:
+
+    - Cualquier **integrante** del proyecto puede abrir una sesión, unirse, votar y consultar el
+      historial (RN-01, RN-02).
+    - Ante una historia o una sesión de un proyecto del que quien pide no es integrante, la
+      respuesta es `404` con **el mismo cuerpo** que ante un identificador inexistente (FR-088,
+      SC-018).
+    - **Tiempo real**: quien abre `GET /estimation-sessions/{sessionId}/events` queda unido a la
+      sesión y recibe un evento `state` con la sesión completa cada vez que algo cambia (FR-073).
+      Las acciones son endpoints REST que devuelven la sesión resultante.
+    - **Secreto del voto**: mientras la ronda vigente está `voting`, ninguna respuesta contiene el
+      valor votado por otra persona; cada participante ve solo su propia carta en `myVote` (FR-023,
+      FR-082, SC-005).
+    - Toda acción sobre una sesión exige ser **participante conectado**: tener abierto el canal de
+      eventos, o haberlo cerrado hace menos de 30 segundos (FR-014, FR-028).
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Entorno de desarrollo local
+
+tags:
+  - name: Planning Poker
+    description: Sesiones de estimación de una historia, sus rondas, sus participantes y sus votos
+
+paths:
+  /api/v1/stories/{storyId}/estimation-sessions:
+    parameters:
+      - $ref: '#/components/parameters/StoryId'
+
+    post:
+      tags: [Planning Poker]
+      summary: Abre una sesión de Planning Poker sobre la historia
+      description: |
+        Abre una sesión `open` con una primera ronda `voting` sin votos (FR-003). Quien la abre
+        queda como facilitador y como primer participante conectado (FR-002); su pantalla debe abrir
+        el canal de eventos para seguir contando como conectado después de 30 segundos.
+
+        Se admite sobre historias sin criterios de aceptación y sobre historias ya estimadas
+        (FR-009). Se rechaza con `409` si la historia ya tiene una sesión `open`, informando su
+        identificador para unirse (FR-006); si la historia está `completed` (FR-007), o si el
+        proyecto está `finished` (FR-008). De diez aperturas simultáneas sobre la misma historia
+        prospera exactamente una (SC-012).
+      operationId: openEstimationSession
+      responses:
+        '201':
+          description: Sesión abierta.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EstimationSession'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/HistoriaInexistente'
+        '409':
+          description: |
+            La historia ya tiene una sesión abierta (con `sessionId`), está completada, o el
+            proyecto está finalizado.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/OpenSessionExistsResponse'
+                  - $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                sesionEnCurso:
+                  value:
+                    error: La historia ya tiene una sesión de estimación en curso.
+                    sessionId: 6f1c2a52-7d0e-4c8b-9a35-0b0c1f3e9d11
+                historiaCompletada:
+                  value:
+                    error: Una historia completada no se estima.
+                proyectoFinalizado:
+                  value:
+                    error: El proyecto está finalizado y es de solo lectura.
+
+    get:
+      tags: [Planning Poker]
+      summary: Consulta el historial de estimación de la historia
+      description: |
+        Devuelve la sesión abierta en este momento, si la hay, con su facilitador, su número de
+        ronda y el estado de la ronda, **sin votos** (FR-081, FR-082), y las sesiones cerradas de la
+        más reciente a la más antigua por su momento de apertura (FR-079, FR-080). Una historia que
+        nunca se estimó por Planning Poker devuelve la lista vacía con `emptyReason: no_sessions`;
+        no es un error (FR-083). Se responde también en un proyecto `finished` (FR-085).
+      operationId: listStoryEstimationSessions
+      responses:
+        '200':
+          description: Historial de estimación de la historia.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryEstimationHistory'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/HistoriaInexistente'
+
+  /api/v1/estimation-sessions/{sessionId}:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+
+    get:
+      tags: [Planning Poker]
+      summary: Consulta una sesión con todas sus rondas
+      description: |
+        Devuelve la sesión vista por quien pide, con todas sus rondas. En una sesión cerrada
+        incluye momentos de apertura y cierre, quién la abrió y quién la cerró, estado final, valor
+        acordado y cada ronda con sus votos y su resultado (US8-1). En una sesión abierta, la ronda
+        vigente en votación se muestra sin votos ajenos (FR-082). No une a quien pide a la sesión.
+      operationId: getEstimationSession
+      responses:
+        '200':
+          description: Sesión de estimación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EstimationSession'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/SesionInexistente'
+
+  /api/v1/estimation-sessions/{sessionId}/events:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+
+    get:
+      tags: [Planning Poker]
+      summary: Se une a la sesión y recibe sus cambios en tiempo real
+      description: |
+        Canal de Server-Sent Events. Abrirlo une a quien pide como participante conectado de la
+        ronda vigente (FR-011, FR-017); si ya había participado, recupera su voto de la ronda vigente
+        (FR-016). Una misma persona puede abrir varios canales: cuenta como un único participante y
+        sigue conectada mientras le quede al menos uno (FR-013, RN-34). Cuando se cierra el último,
+        deja de contar como conectada a los 30 segundos si no vuelve (FR-014).
+
+        Eventos del canal:
+
+        - `state`: en `data`, un `EstimationSession` en JSON. Es el primero que se recibe al abrir el
+          canal (FR-077) y se repite ante cada hecho de la sesión y ante cada cambio del título, la
+          descripción o los criterios de la historia (FR-073, FR-074). El cliente descarta los de
+          `version` menor a la que ya tiene.
+        - `removed`: quien pide dejó de ser integrante del proyecto; el canal se cierra (FR-019).
+        - Comentario `: ping` cada 15 segundos, sin datos.
+
+        Cuando la sesión se cierra (registro, cancelación o cancelación del sistema), el servidor
+        envía el último `state` y cierra el canal. Si la sesión ya estaba cerrada al pedir el canal,
+        responde `409` con el resultado registrado y no se une (FR-018).
+      operationId: streamEstimationSession
+      responses:
+        '200':
+          description: Canal abierto; queda emitiendo eventos.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              example: |
+                event: state
+                data: {"id":"6f1c2a52-7d0e-4c8b-9a35-0b0c1f3e9d11","version":4,"status":"open", "...": "..."}
+
+                : ping
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/SesionInexistente'
+        '409':
+          $ref: '#/components/responses/SesionCerrada'
+
+  /api/v1/estimation-sessions/{sessionId}/vote:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+
+    put:
+      tags: [Planning Poker]
+      summary: Emite o cambia el voto en la ronda vigente
+      description: |
+        Registra la carta del titular en la ronda vigente, oculta para el resto (FR-021, FR-023). Un
+        voto nuevo reemplaza al anterior y el anterior no queda registrado (FR-022). Si con este voto
+        todos los participantes conectados votaron, la ronda se revela automáticamente en la misma
+        operación (FR-030, FR-031).
+
+        Cartas admitidas: `0`, `1`, `2`, `3`, `5`, `8`, `13`, `20`, `40`, `100` y `?`, siempre como
+        texto (FR-020). Cualquier otro valor se rechaza con `400` sin alterar el voto vigente
+        (FR-025). Un voto **no se retira**: una carta ausente, nula o vacía se rechaza con `400`
+        indicando que solo se cambia por otra carta, incluida `?` (FR-022, RN-36).
+      operationId: castEstimationVote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoteRequest'
+            example:
+              card: '5'
+      responses:
+        '200':
+          description: Voto registrado; sesión resultante vista por quien votó.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EstimationSession'
+        '400':
+          description: Carta no admitida o intento de retirar el voto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              examples:
+                cartaInvalida:
+                  value:
+                    error: Hay campos inválidos en la solicitud.
+                    fields:
+                      - field: card
+                        message: 'La carta no es válida. Cartas admitidas: 0, 1, 2, 3, 5, 8, 13, 20, 40, 100 y ?.'
+                retiro:
+                  value:
+                    error: Hay campos inválidos en la solicitud.
+                    fields:
+                      - field: card
+                        message: 'Un voto emitido no se retira: solo se cambia por otra carta, incluida "?".'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '403':
+          $ref: '#/components/responses/NoParticipante'
+        '404':
+          $ref: '#/components/responses/SesionInexistente'
+        '409':
+          description: La sesión está cerrada, o la ronda vigente ya fue revelada (FR-026, FR-027).
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SessionClosedResponse'
+                  - $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                rondaRevelada:
+                  value:
+                    error: La ronda ya está revelada. Esperá una ronda nueva para votar.
+
+  /api/v1/estimation-sessions/{sessionId}/reveal:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+
+    post:
+      tags: [Planning Poker]
+      summary: Revela la ronda vigente (solo el facilitador)
+      description: |
+        Revela la ronda aunque haya participantes conectados que no votaron, que figuran en
+        `notVoted` (FR-032, FR-035). Exige al menos un voto emitido en la ronda (FR-033). Reservada
+        al facilitador (FR-034, FR-064).
+      operationId: revealEstimationRound
+      responses:
+        '200':
+          description: Ronda revelada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EstimationSession'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '403':
+          $ref: '#/components/responses/NoParticipanteOFacilitador'
+        '404':
+          $ref: '#/components/responses/SesionInexistente'
+        '409':
+          description: Sesión cerrada, ronda ya revelada o ronda sin votos.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SessionClosedResponse'
+                  - $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                yaRevelada:
+                  value:
+                    error: La ronda ya fue revelada.
+                sinVotos:
+                  value:
+                    error: Hace falta al menos un voto para revelar la ronda.
+
+  /api/v1/estimation-sessions/{sessionId}/rounds:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+
+    post:
+      tags: [Planning Poker]
+      summary: Inicia una ronda nueva (solo el facilitador)
+      description: |
+        Abre la ronda siguiente en `voting`, sin votos; la ronda revelada queda en el historial con
+        sus votos (FR-043, FR-044). Exige la ronda vigente `revealed` (FR-046). Sin límite de rondas
+        (FR-048). Reservada al facilitador (FR-047).
+      operationId: startEstimationRound
+      responses:
+        '201':
+          description: Ronda nueva abierta.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EstimationSession'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '403':
+          $ref: '#/components/responses/NoParticipanteOFacilitador'
+        '404':
+          $ref: '#/components/responses/SesionInexistente'
+        '409':
+          description: Sesión cerrada o ronda vigente todavía en votación.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SessionClosedResponse'
+                  - $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                enVotacion:
+                  value:
+                    error: Primero hay que revelar la ronda vigente.
+
+  /api/v1/estimation-sessions/{sessionId}/finalize:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+
+    post:
+      tags: [Planning Poker]
+      summary: Registra la estimación acordada y finaliza la sesión (solo el facilitador)
+      description: |
+        Finaliza la sesión con un valor numérico de la escala, que no tiene que coincidir con ningún
+        voto (FR-049), y en la misma operación deja los Story Points de la historia en ese valor,
+        reemplazando el anterior aunque se haya reestimado desde el backlog mientras la sesión
+        estaba abierta (FR-052, FR-075). Exige al menos una ronda revelada (FR-051). Reservada al
+        facilitador (FR-054).
+
+        `?`, `null`, un valor ausente y cualquier número fuera de `0, 1, 2, 3, 5, 8, 13, 20, 40,
+        100` se rechazan con `400`; la sesión sigue abierta y la historia no cambia (FR-050).
+      operationId: finalizeEstimationSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinalizeRequest'
+            example:
+              storyPoints: 8
+      responses:
+        '200':
+          description: Sesión finalizada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EstimationSession'
+        '400':
+          description: Valor fuera de la escala numérica.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              example:
+                error: Hay campos inválidos en la solicitud.
+                fields:
+                  - field: storyPoints
+                    message: 'El valor acordado debe ser uno de 0, 1, 2, 3, 5, 8, 13, 20, 40 o 100.'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '403':
+          $ref: '#/components/responses/NoParticipanteOFacilitador'
+        '404':
+          $ref: '#/components/responses/SesionInexistente'
+        '409':
+          description: Sesión cerrada o sin ninguna ronda revelada.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SessionClosedResponse'
+                  - $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                sinRondaRevelada:
+                  value:
+                    error: Primero hay que revelar al menos una ronda o cancelar la sesión.
+
+  /api/v1/estimation-sessions/{sessionId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+
+    post:
+      tags: [Planning Poker]
+      summary: Cancela la sesión sin registrar estimación (solo el facilitador)
+      description: |
+        Pasa la sesión a `canceled` con la ronda vigente en votación o revelada; los Story Points de
+        la historia quedan como estaban y las rondas y los votos se conservan (FR-057, FR-058).
+        Reservada al facilitador (FR-059).
+      operationId: cancelEstimationSession
+      responses:
+        '200':
+          description: Sesión cancelada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EstimationSession'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '403':
+          $ref: '#/components/responses/NoParticipanteOFacilitador'
+        '404':
+          $ref: '#/components/responses/SesionInexistente'
+        '409':
+          $ref: '#/components/responses/SesionCerrada'
+
+  /api/v1/estimation-sessions/{sessionId}/facilitator:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+
+    post:
+      tags: [Planning Poker]
+      summary: Toma el rol de facilitador
+      description: |
+        El titular pasa a ser el único facilitador si el facilitador vigente lleva 5 minutos o más
+        desconectado de forma continua (FR-068, FR-070). Si está conectado o lleva menos de 5
+        minutos desconectado, `409` con el facilitador vigente y, si está desconectado, los segundos
+        que faltan (FR-069). De varios pedidos simultáneos prospera solo el primero que se procesa;
+        los demás reciben el `409` con el nuevo facilitador (FR-072, SC-025).
+      operationId: takeEstimationFacilitator
+      responses:
+        '200':
+          description: Rol tomado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EstimationSession'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '403':
+          $ref: '#/components/responses/NoParticipante'
+        '404':
+          $ref: '#/components/responses/SesionInexistente'
+        '409':
+          description: Sesión cerrada, o el rol no está disponible.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SessionClosedResponse'
+                  - $ref: '#/components/schemas/FacilitatorUnavailableResponse'
+              examples:
+                faltaTiempo:
+                  value:
+                    error: El rol de facilitador todavía no está disponible.
+                    facilitator:
+                      id: 2b0f6a8e-3c51-4f2e-8d7a-5a9e1c4b7f20
+                      fullName: Ana Pérez
+                    retryAfterSeconds: 180
+                presente:
+                  value:
+                    error: El facilitador está conectado.
+                    facilitator:
+                      id: 2b0f6a8e-3c51-4f2e-8d7a-5a9e1c4b7f20
+                      fullName: Ana Pérez
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Token emitido por `/api/v1/auth/login` de la spec 001, enviado como
+        `Authorization: Bearer <token>`.
+
+  parameters:
+    StoryId:
+      name: storyId
+      in: path
+      required: true
+      description: Identificador de la historia de la spec 003.
+      schema:
+        type: string
+        format: uuid
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      description: Identificador propio, estable, inmutable y no secuencial de la sesión (FR-004).
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    SesionInvalida:
+      description: |
+        Se requiere iniciar sesión. Misma respuesta para sesión ausente, vencida, cerrada por su
+        titular o adulterada, definida por la spec 001 (FR-086). La acción no se ejecuta.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Se requiere iniciar sesión.
+
+    HistoriaInexistente:
+      description: |
+        La historia no existe, fue eliminada, **o** pertenece a un proyecto del que quien pide no es
+        integrante. Es la misma respuesta de la spec 003 (FR-088).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: La historia no existe.
+
+    SesionInexistente:
+      description: |
+        La sesión de estimación no existe, **o** pertenece a un proyecto del que quien pide no es
+        integrante. Las dos situaciones devuelven exactamente el mismo cuerpo (FR-088, SC-018).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: La sesión de estimación no existe.
+
+    SesionCerrada:
+      description: |
+        La sesión ya está `finished` o `canceled`, con el resultado registrado (FR-018, FR-055,
+        FR-060). Si la canceló el sistema, `cancelReason` indica el motivo (US7-9).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SessionClosedResponse'
+          examples:
+            finalizada:
+              value:
+                error: La sesión de estimación ya está cerrada.
+                status: finished
+                agreedStoryPoints: 8
+                cancelReason: null
+            inactividad:
+              value:
+                error: La sesión de estimación se cerró por inactividad.
+                status: canceled
+                agreedStoryPoints: null
+                cancelReason: inactivity
+
+    NoParticipante:
+      description: Quien pide no es participante conectado de la sesión (FR-028).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: No participás de esta sesión de estimación.
+
+    NoParticipanteOFacilitador:
+      description: |
+        Quien pide no es participante conectado (FR-028), o lo es pero la acción está reservada al
+        facilitador (FR-064). La acción no produce ningún efecto (SC-011).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            noParticipa:
+              value:
+                error: No participás de esta sesión de estimación.
+            soloFacilitador:
+              value:
+                error: Esta acción está reservada al facilitador de la sesión.
+
+  schemas:
+    Card:
+      type: string
+      description: Carta de votación. `?` expresa que la persona no sabe estimar (FR-020, RN-06).
+      enum: ['0', '1', '2', '3', '5', '8', '13', '20', '40', '100', '?']
+
+    StoryPoints:
+      type: integer
+      description: Valor de la escala de Story Points de la spec 003 (RC-04).
+      enum: [0, 1, 2, 3, 5, 8, 13, 20, 40, 100]
+
+    VoteRequest:
+      type: object
+      required: [card]
+      properties:
+        card:
+          $ref: '#/components/schemas/Card'
+
+    FinalizeRequest:
+      type: object
+      required: [storyPoints]
+      properties:
+        storyPoints:
+          $ref: '#/components/schemas/StoryPoints'
+
+    UserRef:
+      type: object
+      description: Persona identificada por su nombre, aunque haya dejado de ser integrante (FR-084).
+      required: [id, fullName]
+      properties:
+        id:
+          type: string
+          format: uuid
+        fullName:
+          type: string
+
+    EstimationStory:
+      type: object
+      description: |
+        Historia estimada, con su texto vigente (FR-012, FR-074). **No** incluye sus Story Points
+        vigentes, para no anclar la votación (FR-075).
+      required: [id, projectId, title, description, acceptanceCriteria]
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        acceptanceCriteria:
+          type: array
+          description: Textos de los criterios en su orden; vacía si no tiene (US1-4).
+          items:
+            type: string
+
+    EstimationParticipant:
+      type: object
+      required: [user, connected, isFacilitator, hasVoted]
+      properties:
+        user:
+          $ref: '#/components/schemas/UserRef'
+        connected:
+          type: boolean
+          description: Conectado o desconectado (FR-013, FR-014).
+        isFacilitator:
+          type: boolean
+        hasVoted:
+          type: boolean
+          description: Si ya votó en la ronda vigente; nunca el valor mientras esté en votación (FR-023).
+
+    EstimationVote:
+      type: object
+      required: [user, card]
+      properties:
+        user:
+          $ref: '#/components/schemas/UserRef'
+        card:
+          $ref: '#/components/schemas/Card'
+
+    OutcomeExtreme:
+      type: object
+      required: [value, authors]
+      properties:
+        value:
+          $ref: '#/components/schemas/StoryPoints'
+        authors:
+          type: array
+          description: Todos los autores del valor (FR-039, US3-8).
+          items:
+            $ref: '#/components/schemas/UserRef'
+
+    RoundOutcome:
+      type: object
+      description: |
+        Resultado de una ronda revelada. `consensus` lleva `value` y no lleva `min` ni `max`;
+        `divergence` lleva `min` y `max`; `no_numeric_votes` no lleva ninguno (FR-036 a FR-041). No
+        hay promedio ni mediana (FR-042).
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [consensus, divergence, no_numeric_votes]
+        value:
+          allOf:
+            - $ref: '#/components/schemas/StoryPoints'
+          nullable: true
+        min:
+          allOf:
+            - $ref: '#/components/schemas/OutcomeExtreme'
+          nullable: true
+        max:
+          allOf:
+            - $ref: '#/components/schemas/OutcomeExtreme'
+          nullable: true
+
+    EstimationRound:
+      type: object
+      required: [number, status, openedAt, revealedAt, votes, outcome, notVoted]
+      properties:
+        number:
+          type: integer
+          minimum: 1
+        status:
+          type: string
+          enum: [voting, revealed]
+        openedAt:
+          type: string
+          format: date-time
+        revealedAt:
+          type: string
+          format: date-time
+          nullable: true
+        votes:
+          type: array
+          nullable: true
+          description: |
+            Votos de la ronda. `null` mientras la ronda está `voting`, para todos, incluido el autor:
+            el propio voto viaja en `myVote` (FR-023, FR-082).
+          items:
+            $ref: '#/components/schemas/EstimationVote'
+        outcome:
+          allOf:
+            - $ref: '#/components/schemas/RoundOutcome'
+          nullable: true
+          description: Solo en rondas `revealed`.
+        notVoted:
+          type: array
+          description: |
+            En la ronda vigente revelada de una sesión abierta, participantes conectados sin voto
+            (FR-035). Vacía en las demás rondas.
+          items:
+            $ref: '#/components/schemas/UserRef'
+
+    EstimationSession:
+      type: object
+      description: |
+        Sesión vista por quien pide. Es el cuerpo de las acciones, del `GET` de la sesión y de cada
+        evento `state` del canal.
+      required:
+        - id
+        - version
+        - status
+        - story
+        - facilitator
+        - openedBy
+        - openedAt
+        - closedBy
+        - closedAt
+        - agreedStoryPoints
+        - cancelReason
+        - cards
+        - participants
+        - rounds
+        - myVote
+        - facilitatorAvailableAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          format: int64
+          description: Sube con cada hecho; el cliente descarta instantáneas de versión menor.
+        status:
+          type: string
+          enum: [open, finished, canceled]
+        story:
+          $ref: '#/components/schemas/EstimationStory'
+        facilitator:
+          $ref: '#/components/schemas/UserRef'
+        openedBy:
+          $ref: '#/components/schemas/UserRef'
+        openedAt:
+          type: string
+          format: date-time
+        closedBy:
+          allOf:
+            - $ref: '#/components/schemas/UserRef'
+          nullable: true
+          description: Nulo mientras está abierta y cuando la cerró el sistema.
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+        agreedStoryPoints:
+          allOf:
+            - $ref: '#/components/schemas/StoryPoints'
+          nullable: true
+        cancelReason:
+          type: string
+          nullable: true
+          enum: [inactivity, story_completed, project_finished, null]
+          description: Solo en cancelaciones del sistema (FR-061, FR-063).
+        cards:
+          type: array
+          description: Escala de cartas disponible (FR-012).
+          items:
+            $ref: '#/components/schemas/Card'
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/EstimationParticipant'
+        rounds:
+          type: array
+          description: Todas las rondas, de la 1 a la vigente (FR-044, FR-078).
+          items:
+            $ref: '#/components/schemas/EstimationRound'
+        myVote:
+          allOf:
+            - $ref: '#/components/schemas/Card'
+          nullable: true
+          description: Carta de quien pide en la ronda vigente, igual en todas sus conexiones (FR-024).
+        facilitatorAvailableAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            Si el facilitador está desconectado, momento a partir del cual otro participante puede
+            tomar el rol (FR-068). Nulo si está conectado o la sesión está cerrada.
+
+    EstimationSessionSummary:
+      type: object
+      required: [id, status, openedBy, openedAt, closedBy, closedAt, agreedStoryPoints, cancelReason, roundCount]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [finished, canceled]
+        openedBy:
+          $ref: '#/components/schemas/UserRef'
+        openedAt:
+          type: string
+          format: date-time
+        closedBy:
+          allOf:
+            - $ref: '#/components/schemas/UserRef'
+          nullable: true
+        closedAt:
+          type: string
+          format: date-time
+        agreedStoryPoints:
+          allOf:
+            - $ref: '#/components/schemas/StoryPoints'
+          nullable: true
+        cancelReason:
+          type: string
+          nullable: true
+          enum: [inactivity, story_completed, project_finished, null]
+        roundCount:
+          type: integer
+          minimum: 1
+
+    OpenEstimationSession:
+      type: object
+      description: Sesión abierta de la historia, sin votos (FR-081, FR-082).
+      required: [id, facilitator, roundNumber, roundStatus]
+      properties:
+        id:
+          type: string
+          format: uuid
+        facilitator:
+          $ref: '#/components/schemas/UserRef'
+        roundNumber:
+          type: integer
+          minimum: 1
+        roundStatus:
+          type: string
+          enum: [voting, revealed]
+
+    StoryEstimationHistory:
+      type: object
+      required: [openSession, sessions, emptyReason]
+      properties:
+        openSession:
+          allOf:
+            - $ref: '#/components/schemas/OpenEstimationSession'
+          nullable: true
+        sessions:
+          type: array
+          description: Sesiones cerradas, de la más reciente a la más antigua (FR-080).
+          items:
+            $ref: '#/components/schemas/EstimationSessionSummary'
+        emptyReason:
+          type: string
+          nullable: true
+          enum: [no_sessions, null]
+          description: |
+            `no_sessions` si la historia nunca tuvo una sesión de estimación, ni abierta ni cerrada
+            (FR-083).
+
+    OpenSessionExistsResponse:
+      type: object
+      required: [error, sessionId]
+      properties:
+        error:
+          type: string
+          example: La historia ya tiene una sesión de estimación en curso.
+        sessionId:
+          type: string
+          format: uuid
+          description: Sesión abierta a la que se puede unir (FR-006).
+
+    SessionClosedResponse:
+      type: object
+      required: [error, status, agreedStoryPoints, cancelReason]
+      properties:
+        error:
+          type: string
+          example: La sesión de estimación ya está cerrada.
+        status:
+          type: string
+          enum: [finished, canceled]
+        agreedStoryPoints:
+          allOf:
+            - $ref: '#/components/schemas/StoryPoints'
+          nullable: true
+        cancelReason:
+          type: string
+          nullable: true
+          enum: [inactivity, story_completed, project_finished, null]
+
+    FacilitatorUnavailableResponse:
+      type: object
+      required: [error, facilitator]
+      properties:
+        error:
+          type: string
+        facilitator:
+          $ref: '#/components/schemas/UserRef'
+        retryAfterSeconds:
+          type: integer
+          minimum: 1
+          description: Segundos que faltan; ausente si el facilitador está conectado (FR-069).
+
+    ErrorResponse:
+      type: object
+      description: Error con un mensaje en español para la persona (spec 001).
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+
+    ValidationErrorResponse:
+      type: object
+      description: Rechazo por entrada inválida, con el detalle por campo.
+      required: [error, fields]
+      properties:
+        error:
+          type: string
+          example: Hay campos inválidos en la solicitud.
+        fields:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/FieldError'
+
+# Todas las operaciones de esta feature exigen sesión válida, sin excepciones (FR-086).
+# Ninguna declara `security: []`.
+security:
+  - BearerAuth: []

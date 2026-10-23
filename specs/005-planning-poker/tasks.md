@@ -237,7 +237,7 @@ desconectado.
       con el mismo cuerpo que un `sessionId` inexistente). Cada instantánea recibida se verifica
       **sin recargar**: llega por el canal ya abierto, dentro del plazo de 2 segundos de `Next` —
       depende de T009
-- [ ] T016 [US1] Prueba de concurrencia `TestPokerOpen_Concurrency` en
+- [X] T016 [US1] Prueba de concurrencia `TestPokerOpen_Concurrency` en
       `backend/internal/poker/delivery/poker_concurrency_test.go`, **sin** etiqueta `005/USn`: diez
       cuentas integrantes abren a la vez una sesión sobre la misma historia; exactamente una recibe
       `201`, las nueve restantes `409` con el `sessionId` de la ganadora, ninguna `500`, y en la base

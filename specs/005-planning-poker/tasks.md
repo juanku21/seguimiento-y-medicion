@@ -211,7 +211,7 @@ desconectado.
       facilitador; las rondas con `number`, `status` y `openedAt`; `openedBy`, `openedAt`,
       `closedBy` y `closedAt` copiados del snapshot; lista de criterios vacía como `[]` y no como
       `nil` (US1-4) — depende de T009
-- [ ] T014 [P] [US1] Pruebas del middleware `RequireEstimationAccess` en
+- [X] T014 [P] [US1] Pruebas del middleware `RequireEstimationAccess` en
       `backend/internal/poker/delivery/middleware_test.go`, cubriendo RN-01: sin titular en el
       contexto → `401` con el cuerpo de la 001; identificador mal formado, sesión inexistente y sesión
       de un proyecto ajeno → `404` con **el mismo cuerpo byte a byte**

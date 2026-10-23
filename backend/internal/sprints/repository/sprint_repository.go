@@ -723,29 +723,43 @@ type lockedStoryRow struct {
 	ProjectStatus projectsdomain.ProjectStatus
 }
 
-// storyCommitmentRow es la fila de un compromiso de la historia junto con el estado de su sprint, que
-// llega por el JOIN a sprints con el alias sprint_status.
+// storyCommitmentRow es la fila de un compromiso de la historia junto con su sprint y el estado de ese
+// sprint, que llega por el JOIN a sprints con el alias sprint_status.
 type storyCommitmentRow struct {
 	ID           uuid.UUID
+	SprintID     uuid.UUID
 	SprintStatus domain.SprintStatus
 }
 
 // ChangeStoryProgress aplica el avance de una historia dentro del sprint Activo en una transacción
-// (research.md sección 13). Primero bloquea la historia (FOR UPDATE OF user_stories) y, en la misma
-// consulta, lee el estado de su proyecto; si no existe devuelve ErrStoryNotFound y si el proyecto está
-// Finalizado, ErrSprintsReadOnly (FR-059). Después busca su compromiso abierto tomando un bloqueo
-// compartido sobre la fila del sprint (FOR SHARE OF sprints), para que un cierre simultáneo no se
-// intercale. El compromiso y el sprint se verifican antes que la transición: sin compromiso abierto,
-// la historia Completada cuyo último compromiso es de un sprint Cerrado se rechaza con ErrSprintClosed
-// (RN-18) y cualquier otra con ErrProgressOutsideActiveSprint (FR-037); con compromiso en un sprint que
-// no está Activo, también ErrProgressOutsideActiveSprint (FR-036). Recién entonces valida la
-// transición con ValidateStoryProgress (FR-038). Si se admite, escribe user_stories.status con
-// UpdateColumn, igual que RemoveStories, para no tocar updated_at, y sprint_stories.completed_at con
-// now al completar y NULL al volver a in_progress (FR-034, FR-035).
+// (research.md sección 13). Toma los bloqueos en el mismo orden que Close, primero el sprint y después
+// la historia, para no interbloquearse con un cierre simultáneo: ubica sin bloquear el sprint de su
+// compromiso abierto y toma sobre esa fila un bloqueo compartido (FOR SHARE), que deja avanzar a
+// otros integrantes y solo se serializa contra el cierre. Después bloquea la historia (FOR UPDATE OF
+// user_stories) y, en la misma consulta, lee el estado de su proyecto; si no existe devuelve
+// ErrStoryNotFound y si el proyecto está Finalizado, ErrSprintsReadOnly (FR-059). Con los bloqueos
+// tomados relee el compromiso abierto, porque un cierre o una reasignación pudieron confirmarse antes.
+// El compromiso y el sprint se verifican antes que la transición: sin compromiso abierto, la historia
+// Completada cuyo último compromiso es de un sprint Cerrado se rechaza con ErrSprintClosed (RN-18) y
+// cualquier otra con ErrProgressOutsideActiveSprint (FR-037); con compromiso en un sprint distinto del
+// bloqueado o que no está Activo, también ErrProgressOutsideActiveSprint (FR-036). Recién entonces
+// valida la transición con ValidateStoryProgress (FR-038). Si se admite, escribe user_stories.status
+// con UpdateColumn, igual que RemoveStories, para no tocar updated_at, y sprint_stories.completed_at
+// con now al completar y NULL al volver a in_progress (FR-034, FR-035).
 func (r *SprintRepository) ChangeStoryProgress(ctx context.Context, storyID uuid.UUID, to backlogdomain.StoryStatus, now time.Time) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		located, err := openCommitmentForProgress(tx, storyID)
+		if err != nil {
+			return err
+		}
+		if located != nil {
+			if err := shareLockSprint(tx, located.SprintID); err != nil {
+				return err
+			}
+		}
+
 		var story lockedStoryRow
-		err := tx.
+		err = tx.
 			Table("user_stories").
 			Clauses(clause.Locking{Strength: "UPDATE", Table: clause.Table{Name: "user_stories"}}).
 			Select("user_stories.status, projects.status AS project_status").
@@ -769,7 +783,8 @@ func (r *SprintRepository) ChangeStoryProgress(ctx context.Context, storyID uuid
 		if commitment == nil {
 			return progressWithoutCommitmentError(tx, storyID, story.Status)
 		}
-		if commitment.SprintStatus != domain.SprintStatusActive {
+		lockedOther := located == nil || located.SprintID != commitment.SprintID
+		if lockedOther || commitment.SprintStatus != domain.SprintStatusActive {
 			return domain.ErrProgressOutsideActiveSprint
 		}
 		if err := domain.ValidateStoryProgress(story.Status, to); err != nil {
@@ -800,27 +815,41 @@ func (r *SprintRepository) ChangeStoryProgress(ctx context.Context, storyID uuid
 	})
 }
 
-// openCommitmentForProgress devuelve el compromiso abierto (outcome IS NULL) de la historia con el
-// estado de su sprint, tomando un bloqueo compartido solo sobre la fila del sprint (FOR SHARE OF
-// sprints), o nil si no tiene ninguno; se lee con Find y LIMIT 1 para que la ausencia no pase por
-// gorm.ErrRecordNotFound.
+// openCommitmentForProgress devuelve, sin tomar bloqueos, el compromiso abierto (outcome IS NULL) de la
+// historia con su sprint y el estado de ese sprint, o nil si no tiene ninguno; se lee con Find y
+// LIMIT 1 para que la ausencia no pase por gorm.ErrRecordNotFound.
 func openCommitmentForProgress(tx *gorm.DB, storyID uuid.UUID) (*storyCommitmentRow, error) {
 	var rows []storyCommitmentRow
 	err := tx.
 		Table("sprint_stories").
-		Clauses(clause.Locking{Strength: "SHARE", Table: clause.Table{Name: "sprints"}}).
-		Select("sprint_stories.id, sprints.status AS sprint_status").
+		Select("sprint_stories.id, sprint_stories.sprint_id, sprints.status AS sprint_status").
 		Joins("JOIN sprints ON sprints.id = sprint_stories.sprint_id").
 		Where("sprint_stories.story_id = ? AND sprint_stories.outcome IS NULL", storyID).
 		Limit(1).
 		Find(&rows).Error
 	if err != nil {
-		return nil, fmt.Errorf("bloquear el sprint del compromiso abierto: %w", err)
+		return nil, fmt.Errorf("leer el compromiso abierto de la historia: %w", err)
 	}
 	if len(rows) == 0 {
 		return nil, nil
 	}
 	return &rows[0], nil
+}
+
+// shareLockSprint toma, dentro de la transacción recibida, un bloqueo compartido (FOR SHARE) sobre la
+// fila del sprint, que espera a un cierre en curso y le impide empezar hasta confirmar la transacción.
+// Se lee con Find para que un sprint inexistente no sea un error: la relectura del compromiso decide.
+func shareLockSprint(tx *gorm.DB, sprintID uuid.UUID) error {
+	var ids []uuid.UUID
+	err := tx.
+		Table("sprints").
+		Clauses(clause.Locking{Strength: "SHARE"}).
+		Where("id = ?", sprintID).
+		Pluck("id", &ids).Error
+	if err != nil {
+		return fmt.Errorf("bloquear el sprint del compromiso abierto: %w", err)
+	}
+	return nil
 }
 
 // progressWithoutCommitmentError decide el rechazo del avance de una historia sin compromiso abierto:

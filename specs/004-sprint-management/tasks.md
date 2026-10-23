@@ -945,7 +945,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       ninguna petición responde `500` y que el resultado es coherente (o el avance entra antes del
       cierre o se rechaza con `409`) per plan: research.md §13 serialización del avance contra el
       cierre (partial) — origen: converge, detectado en hu/004-us5-cerrar-un-sprint
-- [ ] T100 Reordenar los bloqueos de `ChangeStoryProgress` en
+- [X] T100 Reordenar los bloqueos de `ChangeStoryProgress` en
       `backend/internal/sprints/repository/sprint_repository.go` para que tome el bloqueo del sprint
       antes que el de la historia (mismo orden que `Close`) y revalide el compromiso abierto tras
       bloquear, eliminando el interbloqueo con el cierre per plan: research.md §13 (partial) —

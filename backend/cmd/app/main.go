@@ -4,8 +4,8 @@
 //	@title						Software Metrics & Estimation — API
 //	@version					1.0.0
 //	@description				API de Software Metrics & Estimation: autenticación y cuentas de usuario, gestión de
-//	@description				proyectos y de sus integrantes, Product Backlog de cada proyecto y planificación de sus
-//	@description				sprints.
+//	@description				proyectos y de sus integrantes, Product Backlog de cada proyecto, planificación de sus
+//	@description				sprints y estimación de historias con Planning Poker.
 //	@description				Las únicas operaciones públicas son el registro y el inicio de sesión; las demás exigen
 //	@description				la cabecera `Authorization: Bearer <token>`.
 //	@BasePath					/
@@ -17,6 +17,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -43,6 +44,9 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/config"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/database"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/httpserver"
+	pokerdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/poker/delivery"
+	pokerrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/poker/repository"
+	pokerservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/poker/service"
 	projectsdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/delivery"
 	projectsrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/repository"
 	projectsservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/service"
@@ -167,6 +171,27 @@ func run() error {
 	sprintsdelivery.RegisterRoutes(projectGroup, sprintsHandler)
 	sprintsdelivery.RegisterSprintRoutes(router, handler.RequireSession, sprintRepository, sprintsHandler)
 	sprintsdelivery.RegisterStoryRoutes(router, handler.RequireSession, backlogdelivery.RequireStoryAccess(storyRepository), sprintsHandler)
+
+	// El módulo de Planning Poker se compone sobre su repositorio y el reloj del sistema. La apertura
+	// cuelga del grupo plano /api/v1/stories/:storyId con el RequireStoryAccess de la 003, sobre la
+	// misma instancia del repositorio de historias, para que poker/delivery no importe
+	// backlog/delivery; el resto va en el grupo plano /api/v1/estimation-sessions/:sessionId, con
+	// RequireEstimationAccess sobre la misma instancia del repositorio de sesiones que usa el servicio.
+	sessionRepository := pokerrepository.NewSessionRepository(db)
+	sessions := pokerservice.NewSessionService(sessionRepository, time.Now)
+	pokerHandler := pokerdelivery.NewHandler(sessions)
+	pokerdelivery.RegisterStoryRoutes(router, handler.RequireSession, backlogdelivery.RequireStoryAccess(storyRepository), pokerHandler)
+	pokerdelivery.RegisterSessionRoutes(router, handler.RequireSession, sessionRepository, pokerHandler)
+
+	// Ninguna conexión al canal de eventos sobrevive a un reinicio, así que antes de escuchar se
+	// marcan desconectados los participantes de las sesiones abiertas (research.md sección 9). El
+	// barrido periódico corre en su goroutine cada segundo hasta que run termina (sección 13).
+	if err := sessionRepository.ResetPresence(context.Background(), time.Now()); err != nil {
+		return err
+	}
+	sweepCtx, stopSweep := context.WithCancel(context.Background())
+	defer stopSweep()
+	go sessions.Run(sweepCtx, time.Second)
 
 	// ReadHeaderTimeout acota el tiempo para recibir las cabeceras y ReadTimeout el de la solicitud
 	// completa, cuerpo incluido, para evitar conexiones colgadas.

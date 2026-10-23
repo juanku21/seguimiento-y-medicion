@@ -315,7 +315,7 @@ desconectado.
       apertura: `La historia ya tiene una sesión de estimación en curso.`,
       `Una historia completada no se estima.` y
       `El proyecto está finalizado y es de solo lectura.` — depende de T024, T025
-- [ ] T027 [US1] Crear en `backend/internal/poker/delivery/routes.go` `RegisterStoryRoutes(router,
+- [X] T027 [US1] Crear en `backend/internal/poker/delivery/routes.go` `RegisterStoryRoutes(router,
       requireSession, requireStoryAccess, handler)` con `POST /api/v1/stories/:storyId/estimation-sessions`
       y `RegisterSessionRoutes(router, requireSession, repo, handler)` con el grupo plano
       `/api/v1/estimation-sessions/:sessionId` y `GET /events`, sin importar `backlog/delivery`; y

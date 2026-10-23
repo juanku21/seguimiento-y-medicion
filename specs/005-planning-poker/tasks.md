@@ -254,7 +254,7 @@ desconectado.
 
 ### Implementación de la Historia 1
 
-- [ ] T018 [P] [US1] Implementar
+- [X] T018 [P] [US1] Implementar
       `SessionStatus.EnsureOpen(reason *CancelReason, agreedStoryPoints *int) error` en
       `backend/internal/poker/domain/status.go` — depende de T010
 - [ ] T019 [P] [US1] Implementar `Presence` en `backend/internal/poker/service/presence.go`: mapa

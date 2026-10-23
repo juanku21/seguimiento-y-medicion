@@ -343,7 +343,7 @@ desconectado.
 - [X] T031 [US1] Implementar `StoryEstimationSection`, `PokerRoom` (historia y lista) y
       `ParticipantList` en `frontend/src/features/poker/components/` con mensajes en español —
       depende de T030
-- [ ] T032 [US1] Crear la pantalla
+- [X] T032 [US1] Crear la pantalla
       `frontend/src/app/projects/[projectId]/backlog/[storyId]/poker/[sessionId]/page.tsx`, protegida
       con la guardia de sesión de la 001, y sumar `StoryEstimationSection` a
       `frontend/src/app/projects/[projectId]/backlog/[storyId]/page.tsx` — depende de T031

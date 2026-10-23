@@ -43,7 +43,7 @@ arranque** propia: no agrega dependencias, servicios ni variables de entorno.
 
 **Decisión**: se mantienen las versiones fijadas por la 001, la 002 y la 003 (Go 1.27.2, Gin
 v1.12.0, GORM v1.31.2 con `gorm.io/driver/postgres` v1.6.3, `google/uuid` v1.6.0, `testify`
-v1.12.1, Next.js 16.3.8, React 19.3.0, Tailwind CSS 4.3.3, Vitest 5.0.3). **Esta feature no agrega
+v1.12.1, Next.js 16.4.2 (actualizado desde 16.3.8 por seguridad, T106), React 19.3.0, Tailwind CSS 4.3.3, Vitest 5.0.3). **Esta feature no agrega
 ninguna dependencia de Go ni de npm.**
 
 **Rationale**: validación con la biblioteca estándar; transacciones, bloqueos de fila
@@ -444,9 +444,21 @@ verifica recorriendo la matriz completa de origen y destino.
   `ValidateStoryProgress(from, to backlogdomain.StoryStatus) error`: `pending → in_progress`,
   `in_progress → completed` y `completed → in_progress`. Cualquier otra, incluido el salto
   `pending → completed` y el destino `pending`, se rechaza con `409` enumerando las permitidas.
-- En una transacción: se bloquea la historia, se busca su compromiso abierto con el sprint, y se
-  toma un bloqueo compartido sobre la fila del sprint (`FOR SHARE`) para que un cierre simultáneo no
-  se intercale.
+- En una transacción, con el mismo orden de bloqueo que el cierre (sección 14: primero el sprint,
+  después la historia) para que el avance y el cierre no se interbloqueen:
+  1. Se ubica sin bloquear el compromiso abierto de la historia y su sprint, y se toma un bloqueo
+     compartido sobre la fila de ese sprint (`FOR SHARE`) para que un cierre simultáneo no se
+     intercale. Si la historia no tiene compromiso abierto, no se bloquea ningún sprint.
+  2. Se bloquea la historia (`FOR UPDATE`) y, en la misma consulta, se lee el estado de su proyecto
+     (Finalizado: solo lectura, FR-059).
+  3. Con los bloqueos tomados se relee el compromiso abierto, porque un cierre o una reasignación
+     pudieron confirmarse entre la ubicación y el bloqueo. Si ya no hay compromiso abierto se aplica
+     el rechazo de la viñeta siguiente; si el compromiso es de un sprint distinto del bloqueado o ese
+     sprint no está Activo, `409` "solo se registra avance sobre historias del sprint activo".
+  4. Recién entonces se valida la transición y se escriben la historia y el compromiso.
+  5. Se relee el compromiso actualizado dentro de la misma transacción y es lo que se devuelve, para
+     que la respuesta no dependa de una lectura posterior que un cierre confirmado justo después
+     dejaría sin compromiso abierto.
 - Sin compromiso abierto: si la historia está Completada y su último compromiso es de un sprint
   Cerrado, `409` "un sprint cerrado no admite cambios" (US4-8); si no, `409` "solo se registra avance
   sobre historias del sprint activo" (US4-7). Con compromiso en un sprint Planificado, el mismo

@@ -55,27 +55,29 @@ Ambas definiciones deben terminar en una cláusula `WHERE`.
 
 ### Backend
 
+Los comandos que abarcan varios paquetes llevan `-p 1`: el advisory lock de `backend/internal/platform/testsupport/database.go` ya serializa los paquetes, y correrlos en paralelo puede superar su espera máxima de 5 minutos.
+
 ```powershell
 cd backend
 swag init -g cmd/app/main.go -o docs
 
 # Todas las pruebas contra la base de TEST
-go test ./...
+go test -p 1 ./...
 
 # Solo el módulo de esta feature
-go test ./internal/sprints/...
+go test -p 1 ./internal/sprints/...
 
 # Trazabilidad del Principio II: los escenarios de una historia
-go test ./internal/sprints/... -run TestUS5
+go test -p 1 ./internal/sprints/... -run TestUS5
 
 # Concurrencia: un solo sprint activo y cero superposiciones (SC-004, SC-005)
-go test ./internal/sprints/... -run Concurrency -count=5
+go test -p 1 ./internal/sprints/... -run Concurrency -count=5
 
 # Puertos reemplazados en la 002 y la 003
-go test ./internal/projects/... ./internal/backlog/...
+go test -p 1 ./internal/projects/... ./internal/backlog/...
 
 # Cobertura
-go test ./... -coverprofile=coverage.out
+go test -p 1 ./... -coverprofile=coverage.out
 go tool cover -func=coverage.out
 ```
 
@@ -242,7 +244,7 @@ una historia siguen respondiendo `200`.
 
 ## 7. Puertas de calidad antes de dar por terminada la feature
 
-- [ ] `go test ./...` y `npm test` pasan contra el entorno de test.
+- [ ] `go test -p 1 ./...` y `npm test` pasan contra el entorno de test.
 - [ ] Buscar `004/US` en las pruebas devuelve los 82 escenarios; las reglas RN-01 a RN-23 tienen
       prueba asociada (SC-017).
 - [ ] Las respuestas `404` de sprint ajeno e inexistente son idénticas byte a byte en las siete

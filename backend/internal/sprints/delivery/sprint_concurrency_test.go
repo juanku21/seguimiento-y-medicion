@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	backlogdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/domain"
 	projectsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/domain"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
@@ -179,6 +180,84 @@ func TestSprintStart_Concurrency(t *testing.T) {
 				if assert.NotNil(t, body.Sprint, "el 409 debe indicar el sprint activo: %s", rec.Body.String()) {
 					assert.Equal(t, active[0].ID.String(), body.Sprint.ID)
 					assert.Equal(t, active[0].Name, body.Sprint.Name)
+				}
+			}
+		})
+	}
+}
+
+// Pruebas de integración del cierre simultáneo con el avance de historias (T099; research.md
+// secciones 13 y 14): una goroutine envía POST /api/v1/sprints/{sprintId}/close sobre el sprint
+// Activo mientras otras envían a la vez PUT /api/v1/stories/{storyId}/status para completar sus
+// historias En progreso. Ninguna petición puede responder 500 y el resultado debe ser coherente:
+// cada avance o entra antes del cierre, y la instantánea lo congela como completado, o se rechaza con
+// 409 y la historia vuelve al backlog como no completada. Igual que las demás pruebas de
+// concurrencia, no lleva la etiqueta de un escenario de la spec.
+
+// Cantidad de repeticiones y de historias En progreso del sprint Activo que se intentan completar
+// durante el cierre. Son más repeticiones que en las demás pruebas porque el interbloqueo depende del
+// intercalado y con pocas puede no aparecer.
+const (
+	sprintCloseProgressRounds       = 20
+	sprintConcurrentProgressStories = 10
+)
+
+// Cierre de un sprint Activo simultáneo con el completado de sus historias: en cada repetición el
+// cierre responde 200, cada avance responde 200 o 409 y nunca 500, y en la base cada historia aceptada
+// queda completed con outcome completed y completed_at igual al reloj, mientras cada rechazada vuelve
+// a pending con outcome not_completed y sin completed_at (FR-034, FR-041, FR-042).
+func TestSprintClose_ConcurrentProgress(t *testing.T) {
+	env := newSprintTestEnv(t)
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+
+	// Cada repetición usa un proyecto nuevo con un sprint Activo y sus historias En progreso.
+	for round := range sprintCloseProgressRounds {
+		t.Run(fmt.Sprintf("repeticion_%d", round+1), func(t *testing.T) {
+			projectID := sprintSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+			activeID := sprintSeedInStatus(t, env.db, projectID, anaID, "Sprint 1", "2026-10-15", "2026-10-28", domain.SprintStatusActive)
+			storyIDs := make([]uuid.UUID, 0, sprintConcurrentProgressStories)
+			for i := range sprintConcurrentProgressStories {
+				storyID := env.createReadyStory(t, anaToken, projectID, fmt.Sprintf("Historia %d", i+1))
+				sprintSeedCommitment(t, env.db, activeID, storyID, sprintDate(t, "2026-10-15"), nil, nil)
+				sprintSetStoryStatus(t, env.db, storyID, backlogdomain.StoryStatusInProgress)
+				storyIDs = append(storyIDs, storyID)
+			}
+
+			// La solicitud 0 cierra el sprint y las demás completan una historia cada una.
+			recs := sprintRequestsAtOnce(len(storyIDs)+1, func(i int) *httptest.ResponseRecorder {
+				if i == 0 {
+					return env.closeSprint(t, anaToken, activeID)
+				}
+				return env.changeStoryStatus(t, anaToken, storyIDs[i-1], "completed")
+			})
+
+			// El cierre se acepta y deja el sprint closed; si no, el resto de la verificación no aplica.
+			require.Equal(t, http.StatusOK, recs[0].Code, "el cierre debería aceptarse; cuerpo: %s", recs[0].Body.String())
+			require.Equal(t, domain.SprintStatusClosed, sprintStored(t, env.db, activeID.String()).Status,
+				"el sprint debería quedar cerrado")
+
+			// Cada avance entró antes del cierre o se rechazó con 409, y la base refleja cuál de los dos.
+			for i, storyID := range storyIDs {
+				rec := recs[i+1]
+				stored := sprintStoredStory(t, env.db, storyID)
+				row := sprintStoredCommitment(t, env.db, activeID, storyID)
+				switch rec.Code {
+				case http.StatusOK:
+					assert.Equal(t, backlogdomain.StoryStatusCompleted, stored.Status, "historia %d aceptada", i+1)
+					if assert.NotNil(t, row.Outcome, "historia %d: el cierre debe congelar el resultado", i+1) {
+						assert.Equal(t, domain.StoryOutcomeCompleted, *row.Outcome, "historia %d aceptada", i+1)
+					}
+					if assert.NotNil(t, row.CompletedAt, "historia %d: completed_at debe quedar registrado", i+1) {
+						assert.True(t, sprintFixedNow.Equal(*row.CompletedAt), "historia %d: completed_at = %v", i+1, *row.CompletedAt)
+					}
+				case http.StatusConflict:
+					assert.Equal(t, backlogdomain.StoryStatusPending, stored.Status, "historia %d rechazada", i+1)
+					if assert.NotNil(t, row.Outcome, "historia %d: el cierre debe congelar el resultado", i+1) {
+						assert.Equal(t, domain.StoryOutcomeNotCompleted, *row.Outcome, "historia %d rechazada", i+1)
+					}
+					assert.Nil(t, row.CompletedAt, "historia %d: completed_at debe seguir en null", i+1)
+				default:
+					t.Errorf("avance de la historia %d: código %d inesperado; cuerpo: %s", i+1, rec.Code, rec.Body.String())
 				}
 			}
 		})

@@ -165,7 +165,30 @@ paths:
                       status: []
                     emptyReason: no_sprints
         '400':
-          $ref: '#/components/responses/EntradaInvalida'
+          description: |
+            Solicitud inválida; no se lista nada. Un valor de `status` no admitido responde con el
+            detalle por campo (`ValidationErrorResponse`). Una query mal formada (más de 10000
+            parámetros, un carácter especial mal codificado o el separador `;` en lugar de `&`)
+            responde solo con `error` (`ErrorResponse`), para que el listado nunca ignore sus
+            filtros sin aviso.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ValidationErrorResponse'
+                  - $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                estadoInvalido:
+                  summary: Filtro de estado no admitido
+                  value:
+                    error: Hay campos inválidos en la solicitud.
+                    fields:
+                      - field: status
+                        message: Los valores admitidos para el estado son planned, active y closed.
+                queryMalFormada:
+                  summary: Query mal formada
+                  value:
+                    error: 'La consulta de la URL está mal formada: revisá que no supere los 10000 parámetros, que los caracteres especiales estén bien codificados y que los parámetros se separen con &, no con ;.'
         '401':
           $ref: '#/components/responses/SesionInvalida'
         '404':
@@ -1070,7 +1093,10 @@ components:
           type: string
           format: date
         outcome:
-          $ref: '#/components/schemas/StoryOutcome'
+          allOf:
+            - $ref: '#/components/schemas/StoryOutcome'
+          nullable: true
+          description: "`null` mientras el sprint está abierto."
         completedAt:
           type: string
           format: date-time

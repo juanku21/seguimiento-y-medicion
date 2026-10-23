@@ -107,15 +107,14 @@ type StorySprintHistoryItem struct {
 // congela las filas de sprint_stories, devuelve a pending las historias no completadas y copia el
 // factor del proyecto, AssignStories rechaza el lote completo con StoriesNotAdmittedError, y Delete y
 // RemoveStories devuelven las historias a pending. ChangeStoryProgress aplica la transición de la
-// historia dentro del sprint Activo y FindOpenCommitment relee después el compromiso abierto
-// (outcome IS NULL) de la historia para armar la respuesta. Las escrituras que fijan momentos reciben el instante now, que
+// historia dentro del sprint Activo y devuelve el compromiso releído dentro de la misma transacción,
+// con su sprint y su fecha de completado, para armar la respuesta. Las escrituras que fijan momentos reciben el instante now, que
 // el servicio toma del reloj inyectado. List devuelve los sprints de un proyecto filtrados por
 // estado, y HasSprints distingue el proyecto sin sprints del filtro sin resultados. FindDetail
 // devuelve el detalle de un sprint y ListForStory el historial de sprints de una historia. No se
 // declaran cambio de proyecto, reapertura ni listados fuera de un proyecto. Ninguna operación
 // devuelve gorm.ErrRecordNotFound ni (nil, nil): si el sprint no existe o es ajeno, devuelve
-// ErrSprintNotFound. La única excepción es FindOpenCommitment, que devuelve (nil, nil) cuando la
-// historia no tiene un compromiso abierto.
+// ErrSprintNotFound.
 type SprintRepository interface {
 	FindAccessible(ctx context.Context, sprintID, userID uuid.UUID) (*SprintAccess, error)
 	Create(ctx context.Context, sprint *Sprint) error
@@ -125,8 +124,7 @@ type SprintRepository interface {
 	Close(ctx context.Context, sprintID, closedBy uuid.UUID, now time.Time) error
 	AssignStories(ctx context.Context, sprintID uuid.UUID, storyIDs []uuid.UUID, now time.Time) error
 	RemoveStories(ctx context.Context, sprintID uuid.UUID, storyIDs []uuid.UUID) error
-	ChangeStoryProgress(ctx context.Context, storyID uuid.UUID, to backlogdomain.StoryStatus, now time.Time) error
-	FindOpenCommitment(ctx context.Context, storyID uuid.UUID) (*SprintStory, error)
+	ChangeStoryProgress(ctx context.Context, storyID uuid.UUID, to backlogdomain.StoryStatus, now time.Time) (*SprintStory, error)
 	List(ctx context.Context, projectID uuid.UUID, statuses []SprintStatus) ([]SprintListItem, error)
 	HasSprints(ctx context.Context, projectID uuid.UUID) (bool, error)
 	FindDetail(ctx context.Context, sprintID uuid.UUID) (*SprintDetail, error)

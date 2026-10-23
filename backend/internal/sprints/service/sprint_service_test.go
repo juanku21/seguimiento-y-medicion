@@ -68,9 +68,10 @@ func (m *mockSprintRepository) RemoveStories(ctx context.Context, sprintID uuid.
 	return args.Error(0)
 }
 
-func (m *mockSprintRepository) ChangeStoryProgress(ctx context.Context, storyID uuid.UUID, to backlogdomain.StoryStatus, now time.Time) error {
+func (m *mockSprintRepository) ChangeStoryProgress(ctx context.Context, storyID uuid.UUID, to backlogdomain.StoryStatus, now time.Time) (*domain.SprintStory, error) {
 	args := m.Called(ctx, storyID, to, now)
-	return args.Error(0)
+	commitment, _ := args.Get(0).(*domain.SprintStory)
+	return commitment, args.Error(1)
 }
 
 func (m *mockSprintRepository) FindOpenCommitment(ctx context.Context, storyID uuid.UUID) (*domain.SprintStory, error) {
@@ -611,9 +612,9 @@ func TestSprintService_ChangeStoryProgress_InstanteDelReloj(t *testing.T) {
 			svc, d := newSprintServiceWithDoubles(t)
 			storyID := uuid.New()
 			d.repo.On("ChangeStoryProgress", mock.Anything, storyID, to, serviceFixedNow).
-				Return(nil).Once()
+				Return(nil, nil).Once()
 
-			err := svc.ChangeStoryProgress(context.Background(), storyID, to)
+			_, err := svc.ChangeStoryProgress(context.Background(), storyID, to)
 
 			require.NoError(t, err)
 			d.repo.AssertExpectations(t)
@@ -642,15 +643,47 @@ func TestSprintService_ChangeStoryProgress_PropagaRechazos(t *testing.T) {
 			storyID := uuid.New()
 			to := backlogdomain.StoryStatusCompleted
 			d.repo.On("ChangeStoryProgress", mock.Anything, storyID, to, serviceFixedNow).
-				Return(tc.err).Once()
+				Return(nil, tc.err).Once()
 
-			err := svc.ChangeStoryProgress(context.Background(), storyID, to)
+			_, err := svc.ChangeStoryProgress(context.Background(), storyID, to)
 
 			require.ErrorIs(t, err, tc.err)
 			d.repo.AssertExpectations(t)
 			d.repo.AssertNumberOfCalls(t, "ChangeStoryProgress", 1)
 		})
 	}
+}
+
+// Sin etiqueta de escenario: el avance devuelve el compromiso que el repositorio releyó dentro de su
+// transacción, con su sprint y su fecha de completado, aunque un cierre se haya confirmado justo
+// después y el compromiso ya no esté abierto (research.md sección 13, T109). El doble de
+// FindOpenCommitment responde nil, como lo haría tras el cierre intercalado: el servicio no debe
+// releer fuera de la transacción ni convertir esa ausencia en un error interno.
+func TestSprintService_ChangeStoryProgress_CompromisoDeLaTransaccion(t *testing.T) {
+	svc, d := newSprintServiceWithDoubles(t)
+	storyID, sprintID := uuid.New(), uuid.New()
+	completedAt := serviceFixedNow
+	committed := &domain.SprintStory{
+		ID:          uuid.New(),
+		SprintID:    sprintID,
+		StoryID:     storyID,
+		CommittedAt: serviceDay(time.October, 1),
+		CompletedAt: &completedAt,
+	}
+	to := backlogdomain.StoryStatusCompleted
+	d.repo.On("ChangeStoryProgress", mock.Anything, storyID, to, serviceFixedNow).
+		Return(committed, nil).Once()
+	d.repo.On("FindOpenCommitment", mock.Anything, storyID).Return(nil, nil).Maybe()
+
+	commitment, err := svc.ChangeStoryProgress(context.Background(), storyID, to)
+
+	require.NoError(t, err)
+	require.NotNil(t, commitment, "el avance debe devolver el compromiso leído en la transacción")
+	assert.Equal(t, sprintID, commitment.SprintID)
+	require.NotNil(t, commitment.CompletedAt)
+	assert.True(t, serviceFixedNow.Equal(*commitment.CompletedAt))
+	d.repo.AssertExpectations(t)
+	d.repo.AssertNotCalled(t, "FindOpenCommitment", mock.Anything, mock.Anything)
 }
 
 // Pruebas unitarias obligatorias del cierre de un sprint en el servicio (T063; RN-02, RN-07, RN-18,

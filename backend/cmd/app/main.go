@@ -97,12 +97,14 @@ func run() error {
 	handler := delivery.NewHandler(auth)
 
 	// El router habilita CORS solo para el origen del frontend, limita el cuerpo de cada solicitud a
-	// 1 MiB, publica Swagger y registra las rutas de la feature de autenticación. La ruta de Swagger
+	// 1 MiB, rechaza con 400 las queries mal formadas para que ningún listado ignore sus filtros sin
+	// aviso, publica Swagger y registra las rutas de la feature de autenticación. La ruta de Swagger
 	// es pública sin sesión: es la excepción a RN-08 documentada en specs/001-user-auth/spec.md,
 	// porque el Principio VIII exige documentar la API con Swagger.
 	router := gin.Default()
 	router.Use(httpserver.CORS(cfg.CORSAllowedOrigin))
 	router.Use(httpserver.LimitRequestBody())
+	router.Use(httpserver.RejectMalformedQuery())
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	delivery.RegisterRoutes(router, handler)
 

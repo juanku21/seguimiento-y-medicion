@@ -135,7 +135,7 @@ func (h *Handler) createSprint(c *gin.Context) {
 //	@Param			projectId	path		string								true	"Identificador del proyecto"	format(uuid)
 //	@Param			status		query		[]string							false	"Filtro por estado; puede repetirse"	collectionFormat(multi)	Enums(planned, active, closed)
 //	@Success		200			{object}	SprintListResponse					"Lista de sprints, posiblemente vacía."
-//	@Failure		400			{object}	delivery.ValidationErrorResponse	"Algún valor de status no es planned, active ni closed; señala status."
+//	@Failure		400			{object}	delivery.ValidationErrorResponse	"Algún valor de status no es planned, active ni closed; señala status. También responde 400, solo con el campo error, si la query está mal formada: más de 10000 parámetros, un escape inválido o un separador ;."
 //	@Failure		401			{object}	delivery.ErrorResponse				"Se requiere iniciar sesión."
 //	@Failure		404			{object}	delivery.ErrorResponse				"El proyecto no existe o quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo."
 //	@Failure		500			{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."
@@ -558,22 +558,13 @@ func (h *Handler) changeStoryStatus(c *gin.Context) {
 		return
 	}
 
-	// Se aplica la transición y se traducen los rechazos de dominio con respondServiceError.
-	ctx := c.Request.Context()
-	if err := h.sprints.ChangeStoryProgress(ctx, storyID, status); err != nil {
-		respondServiceError(c, err, "no se pudo registrar el avance de la historia")
-		return
-	}
-
-	// La respuesta toma el sprint y la fecha de completado del compromiso abierto releído. Si ya no
-	// existe, un cierre se intercaló después del cambio: es inesperado y responde 500 sin detalles.
-	commitment, err := h.sprints.FindOpenCommitment(ctx, storyID)
+	// Se aplica la transición y se traducen los rechazos de dominio con respondServiceError. La
+	// respuesta toma el sprint y la fecha de completado del compromiso que el servicio devuelve,
+	// releído dentro de la transacción del avance, así que un cierre confirmado justo después no la
+	// afecta.
+	commitment, err := h.sprints.ChangeStoryProgress(c.Request.Context(), storyID, status)
 	if err != nil {
-		respondInternalError(c, "no se pudo leer el compromiso abierto de la historia", "error", err)
-		return
-	}
-	if commitment == nil {
-		respondInternalError(c, "la historia no tiene compromiso abierto después de registrar su avance", "story_id", storyID)
+		respondServiceError(c, err, "no se pudo registrar el avance de la historia")
 		return
 	}
 

@@ -125,10 +125,10 @@ type sprintTestEnv struct {
 }
 
 // newSprintTestEnv abre la base de test vacía y compone, igual que cmd/app, el límite global del
-// cuerpo, la cadena real de la 001 (para el middleware de sesión), el módulo de proyectos de la 002
-// con su subgrupo /:projectId, el módulo del backlog de la 003 con su grupo de historia protegido
-// por RequireStoryAccess y las rutas de sprints colgadas del subgrupo del proyecto, sin CORS ni
-// Swagger. Cada override recibe las dependencias por defecto y puede reemplazar el puerto de
+// cuerpo, el rechazo de queries mal formadas, la cadena real de la 001 (para el middleware de
+// sesión), el módulo de proyectos de la 002 con su subgrupo /:projectId, el módulo del backlog de la
+// 003 con su grupo de historia protegido por RequireStoryAccess y las rutas de sprints colgadas del
+// subgrupo del proyecto, sin CORS ni Swagger. Cada override recibe las dependencias por defecto y puede reemplazar el puerto de
 // esfuerzo o el reloj.
 func newSprintTestEnv(t *testing.T, overrides ...func(*sprintTestPorts)) sprintTestEnv {
 	t.Helper()
@@ -144,6 +144,7 @@ func newSprintTestEnv(t *testing.T, overrides ...func(*sprintTestPorts)) sprintT
 	)
 	router := gin.New()
 	router.Use(httpserver.LimitRequestBody())
+	router.Use(httpserver.RejectMalformedQuery())
 	authHandler := authdelivery.NewHandler(auth)
 	authdelivery.RegisterRoutes(router, authHandler)
 
@@ -3204,8 +3205,8 @@ func TestStorySprints_RemovedBeforeCloseNotListed(t *testing.T) {
 // cerrado y el filtro aplicado una sola vez, porque la cláusula IN debe recibir cada estado admitido
 // una vez y no un parámetro por repetición (T101, hallazgo de seguridad: filtro de estado repetible
 // sin deduplicar). Las repeticiones quedan por debajo del tope de 10000 parámetros de consulta de
-// net/url: por encima de ese tope la consulta no se interpreta y el manejador no recibe ningún valor
-// de status, de modo que la petición nunca llegaría a la cláusula IN.
+// net/url: por encima de ese tope la consulta no se interpreta y RejectMalformedQuery la rechaza con
+// 400 antes de llegar al manejador (T105), de modo que la petición nunca llegaría a la cláusula IN.
 func TestSprintList_EstadoRepetidoMilesDeVeces(t *testing.T) {
 	const repetitions = 9000
 	f := newSprintUS6Fixture(t)
@@ -3226,6 +3227,42 @@ func TestSprintList_EstadoRepetidoMilesDeVeces(t *testing.T) {
 	body, _ := requireSprintList(t, rec)
 	assert.Equal(t, []string{"closed"}, body.AppliedFilters.Status, "el filtro aplicado debe informar closed una sola vez")
 	assert.Equal(t, []string{closedID.String()}, sprintListIDs(body), "el listado muestra solo el cerrado")
+}
+
+// Sin etiqueta de escenario: un listado cuya query no se puede interpretar responde 400 con un
+// mensaje en el campo error y sin listado, en lugar de 200 con todos los sprints porque el filtro de
+// estado se descartó sin aviso (T104, hallazgo de seguridad: query mal formada que ignora los
+// filtros sin aviso). Cada subtest es una forma de query que url.ParseQuery rechaza: más de 10000
+// parámetros, un escape inválido y el separador ";".
+func TestSprintList_QueryMalFormada(t *testing.T) {
+	// Más de 10000 repeticiones de status=closed superan el tope de parámetros de net/url.
+	tooMany := make([]string, 10001)
+	for i := range tooMany {
+		tooMany[i] = "closed"
+	}
+	cases := []struct {
+		name     string
+		statuses []string
+	}{
+		{name: "mas de 10000 parametros status", statuses: tooMany},
+		{name: "escape invalido", statuses: []string{"%zz"}},
+		{name: "separador punto y coma", statuses: []string{"closed;x"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newSprintUS6Fixture(t)
+			f.createSprint(t, "Sprint 1", "2026-11-01", "2026-11-14")
+
+			rec := f.env.listSprints(t, f.brunoToken, f.projectID, tc.statuses...)
+
+			// Se rechaza con 400 y un motivo, sin devolver ningún listado.
+			require.Equal(t, http.StatusBadRequest, rec.Code, "la query mal formada no debe listar todos los sprints: %s", rec.Body.String())
+			raw := sprintRawBody(t, rec)
+			message, _ := raw["error"].(string)
+			assert.NotEmpty(t, strings.TrimSpace(message), "el 400 debe explicar el motivo en el campo error: %s", rec.Body.String())
+			assert.NotContains(t, raw, "sprints", "el 400 no debe incluir un listado")
+		})
+	}
 }
 
 // Textos exactos que fija el contrato para los rechazos de la modificación y la eliminación de un

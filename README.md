@@ -124,7 +124,7 @@ El repositorio separa el backend y el frontend en dos directorios de primer nive
 | --- | --- |
 | Backend | Go 1.27.3, Gin, GORM, JWT (`golang-jwt/jwt/v5`), bcrypt |
 | Base de datos | PostgreSQL 18.6 (imagen `postgres:18.6-alpine`) |
-| Frontend | Node.js 24.21.0, Next.js 16.3.8, React 19.3.0, Tailwind CSS 4.3.3, TypeScript 5.9.3 |
+| Frontend | Node.js 24.21.0, Next.js 16.4.2, React 19.3.0, Tailwind CSS 4.3.3, TypeScript 5.9.3 |
 | Documentación de la API | Swagger generado con `swag` 1.16.6 |
 | Pruebas | `go test` con testify en el backend; Vitest 5.0.3 con Testing Library en el frontend |
 | Contenedores | Docker y Docker Compose |
@@ -379,18 +379,20 @@ Las guías de validación de punta a punta, con ejemplos de `curl` para cada his
 
 Las pruebas del backend corren siempre contra la base de **test** (`smye_test`, puerto 5433), que debe estar levantada (paso 4), y requieren Swagger generado (paso 5). Cada caso de integración vacía las tablas de esa base antes de ejecutarse; nunca lee `backend/.env` ni toca la base de desarrollo.
 
+Los comandos que abarcan varios paquetes llevan `-p 1`: el advisory lock de `backend/internal/platform/testsupport/database.go` ya serializa los paquetes sobre la base de test, y correrlos en paralelo los deja esperándose entre sí hasta poder superar su espera máxima de 5 minutos.
+
 ```bash
 cd backend
 go vet ./...
-go test ./...
+go test -p 1 ./...
 
 # Solo las pruebas de un módulo (por ejemplo, la gestión de proyectos, el backlog o los sprints)
-go test ./internal/projects/...
-go test ./internal/backlog/...
-go test ./internal/sprints/...
+go test -p 1 ./internal/projects/...
+go test -p 1 ./internal/backlog/...
+go test -p 1 ./internal/sprints/...
 
 # Solo las pruebas de una historia de usuario (por ejemplo, US1)
-go test ./... -run TestUS1
+go test -p 1 ./... -run TestUS1
 ```
 
 El frontend no necesita servicios levantados: Vitest simula el navegador con jsdom.
@@ -475,11 +477,11 @@ cd backend/postgres
 docker compose --env-file .env.test -p smye-test up -d
 ```
 
-Con la base de test arriba, desde `backend/`:
+Con la base de test arriba, desde `backend/` (`-p 1` corre los paquetes en serie, por el motivo explicado en el [paso 9](#9-ejecutar-las-pruebas)):
 
 ```bash
 # Ejecuta todas las pruebas y guarda el perfil de cobertura en coverage.out
-go test ./... -coverprofile=coverage.out
+go test -p 1 ./... -coverprofile=coverage.out
 
 # Muestra la cobertura por función y el total en la terminal
 go tool cover -func=coverage.out

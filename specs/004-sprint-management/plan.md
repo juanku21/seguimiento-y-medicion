@@ -51,7 +51,7 @@ Las decisiones y las alternativas descartadas están en [research.md](./research
 
 **Dependencias principales**: sin cambios respecto de la 003 — Gin v1.12.0, GORM v1.31.2 con driver
 `postgres` v1.6.3, `google/uuid` v1.6.0, `gin-contrib/cors` v1.7.9, `swaggo/swag` v1.16.6 con
-`gin-swagger` v1.6.1 y `swaggo/files` v1.0.1; Next.js 16.3.8 con React 19.3.0 y Tailwind CSS 4.3.3.
+`gin-swagger` v1.6.1 y `swaggo/files` v1.0.1; Next.js 16.4.2 (actualizado desde 16.3.8 por seguridad, T106) con React 19.3.0 y Tailwind CSS 4.3.3.
 **Esta feature no agrega ninguna dependencia** ([research.md](./research.md), sección 1)
 
 **Almacenamiento**: PostgreSQL, imagen `postgres:18.6-alpine`, en los mismos contenedores disjuntos

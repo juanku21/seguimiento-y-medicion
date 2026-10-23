@@ -940,22 +940,22 @@ T088 es de caracterización sin RED y T089 y T090 siguen el ciclo normal.
 
 Propósito: ajustes transversales detectados por /speckit-converge y /revisar-seguridad.
 
-- [ ] T099 Prueba de concurrencia en `backend/internal/sprints/delivery/sprint_concurrency_test.go`
+- [X] T099 Prueba de concurrencia en `backend/internal/sprints/delivery/sprint_concurrency_test.go`
       que lance a la vez el cierre de un sprint Activo y avances de sus historias, y verifique que
       ninguna petición responde `500` y que el resultado es coherente (o el avance entra antes del
       cierre o se rechaza con `409`) per plan: research.md §13 serialización del avance contra el
       cierre (partial) — origen: converge, detectado en hu/004-us5-cerrar-un-sprint
-- [ ] T100 Reordenar los bloqueos de `ChangeStoryProgress` en
+- [X] T100 Reordenar los bloqueos de `ChangeStoryProgress` en
       `backend/internal/sprints/repository/sprint_repository.go` para que tome el bloqueo del sprint
       antes que el de la historia (mismo orden que `Close`) y revalide el compromiso abierto tras
       bloquear, eliminando el interbloqueo con el cierre per plan: research.md §13 (partial) —
       origen: converge, detectado en hu/004-us5-cerrar-un-sprint
-- [ ] T103 Marcar `outcome` como `nullable: true` en el esquema `StorySprintHistoryItem` de
+- [X] T103 Marcar `outcome` como `nullable: true` en el esquema `StorySprintHistoryItem` de
       `specs/004-sprint-management/contracts/openapi.yaml`, con la descripción "`null` mientras el
       sprint está abierto", alineándolo con data-model.md y con la respuesta de
       `GET /api/v1/stories/{storyId}/sprints` per plan: contrato de la API (contradicts) — origen:
       converge, detectado en hu/004-us6-consultar-el-historial
-- [ ] T104 Agregar pruebas de integración que verifiquen que
+- [X] T104 Agregar pruebas de integración que verifiquen que
       `GET /api/v1/projects/{projectId}/sprints` responde `400`, no `200` con todos los sprints,
       cuando la query no se puede interpretar (más de 10.000 parámetros `status`, `status=%zz` y
       `status=closed;x`), y el mismo caso para `GET /api/v1/projects/{projectId}/stories`, en
@@ -963,18 +963,54 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       `backend/internal/backlog/delivery/handler_test.go`, más una prueba del middleware en
       `backend/internal/platform/httpserver/` per hallazgo de seguridad: query mal formada que ignora
       los filtros sin aviso (security) — origen: seguridad, detectado en 004/US6
-- [ ] T105 Agregar en `backend/internal/platform/httpserver/` un middleware que valide
+- [X] T105 Agregar en `backend/internal/platform/httpserver/` un middleware que valide
       `c.Request.URL.RawQuery` con `url.ParseQuery` y responda `400` con un mensaje descriptivo si
       hay error, registrarlo con `router.Use` en `backend/cmd/app/main.go` junto a
       `LimitRequestBody`, actualizar las respuestas `400` de Swagger de los listados afectados y el
       comentario de `TestSprintList_EstadoRepetidoMilesDeVeces` per hallazgo de seguridad: query mal
       formada que ignora los filtros sin aviso (security) — origen: seguridad, detectado en 004/US6
-- [ ] T106 Actualizar next a la versión estable 16.4.2 o posterior en `frontend/package.json` y
+- [X] T106 Actualizar next a la versión estable 16.4.2 o posterior en `frontend/package.json` y
       `frontend/package-lock.json`, registrar la versión nueva en
       `specs/004-sprint-management/plan.md` y `specs/004-sprint-management/research.md`, y verificar
       que `npm audit --omit=dev` ya no informa avisos sobre next per hallazgo de seguridad: versión de
       Next.js con ejecución remota de código conocida (security) — origen: seguridad, detectado en
       fase/004-polish (Fase 9: Polish)
+- [X] T109 Prueba unitaria en `backend/internal/sprints/service/sprint_service_test.go` que, con un
+      repositorio falso en el que el compromiso abierto ya no existe después de confirmar el avance
+      (un cierre se intercaló), verifique que el avance devuelve el sprint y la fecha de completado
+      leídos dentro de la transacción y no un error interno per plan: research.md §13 serialización
+      del avance contra el cierre (partial) — origen: converge, detectado en
+      fase/004-converge-and-foundational
+- [X] T110 Hacer que `ChangeStoryProgress` devuelva el compromiso releído dentro de su transacción
+      en `backend/internal/sprints/repository/sprint_repository.go`,
+      `backend/internal/sprints/domain/repository.go` y
+      `backend/internal/sprints/service/sprint_service.go`, y que `changeStoryStatus` en
+      `backend/internal/sprints/delivery/handler.go` responda con ese dato en lugar de releer con
+      `FindOpenCommitment` fuera de la transacción, quitando `FindOpenCommitment` si queda sin uso,
+      para que un cierre confirmado justo después del avance no produzca un `500` per plan:
+      research.md §13 serialización del avance contra el cierre (partial) — origen: converge,
+      detectado en fase/004-converge-and-foundational
+- [X] T111 Reemplazar `go test ./...` por `go test -p 1 ./...`, incluido el comando de cobertura, en
+      `README.md` y `specs/004-sprint-management/quickstart.md`, con una línea que explique que el
+      advisory lock de `backend/internal/platform/testsupport/database.go` serializa los paquetes y
+      que correrlos en paralelo puede superar su espera máxima per Constitución VIII (partial) —
+      origen: converge, detectado en fase/004-converge-and-foundational
+- [X] T112 Actualizar la Decisión de `specs/004-sprint-management/research.md` §13 al orden de
+      bloqueo actual de `ChangeStoryProgress`: primero el bloqueo compartido del sprint del
+      compromiso abierto, después la historia, y la relectura del compromiso con los bloqueos tomados
+      per plan: research.md §13 (contradicts) — origen: converge, detectado en
+      fase/004-converge-and-foundational
+- [X] T113 Actualizar la sección 9 de `specs/004-sprint-management/data-model.md` al contrato actual
+      del puerto: `ChangeStoryProgress(ctx, storyID, to, now) (*SprintStory, error)` con el comentario
+      del orden de bloqueo sprint → historia y la devolución del compromiso releído dentro de la
+      transacción, y quitar `FindOpenCommitment` de la interfaz y de la frase que lo exceptúa del
+      `(nil, nil)` per plan: modelo de datos (contradicts) — origen: converge, detectado en
+      fase/004-converge-and-foundational
+- [X] T114 Documentar en la respuesta `400` de `GET /api/v1/projects/{projectId}/sprints` en
+      `specs/004-sprint-management/contracts/openapi.yaml` la query mal formada, que responde solo con
+      `error` (`ErrorResponse`), con `oneOf` sobre `ValidationErrorResponse` y `ErrorResponse` y una
+      descripción, como el `409` de la creación de sprints per plan: contrato de la API
+      (contradicts) — origen: converge, detectado en fase/004-converge-and-foundational
 
 ---
 

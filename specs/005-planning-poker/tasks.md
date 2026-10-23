@@ -148,7 +148,7 @@ estructuras y contratos, sin lógica de negocio.
       `OpenSessionStatus`, `ParticipantRef`, `RoundOutcome` y `UserRef` (solo `ID` y `FullName`).
       `SessionSnapshot` **no** tiene campo de Story Points de la historia (FR-075). Las escrituras
       reciben el instante como parámetro — depende de T001 a T006
-- [ ] T008 Agregar `EstimationSession`, `EstimationRound`, `EstimationParticipant` y
+- [X] T008 Agregar `EstimationSession`, `EstimationRound`, `EstimationParticipant` y
       `EstimationVote`, en ese orden, al `AutoMigrate` de
       `backend/internal/platform/database/postgres.go`, **después** de `SprintStory`, de modo que los
       índices —incluido el parcial con su cláusula `WHERE`— queden creados por las etiquetas de GORM y

@@ -881,7 +881,7 @@ T088 es de caracterización sin RED y T089 y T090 siguen el ciclo normal.
 
 **Rama**: `fase/004-polish`
 
-- [ ] T088 Pruebas de integración de caracterización en
+- [X] T088 Pruebas de integración de caracterización en
       `backend/internal/sprints/delivery/handler_test.go`, **sin** etiqueta `004/USn`:
       `TestSprintEndpoints_SinSesion`, con un subtest por cada uno de los **once** endpoints sin
       cabecera y con token adulterado → `401` y ningún cambio (SC-013);

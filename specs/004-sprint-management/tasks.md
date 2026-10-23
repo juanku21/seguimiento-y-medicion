@@ -995,7 +995,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       advisory lock de `backend/internal/platform/testsupport/database.go` serializa los paquetes y
       que correrlos en paralelo puede superar su espera máxima per Constitución VIII (partial) —
       origen: converge, detectado en fase/004-converge-and-foundational
-- [ ] T112 Actualizar la Decisión de `specs/004-sprint-management/research.md` §13 al orden de
+- [X] T112 Actualizar la Decisión de `specs/004-sprint-management/research.md` §13 al orden de
       bloqueo actual de `ChangeStoryProgress`: primero el bloqueo compartido del sprint del
       compromiso abierto, después la historia, y la relectura del compromiso con los bloqueos tomados
       per plan: research.md §13 (contradicts) — origen: converge, detectado en

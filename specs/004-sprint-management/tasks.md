@@ -901,7 +901,7 @@ T088 es de caracterización sin RED y T089 y T090 siguen el ciclo normal.
       `backend/docs/` coincida con [contracts/openapi.yaml](./contracts/openapi.yaml) en las **once**
       operaciones, sus códigos de respuesta (todas declaran `500`) y sus esquemas; corregir las
       anotaciones si difieren (Principio VIII) — depende de T087
-- [ ] T092 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona la
+- [X] T092 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona la
       gestión de sprints, y se agregan los once endpoints y las cuatro pantallas nuevas, manteniendo
       el criterio de que alguien que no conoce el proyecto pueda ejecutarlo siguiendo el documento —
       depende de T087

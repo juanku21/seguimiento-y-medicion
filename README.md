@@ -45,11 +45,12 @@ El sistema ofrece una solución integral para gestionar el ciclo de vida de proy
 
 ## Estado Actual
 
-El sistema se construye por funcionalidades, cada una especificada en su carpeta de [`specs/`](./specs). Hoy están implementadas las tres primeras:
+El sistema se construye por funcionalidades, cada una especificada en su carpeta de [`specs/`](./specs). Hoy están implementadas las cuatro primeras:
 
 - **Autenticación y cuentas de usuario** ([`specs/001-user-auth`](./specs/001-user-auth)): registro de cuentas, inicio y cierre de sesión con JWT, protección de las funciones del sistema, consulta del propio perfil y registro de eventos de autenticación.
 - **Gestión de proyectos e integrantes** ([`specs/002-project-members`](./specs/002-project-members)): creación y modificación de proyectos con su factor de horas por Story Point, listado de los proyectos propios aislado de los ajenos, alta y baja de integrantes por correo electrónico, consulta del estado del proyecto en una sola pantalla y avance del estado (`planned` → `in_progress` → `finished`) con registro de la fecha de finalización real.
-- **Product Backlog** ([`specs/003-product-backlog`](./specs/003-product-backlog)): registro de historias de usuario con título, descripción, prioridad (Alta, Media o Baja) y criterios de aceptación ordenados; listado del backlog ordenado por prioridad y antigüedad, con filtros por prioridad y estado; estimación en Story Points con la escala 0, 1, 2, 3, 5, 8, 13, 20, 40 y 100 (o "sin estimar"); indicación de si cada historia está lista para planificar; refinamiento y eliminación de las historias que nunca se trabajaron. Cualquier integrante del proyecto puede hacer todas estas acciones; cuando el proyecto está finalizado, su backlog queda de solo lectura. El estado de una historia (Pendiente, En progreso, Completada) se muestra pero no se cambia desde el backlog: lo cambiará la gestión de sprints.
+- **Product Backlog** ([`specs/003-product-backlog`](./specs/003-product-backlog)): registro de historias de usuario con título, descripción, prioridad (Alta, Media o Baja) y criterios de aceptación ordenados; listado del backlog ordenado por prioridad y antigüedad, con filtros por prioridad y estado; estimación en Story Points con la escala 0, 1, 2, 3, 5, 8, 13, 20, 40 y 100 (o "sin estimar"); indicación de si cada historia está lista para planificar; refinamiento y eliminación de las historias que nunca se trabajaron. Cualquier integrante del proyecto puede hacer todas estas acciones; cuando el proyecto está finalizado, su backlog queda de solo lectura. El estado de una historia (Pendiente, En progreso, Completada) se muestra pero no se cambia desde el backlog: lo cambia la gestión de sprints.
+- **Gestión de sprints** ([`specs/004-sprint-management`](./specs/004-sprint-management)): planificación de sprints con nombre, Sprint Goal y fechas de inicio y fin que no se superponen con las de otro sprint del proyecto; compromiso en el sprint de las historias del backlog listas para planificar, y su retiro; inicio del sprint (como máximo uno Activo por proyecto), con los días restantes o vencidos a la vista; registro del avance de cada historia del sprint Activo (Pendiente → En progreso → Completada, con la posibilidad de desmarcarla mientras el sprint siga Activo); cierre del sprint, que devuelve al backlog las historias no completadas y congela una instantánea con los Story Points comprometidos al inicio, planificados al cierre y completados, las historias involucradas con su resultado y el factor de horas por Story Point vigente; historial de sprints cerrados y, en cada historia, los sprints en los que estuvo; y modificación o eliminación de los sprints Planificados que nunca se iniciaron. Los estados del sprint solo avanzan Planificado → Activo → Cerrado, y el cierre es definitivo. Cualquier integrante del proyecto puede operar sus sprints; ninguna acción sobre los sprints cambia el estado del proyecto, y cuando el proyecto está finalizado sus sprints quedan de solo lectura.
 
 Las funcionalidades descritas en las secciones siguientes son el alcance completo del sistema y se incorporan en las próximas specs.
 
@@ -205,7 +206,7 @@ Después, editar los valores. Los secretos se pueden generar con `openssl rand -
 
 Los archivos del frontend no necesitan cambios: `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080` apunta al backend local. El resto de las claves (`DB_HOST=localhost`, `DB_USER=smye`, `SERVER_PORT=8080`, `CORS_ALLOWED_ORIGIN=http://localhost:3000`, `APP_TIMEZONE=America/Argentina/Buenos_Aires`) sirven tal como vienen en las plantillas.
 
-**`APP_TIMEZONE`** es la zona horaria única del sistema, en formato IANA (por ejemplo `America/Argentina/Buenos_Aires`, `America/Montevideo` o `UTC`). El backend la usa para fijar fechas de calendario que no dependen del dispositivo de quien opera: cuando un proyecto pasa a `finished`, su fecha de finalización real es la fecha del cambio en esta zona. No es un secreto, pero vive en `backend/.env` y `backend/.env.test` como el resto de la configuración, y debe estar en los dos. Si se crearon los archivos de entorno antes de la gestión de proyectos (spec 002), hay que agregarles la línea:
+**`APP_TIMEZONE`** es la zona horaria única del sistema, en formato IANA (por ejemplo `America/Argentina/Buenos_Aires`, `America/Montevideo` o `UTC`). El backend la usa para fijar fechas de calendario que no dependen del dispositivo de quien opera: cuando un proyecto pasa a `finished`, su fecha de finalización real es la fecha del cambio en esta zona, y lo mismo vale para las fechas reales de inicio y de cierre de un sprint y para el cálculo de sus días restantes. No es un secreto, pero vive en `backend/.env` y `backend/.env.test` como el resto de la configuración, y debe estar en los dos. Si se crearon los archivos de entorno antes de la gestión de proyectos (spec 002), hay que agregarles la línea:
 
 ```bash
 APP_TIMEZONE=America/Argentina/Buenos_Aires
@@ -239,7 +240,7 @@ Para confirmar que el contenedor de test apunta a la base correcta:
 docker exec smye-test-postgres-1 psql -U smye -d smye_test -c "SELECT current_database();"
 ```
 
-Debe responder `smye_test`. No hace falta crear tablas: el backend crea y migra el esquema automáticamente al conectarse (`AutoMigrate` de GORM), incluidas las tablas `projects` y `project_members` de la gestión de proyectos y las tablas `user_stories` y `acceptance_criteria` del Product Backlog.
+Debe responder `smye_test`. No hace falta crear tablas: el backend crea y migra el esquema automáticamente al conectarse (`AutoMigrate` de GORM), incluidas las tablas `projects` y `project_members` de la gestión de proyectos las tablas `user_stories` y `acceptance_criteria` del Product Backlog, y las tablas `sprints` y `sprint_stories` de la gestión de sprints.
 
 ### 5. Generar la documentación Swagger
 
@@ -290,12 +291,16 @@ El frontend queda en <http://localhost:3000> y lee `frontend/.env.local`. Para u
 | <http://localhost:3000/profile> | Perfil del usuario con sesión iniciada (sin sesión redirige a `/login`) |
 | <http://localhost:3000/projects> | Listado de los proyectos de los que se es integrante, con su estado, fechas, cantidad de integrantes y la marca "Propietario" en los propios (sin sesión redirige a `/login`) |
 | <http://localhost:3000/projects/new> | Formulario de creación de proyecto (sin sesión redirige a `/login`) |
-| `http://localhost:3000/projects/<projectId>` | Estado del proyecto e integrantes en una sola pantalla, con el reparto del backlog por estado y el enlace **Backlog**; el propietario ve además los correos, el alta y la baja de integrantes y el botón para avanzar el estado (sin sesión redirige a `/login`; un proyecto inexistente o ajeno muestra "El proyecto no existe.") |
+| `http://localhost:3000/projects/<projectId>` | Estado del proyecto e integrantes en una sola pantalla, con el sprint activo, el reparto del backlog por estado y los enlaces **Ver backlog** y **Ver sprints**; el propietario ve además los correos, el alta y la baja de integrantes y el botón para avanzar el estado (sin sesión redirige a `/login`; un proyecto inexistente o ajeno muestra "El proyecto no existe.") |
 | `http://localhost:3000/projects/<projectId>/edit` | Modificación de nombre, descripción, fechas y horas por Story Point; solo el propietario ve el formulario y el resto de los integrantes ve "Solo el propietario del proyecto puede realizar esta acción." (sin sesión redirige a `/login`; un proyecto inexistente o ajeno muestra "El proyecto no existe.") |
 | `http://localhost:3000/projects/<projectId>/backlog` | Backlog del proyecto ordenado por prioridad y antigüedad, con filtros por prioridad y estado, la marca de las historias listas para planificar y el acceso a **Nueva historia** (sin sesión redirige a `/login`) |
 | `http://localhost:3000/projects/<projectId>/backlog/new` | Formulario de alta de una historia: título, descripción, prioridad, Story Points y criterios de aceptación (sin sesión redirige a `/login`) |
-| `http://localhost:3000/projects/<projectId>/backlog/<storyId>` | Detalle de la historia con sus criterios en orden, autor y fechas; desde ahí se estima en Story Points y se elimina con confirmación (sin sesión redirige a `/login`; una historia inexistente o de un proyecto ajeno muestra "La historia no existe.") |
+| `http://localhost:3000/projects/<projectId>/backlog/<storyId>` | Detalle de la historia con sus criterios en orden, autor y fechas, y la sección "Sprints en los que estuvo" con el resultado en cada uno; desde ahí se estima en Story Points y se elimina con confirmación (sin sesión redirige a `/login`; una historia inexistente o de un proyecto ajeno muestra "La historia no existe.") |
 | `http://localhost:3000/projects/<projectId>/backlog/<storyId>/edit` | Refinamiento de título, descripción, prioridad y criterios de aceptación, que se pueden agregar, quitar y reordenar (sin sesión redirige a `/login`; una historia inexistente o de un proyecto ajeno muestra "La historia no existe.") |
+| `http://localhost:3000/projects/<projectId>/sprints` | Sprints del proyecto con su estado, en dos pestañas: **Todos** y **Cerrados** (`?view=closed`), esta última con el historial de sprints cerrados y sus totales congelados; ofrece el acceso a **Nuevo sprint** y el regreso al proyecto (sin sesión redirige a `/login`) |
+| `http://localhost:3000/projects/<projectId>/sprints/new` | Formulario de creación de un sprint: nombre, Sprint Goal, fecha de inicio y fecha de fin (sin sesión redirige a `/login`) |
+| `http://localhost:3000/projects/<projectId>/sprints/<sprintId>` | Detalle del sprint con su estado, Sprint Goal, fechas y, si está Activo, los días restantes o vencidos; las acciones **Iniciar sprint** y **Cerrar sprint** (con confirmación), **Editar sprint** y **Eliminar sprint** mientras está Planificado, las historias comprometidas con el control de su avance y **Quitar del sprint**, el diálogo **Comprometer historias del backlog** mientras el sprint está abierto y el resultado congelado cuando está cerrado (sin sesión redirige a `/login`; un sprint inexistente, eliminado o de un proyecto ajeno muestra "El sprint no existe.") |
+| `http://localhost:3000/projects/<projectId>/sprints/<sprintId>/edit` | Modificación de nombre, Sprint Goal y fechas de un sprint Planificado; un sprint Activo muestra "Solo se puede modificar un sprint Planificado." y uno Cerrado, "El sprint está cerrado y no admite cambios." (sin sesión redirige a `/login`; un sprint inexistente o de un proyecto ajeno muestra "El sprint no existe.") |
 | <http://localhost:8080/swagger/index.html> | Documentación interactiva de la API |
 
 Recorrido mínimo: crear una cuenta en `/register`, iniciar sesión en `/login`, ver el perfil en `/profile` y cerrar sesión desde ahí.
@@ -306,20 +311,32 @@ Recorrido de la gestión de proyectos, con el backend y el frontend en ejecució
 2. Iniciar sesión como Ana. Desde `/profile`, el enlace **Mis proyectos** lleva a `/projects`, que la primera vez muestra la lista vacía con un mensaje, no un error.
 3. Abrir `/projects/new` y crear un proyecto con nombre, descripción opcional, fecha de inicio, fecha de finalización prevista y horas por Story Point (entre 0,01 y 40, con hasta dos decimales). El proyecto nace en estado **Planificado**, con Ana como propietaria y única integrante, y aparece en `/projects`.
 4. Obtener el identificador del proyecto (`projectId`). El listado de la interfaz todavía no enlaza al detalle, así que el identificador se toma de la respuesta de `GET /api/v1/projects` (campo `id`), por ejemplo desde Swagger: en <http://localhost:8080/swagger/index.html>, ejecutar `POST /api/v1/auth/login` con las credenciales de Ana, copiar el token en **Authorize** como `Bearer <token>` y ejecutar `GET /api/v1/projects`.
-5. Abrir `/projects/<projectId>`: muestra el estado, las fechas, el factor, los integrantes, el sprint activo (por ahora ninguno) y el resumen del backlog. Desde ahí Ana agrega a Bruno escribiendo su correo electrónico; solo se pueden agregar cuentas ya registradas.
+5. Abrir `/projects/<projectId>`: muestra el estado, las fechas, el factor, los integrantes, el sprint activo (ninguno mientras no se inicie un sprint) y el resumen del backlog. Desde ahí Ana agrega a Bruno escribiendo su correo electrónico; solo se pueden agregar cuentas ya registradas.
 6. Abrir `/projects/<projectId>/edit` para modificar los datos del proyecto. Solo la propietaria ve el formulario.
 7. En `/projects/<projectId>`, usar **Pasar a En curso** y después **Finalizar proyecto**. Al finalizar se registra la fecha de finalización real con la fecha del día en la zona de `APP_TIMEZONE`, y el proyecto queda de solo lectura: ya no admite modificaciones, cambios de integrantes ni cambios de estado.
 8. Iniciar sesión como Bruno: ve el proyecto en `/projects` y su detalle, pero no los correos de los integrantes ni las acciones de administración. Si Ana lo quita del proyecto antes de finalizarlo, para Bruno el proyecto pasa a comportarse como inexistente.
 
 Recorrido del Product Backlog, con un proyecto que todavía no está finalizado y una sesión de cualquiera de sus integrantes:
 
-1. Abrir `/projects/<projectId>` y seguir el enlace **Backlog**, que lleva a `/projects/<projectId>/backlog`. La primera vez muestra "El backlog todavía no tiene historias.".
+1. Abrir `/projects/<projectId>` y seguir el enlace **Ver backlog**, que lleva a `/projects/<projectId>/backlog`. La primera vez muestra "El backlog todavía no tiene historias.".
 2. Usar **Nueva historia** para registrar una historia con título, prioridad, Story Points y dos criterios de aceptación. Solo el título y la prioridad son obligatorios; una historia sin Story Points queda "sin estimar". La pantalla confirma "Historia creada" con su estado Pendiente; al volver a `/projects/<projectId>/backlog`, la historia aparece marcada como lista para planificar, porque tiene Story Points y al menos un criterio.
 3. En el backlog, filtrar por prioridad y por estado, y quitar los filtros. Si ninguna historia coincide se ve "Ninguna historia coincide con los filtros", distinto del mensaje de backlog vacío.
 4. Hacer clic en una historia para abrir su detalle en `/projects/<projectId>/backlog/<storyId>`. Desde ahí se la estima eligiendo un valor de la escala (0, 1, 2, 3, 5, 8, 13, 20, 40 o 100) o se la devuelve a "sin estimar".
 5. Para refinarla, agregar `/edit` a la dirección del detalle (`/projects/<projectId>/backlog/<storyId>/edit`): se pueden cambiar el título, la descripción y la prioridad, y agregar, quitar o reordenar criterios. El estado y los Story Points no se cambian desde este formulario.
 6. Volver al detalle y usar **Eliminar historia**; la historia se elimina recién al confirmar, y la pantalla regresa al backlog. Solo se pueden eliminar historias que nunca se trabajaron.
 7. Si el proyecto pasa a **Finalizado**, el backlog y los detalles se siguen pudiendo consultar, pero crear, refinar, estimar y eliminar se rechazan con "El proyecto está finalizado y su backlog es de solo lectura.".
+
+Recorrido de la gestión de sprints, con un proyecto que todavía no está finalizado, al menos dos historias listas para planificar en su backlog y una sesión de cualquiera de sus integrantes:
+
+1. Abrir `/projects/<projectId>` y seguir el enlace **Ver sprints**, que lleva a `/projects/<projectId>/sprints`. La primera vez muestra la lista vacía con un mensaje, no un error.
+2. Usar **Nuevo sprint** para crear un sprint con nombre, Sprint Goal (hasta 500 caracteres) y fechas de inicio y fin; la fecha de fin debe ser posterior a la de inicio, y el período no puede superponerse con el de otro sprint del proyecto (compartir el día de borde no es superposición). El sprint nace **Planificado**.
+3. Abrir el sprint desde la lista para ver su detalle en `/projects/<projectId>/sprints/<sprintId>`. Con **Comprometer historias del backlog**, elegir historias listas para planificar y confirmarlas con **Comprometer historias**; cada una se puede retirar con **Quitar del sprint**, y vuelve al backlog como Pendiente.
+4. Mientras está Planificado, **Editar sprint** lleva a `/projects/<projectId>/sprints/<sprintId>/edit` para corregir nombre, Sprint Goal y fechas, y **Eliminar sprint** lo descarta tras confirmar.
+5. Usar **Iniciar sprint**: el sprint pasa a **Activo** y el detalle muestra los días restantes, con el día de fin incluido, o cuántos días lleva vencido. Solo puede haber un sprint Activo por proyecto, e iniciarlo no cambia el estado del proyecto. La vista del proyecto muestra ahora ese sprint como activo.
+6. En el detalle del sprint Activo, mover una historia con **Pasar a En progreso** y después **Marcar como completada**; mientras el sprint siga Activo, **Volver a En progreso** la desmarca.
+7. Usar **Cerrar sprint** y confirmar: las historias no completadas vuelven al backlog como Pendientes y el detalle muestra la instantánea congelada (Story Points comprometidos al inicio, planificados al cierre y completados, historias planificadas y completadas, factor al cierre y fecha real de cierre). Un sprint cerrado no se reabre ni se modifica.
+8. En `/projects/<projectId>/sprints`, la pestaña **Cerrados** muestra el historial de sprints cerrados con sus totales. En el detalle de una historia del backlog, la sección "Sprints en los que estuvo" muestra cada sprint y su resultado.
+9. Si el proyecto pasa a **Finalizado**, los sprints se siguen pudiendo consultar, pero toda modificación se rechaza con "El proyecto está finalizado y sus sprints son de solo lectura.".
 
 La API expone estos endpoints bajo `/api/v1`; solo el registro y el inicio de sesión son públicos, los demás exigen la cabecera `Authorization: Bearer <token>`. Fuera de `/api/v1`, la documentación Swagger (`/swagger/index.html`) también es pública, como excepción documentada a la regla RN-08 de `specs/001-user-auth/spec.md`:
 
@@ -342,10 +359,21 @@ La API expone estos endpoints bajo `/api/v1`; solo el registro y el inicio de se
 | `PATCH` | `/api/v1/stories/{storyId}` | Refinamiento de título, descripción, prioridad o criterios de aceptación; solo cambian los campos enviados |
 | `DELETE` | `/api/v1/stories/{storyId}` | Eliminación de una historia que nunca se trabajó (cualquier integrante) |
 | `PUT` | `/api/v1/stories/{storyId}/story-points` | Estimación en Story Points con la escala 0, 1, 2, 3, 5, 8, 13, 20, 40 y 100, o `null` para dejarla sin estimar |
+| `POST` | `/api/v1/projects/{projectId}/sprints` | Creación de un sprint Planificado en el proyecto (cualquier integrante) |
+| `GET` | `/api/v1/projects/{projectId}/sprints` | Listado de los sprints del proyecto por fecha de inicio descendente; admite el filtro opcional y repetible `status` (`planned`, `active`, `closed`), y con `?status=closed` devuelve el historial de cerrados con sus totales congelados |
+| `GET` | `/api/v1/sprints/{sprintId}` | Detalle de un sprint con sus historias comprometidas y, si está cerrado, su instantánea (cualquier integrante) |
+| `PUT` | `/api/v1/sprints/{sprintId}` | Modificación de nombre, Sprint Goal y fechas de un sprint Planificado |
+| `DELETE` | `/api/v1/sprints/{sprintId}` | Eliminación de un sprint Planificado que nunca fue iniciado |
+| `POST` | `/api/v1/sprints/{sprintId}/stories` | Compromiso de historias del backlog en un sprint Planificado o Activo |
+| `DELETE` | `/api/v1/sprints/{sprintId}/stories` | Retiro de historias del sprint, que vuelven al backlog como Pendientes |
+| `POST` | `/api/v1/sprints/{sprintId}/start` | Inicio de un sprint Planificado; como máximo un sprint Activo por proyecto |
+| `POST` | `/api/v1/sprints/{sprintId}/close` | Cierre del sprint Activo: devuelve al backlog las historias no completadas y congela su instantánea |
+| `PUT` | `/api/v1/stories/{storyId}/status` | Registro del avance de una historia del sprint Activo (`pending`, `in_progress`, `completed`) |
+| `GET` | `/api/v1/stories/{storyId}/sprints` | Sprints en los que estuvo una historia y su resultado en cada uno |
 
-Un proyecto inexistente y un proyecto del que no se es integrante responden el mismo `404`, para no revelar qué proyectos existen. Las acciones de administración devuelven `403` a un integrante que no es el propietario. Del mismo modo, una historia inexistente y una historia de un proyecto del que no se es integrante responden el mismo `404`. Cuando el proyecto está finalizado, las acciones que modifican el backlog (crear, refinar, estimar y eliminar) responden `409`.
+Un proyecto inexistente y un proyecto del que no se es integrante responden el mismo `404`, para no revelar qué proyectos existen. Las acciones de administración devuelven `403` a un integrante que no es el propietario. Del mismo modo, una historia inexistente y una historia de un proyecto del que no se es integrante responden el mismo `404`, y lo mismo ocurre con un sprint inexistente, eliminado o de un proyecto ajeno. Cuando el proyecto está finalizado, las acciones que modifican el backlog (crear, refinar, estimar y eliminar) y todas las escrituras sobre sus sprints responden `409`. También responden `409` las operaciones de sprints que violan una regla del dominio, por ejemplo un período superpuesto, un segundo sprint Activo o la modificación de un sprint cerrado.
 
-Las guías de validación de punta a punta, con ejemplos de `curl` para cada historia, están en [`specs/001-user-auth/quickstart.md`](./specs/001-user-auth/quickstart.md), [`specs/002-project-members/quickstart.md`](./specs/002-project-members/quickstart.md) y [`specs/003-product-backlog/quickstart.md`](./specs/003-product-backlog/quickstart.md).
+Las guías de validación de punta a punta, con ejemplos de `curl` para cada historia, están en [`specs/001-user-auth/quickstart.md`](./specs/001-user-auth/quickstart.md), [`specs/002-project-members/quickstart.md`](./specs/002-project-members/quickstart.md), [`specs/003-product-backlog/quickstart.md`](./specs/003-product-backlog/quickstart.md) y [`specs/004-sprint-management/quickstart.md`](./specs/004-sprint-management/quickstart.md).
 
 ### 9. Ejecutar las pruebas
 
@@ -356,9 +384,10 @@ cd backend
 go vet ./...
 go test ./...
 
-# Solo las pruebas de un módulo (por ejemplo, la gestión de proyectos o el backlog)
+# Solo las pruebas de un módulo (por ejemplo, la gestión de proyectos, el backlog o los sprints)
 go test ./internal/projects/...
 go test ./internal/backlog/...
+go test ./internal/sprints/...
 
 # Solo las pruebas de una historia de usuario (por ejemplo, US1)
 go test ./... -run TestUS1
@@ -376,7 +405,7 @@ npx next typegen && npx tsc --noEmit   # Comprobación de tipos
 
 `next typegen` genera los tipos de las rutas de Next.js (por ejemplo, `LayoutProps`) que `tsc` necesita; sin él, la comprobación de tipos falla en un clon recién hecho. `npm run dev` y `npm run build` también los generan.
 
-Cada escenario de las specs tiene una prueba rastreable: buscar `001/US1` (o `002/US3`, `003/US5`, etc.) en el código de pruebas muestra cuáles lo cubren. El prefijo es el número de la spec y `USn`, la historia de usuario. Los comandos de cobertura están en [Cobertura de Pruebas](#cobertura-de-pruebas).
+Cada escenario de las specs tiene una prueba rastreable: buscar `001/US1` (o `002/US3`, `003/US5`, `004/US7`, etc.) en el código de pruebas muestra cuáles lo cubren. El prefijo es el número de la spec y `USn`, la historia de usuario. Los comandos de cobertura están en [Cobertura de Pruebas](#cobertura-de-pruebas).
 
 ### 10. Ejecución con Docker
 

@@ -268,7 +268,7 @@ desconectado.
 - [X] T021 [P] [US1] Implementar `ViewFor(snapshot, viewerID)` en
       `backend/internal/poker/domain/view.go` con lo que cubre T013; los votos se agregan en US2 —
       depende de T013
-- [ ] T022 [US1] Implementar en `backend/internal/poker/repository/session_repository.go`
+- [X] T022 [US1] Implementar en `backend/internal/poker/repository/session_repository.go`
       `FindAccessible` (una consulta `estimation_sessions → user_stories → project_members` con la
       membresía vigente del titular; sin fila → `ErrSessionNotFound`), `Open` (transacción que
       bloquea la fila de `user_stories` con `clause.Locking{Strength: "UPDATE"}`, lee su `status` y

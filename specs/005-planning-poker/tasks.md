@@ -398,7 +398,7 @@ nadie ve el valor ajeno.
 
 ### Implementación de la Historia 2
 
-- [ ] T038 [P] [US2] Implementar `ParseCard` en `backend/internal/poker/domain/card.go` — depende de
+- [X] T038 [P] [US2] Implementar `ParseCard` en `backend/internal/poker/domain/card.go` — depende de
       T033
 - [ ] T039 [US2] Implementar la validación del cuerpo del voto en
       `backend/internal/poker/delivery/validation.go`, con los dos mensajes como constantes nombradas

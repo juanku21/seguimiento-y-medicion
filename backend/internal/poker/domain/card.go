@@ -1,8 +1,10 @@
 package domain
 
 import (
-	"errors"
+	"fmt"
+	"slices"
 	"strconv"
+	"strings"
 
 	backlogdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/domain"
 )
@@ -30,6 +32,23 @@ func buildCards() []Card {
 
 // ParseCard convierte el texto recibido en una carta admitida o devuelve un error que enumera las
 // cartas en orden (FR-020, FR-025, RN-06).
+// La comparación es exacta contra Cards, sin recortar espacios ni interpretar números, así que el
+// texto vacío, " 5", "1.5" o "??" se rechazan.
 func ParseCard(text string) (Card, error) {
-	return "", errors.New("not implemented")
+	card := Card(text)
+	if !slices.Contains(Cards, card) {
+		return "", fmt.Errorf("la carta %q no es válida; cartas admitidas: %s", text, admittedCardsList())
+	}
+	return card, nil
+}
+
+// admittedCardsList arma la lista legible de cartas en orden, separadas por comas y con "y" antes de
+// la última, por ejemplo "0, 1, 2, 3, 5, 8, 13, 20, 40, 100 y ?".
+func admittedCardsList() string {
+	texts := make([]string, len(Cards))
+	for i, card := range Cards {
+		texts[i] = string(card)
+	}
+	last := len(texts) - 1
+	return strings.Join(texts[:last], ", ") + " y " + texts[last]
 }

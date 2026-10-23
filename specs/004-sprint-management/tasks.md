@@ -940,7 +940,7 @@ T088 es de caracterización sin RED y T089 y T090 siguen el ciclo normal.
 
 Propósito: ajustes transversales detectados por /speckit-converge y /revisar-seguridad.
 
-- [ ] T099 Prueba de concurrencia en `backend/internal/sprints/delivery/sprint_concurrency_test.go`
+- [X] T099 Prueba de concurrencia en `backend/internal/sprints/delivery/sprint_concurrency_test.go`
       que lance a la vez el cierre de un sprint Activo y avances de sus historias, y verifique que
       ninguna petición responde `500` y que el resultado es coherente (o el avance entra antes del
       cierre o se rechaza con `409`) per plan: research.md §13 serialización del avance contra el

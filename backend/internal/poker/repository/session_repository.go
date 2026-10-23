@@ -293,9 +293,69 @@ func touchSession(tx *gorm.DB, sessionID uuid.UUID, now time.Time) error {
 	return nil
 }
 
-// Vote registra o cambia la carta de un participante. Firma mínima de T014.
+// Vote registra o cambia la carta de un participante en una transacción que bloquea la sesión con
+// lockOpenSession (FR-020 a FR-022, RN-07). Exige que quien vota sea participante conectado (si no,
+// ErrNotParticipant) y que la ronda vigente, la de mayor número, siga en votación (si no,
+// ErrRoundRevealed). El voto se guarda con un upsert sobre el índice único (round_id, participant_id):
+// el primero inserta la fila y los siguientes actualizan card y updated_at sobre la misma fila,
+// conservando su id y su created_at. El voto es un hecho, así que touchSession fija
+// last_activity_at = now y sube version.
 func (r *SessionRepository) Vote(ctx context.Context, sessionID, userID uuid.UUID, card domain.Card, now time.Time) error {
-	return errNotImplemented
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockOpenSession(tx, sessionID); err != nil {
+			return err
+		}
+
+		// Se busca la fila conectada de la persona con Find y LIMIT 1, porque no tenerla es un
+		// rechazo esperado y no un error de la base.
+		var participants []domain.EstimationParticipant
+		err := tx.
+			Select("id").
+			Where("session_id = ? AND user_id = ? AND connected = ?", sessionID, userID, true).
+			Limit(1).
+			Find(&participants).Error
+		if err != nil {
+			return fmt.Errorf("buscar al participante que vota: %w", err)
+		}
+		if len(participants) == 0 {
+			return domain.ErrNotParticipant
+		}
+
+		// La ronda vigente es la de mayor número y solo admite votos mientras está en votación.
+		var round domain.EstimationRound
+		err = tx.
+			Select("id, status").
+			Where("session_id = ?", sessionID).
+			Order("number DESC").
+			Take(&round).Error
+		if err != nil {
+			return fmt.Errorf("leer la ronda vigente de la sesión: %w", err)
+		}
+		if round.Status != domain.RoundStatusVoting {
+			return domain.ErrRoundRevealed
+		}
+
+		// El upsert deja una sola fila por participante y ronda; ante el conflicto solo cambian la
+		// carta y el momento de emisión.
+		vote := domain.EstimationVote{
+			ID:            uuid.New(),
+			RoundID:       round.ID,
+			ParticipantID: participants[0].ID,
+			Card:          card,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+		err = tx.
+			Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "round_id"}, {Name: "participant_id"}},
+				DoUpdates: clause.AssignmentColumns([]string{"card", "updated_at"}),
+			}).
+			Create(&vote).Error
+		if err != nil {
+			return fmt.Errorf("registrar el voto del participante: %w", err)
+		}
+		return touchSession(tx, sessionID, now)
+	})
 }
 
 // Reveal revela manualmente la ronda vigente. Firma mínima de T014.

@@ -405,7 +405,7 @@ nadie ve el valor ajeno.
       en un único lugar y sin llegar al servicio ante un error (Principio VII) — depende de T034, T038
 - [X] T040 [P] [US2] Completar `ViewFor` en `backend/internal/poker/domain/view.go` con `hasVoted`,
       `myVote` y los votos de las rondas reveladas — depende de T035
-- [ ] T041 [US2] Implementar `Vote` en `backend/internal/poker/repository/session_repository.go`:
+- [X] T041 [US2] Implementar `Vote` en `backend/internal/poker/repository/session_repository.go`:
       bloqueo de la sesión, `EnsureOpen`, participante con `connected = true` (si no →
       `ErrNotParticipant`), ronda vigente `voting` (si no → `ErrRoundRevealed`), upsert de la fila
       única `(round_id, participant_id)` actualizando `card` y `updated_at`, `last_activity_at = now`

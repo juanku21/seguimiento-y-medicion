@@ -55,15 +55,12 @@ func (e *OpenSessionExistsError) Error() string {
 }
 
 // FacilitatorUnavailableError rechaza tomar el rol de facilitador sin cumplir FR-068. Facilitator
-// identifica al facilitador vigente con su identificador y su nombre completo, y RetryAfter indica
-// cuánto falta para que el rol quede disponible: es cero si el facilitador está conectado. Delivery
-// lo reconoce con errors.As para armar la respuesta 409.
+// identifica al facilitador vigente con un UserRef (identificador y nombre completo), y RetryAfter
+// indica cuánto falta para que el rol quede disponible: es cero si el facilitador está conectado.
+// Delivery lo reconoce con errors.As para armar la respuesta 409.
 type FacilitatorUnavailableError struct {
-	Facilitator struct {
-		ID       uuid.UUID
-		FullName string
-	}
-	RetryAfter time.Duration
+	Facilitator UserRef
+	RetryAfter  time.Duration
 }
 
 // Error devuelve un mensaje fijo; el facilitador y la espera se exponen en los campos y no en el

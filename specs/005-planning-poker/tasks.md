@@ -138,7 +138,7 @@ estructuras y contratos, sin lógica de negocio.
       `SessionClosedError` (con `Status`, `CancelReason *CancelReason` y `AgreedStoryPoints *int`),
       `OpenSessionExistsError` (con `SessionID`) y `FacilitatorUnavailableError` (con `Facilitator`
       de `ID` y `FullName`, y `RetryAfter time.Duration`, cero si el facilitador está conectado)
-- [ ] T007 Declarar en `backend/internal/poker/domain/repository.go` la interfaz `SessionRepository`
+- [X] T007 Declarar en `backend/internal/poker/domain/repository.go` la interfaz `SessionRepository`
       con **exactamente** las diecisiete operaciones de data-model.md sección 9 (`FindAccessible`,
       `Open`, `Connect`, `Disconnect`, `Vote`, `Reveal`, `StartRound`, `Finalize`, `Cancel`,
       `TakeFacilitator`, `AutoCancel`, `ResetPresence`, `ListOpenForSweep`,

@@ -182,11 +182,12 @@ desconectado.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T010 [P] [US1] Pruebas unitarias **obligatorias** de `SessionStatus.EnsureOpen` en
-      `backend/internal/poker/domain/status_test.go`, cubriendo RN-22: `open` → ok; `finished` con
-      valor 8 → `SessionClosedError` con `Status` `finished` y `AgreedStoryPoints` 8; `canceled` con
-      motivo `inactivity` y sin motivo → `SessionClosedError` con el motivo correspondiente — depende
-      de T009
+- [ ] T010 [P] [US1] Pruebas unitarias **obligatorias** de
+      `SessionStatus.EnsureOpen(reason *CancelReason, agreedStoryPoints *int) error` en
+      `backend/internal/poker/domain/status_test.go`, cubriendo RN-22: `open` → ok (aunque reciba
+      motivo o valor); `finished` con valor 8 → `SessionClosedError` con `Status` `finished` y
+      `AgreedStoryPoints` 8; `canceled` con motivo `inactivity` y sin motivo → `SessionClosedError`
+      con `Status` `canceled` y `CancelReason` `inactivity` o `nil` según el caso — depende de T009
 - [ ] T011 [P] [US1] Pruebas unitarias **obligatorias** de `Presence` en
       `backend/internal/poker/service/presence_test.go`, cubriendo RN-23 y RN-34, con instantes
       explícitos: la primera conexión de un par (sesión, usuario) informa "llegó" y la segunda no; al
@@ -253,7 +254,8 @@ desconectado.
 
 ### Implementación de la Historia 1
 
-- [ ] T018 [P] [US1] Implementar `SessionStatus.EnsureOpen` en
+- [ ] T018 [P] [US1] Implementar
+      `SessionStatus.EnsureOpen(reason *CancelReason, agreedStoryPoints *int) error` en
       `backend/internal/poker/domain/status.go` — depende de T010
 - [ ] T019 [P] [US1] Implementar `Presence` en `backend/internal/poker/service/presence.go`: mapa
       protegido por `sync.Mutex` de (sesión, usuario) a cantidad de conexiones y momento de la

@@ -101,3 +101,18 @@ export type OpenSessionExistsResponse = {
   error: string;
   sessionId: string;
 };
+
+// Rechazo de una acción o del canal sobre una sesión cerrada, con el resultado registrado
+// (SessionClosedResponse, FR-018, FR-055, FR-060).
+export type SessionClosedResponse = {
+  error: string;
+  status: Exclude<SessionStatus, "open">;
+  agreedStoryPoints: ScaleStoryPoints | null;
+  cancelReason: CancelReason | null;
+};
+
+// Evento del canal GET /api/v1/estimation-sessions/{sessionId}/events ya interpretado: state trae la
+// sesión completa (FR-073, FR-077) y removed avisa que quien pide dejó de ser integrante y el canal
+// se cierra (FR-019). Los comentarios ": ping" no llegan como evento.
+export type EstimationEvent =
+  { event: "state"; session: EstimationSession } | { event: "removed" };

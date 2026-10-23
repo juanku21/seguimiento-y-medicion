@@ -323,7 +323,7 @@ desconectado.
       `ResetPresence` antes de escuchar, `go sessions.Run(ctx, time.Second)` y
       `RequireStoryAccess` de la 003 sobre la misma instancia del repositorio de historias, más el
       `@description` general de la API para que mencione el Planning Poker — depende de T026
-- [ ] T028 [P] [US1] Declarar los tipos de petición, respuesta y evento en
+- [X] T028 [P] [US1] Declarar los tipos de petición, respuesta y evento en
       `frontend/src/types/poker.ts` y, en `frontend/src/utils/poker-labels.ts`, las etiquetas en
       español de data-model.md sección 5 (`open` → Abierta, `finished` → Finalizada, `canceled` →
       Cancelada; `voting` → En votación, `revealed` → Revelada; `inactivity` → Por inactividad,

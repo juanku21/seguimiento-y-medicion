@@ -928,7 +928,7 @@ T088 es de caracterización sin RED y T089 y T090 siguen el ciclo normal.
       responde a quien no integra el proyecto el mismo `404` ante una historia ajena que ante un
       `storyId` inexistente (código, tipo de contenido y cuerpo byte a byte, sin cambiar filas)
       per SC-014 (partial)
-- [ ] T108 Agregar la referencia `RN-10`, `RN-13`, `RN-14` y `RN-16` al comentario de las pruebas
+- [X] T108 Agregar la referencia `RN-10`, `RN-13`, `RN-14` y `RN-16` al comentario de las pruebas
       que ya cubren esas reglas en `backend/internal/sprints/` (retiro de una historia del sprint,
       devolución al backlog al cerrar, registro de historias del sprint cerrado e inmutabilidad de
       la instantánea), sin cambiar su lógica, para que buscar cada regla en las pruebas la encuentre

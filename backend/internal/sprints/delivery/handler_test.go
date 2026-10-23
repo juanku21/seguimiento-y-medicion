@@ -955,7 +955,8 @@ func TestUS2_AsignacionEnSprintActivo(t *testing.T) {
 
 // Escenario: Quitar de un sprint Planificado (004/US2)
 // Quitar una historia comprometida en un sprint Planificado la devuelve al backlog en pending y sin
-// sprint (sin fila en sprint_stories), y después puede asignarse a otro sprint (FR-021, FR-022).
+// sprint (sin fila en sprint_stories), y después puede asignarse a otro sprint (FR-021, FR-022,
+// RN-10).
 func TestUS2_QuitarDeSprintPlanificado(t *testing.T) {
 	f := newSprintUS2Fixture(t)
 	storyID := f.env.createReadyStory(t, f.brunoToken, f.projectID, "Exportar el reporte")
@@ -997,7 +998,7 @@ func TestUS2_ReestimacionDeComprometida(t *testing.T) {
 
 // Escenario: Quitar la única historia de un sprint Activo (004/US2)
 // Quitar la única historia de un sprint Activo lo deja sin historias y sigue active, sin que sea un
-// error; la historia, que estaba en progreso, vuelve a pending (FR-022).
+// error; la historia, que estaba en progreso, vuelve a pending (FR-022, RN-10).
 func TestUS2_QuitarUnicaHistoriaDeSprintActivo(t *testing.T) {
 	f := newSprintUS2Fixture(t)
 	activeID := sprintSeedInStatus(t, f.env.db, f.projectID, f.anaID, "Sprint 2", "2026-10-15", "2026-10-28", domain.SprintStatusActive)
@@ -2194,7 +2195,7 @@ func (f sprintUS5Fixture) advance(t *testing.T, storyID uuid.UUID, to string) {
 // Bruno cierra un sprint Activo con cuatro historias de 8, 5, 5 y 3 Story Points (21), dos completadas
 // por 13, una en progreso y una pendiente: responde 200 con el sprint closed, 21 planificados y 13
 // completados; las dos no completadas vuelven pending y sin compromiso abierto, y el sprint conserva
-// cuatro filas congeladas (FR-039, FR-041 a FR-043, RN-15).
+// cuatro filas congeladas (FR-039, FR-041 a FR-043, RN-13, RN-14, RN-15).
 func TestUS5_CierreParcial(t *testing.T) {
 	f := newSprintUS5Fixture(t, "2026-10-15", "2026-10-28")
 	ids := f.activeWith(t, 8, 5, 5, 3)
@@ -2288,7 +2289,7 @@ func TestUS5_AlcanceAgregado(t *testing.T) {
 // Cerrado un sprint con una historia completada de 8 y una pendiente de 5, renombrar y reestimar la
 // pendiente con la 003 y cambiar el factor del proyecto a 8 con la 002 no altera el sprint: el
 // detalle es idéntico byte a byte antes y después, y la fila del sprint y sus filas congeladas en la
-// base no cambian (FR-044, SC-008).
+// base no cambian (FR-044, RN-16, SC-008).
 func TestUS5_InmutableTrasElCierre(t *testing.T) {
 	f := newSprintUS5Fixture(t, "2026-10-15", "2026-10-28")
 	ids := f.activeWith(t, 8, 5)
@@ -2338,7 +2339,7 @@ func TestUS5_InmutableTrasElCierre(t *testing.T) {
 // Escenario: Sin completadas (004/US5)
 // Un sprint Activo con una historia pendiente (5) y una en progreso (3) se cierra igual: los Story
 // Points completados quedan en 0, las dos historias vuelven al backlog y el sprint conserva sus dos
-// filas como not_completed (FR-045).
+// filas como not_completed (FR-045, RN-13, RN-14).
 func TestUS5_SinCompletadas(t *testing.T) {
 	f := newSprintUS5Fixture(t, "2026-10-15", "2026-10-28")
 	ids := f.activeWith(t, 5, 3)
@@ -3019,7 +3020,8 @@ func TestUS6_SinDiasRestantesFueraDeActivo(t *testing.T) {
 // Escenario: Detalle desde la instantánea (004/US6)
 // Cerrado un sprint con una historia no completada ("Historia de Sprint 1 1", prioridad alta, 5 Story
 // Points), renombrarla, cambiarle la prioridad y reestimarla con la 003 no cambia el detalle del
-// sprint: muestra el título, la prioridad y los Story Points que tenía al cerrarse (FR-043, FR-053).
+// sprint: muestra el título, la prioridad y los Story Points que tenía al cerrarse (FR-043, FR-053,
+// RN-16).
 func TestUS6_DetalleDesdeLaInstantanea(t *testing.T) {
 	f := newSprintUS6Fixture(t)
 	sprintID := f.createSprint(t, "Sprint 1", "2026-10-01", "2026-10-14")

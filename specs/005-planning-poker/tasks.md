@@ -364,7 +364,7 @@ nadie ve el valor ajeno.
 
 ### Pruebas de la Historia 2 ⚠️
 
-- [ ] T033 [P] [US2] Pruebas unitarias **obligatorias** de `ParseCard` en
+- [X] T033 [P] [US2] Pruebas unitarias **obligatorias** de `ParseCard` en
       `backend/internal/poker/domain/card_test.go`, cubriendo RN-06 y SC-010: las once cartas
       admitidas aceptadas; `4`, `6`, `7`, `50`, `101`, `-1`, `1.5`, `" 5"` y `"??"` rechazados con un
       error que enumera las cartas en orden — depende de T032

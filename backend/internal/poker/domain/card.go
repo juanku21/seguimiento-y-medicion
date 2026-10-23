@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"errors"
 	"strconv"
 
 	backlogdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/domain"
@@ -25,4 +26,10 @@ func buildCards() []Card {
 		cards = append(cards, Card(strconv.Itoa(points)))
 	}
 	return append(cards, CardUnknown)
+}
+
+// ParseCard convierte el texto recibido en una carta admitida o devuelve un error que enumera las
+// cartas en orden (FR-020, FR-025, RN-06).
+func ParseCard(text string) (Card, error) {
+	return "", errors.New("not implemented")
 }

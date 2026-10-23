@@ -1006,7 +1006,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       transacción, y quitar `FindOpenCommitment` de la interfaz y de la frase que lo exceptúa del
       `(nil, nil)` per plan: modelo de datos (contradicts) — origen: converge, detectado en
       fase/004-converge-and-foundational
-- [ ] T114 Documentar en la respuesta `400` de `GET /api/v1/projects/{projectId}/sprints` en
+- [X] T114 Documentar en la respuesta `400` de `GET /api/v1/projects/{projectId}/sprints` en
       `specs/004-sprint-management/contracts/openapi.yaml` la query mal formada, que responde solo con
       `error` (`ErrorResponse`), con `oneOf` sobre `ValidationErrorResponse` y `ErrorResponse` y una
       descripción, como el `409` de la creación de sprints per plan: contrato de la API

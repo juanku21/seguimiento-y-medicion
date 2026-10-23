@@ -284,7 +284,7 @@ desconectado.
       `version`) y `FindSnapshot` (sesión, historia con criterios en orden **sin**
       `story_points`, participantes, rondas y votos con `JOIN` a `users` que **selecciona solo
       `users.id` y `users.full_name`**) — depende de T007, T015, T018
-- [ ] T023 [US1] Implementar en `backend/internal/poker/service/session_service.go` el constructor
+- [X] T023 [US1] Implementar en `backend/internal/poker/service/session_service.go` el constructor
       `NewSessionService(repo SessionRepository, now func() time.Time)`, con la firma definitiva para
       que no cambie en las historias siguientes (crea `Presence` y el hub); `Open`; `Join(ctx,
       access, userID)`, que suscribe al hub, cuenta la conexión en `Presence` y, si es la primera,

@@ -796,7 +796,7 @@ responde `409` con el motivo `estimation_sessions`.
       `backend/internal/backlog/repository/estimation_sessions_test.go`, cubriendo RN-33 y SC-023:
       sin sesiones → `false`; con una sesión `open`, `finished` o `canceled` → `true`; las sesiones de
       otra historia no cuentan — depende de T084
-- [ ] T087 [P] [US8] Pruebas de frontend en
+- [X] T087 [P] [US8] Pruebas de frontend en
       `frontend/src/features/poker/components/story-estimation-section.test.tsx`, con
       `describe("005/US8 - Consultar el historial de estimación de una historia")`: la sección lista
       las sesiones con estado, valor y cantidad de rondas, muestra "Sesión en curso" con **Unirse**,

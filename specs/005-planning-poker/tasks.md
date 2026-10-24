@@ -801,7 +801,7 @@ responde `409` con el motivo `estimation_sessions`.
       `describe("005/US8 - Consultar el historial de estimación de una historia")`: la sección lista
       las sesiones con estado, valor y cantidad de rondas, muestra "Sesión en curso" con **Unirse**,
       y el mensaje de historia sin sesiones
-- [ ] T087a [US8] Pruebas de frontend de la vista de una sesión cerrada en
+- [X] T087a [US8] Pruebas de frontend de la vista de una sesión cerrada en
       `frontend/src/features/poker/components/poker-room.test.tsx`, con
       `describe("005/US8 - Consultar el historial de estimación de una historia")`: cuando el canal
       responde `409` (FR-018), la pantalla no se une ni muestra un error, consulta la sesión con

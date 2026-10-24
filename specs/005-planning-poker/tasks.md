@@ -846,7 +846,7 @@ documentación viva, cobertura, vulnerabilidades y verificación de las puertas 
 
 **Rama**: `fase/005-polish`
 
-- [ ] T091 Pruebas de integración de caracterización en
+- [X] T091 Pruebas de integración de caracterización en
       `backend/internal/poker/delivery/handler_test.go`, **sin** etiqueta `005/USn`:
       `TestPokerEndpoints_SinSesion`, con un subtest por cada uno de los **diez** endpoints sin
       cabecera y con token adulterado → `401` y ningún cambio (SC-017);

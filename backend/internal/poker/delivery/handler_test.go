@@ -3937,3 +3937,296 @@ func TestUS8_EliminacionBloqueada(t *testing.T) {
 		})
 	}
 }
+
+// Pruebas de integración de caracterización de la fase Polish (T091): recorren los diez endpoints
+// de Planning Poker sobre el mismo router compuesto como cmd/app y contra smye_test, y verifican de
+// forma transversal las puertas de seguridad que ya cumplen las historias: sin sesión válida se
+// responde 401 sin ningún cambio (SC-017); quien no integra el proyecto recibe un 404 idéntico byte
+// a byte al de un identificador inexistente (SC-018); una ronda en votación no expone la carta de su
+// autor por ninguna forma de consulta (SC-005), y ninguna respuesta incluye el hash de la contraseña
+// (Principio VI). No llevan la etiqueta de historia porque no derivan de un escenario de spec.md.
+
+// pokerSessionRequiredBody es el cuerpo exacto del 401 de la 001 cuando falta la sesión o el token
+// no es válido.
+const pokerSessionRequiredBody = `{"error":"Se requiere iniciar sesión."}`
+
+// pokerEndpoint es uno de los diez endpoints de la feature: su nombre para el subtest, el método, la
+// ruta ya armada y el cuerpo JSON opcional que llevaría una petición válida.
+type pokerEndpoint struct {
+	name   string
+	method string
+	path   string
+	body   any
+}
+
+// pokerStoryEndpoints arma las dos rutas de historia de la feature, la apertura y el historial,
+// sobre la historia indicada.
+func pokerStoryEndpoints(storyID uuid.UUID) []pokerEndpoint {
+	return []pokerEndpoint{
+		{name: "abrir sesión", method: http.MethodPost, path: openSessionPath(storyID)},
+		{name: "historial de la historia", method: http.MethodGet, path: openSessionPath(storyID)},
+	}
+}
+
+// pokerSessionEndpoints arma las ocho rutas de sesión de la feature sobre el identificador indicado,
+// con un cuerpo válido en el voto y en el registro de la estimación.
+func pokerSessionEndpoints(sessionID string) []pokerEndpoint {
+	return []pokerEndpoint{
+		{name: "consultar sesión", method: http.MethodGet, path: sessionPath(sessionID)},
+		{name: "canal de eventos", method: http.MethodGet, path: eventsPath(sessionID)},
+		{name: "iniciar ronda", method: http.MethodPost, path: roundsPath(sessionID)},
+		{name: "votar", method: http.MethodPut, path: votePath(sessionID), body: map[string]any{"card": "5"}},
+		{name: "revelar", method: http.MethodPost, path: revealPath(sessionID)},
+		{name: "registrar estimación", method: http.MethodPost, path: finalizePath(sessionID), body: map[string]any{"storyPoints": 5}},
+		{name: "cancelar", method: http.MethodPost, path: cancelPath(sessionID)},
+		{name: "tomar el rol de facilitador", method: http.MethodPost, path: facilitatorPath(sessionID)},
+	}
+}
+
+// pokerTamperedToken altera un carácter en el medio de la firma del JWT, de modo que los bytes
+// firmados cambian con seguridad (el último carácter podría variar solo bits de relleno) y el token
+// deja de ser válido aunque conserve su forma.
+func pokerTamperedToken(t *testing.T, token string) string {
+	t.Helper()
+	require.Greater(t, len(token), 20, "el token de prueba es demasiado corto: %q", token)
+	tampered := []byte(token)
+	i := len(tampered) - 10
+	if tampered[i] == 'A' {
+		tampered[i] = 'B'
+	} else {
+		tampered[i] = 'A'
+	}
+	return string(tampered)
+}
+
+// pokerStateFingerprint serializa, ordenadas por identificador, todas las filas de las cuatro tablas
+// de la feature y los Story Points con la fecha de actualización de cada historia, para comparar el
+// estado de la base antes y después de una petición rechazada.
+func pokerStateFingerprint(t *testing.T, db *gorm.DB) string {
+	t.Helper()
+	snapshot := map[string][]map[string]any{}
+	models := map[string]any{
+		"estimation_sessions":     &domain.EstimationSession{},
+		"estimation_participants": &domain.EstimationParticipant{},
+		"estimation_rounds":       &domain.EstimationRound{},
+		"estimation_votes":        &domain.EstimationVote{},
+	}
+	for name, model := range models {
+		var rows []map[string]any
+		require.NoError(t, db.Model(model).Order("id").Find(&rows).Error, "no se pudo leer %s", name)
+		snapshot[name] = rows
+	}
+	var stories []map[string]any
+	require.NoError(t, db.Table("user_stories").Select("id, story_points, updated_at").Order("id").Find(&stories).Error,
+		"no se pudieron leer las historias")
+	snapshot["user_stories"] = stories
+	data, err := json.Marshal(snapshot)
+	require.NoError(t, err, "no se pudo serializar el estado de la base")
+	return string(data)
+}
+
+// requireNoPasswordHash exige que el cuerpo no incluya el hash de la contraseña bajo ninguno de sus
+// dos nombres posibles (Principio VI).
+func requireNoPasswordHash(t *testing.T, body []byte, where string) {
+	t.Helper()
+	assert.False(t, bytes.Contains(body, []byte("password_hash")), "%s: la respuesta incluye password_hash: %s", where, body)
+	assert.False(t, bytes.Contains(body, []byte("passwordHash")), "%s: la respuesta incluye passwordHash: %s", where, body)
+}
+
+// TestPokerEndpoints_SinSesion verifica que cada uno de los diez endpoints, sin cabecera de
+// autorización y con un token adulterado de Ana, propietaria y facilitadora, responde el 401 de la
+// 001 y no cambia nada en la base: ni sesiones, ni participantes, ni rondas, ni votos, ni los Story
+// Points de las historias (SC-017, Principio VI). La apertura apunta a una segunda historia sin
+// sesión, donde una petición válida sí crearía una.
+func TestPokerEndpoints_SinSesion(t *testing.T) {
+	f := newPokerUS1Fixture(t)
+	session := f.env.requireOpenedSession(t, f.anaToken, f.storyID)
+	freeStoryID := f.env.createStory(t, f.brunoToken, f.projectID, pokerStoryInput{Title: "Historia sin sesión"})
+	endpoints := append(pokerStoryEndpoints(freeStoryID), pokerSessionEndpoints(session.ID)...)
+	require.Len(t, endpoints, 10, "la feature expone diez endpoints")
+
+	// Cada endpoint se prueba sin cabecera y con el token adulterado, comparando la base antes y
+	// después de la petición.
+	credentials := []struct {
+		name  string
+		token string
+	}{
+		{name: "sin cabecera", token: ""},
+		{name: "token adulterado", token: pokerTamperedToken(t, f.anaToken)},
+	}
+	for _, ep := range endpoints {
+		t.Run(ep.name, func(t *testing.T) {
+			for _, cred := range credentials {
+				before := pokerStateFingerprint(t, f.env.db)
+				resp := f.env.do(t, ep.method, ep.path, cred.token, ep.body)
+
+				where := ep.method + " " + ep.path + " " + cred.name
+				assert.Equal(t, http.StatusUnauthorized, resp.Code, "%s: cuerpo: %s", where, resp.Body)
+				assert.Equal(t, pokerSessionRequiredBody, string(resp.Body), "%s: el cuerpo debería ser el de la 001", where)
+				requireNoPasswordHash(t, resp.Body, where)
+				assert.Equal(t, before, pokerStateFingerprint(t, f.env.db), "%s: la base no debería cambiar", where)
+			}
+		})
+	}
+	assert.Zero(t, pokerSessionRows(t, f.env.db, freeStoryID), "la historia libre no debería tener sesiones")
+}
+
+// TestPokerEndpoints_NotFoundIndistinguible verifica que Diego, que no integra el proyecto, recibe en
+// las ocho rutas de sesión el mismo código, tipo de contenido y cuerpo byte a byte que con un
+// sessionId inexistente ("La sesión de estimación no existe."), y en las dos rutas de historia lo
+// mismo que con un storyId inexistente ("La historia no existe." de la 003), sin que su petición
+// cambie nada en la base (SC-018, Principio VI).
+func TestPokerEndpoints_NotFoundIndistinguible(t *testing.T) {
+	f := newPokerUS1Fixture(t)
+	session := f.env.requireOpenedSession(t, f.anaToken, f.storyID)
+	freeStoryID := f.env.createStory(t, f.brunoToken, f.projectID, pokerStoryInput{Title: "Historia sin sesión"})
+
+	// Cada grupo compara la ruta sobre el recurso ajeno con la misma ruta sobre un identificador
+	// inexistente, y fija el cuerpo que manda el contrato.
+	groups := []struct {
+		name     string
+		foreign  []pokerEndpoint
+		missing  []pokerEndpoint
+		wantBody string
+	}{
+		{
+			name:     "sesión",
+			foreign:  pokerSessionEndpoints(session.ID),
+			missing:  pokerSessionEndpoints(uuid.New().String()),
+			wantBody: pokerSessionNotFoundBody,
+		},
+		{
+			name:     "historia",
+			foreign:  pokerStoryEndpoints(freeStoryID),
+			missing:  pokerStoryEndpoints(uuid.New()),
+			wantBody: pokerStoryNotFoundBody,
+		},
+	}
+	total := 0
+	for _, group := range groups {
+		require.Len(t, group.missing, len(group.foreign))
+		total += len(group.foreign)
+		for i, ep := range group.foreign {
+			t.Run(group.name+" "+ep.name, func(t *testing.T) {
+				before := pokerStateFingerprint(t, f.env.db)
+				missing := f.env.do(t, group.missing[i].method, group.missing[i].path, f.diegoToken, group.missing[i].body)
+				foreign := f.env.do(t, ep.method, ep.path, f.diegoToken, ep.body)
+
+				assert.Equal(t, http.StatusNotFound, missing.Code, "inexistente: cuerpo: %s", missing.Body)
+				assert.Equal(t, group.wantBody, string(missing.Body), "inexistente: el cuerpo debería ser el del contrato")
+				assert.Equal(t, missing.Code, foreign.Code, "los códigos deberían ser idénticos; ajena: %s", foreign.Body)
+				assert.Equal(t, missing.ContentType, foreign.ContentType, "los tipos de contenido deberían ser idénticos")
+				assert.Equal(t, missing.Body, foreign.Body, "los cuerpos deberían ser idénticos byte a byte")
+				requireNoPasswordHash(t, missing.Body, "inexistente")
+				requireNoPasswordHash(t, foreign.Body, "ajena")
+				assert.Equal(t, before, pokerStateFingerprint(t, f.env.db), "la petición de Diego no debería cambiar la base")
+			})
+		}
+	}
+	assert.Equal(t, 10, total, "se comparan los diez endpoints")
+}
+
+// requireNoHiddenCard exige que un cuerpo recibido mientras la única ronda de la sesión está en
+// votación no exponga ningún voto: recorre el JSON completo y falla si algún objeto trae el campo
+// card de un voto o si algún myVote vale la carta oculta. Un cuerpo vacío o que no es JSON se
+// considera sin votos.
+func requireNoHiddenCard(t *testing.T, body []byte, card, where string) {
+	t.Helper()
+	var doc any
+	if len(bytes.TrimSpace(body)) == 0 || json.Unmarshal(body, &doc) != nil {
+		return
+	}
+	var walk func(node any, path string)
+	walk = func(node any, path string) {
+		switch value := node.(type) {
+		case map[string]any:
+			for key, child := range value {
+				if key == "card" {
+					t.Errorf("%s: %s.card expone un voto de la ronda en votación: %s", where, path, body)
+				}
+				if key == "myVote" && child == card {
+					t.Errorf("%s: %s.myVote expone la carta %q de otra persona: %s", where, path, card, body)
+				}
+				walk(child, path+"."+key)
+			}
+		case []any:
+			for i, child := range value {
+				walk(child, fmt.Sprintf("%s[%d]", path, i))
+			}
+		}
+	}
+	walk(doc, "$")
+}
+
+// TestPokerSecreto_TodasLasConsultas verifica que, con la ronda 1 en votación y la carta 40 de
+// Bruno ya jugada, ninguna forma de consulta de la sesión desde las cuentas de Ana y de Carla expone
+// esa carta (SC-005, FR-023, FR-082): los canales ya abiertos y uno nuevo, GET
+// /estimation-sessions/{id}, la respuesta de cada acción que deja la ronda en votación (el voto de
+// Ana, que no completa la ronda porque Carla no votó, y los rechazos de iniciar ronda, revelar,
+// registrar, cancelar, tomar el rol y abrir otra sesión) y el historial de la historia. Ninguna de
+// esas respuestas incluye el hash de la contraseña (Principio VI). La revelación de Ana y el voto de
+// Carla no se piden porque revelarían la ronda.
+func TestPokerSecreto_TodasLasConsultas(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	const secret = "40"
+	own := f.env.requireVoted(t, f.brunoToken, f.session.ID, secret)
+	requireOwnVote(t, own, f.brunoID, secret, "respuesta de Bruno")
+	requireNoPasswordHash(t, own.Raw, "respuesta de Bruno")
+
+	// Cada consulta se anota con su nombre y su cuerpo para revisarlas todas al final.
+	type observed struct {
+		where string
+		body  []byte
+	}
+	var seen []observed
+	add := func(where string, body []byte) { seen = append(seen, observed{where: where, body: body}) }
+
+	// Canal: los de Ana y Carla ya abiertos y una conexión nueva de Carla.
+	add("canal abierto de Ana", f.ana.NextUntil(t, "Bruno ya votó en el canal de Ana", hasVoted(f.brunoID)).Raw)
+	add("canal abierto de Carla", f.carla.NextUntil(t, "Bruno ya votó en el canal de Carla", hasVoted(f.brunoID)).Raw)
+	fresh := f.env.openStream(t, f.carlaToken, f.session.ID)
+	add("canal nuevo de Carla", fresh.NextUntil(t, "Bruno ya votó en el canal nuevo de Carla", hasVoted(f.brunoID)).Raw)
+
+	// Consulta de la sesión con todas sus rondas.
+	add("GET de la sesión por Ana", f.env.requireSessionFetched(t, f.anaToken, f.session.ID).Raw)
+	add("GET de la sesión por Carla", f.env.requireSessionFetched(t, f.carlaToken, f.session.ID).Raw)
+
+	// Respuesta de cada acción que deja la ronda en votación, y la instantánea que provoca el voto de
+	// Ana en el canal de Carla.
+	anaVote := f.env.requireVoted(t, f.anaToken, f.session.ID, "1")
+	add("respuesta del voto de Ana", anaVote.Raw)
+	add("canal de Carla tras el voto de Ana", f.carla.NextUntil(t, "Ana ya votó en el canal de Carla", hasVoted(f.anaID)).Raw)
+	actions := []struct {
+		where string
+		token string
+		ep    pokerEndpoint
+	}{
+		{where: "iniciar ronda por Ana", token: f.anaToken, ep: pokerEndpoint{method: http.MethodPost, path: roundsPath(f.session.ID)}},
+		{where: "registrar por Ana", token: f.anaToken, ep: pokerEndpoint{method: http.MethodPost, path: finalizePath(f.session.ID), body: map[string]any{"storyPoints": 40}}},
+		{where: "tomar el rol por Ana", token: f.anaToken, ep: pokerEndpoint{method: http.MethodPost, path: facilitatorPath(f.session.ID)}},
+		{where: "revelar por Carla", token: f.carlaToken, ep: pokerEndpoint{method: http.MethodPost, path: revealPath(f.session.ID)}},
+		{where: "iniciar ronda por Carla", token: f.carlaToken, ep: pokerEndpoint{method: http.MethodPost, path: roundsPath(f.session.ID)}},
+		{where: "registrar por Carla", token: f.carlaToken, ep: pokerEndpoint{method: http.MethodPost, path: finalizePath(f.session.ID), body: map[string]any{"storyPoints": 40}}},
+		{where: "cancelar por Carla", token: f.carlaToken, ep: pokerEndpoint{method: http.MethodPost, path: cancelPath(f.session.ID)}},
+		{where: "tomar el rol por Carla", token: f.carlaToken, ep: pokerEndpoint{method: http.MethodPost, path: facilitatorPath(f.session.ID)}},
+		{where: "abrir otra sesión por Carla", token: f.carlaToken, ep: pokerEndpoint{method: http.MethodPost, path: openSessionPath(f.storyID)}},
+	}
+	for _, action := range actions {
+		resp := f.env.do(t, action.ep.method, action.ep.path, action.token, action.ep.body)
+		assert.Less(t, resp.Code, http.StatusInternalServerError, "%s: no debería fallar internamente: %s", action.where, resp.Body)
+		add(action.where, resp.Body)
+	}
+
+	// Historial de la historia.
+	add("historial por Ana", f.env.requireHistory(t, f.anaToken, f.storyID).Raw)
+	add("historial por Carla", f.env.requireHistory(t, f.carlaToken, f.storyID).Raw)
+
+	// Ninguna consulta expone la carta de Bruno ni el hash de una contraseña, y la ronda sigue en
+	// votación, así que el secreto seguía vigente durante todas.
+	for _, o := range seen {
+		requireNoHiddenCard(t, o.body, secret, o.where)
+		requireNoPasswordHash(t, o.body, o.where)
+	}
+	requireStoredVoting(t, f.env.db, f.session.ID, "ninguna consulta debería revelar la ronda")
+	requireSingleStoredVote(t, f.env.db, f.session.ID, f.brunoID, secret)
+}

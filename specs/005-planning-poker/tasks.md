@@ -669,7 +669,7 @@ nuevo facilitador.
 - [X] T074 [P] [US6] Implementar `FacilitatorTakeover` en
       `backend/internal/poker/domain/facilitator.go`, con los **5 minutos** como constante nombrada —
       depende de T070
-- [ ] T075 [US6] Implementar `TakeFacilitator` y `ListRevokedParticipants` en
+- [X] T075 [US6] Implementar `TakeFacilitator` y `ListRevokedParticipants` en
       `backend/internal/poker/repository/session_repository.go` (`TakeFacilitator`: bloqueo,
       `EnsureOpen`, participante conectado, `FacilitatorTakeover` sobre la fila del facilitador
       releída, `facilitator_id = titular`, hecho) y completar `ViewFor` con `facilitatorAvailableAt`

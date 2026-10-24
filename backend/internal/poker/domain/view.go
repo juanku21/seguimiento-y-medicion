@@ -135,7 +135,8 @@ type SessionView struct {
 // sesión, de la historia y de sus participantes y rondas, y aplica el secreto del voto: de la ronda
 // vigente solo salen quiénes votaron y la carta propia de quien pide (FR-023, FR-024, FR-082). Las
 // rondas reveladas llevan su resultado y, si la sesión sigue abierta, la vigente revelada lista a los
-// conectados sin voto (FR-035).
+// conectados sin voto (FR-035). Con la sesión abierta y el facilitador desconectado informa desde
+// cuándo otro participante puede tomar el rol (FR-068).
 func ViewFor(snapshot SessionSnapshot, viewerID uuid.UUID) SessionView {
 	session := snapshot.Session
 	currentVotes := currentRoundVotes(snapshot.Rounds)
@@ -154,7 +155,37 @@ func ViewFor(snapshot SessionSnapshot, viewerID uuid.UUID) SessionView {
 		Participants:      participantViews(snapshot.Participants, session.FacilitatorID, currentVotes),
 		Rounds:            roundViews(snapshot.Rounds, session.Status, snapshot.Participants),
 		MyVote:            myVote(currentVotes, viewerID),
+		FacilitatorAvailableAt: facilitatorAvailableAt(
+			snapshot.Participants,
+			session.FacilitatorID,
+			session.Status,
+		),
 	}
+}
+
+// facilitatorAvailableAt devuelve el momento desde el cual otro participante puede tomar el rol:
+// FacilitatorTakeoverDelay después de la desconexión del facilitador. Es nil si la sesión está
+// cerrada, si el facilitador está conectado o si no tiene momento de desconexión, igual que
+// FacilitatorTakeover, que en ese caso lo trata como presente.
+func facilitatorAvailableAt(
+	participants []SnapshotParticipant,
+	facilitatorID uuid.UUID,
+	status SessionStatus,
+) *time.Time {
+	if status != SessionStatusOpen {
+		return nil
+	}
+	for _, p := range participants {
+		if p.User.ID != facilitatorID {
+			continue
+		}
+		if p.Connected || p.DisconnectedAt == nil {
+			return nil
+		}
+		availableAt := p.DisconnectedAt.Add(FacilitatorTakeoverDelay)
+		return &availableAt
+	}
+	return nil
 }
 
 // currentRoundVotes devuelve los votos de la ronda vigente, que es la última de la instantánea

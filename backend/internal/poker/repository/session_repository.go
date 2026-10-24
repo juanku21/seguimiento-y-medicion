@@ -634,9 +634,68 @@ func (r *SessionRepository) Cancel(ctx context.Context, sessionID, userID uuid.U
 	return errNotImplemented
 }
 
-// TakeFacilitator transfiere el rol de facilitador. Firma mínima de T014.
+// TakeFacilitator transfiere el rol de facilitador a quien lo pide en una transacción que bloquea la
+// sesión con lockOpenSession (FR-068 a FR-072, RN-25). Exige que quien lo pide sea participante
+// conectado (si no, ErrNotParticipant) y relee, bajo el bloqueo, la fila del facilitador vigente para
+// que FacilitatorTakeover decida con su presencia actual: entre dos pedidos simultáneos, el segundo
+// ya lee al nuevo facilitador conectado y recibe FacilitatorUnavailableError con su nombre (FR-072).
+// Si lo admite, fija facilitator_id = titular; el anterior queda como participante común (FR-070).
+// El cambio de facilitador es un hecho, así que touchSession fija last_activity_at = now y sube
+// version.
 func (r *SessionRepository) TakeFacilitator(ctx context.Context, sessionID, userID uuid.UUID, now time.Time) error {
-	return errNotImplemented
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		session, err := lockOpenSession(tx, sessionID)
+		if err != nil {
+			return err
+		}
+		if _, err := findConnectedParticipant(tx, sessionID, userID); err != nil {
+			return err
+		}
+		facilitator, err := findFacilitatorParticipant(tx, sessionID, session.FacilitatorID)
+		if err != nil {
+			return err
+		}
+		if err := domain.FacilitatorTakeover(now, *facilitator, userID); err != nil {
+			return err
+		}
+
+		// El rol pasa a quien lo pidió en la misma transacción que lo verificó.
+		err = tx.
+			Model(&domain.EstimationSession{}).
+			Where("id = ?", sessionID).
+			Update("facilitator_id", userID).Error
+		if err != nil {
+			return fmt.Errorf("transferir el rol de facilitador: %w", err)
+		}
+		return touchSession(tx, sessionID, now)
+	})
+}
+
+// findFacilitatorParticipant lee, dentro de la transacción recibida, la fila de participante del
+// facilitador vigente con su presencia y, por un JOIN a users que selecciona solo id y full_name, su
+// nombre, que FacilitatorUnavailableError expone. Quien abre la sesión queda como participante y solo
+// un participante puede tomar el rol, así que la ausencia de la fila es una inconsistencia de la base.
+func findFacilitatorParticipant(tx *gorm.DB, sessionID, facilitatorID uuid.UUID) (*domain.SnapshotParticipant, error) {
+	var rows []snapshotParticipantRow
+	err := tx.
+		Table("estimation_participants").
+		Select(`users.id AS user_id, users.full_name AS user_full_name,
+			estimation_participants.connected, estimation_participants.disconnected_at`).
+		Joins("JOIN users ON users.id = estimation_participants.user_id").
+		Where("estimation_participants.session_id = ? AND estimation_participants.user_id = ?", sessionID, facilitatorID).
+		Limit(1).
+		Find(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("leer al facilitador de la sesión: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("leer al facilitador de la sesión: falta el participante %s", facilitatorID)
+	}
+	return &domain.SnapshotParticipant{
+		User:           domain.UserRef{ID: rows[0].UserID, FullName: rows[0].UserFullName},
+		Connected:      rows[0].Connected,
+		DisconnectedAt: rows[0].DisconnectedAt,
+	}, nil
 }
 
 // AutoCancel cancela la sesión si corresponde una cancelación del sistema. Firma mínima de T014.
@@ -669,10 +728,27 @@ func (r *SessionRepository) ListOpenForSweep(ctx context.Context) ([]domain.Open
 	return nil, errNotImplemented
 }
 
-// ListRevokedParticipants devuelve los participantes conectados que ya no son integrantes. Firma
-// mínima de T014.
+// ListRevokedParticipants devuelve los participantes conectados de las sesiones abiertas que ya no
+// integran el proyecto de la historia, para que el barrido los desconecte y cierre sus canales
+// (FR-019; research.md sección 13). Une cada participante con su sesión y su historia, y con un LEFT
+// JOIN a project_members detecta la membresía ausente, porque la baja de la 002 borra la fila. Solo
+// selecciona los identificadores de la sesión y de la persona; sin revocados devuelve la lista vacía.
 func (r *SessionRepository) ListRevokedParticipants(ctx context.Context) ([]domain.ParticipantRef, error) {
-	return nil, errNotImplemented
+	refs := []domain.ParticipantRef{}
+	err := r.db.WithContext(ctx).
+		Table("estimation_participants").
+		Select("estimation_participants.session_id, estimation_participants.user_id").
+		Joins("JOIN estimation_sessions ON estimation_sessions.id = estimation_participants.session_id").
+		Joins("JOIN user_stories ON user_stories.id = estimation_sessions.story_id").
+		Joins(`LEFT JOIN project_members ON project_members.project_id = user_stories.project_id
+			AND project_members.user_id = estimation_participants.user_id`).
+		Where("estimation_sessions.status = ? AND estimation_participants.connected = ?", domain.SessionStatusOpen, true).
+		Where("project_members.user_id IS NULL").
+		Find(&refs).Error
+	if err != nil {
+		return nil, fmt.Errorf("listar los participantes con la membresía revocada: %w", err)
+	}
+	return refs, nil
 }
 
 // FindSnapshot lee la instantánea completa de la sesión, entrada de ViewFor (research.md sección 7),

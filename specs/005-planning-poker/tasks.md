@@ -578,7 +578,7 @@ Points de la historia toman ese valor.
       `TestUS5_SinRondaRevelada` (`409`
       `Primero hay que revelar al menos una ronda o cancelar la sesión.`) y
       `TestUS5_RegistroSinSerFacilitador` (`403`, Story Points sin cambios) — depende de T060
-- [ ] T064 [P] [US5] Pruebas de frontend en
+- [X] T064 [P] [US5] Pruebas de frontend en
       `frontend/src/features/poker/components/finalize-dialog.test.tsx` y
       `frontend/src/features/poker/components/session-closed-notice.test.tsx`, con
       `describe("005/US5 - Registrar la estimación acordada")`: el diálogo ofrece solo los diez

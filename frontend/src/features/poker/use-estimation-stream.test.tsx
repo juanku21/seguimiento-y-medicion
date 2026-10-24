@@ -438,4 +438,96 @@ describe("005/US6 - Sobrevivir a las desconexiones y relevar al facilitador", ()
 
     expect(openings(fetchMock)).toBe(1);
   });
+
+  // Regla del canal (T077): la primera apertura recibe el mismo trato que una reconexión. Un fallo de
+  // red o un rechazo distinto de 409, 404 y 401 no expone error: la sala sigue en "Conectando con la
+  // sesión…" (sin instantánea) y el hook reintenta con la espera de 1, 2 y 5 segundos, con tope de
+  // 5, hasta que una apertura entrega la instantánea (research.md, sección 18).
+  it.each([
+    { name: "un fallo de red", reply: networkFailure },
+    {
+      name: "un 500",
+      reply: rejection(500, { error: "Error interno del servidor." }),
+    },
+    {
+      name: "un 503",
+      reply: rejection(503, { error: "Servicio no disponible." }),
+    },
+  ])(
+    "reintenta la primera apertura ante $name sin exponer error",
+    async ({ reply }: { reply: StreamReply }) => {
+      fetchMock = vi.fn<typeof fetch>(
+        serveEvents(
+          reply,
+          reply,
+          reply,
+          reply,
+          streamThenCut(brunoView(3, true)),
+        ),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+
+      const { result } = renderHook(() => useEstimationStream(sessionId));
+      await settle();
+      expect(openings(fetchMock)).toBe(1);
+      expect(result.current.error).toBeNull();
+      expect(result.current.session).toBeNull();
+
+      // Esperas de 1, 2 y 5 segundos, y luego 5 de tope, sin instantánea ni error entretanto.
+      for (const [wait, expected] of [
+        [1000, 2],
+        [2000, 3],
+        [5000, 4],
+      ]) {
+        await advance(wait - 1);
+        expect(openings(fetchMock)).toBe(expected - 1);
+        await advance(1);
+        expect(openings(fetchMock)).toBe(expected);
+        expect(result.current.error).toBeNull();
+        expect(result.current.session).toBeNull();
+      }
+
+      // La quinta apertura, 5 segundos después, entrega la instantánea.
+      await advance(4999);
+      expect(openings(fetchMock)).toBe(4);
+      await advance(1);
+      expect(openings(fetchMock)).toBe(5);
+      expect(result.current.session?.version).toBe(3);
+      expect(result.current.error).toBeNull();
+    },
+  );
+
+  // Regla del canal (T077): en la primera apertura, un rechazo 409 (sesión cerrada), 404 (sesión
+  // inexistente o ajena) o 401 (sesión inválida) detiene el canal y expone el error recibido, sin
+  // reintentar (research.md, sección 18).
+  it.each([
+    {
+      status: 409,
+      body: {
+        error: closedMessage,
+        status: "finished",
+        agreedStoryPoints: 8,
+        cancelReason: null,
+      } satisfies SessionClosedResponse,
+    },
+    { status: 404, body: { error: notFoundMessage } },
+    { status: 401, body: { error: invalidSessionMessage } },
+  ])(
+    "se detiene ante $status en la primera apertura",
+    async ({ status, body }: { status: number; body: ResponseBody }) => {
+      fetchMock = vi.fn<typeof fetch>(
+        serveEvents(rejection(status, body), streamThenCut(brunoView(3, true))),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+
+      const { result } = renderHook(() => useEstimationStream(sessionId));
+      await settle();
+      await advance(30000);
+
+      expect(openings(fetchMock)).toBe(1);
+      expect(result.current.session).toBeNull();
+      expect(result.current.error?.status).toBe(status);
+      expect(result.current.error?.message).toBe(body.error);
+    },
+  );
 });

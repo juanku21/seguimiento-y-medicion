@@ -475,7 +475,7 @@ reciben la ronda `revealed` con `divergence`, mínimo 3 y máximo 13 con sus aut
       `backend/internal/poker/domain/reveal.go` — depende de T045
 - [X] T051 [P] [US3] Implementar `RoundOutcome` y `Summarize` en
       `backend/internal/poker/domain/outcome.go` — depende de T046
-- [ ] T052 [US3] Implementar `Reveal` en `backend/internal/poker/repository/session_repository.go`
+- [X] T052 [US3] Implementar `Reveal` en `backend/internal/poker/repository/session_repository.go`
       (bloqueo, `EnsureOpen`, participante conectado, `facilitator_id` igual al titular o
       `ErrFacilitatorOnly`, ronda `voting` o `ErrRoundRevealed`, `CanRevealManually`, `status =
       revealed`, `revealed_at = now`, hecho) y agregar la evaluación de `ShouldAutoReveal`, con la

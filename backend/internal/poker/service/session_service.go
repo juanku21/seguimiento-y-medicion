@@ -298,7 +298,7 @@ func (s *SessionService) History(ctx context.Context, storyID uuid.UUID) (*Histo
 	return view, nil
 }
 
-// Leaveda de baja la suscripción de la conexión y la descuenta de la presencia; si era la última
+// Leave da de baja la suscripción de la conexión y la descuenta de la presencia; si era la última
 // de la persona, empieza a correr la gracia de FR-014.
 func (s *SessionService) Leave(conn *Connection) {
 	conn.unsubscribe()

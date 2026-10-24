@@ -269,12 +269,13 @@ func (r *SessionRepository) Disconnect(ctx context.Context, sessionID, userID uu
 // sesión, de modo que todas las acciones sobre ella se serialicen (research.md sección 6), y con el
 // estado releído aplica EnsureOpen, que rechaza la sesión cerrada con SessionClosedError (RN-22). Si
 // la sesión no existe devuelve ErrSessionNotFound. La comparten todas las escrituras sobre una
-// sesión abierta; devuelve la sesión releída con su facilitator_id para las acciones reservadas.
+// sesión abierta; devuelve la sesión releída con su facilitator_id para las acciones reservadas y su
+// story_id para el registro de la estimación.
 func lockOpenSession(tx *gorm.DB, sessionID uuid.UUID) (*domain.EstimationSession, error) {
 	var session domain.EstimationSession
 	err := tx.
 		Clauses(clause.Locking{Strength: "UPDATE"}).
-		Select("id, facilitator_id, status, cancel_reason, agreed_story_points").
+		Select("id, story_id, facilitator_id, status, cancel_reason, agreed_story_points").
 		Where("id = ?", sessionID).
 		Take(&session).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -536,9 +537,96 @@ func (r *SessionRepository) StartRound(ctx context.Context, sessionID, userID uu
 	})
 }
 
-// Finalize cierra la sesión con el valor acordado. Firma mínima de T014.
+// Finalize cierra la sesión con el valor acordado en una transacción que bloquea la sesión con
+// lockOpenSession (FR-049 a FR-056). Exige que quien registra sea participante conectado (si no,
+// ErrNotParticipant) y el facilitador de la sesión (si no, ErrFacilitatorOnly), y que la sesión tenga
+// al menos una ronda revelada (si no, ErrNoRevealedRound). Recién después bloquea la fila de la
+// historia, respetando el orden sesión → historia (research.md sección 6). Cierra la sesión como
+// finished con el valor acordado, quien la cerró y closed_at = now, y sube version sin tocar
+// last_activity_at, porque el registro cierra la sesión (data-model.md sección 7). En la misma
+// transacción escribe story_points y updated_at en la historia (SC-013).
 func (r *SessionRepository) Finalize(ctx context.Context, sessionID, userID uuid.UUID, storyPoints int, now time.Time) error {
-	return errNotImplemented
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		session, err := lockOpenSession(tx, sessionID)
+		if err != nil {
+			return err
+		}
+		if _, err := findConnectedParticipant(tx, sessionID, userID); err != nil {
+			return err
+		}
+		if session.FacilitatorID != userID {
+			return domain.ErrFacilitatorOnly
+		}
+		if err := ensureRevealedRound(tx, sessionID); err != nil {
+			return err
+		}
+		if err := lockSessionStory(tx, session.StoryID); err != nil {
+			return err
+		}
+
+		// La sesión se cierra con un map para escribir todos los campos del cierre y subir version en
+		// la misma sentencia.
+		err = tx.
+			Model(&domain.EstimationSession{}).
+			Where("id = ?", sessionID).
+			Updates(map[string]any{
+				"status":              domain.SessionStatusFinished,
+				"agreed_story_points": storyPoints,
+				"closed_by_id":        userID,
+				"closed_at":           now,
+				"version":             gorm.Expr("version + 1"),
+			}).Error
+		if err != nil {
+			return fmt.Errorf("cerrar la sesión con el valor acordado: %w", err)
+		}
+
+		// El valor acordado reemplaza los Story Points de la historia en la misma transacción.
+		err = tx.
+			Table("user_stories").
+			Where("id = ?", session.StoryID).
+			Updates(map[string]any{"story_points": storyPoints, "updated_at": now}).Error
+		if err != nil {
+			return fmt.Errorf("escribir el valor acordado en la historia: %w", err)
+		}
+		return nil
+	})
+}
+
+// ensureRevealedRound verifica, dentro de la transacción recibida, que la sesión tenga al menos una
+// ronda revelada, o devuelve ErrNoRevealedRound (FR-051). Se lee con Find y LIMIT 1, porque no
+// tenerla es un rechazo esperado y no un error de la base.
+func ensureRevealedRound(tx *gorm.DB, sessionID uuid.UUID) error {
+	var rounds []domain.EstimationRound
+	err := tx.
+		Select("id").
+		Where("session_id = ? AND status = ?", sessionID, domain.RoundStatusRevealed).
+		Limit(1).
+		Find(&rounds).Error
+	if err != nil {
+		return fmt.Errorf("buscar una ronda revelada de la sesión: %w", err)
+	}
+	if len(rounds) == 0 {
+		return domain.ErrNoRevealedRound
+	}
+	return nil
+}
+
+// lockSessionStory bloquea con FOR UPDATE, dentro de la transacción recibida, la fila de la historia
+// de la sesión. Si la historia ya no existe devuelve el ErrStoryNotFound de la 003.
+func lockSessionStory(tx *gorm.DB, storyID uuid.UUID) error {
+	var stories []backlogdomain.UserStory
+	err := tx.
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id").
+		Where("id = ?", storyID).
+		Find(&stories).Error
+	if err != nil {
+		return fmt.Errorf("bloquear la historia de la sesión: %w", err)
+	}
+	if len(stories) == 0 {
+		return backlogdomain.ErrStoryNotFound
+	}
+	return nil
 }
 
 // Cancel cancela la sesión a pedido del facilitador. Firma mínima de T014.

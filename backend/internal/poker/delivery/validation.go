@@ -7,12 +7,14 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/poker/domain"
 )
 
-// Mensajes de validación del voto dirigidos a la persona, declarados en un único lugar
-// (contracts/openapi.yaml, ejemplos cartaInvalida y retiro; FR-025, RN-36). La enumeración de cartas
-// se toma de domain.AdmittedCardsList para que la escala se declare una sola vez.
+// Mensajes de validación del voto y del registro dirigidos a la persona, declarados en un único lugar
+// (contracts/openapi.yaml, ejemplos cartaInvalida y retiro y respuesta 400 de finalize; FR-025,
+// FR-050, RN-36). Las enumeraciones se toman de domain.AdmittedCardsList y domain.AgreedScaleList
+// para que la escala se declare una sola vez.
 var (
-	msgInvalidCard  = "La carta no es válida. Cartas admitidas: " + domain.AdmittedCardsList() + "."
-	msgWithdrawVote = `Un voto emitido no se retira: solo se cambia por otra carta, incluida "?".`
+	msgInvalidCard        = "La carta no es válida. Cartas admitidas: " + domain.AdmittedCardsList() + "."
+	msgWithdrawVote       = `Un voto emitido no se retira: solo se cambia por otra carta, incluida "?".`
+	msgInvalidAgreedValue = "El valor acordado debe ser uno de " + domain.AgreedScaleList() + "."
 )
 
 // ValidateVoteRequest valida el cuerpo del voto y devuelve la carta admitida, o un FieldError en card
@@ -40,4 +42,26 @@ func ValidateVoteRequest(req VoteRequest) (domain.Card, []authdelivery.FieldErro
 		return "", invalid
 	}
 	return card, nil
+}
+
+// ValidateFinalizeRequest valida el cuerpo del registro y devuelve el valor acordado, o un FieldError
+// en storyPoints si no es un entero de la escala numérica (FR-049, FR-050, RN-18).
+// El valor ausente o null se rechaza antes de decodificar, porque null decodificado en un int queda en
+// 0, que es un valor de la escala. Cualquier otro valor debe ser un número JSON entero, de modo que
+// "?", un texto o un decimal se rechazan; el entero se valida con domain.ValidateAgreedValue y su
+// error se traduce al mensaje de delivery.
+func ValidateFinalizeRequest(req FinalizeRequest) (int, []authdelivery.FieldError) {
+	invalid := []authdelivery.FieldError{{Field: "storyPoints", Message: msgInvalidAgreedValue}}
+
+	if raw := string(req.StoryPoints); raw == "" || raw == "null" {
+		return 0, invalid
+	}
+	var value int
+	if err := json.Unmarshal(req.StoryPoints, &value); err != nil {
+		return 0, invalid
+	}
+	if err := domain.ValidateAgreedValue(value); err != nil {
+		return 0, invalid
+	}
+	return value, nil
 }

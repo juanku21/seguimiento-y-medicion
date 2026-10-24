@@ -1824,3 +1824,445 @@ func TestPokerJoin_RondaRevelada(t *testing.T) {
 	requireFreshVotingRound(t, diego.NextUntil(t, "la ronda 2 en el canal de Diego", roundVoting(2)), 2, "canal de Diego")
 	requireOwnVote(t, f.env.requireVoted(t, f.diegoToken, f.session.ID, "8"), f.diegoID, "8", "respuesta de Diego")
 }
+
+// Pruebas de integración de punta a punta de la historia 5 de Planning Poker (T063): registran la
+// estimación acordada con POST /api/v1/estimation-sessions/{sessionId}/finalize sobre el mismo router
+// compuesto como cmd/app y contra smye_test. Verifican la respuesta, el último estado que llega por
+// los canales ya abiertos antes de que el servidor los cierre, la sesión guardada en
+// estimation_sessions y los Story Points de la historia leídos con GET /api/v1/stories/{storyId} de
+// la 003, porque registrar escribe en el backlog en la misma operación (FR-049 a FR-054, FR-075).
+
+// Textos exactos que fija el contrato para los rechazos del registro.
+const (
+	pokerAgreedValueMessage      = "El valor acordado debe ser uno de 0, 1, 2, 3, 5, 8, 13, 20, 40 o 100."
+	pokerNoRevealedRoundBodyJSON = `{"error":"Primero hay que revelar al menos una ronda o cancelar la sesión."}`
+)
+
+// finalizePath es la ruta del registro de la estimación acordada según contracts/openapi.yaml.
+func finalizePath(sessionID string) string {
+	return "/api/v1/estimation-sessions/" + sessionID + "/finalize"
+}
+
+// finalize pide POST /api/v1/estimation-sessions/{sessionId}/finalize con el cuerpo indicado y el
+// token como Bearer.
+func (e *pokerTestEnv) finalize(t *testing.T, token, sessionID string, body any) pokerResponse {
+	t.Helper()
+	return e.do(t, http.MethodPost, finalizePath(sessionID), token, body)
+}
+
+// requireFinalized registra el valor indicado, exige el 200 y devuelve la sesión resultante vista por
+// quien registró.
+func (e *pokerTestEnv) requireFinalized(t *testing.T, token, sessionID string, storyPoints int) pokerSessionBody {
+	t.Helper()
+	var session pokerSessionBody
+	resp := e.finalize(t, token, sessionID, map[string]any{"storyPoints": storyPoints})
+	requirePokerStatus(t, resp, http.StatusOK, &session)
+	session.Raw = resp.Body
+	return session
+}
+
+// pokerStoryDetailBody refleja, del StoryDetail de la 003, los Story Points y la condición de lista
+// para planificar.
+type pokerStoryDetailBody struct {
+	StoryPoints *int `json:"storyPoints"`
+	Readiness   struct {
+		Ready   bool     `json:"ready"`
+		Missing []string `json:"missing"`
+	} `json:"readiness"`
+}
+
+// requireStoryDetail pide GET /api/v1/stories/{storyId} de la 003, exige el 200 y devuelve el
+// detalle de la historia.
+func (e *pokerTestEnv) requireStoryDetail(t *testing.T, token string, storyID uuid.UUID) pokerStoryDetailBody {
+	t.Helper()
+	var detail pokerStoryDetailBody
+	requirePokerStatus(t, e.do(t, http.MethodGet, "/api/v1/stories/"+storyID.String(), token, nil), http.StatusOK, &detail)
+	return detail
+}
+
+// requireStoryEstimated reestima la historia directamente desde el backlog con PUT
+// /api/v1/stories/{storyId}/story-points de la 003 y exige el 200.
+func (e *pokerTestEnv) requireStoryEstimated(t *testing.T, token string, storyID uuid.UUID, storyPoints int) {
+	t.Helper()
+	requirePokerStatus(t, e.do(t, http.MethodPut, "/api/v1/stories/"+storyID.String()+"/story-points", token,
+		map[string]any{"storyPoints": storyPoints}), http.StatusOK, nil)
+}
+
+// requireStoryPoints exige que el detalle de la historia de la 003 muestre los Story Points
+// indicados; nil es "sin estimar".
+func requireStoryPoints(t *testing.T, detail pokerStoryDetailBody, want *int, where string) {
+	t.Helper()
+	if want == nil {
+		assert.Nil(t, detail.StoryPoints, "%s: la historia debería seguir sin estimar", where)
+		return
+	}
+	if assert.NotNil(t, detail.StoryPoints, "%s: la historia debería quedar estimada", where) {
+		assert.Equal(t, *want, *detail.StoryPoints, "%s: Story Points de la historia", where)
+	}
+}
+
+// sessionFinished es la condición "la sesión está finalizada", para esperar con NextUntil.
+func sessionFinished(s pokerSessionBody) bool {
+	return s.Status == "finished"
+}
+
+// requireFinishedSession exige que la instantánea muestre la sesión finalizada con el valor acordado,
+// cerrada por la persona indicada y con su momento de cierre.
+func requireFinishedSession(t *testing.T, snapshot pokerSessionBody, agreed int, closedBy uuid.UUID, where string) {
+	t.Helper()
+	assert.Equal(t, "finished", snapshot.Status, "%s: estado de la sesión: %s", where, snapshot.Raw)
+	if assert.NotNil(t, snapshot.AgreedStoryPoints, "%s: agreedStoryPoints no debería ser null", where) {
+		assert.Equal(t, agreed, *snapshot.AgreedStoryPoints, "%s: valor acordado", where)
+	}
+	if assert.NotNil(t, snapshot.ClosedBy, "%s: closedBy no debería ser null", where) {
+		assert.Equal(t, closedBy.String(), snapshot.ClosedBy.ID, "%s: quien cerró la sesión", where)
+	}
+	assert.NotNil(t, snapshot.ClosedAt, "%s: closedAt no debería ser null", where)
+	assert.Nil(t, snapshot.CancelReason, "%s: una sesión finalizada no tiene motivo de cancelación", where)
+}
+
+// pokerStoredSession lee de estimation_sessions la fila de la sesión.
+func pokerStoredSession(t *testing.T, db *gorm.DB, sessionID string) domain.EstimationSession {
+	t.Helper()
+	var stored domain.EstimationSession
+	require.NoError(t, db.First(&stored, "id = ?", sessionID).Error, "no se encontró la sesión %s", sessionID)
+	return stored
+}
+
+// requireStoredFinished exige que la sesión quede finalizada en la base con el valor acordado,
+// cerrada por la persona indicada en el instante indicado del reloj falso.
+func requireStoredFinished(t *testing.T, db *gorm.DB, sessionID string, agreed int, closedBy uuid.UUID, at time.Time) {
+	t.Helper()
+	stored := pokerStoredSession(t, db, sessionID)
+	assert.Equal(t, domain.SessionStatusFinished, stored.Status, "la sesión debería quedar finalizada en la base")
+	if assert.NotNil(t, stored.AgreedStoryPoints, "agreed_story_points no debería ser nulo") {
+		assert.Equal(t, agreed, *stored.AgreedStoryPoints, "agreed_story_points")
+	}
+	if assert.NotNil(t, stored.ClosedByID, "closed_by_id no debería ser nulo") {
+		assert.Equal(t, closedBy, *stored.ClosedByID, "closed_by_id")
+	}
+	if assert.NotNil(t, stored.ClosedAt, "closed_at no debería ser nulo") {
+		assert.True(t, stored.ClosedAt.Equal(at), "closed_at = %s, se esperaba %s", stored.ClosedAt, at)
+	}
+}
+
+// requireStoredOpen exige que la sesión siga abierta en la base, sin valor acordado ni cierre.
+func requireStoredOpen(t *testing.T, db *gorm.DB, sessionID, why string) {
+	t.Helper()
+	stored := pokerStoredSession(t, db, sessionID)
+	assert.Equal(t, domain.SessionStatusOpen, stored.Status, "la sesión debería seguir abierta: %s", why)
+	assert.Nil(t, stored.AgreedStoryPoints, "la sesión abierta no tiene valor acordado: %s", why)
+	assert.Nil(t, stored.ClosedAt, "la sesión abierta no tiene momento de cierre: %s", why)
+}
+
+// requireEnded exige que el servidor cierre el canal dentro del plazo de 2 segundos, sin enviar
+// ningún evento más.
+func (s *pokerStream) requireEnded(t *testing.T, where string) {
+	t.Helper()
+	timer := time.NewTimer(pokerStreamDeadline)
+	defer timer.Stop()
+	select {
+	case ev, ok := <-s.events:
+		if ok {
+			t.Fatalf("%s: el canal debería cerrarse tras el último estado y llegó %q con datos %s", where, ev.Name, ev.Data)
+		}
+	case <-timer.C:
+		t.Fatalf("%s: el servidor no cerró el canal en %s", where, pokerStreamDeadline)
+	}
+}
+
+// requireAgreedValueRejected exige el 400 del contrato con un único detalle en storyPoints que
+// enumera los valores admitidos.
+func requireAgreedValueRejected(t *testing.T, resp pokerResponse) {
+	t.Helper()
+	want, err := json.Marshal(map[string]any{
+		"error":  pokerInvalidFieldsMessage,
+		"fields": []map[string]string{{"field": "storyPoints", "message": pokerAgreedValueMessage}},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, resp.Code, "cuerpo: %s", resp.Body)
+	assert.JSONEq(t, string(want), string(resp.Body))
+}
+
+// pokerIntPtr devuelve un puntero al entero indicado, para comparar Story Points.
+func pokerIntPtr(v int) *int {
+	return &v
+}
+
+// newPokerSoloSession abre, como Ana, una sesión sobre la historia indicada, abre su canal y espera a
+// verla conectada como única participante; devuelve la sesión y el canal.
+func (f pokerUS1Fixture) newPokerSoloSession(t *testing.T, storyID uuid.UUID) (pokerSessionBody, *pokerStream) {
+	t.Helper()
+	session := f.env.requireOpenedSession(t, f.anaToken, storyID)
+	stream := f.env.openStream(t, f.anaToken, session.ID)
+	stream.NextUntil(t, "Ana conectada", allConnected(f.anaID))
+	return session, stream
+}
+
+// Escenario: Registro con consenso (005/US5)
+// Ana, Bruno y Carla votan 8 y la ronda se revela sola con consenso en 8. Un minuto después Ana,
+// facilitadora, registra 8: responde 200 con la sesión finalizada con valor 8 y cerrada por Ana; los
+// tres canales reciben ese último estado sin recargar y en menos de 2 segundos, y el servidor los
+// cierra. En la base la sesión queda finalizada con closed_at en el instante del reloj y la versión
+// sube en uno, y la historia de la 003 queda en 8 Story Points (FR-049, FR-052, FR-053, FR-073,
+// SC-013).
+func TestUS5_RegistroConConsenso(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	for _, token := range []string{f.anaToken, f.brunoToken, f.carlaToken} {
+		f.env.requireVoted(t, token, f.session.ID, "8")
+	}
+	for name, stream := range f.threeStreams() {
+		stream.NextUntil(t, "la ronda revelada en el canal de "+name, currentRoundRevealed)
+	}
+	before := pokerStoredVersion(t, f.env.db, f.session.ID)
+	f.env.clock.Advance(time.Minute)
+
+	resp := f.env.requireFinalized(t, f.anaToken, f.session.ID, 8)
+	requireFinishedSession(t, resp, 8, f.anaID, "respuesta de Ana")
+
+	// Cada canal recibe el estado final con el consenso de la ronda y después se cierra.
+	for name, stream := range f.threeStreams() {
+		snapshot := stream.NextUntil(t, "la sesión finalizada en el canal de "+name, sessionFinished)
+		requireFinishedSession(t, snapshot, 8, f.anaID, "canal de "+name)
+		requireConsensus(t, pokerCurrentRound(t, snapshot), 8, "canal de "+name)
+		stream.requireEnded(t, "canal de "+name)
+	}
+
+	requireStoredFinished(t, f.env.db, f.session.ID, 8, f.anaID, f.env.clock.Now())
+	assert.Equal(t, before+1, pokerStoredVersion(t, f.env.db, f.session.ID), "registrar es un hecho y sube la versión")
+	requireStoryPoints(t, f.env.requireStoryDetail(t, f.brunoToken, f.storyID), pokerIntPtr(8), "historia de la 003")
+}
+
+// Escenario: Registro sin consenso (005/US5)
+// Ana, Bruno y Carla votan 5, 8 y 13 y la ronda se revela sola con divergencia. Ana, facilitadora,
+// registra 8: responde 200 con la sesión finalizada con valor 8, el canal de Ana recibe el cierre y
+// la historia queda en 8 Story Points, aunque no hubo consenso (FR-049, FR-052).
+func TestUS5_RegistroSinConsenso(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.env.requireVoted(t, f.anaToken, f.session.ID, "5")
+	f.env.requireVoted(t, f.brunoToken, f.session.ID, "8")
+	f.env.requireVoted(t, f.carlaToken, f.session.ID, "13")
+	revealed := f.ana.NextUntil(t, "la ronda revelada en el canal de Ana", currentRoundRevealed)
+	requireDivergence(t, pokerCurrentRound(t, revealed), 5, []uuid.UUID{f.anaID}, 13, []uuid.UUID{f.carlaID}, "ronda 1")
+
+	resp := f.env.requireFinalized(t, f.anaToken, f.session.ID, 8)
+
+	requireFinishedSession(t, resp, 8, f.anaID, "respuesta de Ana")
+	requireFinishedSession(t, f.ana.NextUntil(t, "la sesión finalizada en el canal de Ana", sessionFinished), 8, f.anaID, "canal de Ana")
+	requireStoredFinished(t, f.env.db, f.session.ID, 8, f.anaID, f.env.clock.Now())
+	requireStoryPoints(t, f.env.requireStoryDetail(t, f.anaToken, f.storyID), pokerIntPtr(8), "historia de la 003")
+}
+
+// Escenario: Valor no votado (005/US5)
+// Ana vota 5 y Bruno 8; Carla no vota y Ana revela a mano. Ana registra 13, un valor que nadie votó:
+// responde 200 con la sesión finalizada con valor 13 y la historia queda en 13 Story Points, porque
+// el valor acordado no tiene que coincidir con ningún voto (FR-049, RN-18).
+func TestUS5_ValorNoVotado(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.env.requireVoted(t, f.anaToken, f.session.ID, "5")
+	f.env.requireVoted(t, f.brunoToken, f.session.ID, "8")
+	requirePokerStatus(t, f.env.reveal(t, f.anaToken, f.session.ID), http.StatusOK, nil)
+
+	resp := f.env.requireFinalized(t, f.anaToken, f.session.ID, 13)
+
+	requireFinishedSession(t, resp, 13, f.anaID, "respuesta de Ana")
+	requireStoredFinished(t, f.env.db, f.session.ID, 13, f.anaID, f.env.clock.Now())
+	requireStoryPoints(t, f.env.requireStoryDetail(t, f.anaToken, f.storyID), pokerIntPtr(13), "historia de la 003")
+}
+
+// Escenario: Reemplaza estimación anterior (005/US5)
+// La historia ya estaba estimada en 3 Story Points desde el backlog de la 003. Ana abre una sesión
+// sola, vota 20 y la ronda se revela sola; al registrar 20 la sesión queda finalizada con ese valor
+// y la historia pasa de 3 a 20 Story Points (FR-052).
+func TestUS5_ReemplazaEstimacionAnterior(t *testing.T) {
+	f := newPokerUS1Fixture(t)
+	f.env.requireStoryEstimated(t, f.brunoToken, f.storyID, 3)
+	requireStoryPoints(t, f.env.requireStoryDetail(t, f.anaToken, f.storyID), pokerIntPtr(3), "historia antes de la sesión")
+	session, _ := f.newPokerSoloSession(t, f.storyID)
+	f.env.requireVoted(t, f.anaToken, session.ID, "20")
+
+	resp := f.env.requireFinalized(t, f.anaToken, session.ID, 20)
+
+	requireFinishedSession(t, resp, 20, f.anaID, "respuesta de Ana")
+	requireStoryPoints(t, f.env.requireStoryDetail(t, f.anaToken, f.storyID), pokerIntPtr(20), "historia de la 003")
+}
+
+// Escenario: Reestimación directa durante la sesión (005/US5)
+// Con la ronda 1 en votación sobre una historia sin estimar, Bruno la reestima en 3 con PUT
+// /api/v1/stories/{storyId}/story-points de la 003: responde 200, la versión de la sesión no cambia y
+// por el canal de Ana no llega ningún estado con otra versión, porque no es un hecho de la sesión;
+// el siguiente estado es el del voto de Bruno, con la versión siguiente. La sesión sigue su curso:
+// la ronda se revela y, al registrar 8, la historia queda en 8 Story Points (FR-075, RN-32).
+func TestUS5_ReestimacionDirectaDuranteLaSesion(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	before := pokerStoredVersion(t, f.env.db, f.session.ID)
+
+	f.env.requireStoryEstimated(t, f.brunoToken, f.storyID, 3)
+	assert.Equal(t, before, pokerStoredVersion(t, f.env.db, f.session.ID), "la reestimación directa no sube la versión")
+
+	// Entre la reestimación y el voto de Bruno, el canal de Ana no recibe ninguna otra versión.
+	f.env.requireVoted(t, f.brunoToken, f.session.ID, "5")
+	for {
+		snapshot := f.ana.Next(t)
+		if hasVoted(f.brunoID)(snapshot) {
+			assert.Equal(t, before+1, snapshot.Version, "el voto de Bruno es el hecho siguiente: %s", snapshot.Raw)
+			break
+		}
+		assert.Equal(t, before, snapshot.Version, "la reestimación no produce un estado con otra versión: %s", snapshot.Raw)
+	}
+
+	// La sesión sigue su curso y el registro reemplaza la reestimación directa.
+	f.env.requireVoted(t, f.anaToken, f.session.ID, "8")
+	f.env.requireVoted(t, f.carlaToken, f.session.ID, "8")
+	f.ana.NextUntil(t, "la ronda revelada en el canal de Ana", currentRoundRevealed)
+	resp := f.env.requireFinalized(t, f.anaToken, f.session.ID, 8)
+
+	requireFinishedSession(t, resp, 8, f.anaID, "respuesta de Ana")
+	requireStoryPoints(t, f.env.requireStoryDetail(t, f.brunoToken, f.storyID), pokerIntPtr(8), "historia de la 003")
+}
+
+// Escenario: Registro tras todos interrogación (005/US5)
+// Ana, Bruno y Carla votan "?" y la ronda se revela sola sin votos numéricos. Ana registra 40 de todos
+// modos: responde 200 con la sesión finalizada con valor 40 y la historia queda en 40 Story Points,
+// porque el valor acordado lo decide el facilitador (FR-049, RN-18).
+func TestUS5_RegistroTrasTodosInterrogacion(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	for _, token := range []string{f.anaToken, f.brunoToken, f.carlaToken} {
+		f.env.requireVoted(t, token, f.session.ID, "?")
+	}
+	f.ana.NextUntil(t, "la ronda revelada en el canal de Ana", currentRoundRevealed)
+
+	resp := f.env.requireFinalized(t, f.anaToken, f.session.ID, 40)
+
+	requireFinishedSession(t, resp, 40, f.anaID, "respuesta de Ana")
+	requireStoredFinished(t, f.env.db, f.session.ID, 40, f.anaID, f.env.clock.Now())
+	requireStoryPoints(t, f.env.requireStoryDetail(t, f.anaToken, f.storyID), pokerIntPtr(40), "historia de la 003")
+}
+
+// Escenario: Historia sin criterios no queda lista (005/US5)
+// Sobre una historia sin estimar y sin criterios de aceptación, Ana abre una sesión sola, vota 5 y la
+// ronda se revela sola. Al registrar 5, el detalle de la 003 muestra la historia con 5 Story Points
+// pero todavía no lista para planificar, porque le falta al menos un criterio (FR-052, FR-028 de la
+// 003).
+func TestUS5_HistoriaSinCriteriosNoQuedaLista(t *testing.T) {
+	f := newPokerUS1Fixture(t)
+	storyID := f.env.createStory(t, f.brunoToken, f.projectID, pokerStoryInput{Title: "Historia sin criterios"})
+	session, _ := f.newPokerSoloSession(t, storyID)
+	f.env.requireVoted(t, f.anaToken, session.ID, "5")
+
+	resp := f.env.requireFinalized(t, f.anaToken, session.ID, 5)
+
+	requireFinishedSession(t, resp, 5, f.anaID, "respuesta de Ana")
+	detail := f.env.requireStoryDetail(t, f.anaToken, storyID)
+	requireStoryPoints(t, detail, pokerIntPtr(5), "historia de la 003")
+	assert.False(t, detail.Readiness.Ready, "sin criterios la historia no está lista para planificar")
+	assert.Equal(t, []string{"acceptance_criteria"}, detail.Readiness.Missing, "solo le falta el criterio")
+}
+
+// Escenario: Rondas conservadas (005/US5)
+// Con 1, 3 y 10 rondas reveladas con los votos 3, 5 y 13 de Ana, Bruno y Carla, Ana registra 8: la
+// consulta de la sesión de Bruno con GET /api/v1/estimation-sessions/{sessionId} muestra la sesión
+// finalizada con todas sus rondas reveladas, cada una con sus tres votos y la divergencia de 3 a 13,
+// y en la base quedan todas las rondas con sus votos (FR-053, RN-28, SC-016).
+func TestUS5_RondasConservadas(t *testing.T) {
+	for _, total := range []int{1, 3, 10} {
+		t.Run(fmt.Sprintf("%d rondas", total), func(t *testing.T) {
+			f := newPokerUS2Fixture(t)
+			f.revealDivergentRound(t)
+			for number := 2; number <= total; number++ {
+				f.env.requireStartedRound(t, f.anaToken, f.session.ID)
+				f.revealDivergentRound(t)
+			}
+
+			f.env.requireFinalized(t, f.anaToken, f.session.ID, 8)
+
+			// La consulta de la sesión cerrada muestra todas las rondas completas.
+			session := f.env.requireSessionFetched(t, f.brunoToken, f.session.ID)
+			requireFinishedSession(t, session, 8, f.anaID, "consulta de Bruno")
+			rounds := pokerAllRounds(t, session)
+			require.Len(t, rounds, total, "rondas: %s", session.Raw)
+			for i, round := range rounds {
+				where := fmt.Sprintf("ronda %d", i+1)
+				assert.Equal(t, i+1, round.Number, "%s: número", where)
+				assert.Equal(t, "revealed", round.Status, "%s: estado", where)
+				assert.Equal(t, f.divergentCards(), pokerRevealedCards(round), "%s: votos", where)
+				requireDivergence(t, round, 3, []uuid.UUID{f.anaID}, 13, []uuid.UUID{f.carlaID}, where)
+			}
+
+			// En la base quedan todas las rondas con sus tres votos cada una.
+			stored := pokerStoredRounds(t, f.env.db, f.session.ID)
+			require.Len(t, stored, total, "la sesión debería conservar sus rondas en la base")
+			for _, round := range stored {
+				assert.Equal(t, domain.RoundStatusRevealed, round.Status, "ronda %d", round.Number)
+				assert.EqualValues(t, 3, pokerStoredRoundVotes(t, f.env.db, round.ID), "ronda %d conserva sus votos", round.Number)
+			}
+		})
+	}
+}
+
+// Escenario: Valor inválido (005/US5)
+// Con la ronda 1 revelada, Ana, facilitadora, intenta registrar 7, un decimal y null ("sin estimar"):
+// cada intento responde 400 con el detalle en storyPoints que enumera los valores admitidos; la
+// sesión sigue abierta, la versión no cambia y la historia sigue sin estimar (FR-050, RN-18).
+func TestUS5_ValorInvalido(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.revealDivergentRound(t)
+	before := pokerStoredVersion(t, f.env.db, f.session.ID)
+
+	attempts := []struct {
+		name string
+		body map[string]any
+	}{
+		{"7", map[string]any{"storyPoints": 7}},
+		{"decimal", map[string]any{"storyPoints": 2.5}},
+		{"null", map[string]any{"storyPoints": nil}},
+	}
+	for _, tc := range attempts {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := f.env.finalize(t, f.anaToken, f.session.ID, tc.body)
+
+			requireAgreedValueRejected(t, resp)
+			requireStoredOpen(t, f.env.db, f.session.ID, "el rechazo no cierra la sesión")
+			assert.Equal(t, before, pokerStoredVersion(t, f.env.db, f.session.ID), "un rechazo no sube la versión")
+			requireStoryPoints(t, f.env.requireStoryDetail(t, f.anaToken, f.storyID), nil, "historia de la 003")
+		})
+	}
+}
+
+// Escenario: Sin ronda revelada (005/US5)
+// Con la ronda 1 en votación y el voto 5 de Bruno todavía oculto, Ana, facilitadora, intenta registrar
+// 8: responde 409 con el mensaje de que primero hay que revelar al menos una ronda o cancelar la
+// sesión; la sesión sigue abierta con la ronda en votación, la versión no cambia y la historia sigue
+// sin estimar (FR-051, RN-20).
+func TestUS5_SinRondaRevelada(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.env.requireVoted(t, f.brunoToken, f.session.ID, "5")
+	before := pokerStoredVersion(t, f.env.db, f.session.ID)
+
+	resp := f.env.finalize(t, f.anaToken, f.session.ID, map[string]any{"storyPoints": 8})
+
+	assert.Equal(t, http.StatusConflict, resp.Code, "cuerpo: %s", resp.Body)
+	assert.JSONEq(t, pokerNoRevealedRoundBodyJSON, string(resp.Body))
+	requireStoredOpen(t, f.env.db, f.session.ID, "el rechazo no cierra la sesión")
+	requireStoredVoting(t, f.env.db, f.session.ID, "el rechazo no revela")
+	assert.Equal(t, before, pokerStoredVersion(t, f.env.db, f.session.ID), "un rechazo no sube la versión")
+	requireStoryPoints(t, f.env.requireStoryDetail(t, f.anaToken, f.storyID), nil, "historia de la 003")
+}
+
+// Escenario: Registro sin ser facilitador (005/US5)
+// Con la ronda 1 revelada, Bruno, que no es el facilitador, intenta registrar 8: responde 403 con el
+// mensaje de que la acción está reservada al facilitador; la sesión sigue abierta, la versión no
+// cambia y los Story Points de la historia no cambian (FR-054, FR-064, SC-011).
+func TestUS5_RegistroSinSerFacilitador(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.revealDivergentRound(t)
+	before := pokerStoredVersion(t, f.env.db, f.session.ID)
+
+	resp := f.env.finalize(t, f.brunoToken, f.session.ID, map[string]any{"storyPoints": 8})
+
+	assert.Equal(t, http.StatusForbidden, resp.Code, "cuerpo: %s", resp.Body)
+	assert.JSONEq(t, pokerFacilitatorOnlyBodyJSON, string(resp.Body))
+	requireStoredOpen(t, f.env.db, f.session.ID, "el rechazo no cierra la sesión")
+	assert.Equal(t, before, pokerStoredVersion(t, f.env.db, f.session.ID), "un rechazo no sube la versión")
+	requireStoryPoints(t, f.env.requireStoryDetail(t, f.anaToken, f.storyID), nil, "historia de la 003")
+}

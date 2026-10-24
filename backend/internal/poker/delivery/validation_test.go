@@ -111,3 +111,56 @@ func TestUS2_ValidacionRetiroDeVoto(t *testing.T) {
 		})
 	}
 }
+
+// Pruebas unitarias obligatorias de la validación del cuerpo de registro de la estimación acordada
+// (T062, FR-049, FR-050, RN-18). Siguen el mismo prefijo "Validacion" para no chocar con las pruebas
+// de integración de US5 en handler_test.go (T063).
+
+// validationInvalidAgreedValueMessage es el mensaje del rechazo de un valor acordado fuera de la
+// escala numérica (contracts/openapi.yaml, respuesta 400 de finalize).
+const validationInvalidAgreedValueMessage = "El valor acordado debe ser uno de 0, 1, 2, 3, 5, 8, 13, 20, 40 o 100."
+
+// validationDecodeFinalize decodifica el cuerpo JSON recibido en FinalizeRequest, tal como lo hace el
+// manejador antes de validar, para probar la validación con los cuerpos literales del contrato.
+func validationDecodeFinalize(t *testing.T, body string) FinalizeRequest {
+	t.Helper()
+	var req FinalizeRequest
+	require.NoError(t, json.Unmarshal([]byte(body), &req), "el cuerpo %s debía decodificarse", body)
+	return req
+}
+
+// Escenario: Registrar la estimación acordada - Caso normal: registro con consenso (005/US5)
+// Un cuerpo con un entero de la escala pasa la validación y devuelve ese valor sin errores.
+func TestUS5_ValidacionRegistroValido(t *testing.T) {
+	value, fields := ValidateFinalizeRequest(validationDecodeFinalize(t, `{"storyPoints":8}`))
+
+	assert.Empty(t, fields)
+	assert.Equal(t, 8, value)
+}
+
+// Escenario: Registrar la estimación acordada - Caso de error: valor inválido (005/US5)
+// La carta "?", el valor nulo, el valor ausente (cuerpo vacío), un decimal y un entero fuera de la
+// escala se rechazan en storyPoints con el mensaje que enumera la escala numérica, sin devolver un
+// valor (FR-050). Cada cuerpo rechazado es un subtest.
+func TestUS5_ValidacionValorInvalido(t *testing.T) {
+	rejected := []struct {
+		name string
+		body string
+	}{
+		{"carta ?", `{"storyPoints":"?"}`},
+		{"valor null", `{"storyPoints":null}`},
+		{"cuerpo vacio", `{}`},
+		{"decimal 7.5", `{"storyPoints":7.5}`},
+		{"fuera de escala 7", `{"storyPoints":7}`},
+	}
+	for _, tc := range rejected {
+		t.Run(tc.name, func(t *testing.T) {
+			value, fields := ValidateFinalizeRequest(validationDecodeFinalize(t, tc.body))
+
+			require.Equal(t,
+				[]authdelivery.FieldError{{Field: "storyPoints", Message: validationInvalidAgreedValueMessage}},
+				fields, "el cuerpo %s debía rechazarse solo en storyPoints", tc.body)
+			assert.Equal(t, 0, value)
+		})
+	}
+}

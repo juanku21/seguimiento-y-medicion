@@ -148,6 +148,14 @@ type VoteRequest struct {
 	Card json.RawMessage `json:"card" validate:"required" swaggertype:"string" enums:"0,1,2,3,5,8,13,20,40,100,?" example:"5"`
 }
 
+// FinalizeRequest es el cuerpo del registro de la estimación acordada (contracts/openapi.yaml).
+// StoryPoints llega como json.RawMessage para rechazar con el mismo mensaje el valor ausente, nulo,
+// textual o decimal (FR-050, research.md sección 12).
+type FinalizeRequest struct {
+	// Valor acordado de la escala numérica de Story Points (FR-049).
+	StoryPoints json.RawMessage `json:"storyPoints" validate:"required" swaggertype:"integer" enums:"0,1,2,3,5,8,13,20,40,100" example:"8"`
+}
+
 // OpenSessionExistsResponse es el cuerpo del 409 al abrir una sesión sobre una historia que ya tiene
 // una en curso, con la sesión a la que se puede unir (FR-006).
 type OpenSessionExistsResponse struct {

@@ -37,8 +37,9 @@ function parseEstimationEvent(event: ServerSentEvent): EstimationEvent | null {
 // instantánea. Descarta las instantáneas de version menor a la vigente, que llegaron tarde; la de
 // igual version se acepta porque el backend la repite ante cambios de la historia (FR-074). Ante un
 // rechazo (404 de sesión inexistente o ajena, 401 de sesión inválida, que además descarta la sesión
-// en el cliente HTTP) el canal se detiene y expone el error. Al desmontar o cambiar de sesión se
-// aborta la petición y se ignora todo lo que llegue después.
+// en el cliente HTTP) el canal se detiene y expone el error. Con una instantánea de la sesión
+// cerrada (Finalizada o Cancelada) el canal se detiene y queda esa instantánea (005/US5). Al
+// desmontar o cambiar de sesión se aborta la petición y se ignora todo lo que llegue después.
 export function useEstimationStream(sessionId: string): EstimationStreamState {
   const [state, setState] = useState<EstimationStreamState>({
     session: null,
@@ -60,6 +61,10 @@ export function useEstimationStream(sessionId: string): EstimationStreamState {
       }
       currentVersion = event.session.version;
       setState({ session: event.session, error: null });
+      // Una sesión cerrada ya no cambia: se aborta la petición para no seguir leyendo el canal.
+      if (event.session.status !== "open") {
+        controller.abort();
+      }
     };
 
     // Abre el canal y lo lee hasta que el servidor lo cierra; un corte o el aborto al desmontar

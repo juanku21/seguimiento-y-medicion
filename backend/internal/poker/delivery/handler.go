@@ -20,8 +20,9 @@ import (
 // identificador mal formado) y el canal; el 404 de historia es el de la 003. Los tres 409 de
 // apertura y el 409 de sesión cerrada los fija contracts/openapi.yaml, igual que el 403 de quien no
 // participa, el 403 de acción reservada al facilitador, el 409 de ronda revelada del voto y los dos
-// 409 de la revelación (ronda ya revelada y ronda sin votos) y el 409 de iniciar una ronda con la
-// vigente en votación. Los dos 400 de cuerpo son los de los demás módulos.
+// 409 de la revelación (ronda ya revelada y ronda sin votos), el 409 de iniciar una ronda con la
+// vigente en votación y el 409 de registrar sin ninguna ronda revelada. Los dos 400 de cuerpo son los
+// de los demás módulos.
 const (
 	msgInvalidFields            = "Hay campos inválidos en la solicitud."
 	msgInvalidBody              = "El cuerpo de la solicitud debe ser un JSON válido."
@@ -31,6 +32,7 @@ const (
 	msgRoundAlreadyRevealed     = "La ronda ya fue revelada."
 	msgNoVotesToReveal          = "Hace falta al menos un voto para revelar la ronda."
 	msgRoundNotRevealed         = "Primero hay que revelar la ronda vigente."
+	msgNoRevealedRound          = "Primero hay que revelar al menos una ronda o cancelar la sesión."
 	msgSessionRequired          = "Se requiere iniciar sesión."
 	msgEstimationSessionMissing = "La sesión de estimación no existe."
 	msgStoryNotFound            = "La historia no existe."
@@ -313,6 +315,86 @@ func (h *Handler) startEstimationRound(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, newEstimationSession(view))
+}
+
+// finalizeEstimationSession godoc
+//
+//	@Summary		Registra la estimación acordada y finaliza la sesión (solo el facilitador)
+//	@Description	Finaliza la sesión con un valor numérico de la escala, que no tiene que coincidir con
+//	@Description	ningún voto (FR-049), y en la misma operación deja los Story Points de la historia en ese
+//	@Description	valor, reemplazando el anterior aunque se haya reestimado desde el backlog mientras la
+//	@Description	sesión estaba abierta (FR-052, FR-075). Exige al menos una ronda revelada (FR-051).
+//	@Description	Reservada al facilitador (FR-054). «?», null, un valor ausente y cualquier número fuera de
+//	@Description	0, 1, 2, 3, 5, 8, 13, 20, 40 y 100 se rechazan con 400; la sesión sigue abierta y la
+//	@Description	historia no cambia (FR-050). Los canales abiertos reciben el estado final y se cierran.
+//	@Tags			Planning Poker
+//	@ID				finalizeEstimationSession
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			sessionId	path		string								true	"Identificador de la sesión de estimación"	format(uuid)
+//	@Param			body		body		FinalizeRequest						true	"Valor acordado"
+//	@Success		200			{object}	EstimationSession					"Sesión finalizada."
+//	@Failure		400			{object}	delivery.ValidationErrorResponse	"Valor fuera de la escala numérica («El valor acordado debe ser uno de 0, 1, 2, 3, 5, 8, 13, 20, 40 o 100.», con el detalle en storyPoints). Si el cuerpo no es un JSON válido, la respuesta es ErrorResponse."
+//	@Failure		401			{object}	delivery.ErrorResponse				"Se requiere iniciar sesión."
+//	@Failure		403			{object}	delivery.ErrorResponse				"Quien pide no es participante conectado de la sesión («No participás de esta sesión de estimación.», FR-028) o no es el facilitador («Esta acción está reservada al facilitador de la sesión.», FR-054)."
+//	@Failure		404			{object}	delivery.ErrorResponse				"La sesión de estimación no existe o pertenece a un proyecto del que quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo."
+//	@Failure		409			{object}	SessionClosedResponse				"La sesión está cerrada, con el resultado registrado («La sesión de estimación ya está cerrada.»), o no tiene ninguna ronda revelada («Primero hay que revelar al menos una ronda o cancelar la sesión.», como ErrorResponse, FR-051)."
+//	@Failure		500			{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."
+//	@Router			/api/v1/estimation-sessions/{sessionId}/finalize [post]
+func (h *Handler) finalizeEstimationSession(c *gin.Context) {
+	// RequireEstimationAccess y la sesión de la 001 ya dejaron el acceso y el titular en el contexto;
+	// su ausencia aquí es un error de composición y responde 500.
+	access, ok := sessionAccessFromContext(c)
+	if !ok {
+		respondInternalError(c, "finalizeEstimationSession sin acceso a la sesión en el contexto")
+		return
+	}
+	userID, ok := authdelivery.CurrentUserID(c)
+	if !ok {
+		respondInternalError(c, "finalizeEstimationSession sin titular de sesión en el contexto")
+		return
+	}
+
+	// El cuerpo se decodifica y se valida antes de llegar al servicio, así un valor fuera de la escala
+	// deja la sesión abierta y la historia sin cambios (FR-050, Principio VII).
+	var req FinalizeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, authdelivery.ErrorResponse{Error: msgInvalidBody})
+		return
+	}
+	storyPoints, fields := ValidateFinalizeRequest(req)
+	if fields != nil {
+		c.JSON(http.StatusBadRequest, authdelivery.ValidationErrorResponse{Error: msgInvalidFields, Fields: fields})
+		return
+	}
+
+	// Se registra el valor acordado y se traducen los rechazos de dominio a los 403, 404 y 409 del
+	// contrato.
+	view, err := h.sessions.Finalize(c.Request.Context(), access.SessionID, userID, storyPoints)
+	var closed *domain.SessionClosedError
+	switch {
+	case errors.As(err, &closed):
+		c.JSON(http.StatusConflict, newSessionClosedResponse(msgSessionClosed, closed))
+		return
+	case errors.Is(err, domain.ErrNoRevealedRound):
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgNoRevealedRound})
+		return
+	case errors.Is(err, domain.ErrNotParticipant):
+		c.JSON(http.StatusForbidden, authdelivery.ErrorResponse{Error: msgNotParticipant})
+		return
+	case errors.Is(err, domain.ErrFacilitatorOnly):
+		c.JSON(http.StatusForbidden, authdelivery.ErrorResponse{Error: msgFacilitatorOnly})
+		return
+	case errors.Is(err, domain.ErrSessionNotFound):
+		abortEstimationSessionNotFound(c)
+		return
+	case err != nil:
+		respondInternalError(c, "no se pudo registrar la estimación acordada", "error", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, newEstimationSession(view))
 }
 
 // getEstimationSession godoc

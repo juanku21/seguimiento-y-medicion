@@ -5,17 +5,20 @@ import { Alert } from "@/components/alert";
 import { getOwnProfile } from "@/features/auth/api";
 import {
   castEstimationVote,
+  finalizeEstimationSession,
   revealEstimationRound,
   startEstimationRound,
 } from "@/features/poker/api";
 import { CardDeck } from "@/features/poker/components/card-deck";
 import { FacilitatorActions } from "@/features/poker/components/facilitator-actions";
+import { FinalizeDialog } from "@/features/poker/components/finalize-dialog";
 import { ParticipantList } from "@/features/poker/components/participant-list";
 import { RoundHistory } from "@/features/poker/components/round-history";
 import { RoundResult } from "@/features/poker/components/round-result";
+import { SessionClosedNotice } from "@/features/poker/components/session-closed-notice";
 import { useEstimationStream } from "@/features/poker/use-estimation-stream";
 import { useAuthorizedQuery } from "@/hooks/use-authorized-query";
-import type { Card } from "@/types/poker";
+import type { Card, ScaleStoryPoints } from "@/types/poker";
 
 // Propiedades de la sala en vivo: la sesión de estimación tomada de la ruta.
 export type PokerRoomProps = {
@@ -31,12 +34,16 @@ export type PokerRoomProps = {
 // reconoce comparando el perfil propio con el de la instantánea, revela la ronda (005/US3); la ronda
 // revelada muestra los votos y su resultado, y un rechazo de la revelación muestra el motivo recibido.
 // Con la ronda revelada el facilitador inicia una ronda nueva (005/US4) y las rondas anteriores se
-// muestran en el historial; un rechazo de la ronda nueva muestra el motivo recibido.
+// muestran en el historial; un rechazo de la ronda nueva muestra el motivo recibido. Con alguna ronda
+// revelada el facilitador registra la estimación acordada (005/US5); un rechazo muestra el motivo
+// recibido y, cuando la instantánea llega cerrada, la sala muestra el aviso de cierre con su
+// resultado en lugar del mazo y de las acciones.
 export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
   const { session, error } = useEstimationStream(sessionId);
   const profile = useAuthorizedQuery(getOwnProfile);
   const [voteError, setVoteError] = useState<string | null>(null);
   const [roundError, setRoundError] = useState<string | null>(null);
+  const [finalizeError, setFinalizeError] = useState<string | null>(null);
 
   // Envía la carta jugada; ante un rechazo muestra el detalle del campo si lo hay o el mensaje
   // general, y ante un voto aceptado limpia el aviso anterior.
@@ -63,6 +70,18 @@ export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
     setRoundError(result.ok ? null : result.error.message);
   };
 
+  // Registra el valor acordado; ante un rechazo muestra el detalle del campo si lo hay o el mensaje
+  // general, y ante un registro aceptado limpia el aviso anterior. La sesión cerrada llega por el
+  // canal.
+  const handleFinalize = async (storyPoints: ScaleStoryPoints) => {
+    const result = await finalizeEstimationSession(sessionId, storyPoints);
+    setFinalizeError(
+      result.ok
+        ? null
+        : (result.error.fields[0]?.message ?? result.error.message),
+    );
+  };
+
   if (error !== null) {
     return <Alert>{error.message}</Alert>;
   }
@@ -75,9 +94,13 @@ export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
   }
 
   const { story } = session;
+  const isOpen = session.status === "open";
   const currentRound = session.rounds.at(-1);
   const isFacilitator =
     profile.status === "loaded" && profile.data.id === session.facilitator.id;
+  const hasRevealedRound = session.rounds.some(
+    (round) => round.status === "revealed",
+  );
   return (
     <div className="flex flex-col gap-6">
       {/* Historia que se estima con su texto vigente; sin criterios la lista queda vacía y se
@@ -110,7 +133,7 @@ export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
       </article>
 
       {/* Mazo de la ronda vigente con la carta propia resaltada y el motivo de un voto rechazado. */}
-      {currentRound !== undefined && (
+      {isOpen && currentRound !== undefined && (
         <section className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold">Tu voto</h2>
           {voteError !== null && <Alert>{voteError}</Alert>}
@@ -123,14 +146,14 @@ export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
         </section>
       )}
 
-      {/* Acciones del facilitador sobre la ronda vigente con el motivo de un rechazo, y el
-          resultado cuando la ronda ya está revelada. */}
+      {/* Acciones del facilitador sobre la ronda vigente con el motivo de un rechazo, mientras la
+          sesión está abierta, y el resultado cuando la ronda ya está revelada. */}
       {currentRound !== undefined && (
         <section className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold">Ronda {currentRound.number}</h2>
           {roundError !== null && <Alert>{roundError}</Alert>}
           <FacilitatorActions
-            isFacilitator={isFacilitator}
+            isFacilitator={isOpen && isFacilitator}
             roundStatus={currentRound.status}
             onReveal={() => void handleReveal()}
             onNewRound={() => void handleNewRound()}
@@ -139,6 +162,27 @@ export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
             <RoundResult round={currentRound} />
           )}
         </section>
+      )}
+
+      {/* Registro de la estimación acordada, solo para el facilitador y con alguna ronda revelada,
+          con el motivo de un rechazo. */}
+      {isOpen && isFacilitator && hasRevealedRound && (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-lg font-semibold">Registrar estimación</h2>
+          {finalizeError !== null && <Alert>{finalizeError}</Alert>}
+          <FinalizeDialog
+            onFinalize={(storyPoints) => void handleFinalize(storyPoints)}
+          />
+        </section>
+      )}
+
+      {/* Aviso de la sesión cerrada con su estado y el valor acordado. */}
+      {session.status !== "open" && (
+        <SessionClosedNotice
+          status={session.status}
+          agreedStoryPoints={session.agreedStoryPoints}
+          cancelReason={session.cancelReason}
+        />
       )}
 
       {/* Rondas anteriores a la vigente con sus votos y su resultado. */}

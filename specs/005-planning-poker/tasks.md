@@ -557,15 +557,15 @@ Points de la historia toman ese valor.
 
 ### Pruebas de la Historia 5 ⚠️
 
-- [ ] T061 [P] [US5] Pruebas unitarias **obligatorias** de `ValidateAgreedValue` en
+- [X] T061 [P] [US5] Pruebas unitarias **obligatorias** de `ValidateAgreedValue` en
       `backend/internal/poker/domain/card_test.go`, cubriendo RN-18: los diez valores de la escala
       aceptados; 7, 4, -1 y 101 rechazados con el mensaje que enumera la escala — depende de T060
-- [ ] T062 [P] [US5] Pruebas unitarias **obligatorias** de validación del cuerpo de registro en
+- [X] T062 [P] [US5] Pruebas unitarias **obligatorias** de validación del cuerpo de registro en
       `backend/internal/poker/delivery/validation_test.go`: `{"storyPoints":8}` → ok;
       `{"storyPoints":"?"}`, `{"storyPoints":null}`, cuerpo vacío, `7.5` y `7` → `FieldError` en
       `storyPoints` con
       `El valor acordado debe ser uno de 0, 1, 2, 3, 5, 8, 13, 20, 40 o 100.` — depende de T060
-- [ ] T063 [US5] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
+- [X] T063 [US5] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
       escenario con `// Escenario: <nombre> (005/US5)`: `TestUS5_RegistroConConsenso` (los canales
       reciben el último `state` y se cierran), `TestUS5_RegistroSinConsenso`,
       `TestUS5_ValorNoVotado`, `TestUS5_ReemplazaEstimacionAnterior`,
@@ -578,7 +578,7 @@ Points de la historia toman ese valor.
       `TestUS5_SinRondaRevelada` (`409`
       `Primero hay que revelar al menos una ronda o cancelar la sesión.`) y
       `TestUS5_RegistroSinSerFacilitador` (`403`, Story Points sin cambios) — depende de T060
-- [ ] T064 [P] [US5] Pruebas de frontend en
+- [X] T064 [P] [US5] Pruebas de frontend en
       `frontend/src/features/poker/components/finalize-dialog.test.tsx` y
       `frontend/src/features/poker/components/session-closed-notice.test.tsx`, con
       `describe("005/US5 - Registrar la estimación acordada")`: el diálogo ofrece solo los diez
@@ -587,23 +587,23 @@ Points de la historia toman ese valor.
 
 ### Implementación de la Historia 5
 
-- [ ] T065 [P] [US5] Implementar `ValidateAgreedValue` en `backend/internal/poker/domain/card.go`
+- [X] T065 [P] [US5] Implementar `ValidateAgreedValue` en `backend/internal/poker/domain/card.go`
       sobre `backlogdomain.IsValidStoryPoints` — depende de T061
-- [ ] T066 [US5] Implementar la validación del cuerpo de registro en
+- [X] T066 [US5] Implementar la validación del cuerpo de registro en
       `backend/internal/poker/delivery/validation.go` — depende de T062, T065
-- [ ] T067 [US5] Implementar `Finalize` en
+- [X] T067 [US5] Implementar `Finalize` en
       `backend/internal/poker/repository/session_repository.go`: bloqueo de la sesión, `EnsureOpen`,
       participante conectado, facilitador, al menos una ronda `revealed` en la sesión o
       `ErrNoRevealedRound`; **después** bloqueo de la fila de `user_stories` (orden sesión →
       historia, research.md sección 6); `status = finished`, `agreed_story_points`,
       `closed_by_id = titular`, `closed_at = now`, `version + 1` y, en la **misma transacción**,
       `UPDATE user_stories SET story_points = ?, updated_at = ?` — depende de T063
-- [ ] T068 [US5] Implementar `Finalize` en `backend/internal/poker/service/session_service.go`
+- [X] T068 [US5] Implementar `Finalize` en `backend/internal/poker/service/session_service.go`
       (publica el estado final y llama a `hub.CloseSession`) y el manejador
       `finalizeEstimationSession` con anotaciones `swag`, `FinalizeRequest` en `dto.go` y la ruta en
       `routes.go`; el canal (`stream.go`) termina sin error cuando el hub cierra su canal —
       depende de T066, T067
-- [ ] T069 [US5] Implementar `FinalizeDialog` y `SessionClosedNotice` en
+- [X] T069 [US5] Implementar `FinalizeDialog` y `SessionClosedNotice` en
       `frontend/src/features/poker/components/`, la llamada en `api.ts` y la detención del hook al
       recibir un `state` cerrado — depende de T064, T068
 

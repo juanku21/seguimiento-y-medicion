@@ -140,19 +140,20 @@ func ViewFor(snapshot SessionSnapshot, viewerID uuid.UUID) SessionView {
 	session := snapshot.Session
 	currentVotes := currentRoundVotes(snapshot.Rounds)
 	return SessionView{
-		ID:           session.ID,
-		Version:      session.Version,
-		Status:       session.Status,
-		Story:        storyView(snapshot.Story),
-		Facilitator:  snapshot.Facilitator,
-		OpenedBy:     snapshot.OpenedBy,
-		OpenedAt:     session.CreatedAt,
-		ClosedBy:     snapshot.ClosedBy,
-		ClosedAt:     session.ClosedAt,
-		Cards:        slices.Clone(Cards),
-		Participants: participantViews(snapshot.Participants, session.FacilitatorID, currentVotes),
-		Rounds:       roundViews(snapshot.Rounds, session.Status, snapshot.Participants),
-		MyVote:       myVote(currentVotes, viewerID),
+		ID:                session.ID,
+		Version:           session.Version,
+		Status:            session.Status,
+		Story:             storyView(snapshot.Story),
+		Facilitator:       snapshot.Facilitator,
+		OpenedBy:          snapshot.OpenedBy,
+		OpenedAt:          session.CreatedAt,
+		ClosedBy:          snapshot.ClosedBy,
+		ClosedAt:          session.ClosedAt,
+		AgreedStoryPoints: session.AgreedStoryPoints,
+		Cards:             slices.Clone(Cards),
+		Participants:      participantViews(snapshot.Participants, session.FacilitatorID, currentVotes),
+		Rounds:            roundViews(snapshot.Rounds, session.Status, snapshot.Participants),
+		MyVote:            myVote(currentVotes, viewerID),
 	}
 }
 

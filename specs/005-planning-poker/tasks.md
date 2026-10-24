@@ -591,7 +591,7 @@ Points de la historia toman ese valor.
       sobre `backlogdomain.IsValidStoryPoints` — depende de T061
 - [X] T066 [US5] Implementar la validación del cuerpo de registro en
       `backend/internal/poker/delivery/validation.go` — depende de T062, T065
-- [ ] T067 [US5] Implementar `Finalize` en
+- [X] T067 [US5] Implementar `Finalize` en
       `backend/internal/poker/repository/session_repository.go`: bloqueo de la sesión, `EnsureOpen`,
       participante conectado, facilitador, al menos una ronda `revealed` en la sesión o
       `ErrNoRevealedRound`; **después** bloqueo de la fila de `user_stories` (orden sesión →

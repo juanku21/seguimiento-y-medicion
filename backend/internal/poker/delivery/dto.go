@@ -58,8 +58,31 @@ type EstimationVote struct {
 	Card domain.Card `json:"card" validate:"required" enums:"0,1,2,3,5,8,13,20,40,100,?" example:"5"`
 }
 
-// EstimationRound es una ronda de votación tal como la ve quien pide. Outcome queda siempre en null
-// en US1: el esquema RoundOutcome y su conversión los declara T053, que reemplaza el tipo del campo.
+// OutcomeExtreme es el mínimo o el máximo de una ronda divergente, con todos los autores de ese valor
+// (FR-039, US3-8).
+type OutcomeExtreme struct {
+	// Valor de Story Points del extremo.
+	Value int `json:"value" validate:"required" enums:"0,1,2,3,5,8,13,20,40,100" example:"3"`
+	// Todos los autores del valor, ordenados por nombre (FR-039, US3-8).
+	Authors []UserRef `json:"authors" validate:"required"`
+}
+
+// RoundOutcome es el resultado de una ronda revelada. consensus lleva value y no lleva min ni max;
+// divergence lleva min y max; no_numeric_votes no lleva ninguno (FR-036 a FR-041). No hay promedio ni
+// mediana (FR-042).
+type RoundOutcome struct {
+	// Tipo de resultado: consensus (Consenso), divergence (Divergencia) o no_numeric_votes (sin votos
+	// numéricos).
+	Kind domain.OutcomeKind `json:"kind" validate:"required" enums:"consensus,divergence,no_numeric_votes" example:"divergence"`
+	// Valor del consenso, o null en los demás resultados.
+	Value *int `json:"value" enums:"0,1,2,3,5,8,13,20,40,100" extensions:"x-nullable" example:"5"`
+	// Mínimo de la divergencia, o null en los demás resultados.
+	Min *OutcomeExtreme `json:"min" extensions:"x-nullable"`
+	// Máximo de la divergencia, o null en los demás resultados.
+	Max *OutcomeExtreme `json:"max" extensions:"x-nullable"`
+}
+
+// EstimationRound es una ronda de votación tal como la ve quien pide.
 type EstimationRound struct {
 	// Número de la ronda, desde 1.
 	Number int `json:"number" validate:"required" minimum:"1" example:"1"`
@@ -73,7 +96,7 @@ type EstimationRound struct {
 	// voto viaja en myVote (FR-023, FR-082).
 	Votes []EstimationVote `json:"votes" validate:"required" extensions:"x-nullable"`
 	// Resultado de la ronda; solo en rondas reveladas.
-	Outcome *struct{} `json:"outcome" validate:"required" swaggertype:"object" extensions:"x-nullable"`
+	Outcome *RoundOutcome `json:"outcome" validate:"required" extensions:"x-nullable"`
 	// En la ronda vigente revelada de una sesión abierta, participantes conectados sin voto (FR-035).
 	// Vacía en las demás rondas.
 	NotVoted []UserRef `json:"notVoted" validate:"required"`
@@ -220,8 +243,8 @@ func newEstimationStory(story domain.SessionStory) EstimationStory {
 	}
 }
 
-// newEstimationRound convierte una ronda de la vista. Los votos siguen nil mientras la vista los
-// oculta, para que se serialicen como null (FR-023); notVoted siempre sale como lista.
+// newEstimationRound convierte una ronda de la vista. Los votos y el resultado siguen nil mientras la
+// vista los oculta, para que se serialicen como null (FR-023); notVoted siempre sale como lista.
 func newEstimationRound(round domain.RoundView) EstimationRound {
 	var votes []EstimationVote
 	if round.Votes != nil {
@@ -242,8 +265,36 @@ func newEstimationRound(round domain.RoundView) EstimationRound {
 		OpenedAt:   formatTime(round.OpenedAt),
 		RevealedAt: formatOptionalTime(round.RevealedAt),
 		Votes:      votes,
+		Outcome:    newRoundOutcome(round.Outcome),
 		NotVoted:   notVoted,
 	}
+}
+
+// newRoundOutcome convierte el resultado de una ronda revelada, o devuelve nil para que una ronda en
+// votación lo serialice como null. El valor y los extremos ausentes quedan nil y salen como null.
+func newRoundOutcome(outcome *domain.RoundOutcome) *RoundOutcome {
+	if outcome == nil {
+		return nil
+	}
+	return &RoundOutcome{
+		Kind:  outcome.Kind,
+		Value: outcome.Value,
+		Min:   newOutcomeExtreme(outcome.Min),
+		Max:   newOutcomeExtreme(outcome.Max),
+	}
+}
+
+// newOutcomeExtreme convierte un extremo de la divergencia conservando el orden de sus autores, o
+// devuelve nil si el resultado no lo lleva; los autores siempre salen como lista, nunca como null.
+func newOutcomeExtreme(extreme *domain.OutcomeExtreme) *OutcomeExtreme {
+	if extreme == nil {
+		return nil
+	}
+	authors := make([]UserRef, 0, len(extreme.Authors))
+	for _, u := range extreme.Authors {
+		authors = append(authors, newUserRef(u))
+	}
+	return &OutcomeExtreme{Value: extreme.Value, Authors: authors}
 }
 
 // newUserRef convierte una persona de la vista al esquema UserRef.

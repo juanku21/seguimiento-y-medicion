@@ -111,6 +111,26 @@ func (s *SessionService) Vote(ctx context.Context, sessionID, userID uuid.UUID, 
 	return &view, nil
 }
 
+// Reveal revela a mano la ronda vigente a pedido del facilitador y devuelve la sesión resultante
+// vista por quien la pidió. Igual que Vote, publica recién después de que el repositorio confirma la
+// transacción (research.md sección 7) y devuelve tal cual los errores del repositorio, para que el
+// manejador los traduzca.
+func (s *SessionService) Reveal(ctx context.Context, sessionID, userID uuid.UUID) (*domain.SessionView, error) {
+	if err := s.repo.Reveal(ctx, sessionID, userID, s.now()); err != nil {
+		return nil, err
+	}
+	if err := s.publish(ctx, sessionID); err != nil {
+		return nil, err
+	}
+
+	snapshot, err := s.repo.FindSnapshot(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("reading revealed session snapshot: %w", err)
+	}
+	view := domain.ViewFor(*snapshot, userID)
+	return &view, nil
+}
+
 // Leave da de baja la suscripción de la conexión y la descuenta de la presencia; si era la última
 // de la persona, empieza a correr la gracia de FR-014.
 func (s *SessionService) Leave(conn *Connection) {

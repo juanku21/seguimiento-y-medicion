@@ -2,10 +2,17 @@
 
 import { useState, type ReactElement } from "react";
 import { Alert } from "@/components/alert";
-import { castEstimationVote } from "@/features/poker/api";
+import { getOwnProfile } from "@/features/auth/api";
+import {
+  castEstimationVote,
+  revealEstimationRound,
+} from "@/features/poker/api";
 import { CardDeck } from "@/features/poker/components/card-deck";
+import { FacilitatorActions } from "@/features/poker/components/facilitator-actions";
 import { ParticipantList } from "@/features/poker/components/participant-list";
+import { RoundResult } from "@/features/poker/components/round-result";
 import { useEstimationStream } from "@/features/poker/use-estimation-stream";
+import { useAuthorizedQuery } from "@/hooks/use-authorized-query";
 import type { Card } from "@/types/poker";
 
 // Propiedades de la sala en vivo: la sesión de estimación tomada de la ruta.
@@ -18,10 +25,14 @@ export type PokerRoomProps = {
 // y los criterios de aceptación vigentes de la historia y la lista de participantes, sin recargar
 // (FR-011, FR-013, FR-075). Si el canal se rechaza (sesión inexistente o ajena) muestra solo el
 // mensaje recibido. El mazo de la ronda vigente envía el voto propio (005/US2); la sesión resultante
-// llega por el canal y, si el voto se rechaza, se muestra el motivo recibido.
+// llega por el canal y, si el voto se rechaza, se muestra el motivo recibido. El facilitador, que se
+// reconoce comparando el perfil propio con el de la instantánea, revela la ronda (005/US3); la ronda
+// revelada muestra los votos y su resultado, y un rechazo de la revelación muestra el motivo recibido.
 export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
   const { session, error } = useEstimationStream(sessionId);
+  const profile = useAuthorizedQuery(getOwnProfile);
   const [voteError, setVoteError] = useState<string | null>(null);
+  const [revealError, setRevealError] = useState<string | null>(null);
 
   // Envía la carta jugada; ante un rechazo muestra el detalle del campo si lo hay o el mensaje
   // general, y ante un voto aceptado limpia el aviso anterior.
@@ -32,6 +43,13 @@ export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
         ? null
         : (result.error.fields[0]?.message ?? result.error.message),
     );
+  };
+
+  // Pide la revelación manual; ante un rechazo muestra el mensaje recibido y ante una revelación
+  // aceptada limpia el aviso anterior. La ronda revelada llega por el canal.
+  const handleReveal = async () => {
+    const result = await revealEstimationRound(sessionId);
+    setRevealError(result.ok ? null : result.error.message);
   };
 
   if (error !== null) {
@@ -47,6 +65,8 @@ export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
 
   const { story } = session;
   const currentRound = session.rounds.at(-1);
+  const isFacilitator =
+    profile.status === "loaded" && profile.data.id === session.facilitator.id;
   return (
     <div className="flex flex-col gap-6">
       {/* Historia que se estima con su texto vigente; sin criterios la lista queda vacía y se
@@ -89,6 +109,23 @@ export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
             roundStatus={currentRound.status}
             onVote={(card) => void handleVote(card)}
           />
+        </section>
+      )}
+
+      {/* Acciones del facilitador sobre la ronda vigente con el motivo de un rechazo, y el
+          resultado cuando la ronda ya está revelada. */}
+      {currentRound !== undefined && (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-lg font-semibold">Ronda {currentRound.number}</h2>
+          {revealError !== null && <Alert>{revealError}</Alert>}
+          <FacilitatorActions
+            isFacilitator={isFacilitator}
+            roundStatus={currentRound.status}
+            onReveal={() => void handleReveal()}
+          />
+          {currentRound.status === "revealed" && (
+            <RoundResult round={currentRound} />
+          )}
         </section>
       )}
 

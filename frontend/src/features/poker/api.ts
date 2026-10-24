@@ -78,3 +78,17 @@ export function castEstimationVote(
     isEstimationSession,
   );
 }
+
+// Revela la ronda vigente con POST /api/v1/estimation-sessions/{sessionId}/reveal, sin cuerpo
+// (005/US3). Devuelve la sesión vista por el facilitador (200). Las reglas las resuelve el backend:
+// quien no es el facilitador recibe 403, la sesión inexistente 404 y la ronda sin votos, ya
+// revelada o la sesión cerrada 409; ante un 401 el cliente HTTP descarta la sesión.
+export function revealEstimationRound(
+  sessionId: string,
+): Promise<ApiResult<EstimationSession>> {
+  return postAuthorizedJson(
+    `${sessionPath(sessionId)}/reveal`,
+    undefined,
+    isEstimationSession,
+  );
+}

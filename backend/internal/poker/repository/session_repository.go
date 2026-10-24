@@ -189,11 +189,11 @@ func ensureNoOpenSession(tx *gorm.DB, storyID uuid.UUID) error {
 // Connect da de alta o reconecta al participante en una transacción que bloquea la sesión con
 // lockOpenSession (FR-011 a FR-013, FR-015). Si la persona nunca estuvo en la sesión se inserta su
 // fila conectada; si ya estaba, se reutiliza su fila (RN-34) marcándola conectada y borrando
-// disconnected_at. La incorporación es un hecho, así que touchSession fija last_activity_at = now y
-// sube version.
+// disconnected_at. Con la presencia ya actualizada evalúa la revelación automática (FR-031). La
+// incorporación es un hecho, así que touchSession fija last_activity_at = now y sube version.
 func (r *SessionRepository) Connect(ctx context.Context, sessionID, userID uuid.UUID, now time.Time) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := lockOpenSession(tx, sessionID); err != nil {
+		if _, err := lockOpenSession(tx, sessionID); err != nil {
 			return err
 		}
 
@@ -231,6 +231,9 @@ func (r *SessionRepository) Connect(ctx context.Context, sessionID, userID uuid.
 				return fmt.Errorf("reconectar al participante: %w", err)
 			}
 		}
+		if err := autoRevealCurrentRound(tx, sessionID, now); err != nil {
+			return err
+		}
 		return touchSession(tx, sessionID, now)
 	})
 }
@@ -238,11 +241,11 @@ func (r *SessionRepository) Connect(ctx context.Context, sessionID, userID uuid.
 // Disconnect marca desconectado al participante en una transacción que bloquea la sesión con
 // lockOpenSession (FR-013, FR-014): fija connected = false con un map, porque GORM descarta el false
 // de un struct, y disconnected_at = now. Si la persona no es participante de la sesión devuelve
-// ErrNotParticipant. La desconexión es un hecho, así que touchSession fija last_activity_at = now y
-// sube version.
+// ErrNotParticipant. Sin la persona entre los conectados evalúa la revelación automática (FR-031).
+// La desconexión es un hecho, así que touchSession fija last_activity_at = now y sube version.
 func (r *SessionRepository) Disconnect(ctx context.Context, sessionID, userID uuid.UUID, now time.Time) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := lockOpenSession(tx, sessionID); err != nil {
+		if _, err := lockOpenSession(tx, sessionID); err != nil {
 			return err
 		}
 		result := tx.
@@ -255,6 +258,9 @@ func (r *SessionRepository) Disconnect(ctx context.Context, sessionID, userID uu
 		if result.RowsAffected == 0 {
 			return domain.ErrNotParticipant
 		}
+		if err := autoRevealCurrentRound(tx, sessionID, now); err != nil {
+			return err
+		}
 		return touchSession(tx, sessionID, now)
 	})
 }
@@ -263,21 +269,24 @@ func (r *SessionRepository) Disconnect(ctx context.Context, sessionID, userID uu
 // sesión, de modo que todas las acciones sobre ella se serialicen (research.md sección 6), y con el
 // estado releído aplica EnsureOpen, que rechaza la sesión cerrada con SessionClosedError (RN-22). Si
 // la sesión no existe devuelve ErrSessionNotFound. La comparten todas las escrituras sobre una
-// sesión abierta.
-func lockOpenSession(tx *gorm.DB, sessionID uuid.UUID) error {
+// sesión abierta; devuelve la sesión releída con su facilitator_id para las acciones reservadas.
+func lockOpenSession(tx *gorm.DB, sessionID uuid.UUID) (*domain.EstimationSession, error) {
 	var session domain.EstimationSession
 	err := tx.
 		Clauses(clause.Locking{Strength: "UPDATE"}).
-		Select("id, status, cancel_reason, agreed_story_points").
+		Select("id, facilitator_id, status, cancel_reason, agreed_story_points").
 		Where("id = ?", sessionID).
 		Take(&session).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return domain.ErrSessionNotFound
+		return nil, domain.ErrSessionNotFound
 	}
 	if err != nil {
-		return fmt.Errorf("bloquear la sesión de estimación: %w", err)
+		return nil, fmt.Errorf("bloquear la sesión de estimación: %w", err)
 	}
-	return session.Status.EnsureOpen(session.CancelReason, session.AgreedStoryPoints)
+	if err := session.Status.EnsureOpen(session.CancelReason, session.AgreedStoryPoints); err != nil {
+		return nil, err
+	}
+	return &session, nil
 }
 
 // touchSession registra un hecho de la sesión dentro de la transacción recibida: fija
@@ -298,38 +307,22 @@ func touchSession(tx *gorm.DB, sessionID uuid.UUID, now time.Time) error {
 // ErrNotParticipant) y que la ronda vigente, la de mayor número, siga en votación (si no,
 // ErrRoundRevealed). El voto se guarda con un upsert sobre el índice único (round_id, participant_id):
 // el primero inserta la fila y los siguientes actualizan card y updated_at sobre la misma fila,
-// conservando su id y su created_at. El voto es un hecho, así que touchSession fija
-// last_activity_at = now y sube version.
+// conservando su id y su created_at. Con el voto escrito evalúa la revelación automática (FR-031).
+// El voto es un hecho, así que touchSession fija last_activity_at = now y sube version.
 func (r *SessionRepository) Vote(ctx context.Context, sessionID, userID uuid.UUID, card domain.Card, now time.Time) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := lockOpenSession(tx, sessionID); err != nil {
+		if _, err := lockOpenSession(tx, sessionID); err != nil {
+			return err
+		}
+		participantID, err := findConnectedParticipant(tx, sessionID, userID)
+		if err != nil {
 			return err
 		}
 
-		// Se busca la fila conectada de la persona con Find y LIMIT 1, porque no tenerla es un
-		// rechazo esperado y no un error de la base.
-		var participants []domain.EstimationParticipant
-		err := tx.
-			Select("id").
-			Where("session_id = ? AND user_id = ? AND connected = ?", sessionID, userID, true).
-			Limit(1).
-			Find(&participants).Error
+		// La ronda vigente solo admite votos mientras está en votación.
+		round, err := findCurrentRound(tx, sessionID)
 		if err != nil {
-			return fmt.Errorf("buscar al participante que vota: %w", err)
-		}
-		if len(participants) == 0 {
-			return domain.ErrNotParticipant
-		}
-
-		// La ronda vigente es la de mayor número y solo admite votos mientras está en votación.
-		var round domain.EstimationRound
-		err = tx.
-			Select("id, status").
-			Where("session_id = ?", sessionID).
-			Order("number DESC").
-			Take(&round).Error
-		if err != nil {
-			return fmt.Errorf("leer la ronda vigente de la sesión: %w", err)
+			return err
 		}
 		if round.Status != domain.RoundStatusVoting {
 			return domain.ErrRoundRevealed
@@ -340,7 +333,7 @@ func (r *SessionRepository) Vote(ctx context.Context, sessionID, userID uuid.UUI
 		vote := domain.EstimationVote{
 			ID:            uuid.New(),
 			RoundID:       round.ID,
-			ParticipantID: participants[0].ID,
+			ParticipantID: participantID,
 			Card:          card,
 			CreatedAt:     now,
 			UpdatedAt:     now,
@@ -354,13 +347,150 @@ func (r *SessionRepository) Vote(ctx context.Context, sessionID, userID uuid.UUI
 		if err != nil {
 			return fmt.Errorf("registrar el voto del participante: %w", err)
 		}
+		if err := autoRevealRound(tx, sessionID, round.ID, now); err != nil {
+			return err
+		}
 		return touchSession(tx, sessionID, now)
 	})
 }
 
-// Reveal revela manualmente la ronda vigente. Firma mínima de T014.
+// Reveal revela a mano la ronda vigente en una transacción que bloquea la sesión con
+// lockOpenSession (FR-032, FR-033, RN-10, RN-15). Exige que quien la pide sea participante conectado
+// (si no, ErrNotParticipant) y el facilitador de la sesión (si no, ErrFacilitatorOnly), que la ronda
+// vigente siga en votación (si no, ErrRoundRevealed) y que CanRevealManually admita sus votos, que
+// cuentan aunque su autor esté desconectado. La revelación es un hecho, así que touchSession fija
+// last_activity_at = now y sube version.
 func (r *SessionRepository) Reveal(ctx context.Context, sessionID, userID uuid.UUID, now time.Time) error {
-	return errNotImplemented
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		session, err := lockOpenSession(tx, sessionID)
+		if err != nil {
+			return err
+		}
+		if _, err := findConnectedParticipant(tx, sessionID, userID); err != nil {
+			return err
+		}
+		if session.FacilitatorID != userID {
+			return domain.ErrFacilitatorOnly
+		}
+
+		// La ronda vigente tiene que estar en votación y tener al menos un voto.
+		round, err := findCurrentRound(tx, sessionID)
+		if err != nil {
+			return err
+		}
+		if round.Status != domain.RoundStatusVoting {
+			return domain.ErrRoundRevealed
+		}
+		votes, err := findRoundVotes(tx, round.ID)
+		if err != nil {
+			return err
+		}
+		if err := domain.CanRevealManually(votes); err != nil {
+			return err
+		}
+
+		if err := revealRound(tx, round.ID, now); err != nil {
+			return err
+		}
+		return touchSession(tx, sessionID, now)
+	})
+}
+
+// findConnectedParticipant devuelve, dentro de la transacción recibida, el identificador de la fila
+// conectada de la persona en la sesión, o ErrNotParticipant si no la tiene (FR-028). Se lee con Find
+// y LIMIT 1, porque no tenerla es un rechazo esperado y no un error de la base.
+func findConnectedParticipant(tx *gorm.DB, sessionID, userID uuid.UUID) (uuid.UUID, error) {
+	var participants []domain.EstimationParticipant
+	err := tx.
+		Select("id").
+		Where("session_id = ? AND user_id = ? AND connected = ?", sessionID, userID, true).
+		Limit(1).
+		Find(&participants).Error
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("buscar al participante conectado: %w", err)
+	}
+	if len(participants) == 0 {
+		return uuid.Nil, domain.ErrNotParticipant
+	}
+	return participants[0].ID, nil
+}
+
+// findCurrentRound lee, dentro de la transacción recibida, la ronda vigente de la sesión, que es la
+// de mayor número, con su identificador y su estado.
+func findCurrentRound(tx *gorm.DB, sessionID uuid.UUID) (*domain.EstimationRound, error) {
+	var round domain.EstimationRound
+	err := tx.
+		Select("id, status").
+		Where("session_id = ?", sessionID).
+		Order("number DESC").
+		Take(&round).Error
+	if err != nil {
+		return nil, fmt.Errorf("leer la ronda vigente de la sesión: %w", err)
+	}
+	return &round, nil
+}
+
+// findRoundVotes lee, dentro de la transacción recibida, los autores de los votos de la ronda; la
+// lista vacía, y no nil, indica que nadie votó.
+func findRoundVotes(tx *gorm.DB, roundID uuid.UUID) ([]domain.EstimationVote, error) {
+	votes := []domain.EstimationVote{}
+	err := tx.
+		Select("participant_id").
+		Where("round_id = ?", roundID).
+		Find(&votes).Error
+	if err != nil {
+		return nil, fmt.Errorf("leer los votos de la ronda vigente: %w", err)
+	}
+	return votes, nil
+}
+
+// autoRevealCurrentRound evalúa la revelación automática sobre la ronda vigente de la sesión si
+// sigue en votación; una ronda ya revelada no cambia. La usan Connect y Disconnect, que no leen la
+// ronda por su cuenta.
+func autoRevealCurrentRound(tx *gorm.DB, sessionID uuid.UUID, now time.Time) error {
+	round, err := findCurrentRound(tx, sessionID)
+	if err != nil {
+		return err
+	}
+	if round.Status != domain.RoundStatusVoting {
+		return nil
+	}
+	return autoRevealRound(tx, sessionID, round.ID, now)
+}
+
+// autoRevealRound revela la ronda en votación recibida si ShouldAutoReveal lo indica con la
+// presencia y los votos releídos dentro de la transacción (FR-030, FR-031). No toca la versión: la
+// revelación queda dentro del mismo hecho que la disparó.
+func autoRevealRound(tx *gorm.DB, sessionID, roundID uuid.UUID, now time.Time) error {
+	var participants []domain.EstimationParticipant
+	err := tx.
+		Select("id, connected").
+		Where("session_id = ?", sessionID).
+		Find(&participants).Error
+	if err != nil {
+		return fmt.Errorf("leer la presencia de la sesión: %w", err)
+	}
+	votes, err := findRoundVotes(tx, roundID)
+	if err != nil {
+		return err
+	}
+	if !domain.ShouldAutoReveal(participants, votes) {
+		return nil
+	}
+	return revealRound(tx, roundID, now)
+}
+
+// revealRound escribe la revelación de la ronda dentro de la transacción recibida: status =
+// revealed y revealed_at = now. La comparten la revelación manual y la automática.
+func revealRound(tx *gorm.DB, roundID uuid.UUID, now time.Time) error {
+	err := tx.
+		Model(&domain.EstimationRound{}).
+		Where("id = ?", roundID).
+		Updates(map[string]any{"status": domain.RoundStatusRevealed, "revealed_at": now}).Error
+	if err != nil {
+		return fmt.Errorf("revelar la ronda vigente: %w", err)
+	}
+	return nil
 }
 
 // StartRound abre la ronda siguiente. Firma mínima de T014.

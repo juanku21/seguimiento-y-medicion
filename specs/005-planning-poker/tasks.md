@@ -437,17 +437,17 @@ reciben la ronda `revealed` con `divergence`, mínimo 3 y máximo 13 con sus aut
 
 ### Pruebas de la Historia 3 ⚠️
 
-- [ ] T045 [P] [US3] Pruebas unitarias **obligatorias** de `ShouldAutoReveal` y `CanRevealManually`
+- [X] T045 [P] [US3] Pruebas unitarias **obligatorias** de `ShouldAutoReveal` y `CanRevealManually`
       en `backend/internal/poker/domain/reveal_test.go`, cubriendo RN-09, RN-10, RN-12, RN-16, RN-23 y
       SC-006: 1, 2 y 5 conectados con todos sus votos → verdadero; un conectado sin voto → falso; un
       desconectado sin voto no impide; un desconectado con voto y nadie conectado → falso; `?` cuenta
       como voto; el voto del facilitador cuenta igual; `CanRevealManually` sin votos →
       `ErrNoVotesToReveal` y con un voto de un desconectado → ok — depende de T044
-- [ ] T046 [P] [US3] Pruebas unitarias **obligatorias** de `Summarize` en
+- [X] T046 [P] [US3] Pruebas unitarias **obligatorias** de `Summarize` en
       `backend/internal/poker/domain/outcome_test.go` con la tabla completa de data-model.md sección
       6, cubriendo RN-12 a RN-14, SC-008 y SC-009, más el orden de los autores por nombre y que el
       resultado no tiene ningún campo de promedio ni mediana (FR-042) — depende de T044
-- [ ] T047 [US3] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una
+- [X] T047 [US3] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una
       por escenario con `// Escenario: <nombre> (005/US3)`: `TestUS3_RevelacionAutomatica`,
       `TestUS3_RevelacionManualConConsenso` (`notVoted` con el cuarto),
       `TestUS3_InterrogacionFueraDelCalculo`, `TestUS3_ConsensoSinExtremos`,
@@ -457,12 +457,12 @@ reciben la ronda `revealed` con `divergence`, mínimo 3 y máximo 13 con sus aut
       `Hace falta al menos un voto para revelar la ronda.`) y `TestUS3_RevelarSinSerFacilitador`
       (`403` `Esta acción está reservada al facilitador de la sesión.`, votos ocultos); y, con
       `// Escenario: … (005/US2)`, `TestUS2_CambioSimultaneoConRevelacion` — depende de T044
-- [ ] T048 [US3] Prueba de concurrencia `TestPokerVoteReveal_Concurrency` en
+- [X] T048 [US3] Prueba de concurrencia `TestPokerVoteReveal_Concurrency` en
       `backend/internal/poker/delivery/poker_concurrency_test.go`, **sin** etiqueta: 20 repeticiones
       en las que un participante cambia su carta y el facilitador revela a la vez; ninguna `500`, y
       las vistas de los tres canales tienen la misma `version` y el mismo conjunto de votos revelados
       (SC-007) — depende de T047
-- [ ] T049 [P] [US3] Pruebas de frontend en
+- [X] T049 [P] [US3] Pruebas de frontend en
       `frontend/src/features/poker/components/round-result.test.tsx` y
       `frontend/src/features/poker/components/facilitator-actions.test.tsx`, con
       `describe("005/US3 - Revelar los votos y ver las diferencias")`: consenso con su valor,
@@ -471,25 +471,29 @@ reciben la ronda `revealed` con `divergence`, mínimo 3 y máximo 13 con sus aut
 
 ### Implementación de la Historia 3
 
-- [ ] T050 [P] [US3] Implementar `ShouldAutoReveal` y `CanRevealManually` en
+- [X] T050 [P] [US3] Implementar `ShouldAutoReveal` y `CanRevealManually` en
       `backend/internal/poker/domain/reveal.go` — depende de T045
-- [ ] T051 [P] [US3] Implementar `RoundOutcome` y `Summarize` en
+- [X] T051 [P] [US3] Implementar `RoundOutcome` y `Summarize` en
       `backend/internal/poker/domain/outcome.go` — depende de T046
-- [ ] T052 [US3] Implementar `Reveal` en `backend/internal/poker/repository/session_repository.go`
+- [X] T052 [US3] Implementar `Reveal` en `backend/internal/poker/repository/session_repository.go`
       (bloqueo, `EnsureOpen`, participante conectado, `facilitator_id` igual al titular o
       `ErrFacilitatorOnly`, ronda `voting` o `ErrRoundRevealed`, `CanRevealManually`, `status =
       revealed`, `revealed_at = now`, hecho) y agregar la evaluación de `ShouldAutoReveal`, con la
       misma escritura de revelación, al final de `Vote`, `Connect` y `Disconnect` dentro de su
       transacción (FR-031) — depende de T047, T050
-- [ ] T053 [US3] Completar `ViewFor` con `outcome` (desde `Summarize`) en las rondas reveladas y
+- [X] T053 [US3] Completar `ViewFor` con `outcome` (desde `Summarize`) en las rondas reveladas y
       `notVoted` en la ronda vigente revelada de una sesión abierta, en
       `backend/internal/poker/domain/view.go`, e implementar `Reveal` en
       `backend/internal/poker/service/session_service.go` — depende de T051, T052
-- [ ] T054 [US3] Implementar el manejador `revealEstimationRound` (`POST /reveal`) con anotaciones
+- [X] T054 [US3] Implementar el manejador `revealEstimationRound` (`POST /reveal`) con anotaciones
       `swag` en `backend/internal/poker/delivery/handler.go`, los esquemas `RoundOutcome` y
       `OutcomeExtreme` en `dto.go` y la ruta en `routes.go` — depende de T053
-- [ ] T055 [US3] Implementar `RoundResult` y `FacilitatorActions` (revelar) en
+- [X] T055 [US3] Implementar `RoundResult` y `FacilitatorActions` (revelar) en
       `frontend/src/features/poker/components/` y la llamada en `api.ts` — depende de T049, T054
+- [X] T101 [US3] Agregar en `backend/internal/poker/delivery/handler_test.go` la prueba de
+      integración `TestUS3_RevelarRondaYaRevelada` con `// Escenario: … (005/US3)`: el facilitador
+      revela una ronda ya revelada y recibe `409` `La ronda ya fue revelada.`, sin cambios en la ronda
+      ni en la `version` per spec «Revelación de los votos», fila Ronda ya revelada (partial)
 
 **Checkpoint**: las tres historias P1 funcionan; el valor central de la feature está entregado.
 

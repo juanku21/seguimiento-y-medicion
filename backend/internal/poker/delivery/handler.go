@@ -19,12 +19,17 @@ import (
 // sesión inexistente lo comparten el middleware de acceso (sesión inexistente, ajena o
 // identificador mal formado) y el canal; el 404 de historia es el de la 003. Los tres 409 de
 // apertura y el 409 de sesión cerrada los fija contracts/openapi.yaml, igual que el 403 de quien no
-// participa y el 409 de ronda revelada del voto. Los dos 400 de cuerpo son los de los demás módulos.
+// participa, el 403 de acción reservada al facilitador, el 409 de ronda revelada del voto y los dos
+// 409 de la revelación (ronda ya revelada y ronda sin votos). Los dos 400 de cuerpo son los de los
+// demás módulos.
 const (
 	msgInvalidFields            = "Hay campos inválidos en la solicitud."
 	msgInvalidBody              = "El cuerpo de la solicitud debe ser un JSON válido."
 	msgNotParticipant           = "No participás de esta sesión de estimación."
+	msgFacilitatorOnly          = "Esta acción está reservada al facilitador de la sesión."
 	msgRoundRevealed            = "La ronda ya está revelada. Esperá una ronda nueva para votar."
+	msgRoundAlreadyRevealed     = "La ronda ya fue revelada."
+	msgNoVotesToReveal          = "Hace falta al menos un voto para revelar la ronda."
 	msgSessionRequired          = "Se requiere iniciar sesión."
 	msgEstimationSessionMissing = "La sesión de estimación no existe."
 	msgStoryNotFound            = "La historia no existe."
@@ -178,6 +183,71 @@ func (h *Handler) castEstimationVote(c *gin.Context) {
 		return
 	case err != nil:
 		respondInternalError(c, "no se pudo registrar el voto", "error", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, newEstimationSession(view))
+}
+
+// revealEstimationRound godoc
+//
+//	@Summary		Revela la ronda vigente (solo el facilitador)
+//	@Description	Revela a mano la ronda vigente aunque haya participantes conectados que no votaron, que
+//	@Description	figuran en notVoted (FR-032, FR-035). Exige al menos un voto emitido en la ronda, que
+//	@Description	cuenta aunque su autor se haya desconectado (FR-033). Reservada al facilitador (FR-034,
+//	@Description	FR-064). La ronda revelada muestra cada voto con su autor y su resultado: consensus con
+//	@Description	su valor, divergence con el mínimo y el máximo y todos sus autores, o no_numeric_votes
+//	@Description	si solo hubo «?» (FR-036 a FR-042). Un rechazo no produce ningún efecto (SC-011).
+//	@Tags			Planning Poker
+//	@ID				revealEstimationRound
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			sessionId	path		string					true	"Identificador de la sesión de estimación"	format(uuid)
+//	@Success		200			{object}	EstimationSession		"Ronda revelada; sesión resultante vista por quien la reveló."
+//	@Failure		401			{object}	delivery.ErrorResponse	"Se requiere iniciar sesión."
+//	@Failure		403			{object}	delivery.ErrorResponse	"Quien pide no es participante conectado de la sesión («No participás de esta sesión de estimación.», FR-028) o no es el facilitador («Esta acción está reservada al facilitador de la sesión.», FR-064)."
+//	@Failure		404			{object}	delivery.ErrorResponse	"La sesión de estimación no existe o pertenece a un proyecto del que quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo."
+//	@Failure		409			{object}	SessionClosedResponse	"La sesión está cerrada, con el resultado registrado («La sesión de estimación ya está cerrada.»), la ronda vigente ya fue revelada («La ronda ya fue revelada.», como ErrorResponse) o no tiene votos («Hace falta al menos un voto para revelar la ronda.», como ErrorResponse, FR-033)."
+//	@Failure		500			{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/estimation-sessions/{sessionId}/reveal [post]
+func (h *Handler) revealEstimationRound(c *gin.Context) {
+	// RequireEstimationAccess y la sesión de la 001 ya dejaron el acceso y el titular en el contexto;
+	// su ausencia aquí es un error de composición y responde 500.
+	access, ok := sessionAccessFromContext(c)
+	if !ok {
+		respondInternalError(c, "revealEstimationRound sin acceso a la sesión en el contexto")
+		return
+	}
+	userID, ok := authdelivery.CurrentUserID(c)
+	if !ok {
+		respondInternalError(c, "revealEstimationRound sin titular de sesión en el contexto")
+		return
+	}
+
+	// Se revela la ronda y se traducen los rechazos de dominio a los 403, 404 y 409 del contrato.
+	view, err := h.sessions.Reveal(c.Request.Context(), access.SessionID, userID)
+	var closed *domain.SessionClosedError
+	switch {
+	case errors.As(err, &closed):
+		c.JSON(http.StatusConflict, newSessionClosedResponse(msgSessionClosed, closed))
+		return
+	case errors.Is(err, domain.ErrRoundRevealed):
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgRoundAlreadyRevealed})
+		return
+	case errors.Is(err, domain.ErrNoVotesToReveal):
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgNoVotesToReveal})
+		return
+	case errors.Is(err, domain.ErrNotParticipant):
+		c.JSON(http.StatusForbidden, authdelivery.ErrorResponse{Error: msgNotParticipant})
+		return
+	case errors.Is(err, domain.ErrFacilitatorOnly):
+		c.JSON(http.StatusForbidden, authdelivery.ErrorResponse{Error: msgFacilitatorOnly})
+		return
+	case errors.Is(err, domain.ErrSessionNotFound):
+		abortEstimationSessionNotFound(c)
+		return
+	case err != nil:
+		respondInternalError(c, "no se pudo revelar la ronda", "error", err)
 		return
 	}
 

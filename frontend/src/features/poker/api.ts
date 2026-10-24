@@ -5,7 +5,7 @@ import {
   putAuthorizedJson,
   type ApiResult,
 } from "@/lib/api-client";
-import type { Card, EstimationSession } from "@/types/poker";
+import type { Card, EstimationSession, ScaleStoryPoints } from "@/types/poker";
 
 // Reconoce la sesión de estimación (EstimationSession) que devuelven la apertura (201) y cada evento
 // state del canal, sin confiar en el cuerpo recibido. El cierre, el valor acordado, el motivo de
@@ -104,6 +104,23 @@ export function startEstimationRound(
   return postAuthorizedJson(
     `${sessionPath(sessionId)}/rounds`,
     undefined,
+    isEstimationSession,
+  );
+}
+
+// Registra la estimación acordada y finaliza la sesión con POST
+// /api/v1/estimation-sessions/{sessionId}/finalize y cuerpo {"storyPoints": n} (005/US5). Devuelve la
+// sesión Finalizada (200), que además llega por el canal como último state. Las reglas las resuelve
+// el backend: el valor fuera de la escala llega como 400 con el detalle en fields, quien no es el
+// facilitador como 403, la sesión inexistente como 404 y la sesión cerrada o sin ninguna ronda
+// revelada como 409; ante un 401 el cliente HTTP descarta la sesión.
+export function finalizeEstimationSession(
+  sessionId: string,
+  storyPoints: ScaleStoryPoints,
+): Promise<ApiResult<EstimationSession>> {
+  return postAuthorizedJson(
+    `${sessionPath(sessionId)}/finalize`,
+    { storyPoints },
     isEstimationSession,
   );
 }

@@ -603,7 +603,7 @@ Points de la historia toman ese valor.
       `finalizeEstimationSession` con anotaciones `swag`, `FinalizeRequest` en `dto.go` y la ruta en
       `routes.go`; el canal (`stream.go`) termina sin error cuando el hub cierra su canal —
       depende de T066, T067
-- [ ] T069 [US5] Implementar `FinalizeDialog` y `SessionClosedNotice` en
+- [X] T069 [US5] Implementar `FinalizeDialog` y `SessionClosedNotice` en
       `frontend/src/features/poker/components/`, la llamada en `api.ts` y la detención del hook al
       recibir un `state` cerrado — depende de T064, T068
 

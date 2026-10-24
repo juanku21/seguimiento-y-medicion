@@ -490,6 +490,10 @@ reciben la ronda `revealed` con `divergence`, mínimo 3 y máximo 13 con sus aut
       `OutcomeExtreme` en `dto.go` y la ruta en `routes.go` — depende de T053
 - [X] T055 [US3] Implementar `RoundResult` y `FacilitatorActions` (revelar) en
       `frontend/src/features/poker/components/` y la llamada en `api.ts` — depende de T049, T054
+- [ ] T101 [US3] Agregar en `backend/internal/poker/delivery/handler_test.go` la prueba de
+      integración `TestUS3_RevelarRondaYaRevelada` con `// Escenario: … (005/US3)`: el facilitador
+      revela una ronda ya revelada y recibe `409` `La ronda ya fue revelada.`, sin cambios en la ronda
+      ni en la `version` per spec «Revelación de los votos», fila Ronda ya revelada (partial)
 
 **Checkpoint**: las tres historias P1 funcionan; el valor central de la feature está entregado.
 

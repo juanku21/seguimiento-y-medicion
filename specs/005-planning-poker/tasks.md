@@ -560,7 +560,7 @@ Points de la historia toman ese valor.
 - [X] T061 [P] [US5] Pruebas unitarias **obligatorias** de `ValidateAgreedValue` en
       `backend/internal/poker/domain/card_test.go`, cubriendo RN-18: los diez valores de la escala
       aceptados; 7, 4, -1 y 101 rechazados con el mensaje que enumera la escala — depende de T060
-- [ ] T062 [P] [US5] Pruebas unitarias **obligatorias** de validación del cuerpo de registro en
+- [X] T062 [P] [US5] Pruebas unitarias **obligatorias** de validación del cuerpo de registro en
       `backend/internal/poker/delivery/validation_test.go`: `{"storyPoints":8}` → ok;
       `{"storyPoints":"?"}`, `{"storyPoints":null}`, cuerpo vacío, `7.5` y `7` → `FieldError` en
       `storyPoints` con

@@ -41,3 +41,10 @@ func ValidateVoteRequest(req VoteRequest) (domain.Card, []authdelivery.FieldErro
 	}
 	return card, nil
 }
+
+// ValidateFinalizeRequest valida el cuerpo del registro y devuelve el valor acordado, o un FieldError
+// en storyPoints si no es un entero de la escala numérica (FR-049, FR-050, RN-18).
+// Firma mínima de T062: la implementación corresponde a T066.
+func ValidateFinalizeRequest(req FinalizeRequest) (int, []authdelivery.FieldError) {
+	return 0, nil
+}

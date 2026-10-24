@@ -151,6 +151,29 @@ func (s *SessionService) StartRound(ctx context.Context, sessionID, userID uuid.
 	return &view, nil
 }
 
+// Finalize registra el valor acordado a pedido del facilitador: cierra la sesión como finished y deja
+// los Story Points de la historia en ese valor, y devuelve la sesión resultante vista por quien la
+// cerró. Después de que el repositorio confirma la transacción publica el estado final y recién
+// entonces cierra las suscripciones de la sesión, así cada canal recibe el último state antes de
+// terminar (research.md sección 7). Los errores del repositorio se devuelven tal cual, para que el
+// manejador los traduzca.
+func (s *SessionService) Finalize(ctx context.Context, sessionID, userID uuid.UUID, storyPoints int) (*domain.SessionView, error) {
+	if err := s.repo.Finalize(ctx, sessionID, userID, storyPoints, s.now()); err != nil {
+		return nil, err
+	}
+	if err := s.publish(ctx, sessionID); err != nil {
+		return nil, err
+	}
+	s.hub.CloseSession(sessionID)
+
+	snapshot, err := s.repo.FindSnapshot(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("reading finalized session snapshot: %w", err)
+	}
+	view := domain.ViewFor(*snapshot, userID)
+	return &view, nil
+}
+
 // Get devuelve la sesión a la que el middleware ya dio acceso, con todas sus rondas, vista por quien
 // la consulta. Es solo lectura: no une a la persona a la sesión ni publica nada.
 func (s *SessionService) Get(ctx context.Context, access *domain.SessionAccess, viewerID uuid.UUID) (*domain.SessionView, error) {

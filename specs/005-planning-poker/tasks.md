@@ -598,7 +598,7 @@ Points de la historia toman ese valor.
       historia, research.md sección 6); `status = finished`, `agreed_story_points`,
       `closed_by_id = titular`, `closed_at = now`, `version + 1` y, en la **misma transacción**,
       `UPDATE user_stories SET story_points = ?, updated_at = ?` — depende de T063
-- [ ] T068 [US5] Implementar `Finalize` en `backend/internal/poker/service/session_service.go`
+- [X] T068 [US5] Implementar `Finalize` en `backend/internal/poker/service/session_service.go`
       (publica el estado final y llama a `hub.CloseSession`) y el manejador
       `finalizeEstimationSession` con anotaciones `swag`, `FinalizeRequest` en `dto.go` y la ruta en
       `routes.go`; el canal (`stream.go`) termina sin error cuando el hub cierra su canal —

@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -45,9 +44,25 @@ func ParseCard(text string) (Card, error) {
 
 // ValidateAgreedValue verifica que el valor acordado pertenezca a la escala numérica de Story Points
 // y, si no, devuelve un error que enumera la escala (FR-049, FR-050, RN-18).
-// Firma mínima de T061: la implementación corresponde a T065.
+// La pertenencia se delega en backlogdomain.IsValidStoryPoints, así que el valor no depende de los
+// votos de la ronda: cualquier valor de la escala es válido aunque nadie lo haya votado.
 func ValidateAgreedValue(value int) error {
-	return errors.New("not implemented")
+	if !backlogdomain.IsValidStoryPoints(value) {
+		return fmt.Errorf("el valor acordado %d no es válido; debe ser uno de %s", value, agreedScaleList())
+	}
+	return nil
+}
+
+// agreedScaleList arma la lista legible de la escala numérica de Story Points en orden, separada por
+// comas y con "o" antes del último valor, por ejemplo "0, 1, 2, 3, 5, 8, 13, 20, 40 o 100".
+func agreedScaleList() string {
+	scale := backlogdomain.StoryPointsScale
+	texts := make([]string, len(scale))
+	for i, points := range scale {
+		texts[i] = strconv.Itoa(points)
+	}
+	last := len(texts) - 1
+	return strings.Join(texts[:last], ", ") + " o " + texts[last]
 }
 
 // AdmittedCardsList arma la lista legible de cartas en orden, separadas por comas y con "y" antes de

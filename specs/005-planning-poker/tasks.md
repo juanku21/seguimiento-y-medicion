@@ -587,7 +587,7 @@ Points de la historia toman ese valor.
 
 ### Implementación de la Historia 5
 
-- [ ] T065 [P] [US5] Implementar `ValidateAgreedValue` en `backend/internal/poker/domain/card.go`
+- [X] T065 [P] [US5] Implementar `ValidateAgreedValue` en `backend/internal/poker/domain/card.go`
       sobre `backlogdomain.IsValidStoryPoints` — depende de T061
 - [ ] T066 [US5] Implementar la validación del cuerpo de registro en
       `backend/internal/poker/delivery/validation.go` — depende de T062, T065

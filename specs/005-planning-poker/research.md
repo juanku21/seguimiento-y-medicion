@@ -378,7 +378,7 @@ bajo el bloqueo.
   `facilitator_id = titular` dentro de la transacción; si no, `403` sin efecto (SC-011).
 - **Toda acción sobre la sesión exige ser participante conectado** (FR-028); el facilitador también,
   lo que hace que al reconectarse recupere sus atribuciones sin ningún paso extra (FR-067).
-- **Tomar el rol** (`FacilitatorTakeover(now, facilitator)`): se admite si el facilitador vigente
+- **Tomar el rol** (`FacilitatorTakeover(now, facilitator, requesterID)`): se admite si el facilitador vigente
   está desconectado y `now - disconnected_at ≥ 5 min`. Si no, `409` con el facilitador vigente y, si
   está desconectado, `retryAfterSeconds` (FR-069). El que pide ya facilitador recibe el mismo `409`.
   Al tomarlo cambia `facilitator_id`, sube la versión y se publica; el anterior queda como

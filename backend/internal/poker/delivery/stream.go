@@ -29,8 +29,9 @@ const streamPingInterval = 15 * time.Second
 //	@Description	Eventos del canal: state, con un EstimationSession en JSON en data, que es el primero que
 //	@Description	se recibe al abrir el canal (FR-077) y se repite ante cada hecho de la sesión y ante cada
 //	@Description	cambio del título, la descripción o los criterios de la historia (FR-073, FR-074); el
-//	@Description	cliente descarta los de version menor a la que ya tiene. Un comentario ": ping" cada 15
-//	@Description	segundos, sin datos. Cuando la sesión se cierra, el servidor envía el último state y
+//	@Description	cliente descarta los de version menor a la que ya tiene. removed, con {} en data, cuando
+//	@Description	quien pide dejó de ser integrante del proyecto; después el servidor cierra el canal
+//	@Description	(FR-019). Un comentario ": ping" cada 15 segundos, sin datos. Cuando la sesión se cierra, el servidor envía el último state y
 //	@Description	cierra el canal. Si la sesión ya estaba cerrada al pedir el canal, responde 409 con el
 //	@Description	resultado registrado y no se une (FR-018).
 //	@Tags			Planning Poker
@@ -87,7 +88,8 @@ func (h *Handler) streamEstimationSession(c *gin.Context) {
 
 	// Se reenvía cada vista como evento state y un ping cada 15 segundos, hasta que termina la
 	// petición, el hub cierra el canal o falla una escritura; en todos los casos Leave libera la
-	// conexión una sola vez.
+	// conexión una sola vez. Si el hub cerró el canal porque la persona dejó de ser integrante, se
+	// envía removed antes de terminar (FR-019).
 	ticker := time.NewTicker(streamPingInterval)
 	defer ticker.Stop()
 	for {
@@ -96,6 +98,11 @@ func (h *Handler) streamEstimationSession(c *gin.Context) {
 			return
 		case view, open := <-conn.Views:
 			if !open {
+				if conn.Removed() {
+					if err := writeStreamChunk(c.Writer, "event: removed\ndata: {}\n\n"); err != nil {
+						slog.DebugContext(ctx, "se cortó el canal de la sesión de estimación", "error", err)
+					}
+				}
 				return
 			}
 			if err := writeStateEvent(c.Writer, &view); err != nil {

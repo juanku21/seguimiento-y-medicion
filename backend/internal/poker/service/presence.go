@@ -106,3 +106,13 @@ func (p *Presence) Expired(now time.Time) []PresenceKey {
 	}
 	return expired
 }
+
+// Forget quita el par del registro, con sus conexiones y su caída pendiente, para que el barrido no
+// vuelva a desconectar a quien ya desconectó por otra vía, como la membresía revocada (FR-019). Las
+// conexiones que se liberen después se ignoran, porque Release no conoce el par.
+func (p *Presence) Forget(sessionID, userID uuid.UUID) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	delete(p.entries, PresenceKey{SessionID: sessionID, UserID: userID})
+}

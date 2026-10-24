@@ -723,9 +723,22 @@ func (r *SessionRepository) ResetPresence(ctx context.Context, now time.Time) er
 	return nil
 }
 
-// ListOpenForSweep devuelve las sesiones abiertas para el barrido. Firma mínima de T014.
+// ListOpenForSweep devuelve las sesiones abiertas para el barrido (research.md sección 13). Por ahora
+// solo lee lo que necesita el paso de cambios de la historia: el identificador de la sesión y, por un
+// JOIN a user_stories, su updated_at, que el servicio compara con el último visto (FR-074). Sin
+// sesiones abiertas devuelve la lista vacía.
 func (r *SessionRepository) ListOpenForSweep(ctx context.Context) ([]domain.OpenSessionStatus, error) {
-	return nil, errNotImplemented
+	sessions := []domain.OpenSessionStatus{}
+	err := r.db.WithContext(ctx).
+		Table("estimation_sessions").
+		Select("estimation_sessions.id AS session_id, user_stories.updated_at AS story_updated_at").
+		Joins("JOIN user_stories ON user_stories.id = estimation_sessions.story_id").
+		Where("estimation_sessions.status = ?", domain.SessionStatusOpen).
+		Find(&sessions).Error
+	if err != nil {
+		return nil, fmt.Errorf("listar las sesiones abiertas para el barrido: %w", err)
+	}
+	return sessions, nil
 }
 
 // ListRevokedParticipants devuelve los participantes conectados de las sesiones abiertas que ya no

@@ -675,7 +675,7 @@ nuevo facilitador.
       releída, `facilitator_id = titular`, hecho) y completar `ViewFor` con `facilitatorAvailableAt`
       (`disconnected_at + 5 min` si el facilitador está desconectado) en
       `backend/internal/poker/domain/view.go` — depende de T071, T074
-- [ ] T076 [US6] Implementar `TakeFacilitator` en `backend/internal/poker/service/session_service.go`
+- [X] T076 [US6] Implementar `TakeFacilitator` en `backend/internal/poker/service/session_service.go`
       y sumar a `Sweep`, en `backend/internal/poker/service/sweeper.go`, los pasos de membresía
       revocada (`Disconnect`, evento `removed` con
       `hub.CloseUser`) y de cambios de la historia (comparación de `user_stories.updated_at` con el

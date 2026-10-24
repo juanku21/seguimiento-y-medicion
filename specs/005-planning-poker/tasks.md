@@ -511,7 +511,7 @@ historial de la sesión.
 
 ### Pruebas de la Historia 4 ⚠️
 
-- [ ] T056 [US4] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
+- [X] T056 [US4] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
       escenario con `// Escenario: <nombre> (005/US4)`: `TestUS4_NuevaRonda`,
       `TestUS4_HistorialDeRondas` (con `GET /estimation-sessions/{id}`),
       `TestUS4_NuevaRondaTrasConsenso`, `TestUS4_IncorporacionEnRondaPosterior`,
@@ -522,7 +522,7 @@ historial de la sesión.
       que no había participado abre su canal y recibe los votos revelados y el resultado; su voto
       responde `409` de ronda revelada, y tras la ronda nueva puede votar (Casos Límite, FR-017) —
       depende de T055
-- [ ] T057 [P] [US4] Pruebas de frontend en
+- [X] T057 [P] [US4] Pruebas de frontend en
       `frontend/src/features/poker/components/round-history.test.tsx`, con
       `describe("005/US4 - Repetir la ronda hasta acercar posiciones")`: la sala muestra las rondas
       anteriores con sus votos y resultado, la ronda vigente sin votos, y el botón **Nueva ronda**
@@ -530,15 +530,15 @@ historial de la sesión.
 
 ### Implementación de la Historia 4
 
-- [ ] T058 [US4] Implementar `StartRound` en
+- [X] T058 [US4] Implementar `StartRound` en
       `backend/internal/poker/repository/session_repository.go` (bloqueo, `EnsureOpen`, participante
       conectado, facilitador, ronda vigente `revealed` o `ErrRoundNotRevealed`, inserción de la ronda
       con `number + 1` en `voting`, hecho) — depende de T056
-- [ ] T059 [US4] Implementar `StartRound` y `Get(ctx, access, viewerID)` en
+- [X] T059 [US4] Implementar `StartRound` y `Get(ctx, access, viewerID)` en
       `backend/internal/poker/service/session_service.go`, y los manejadores
       `startEstimationRound` (`POST /rounds`, `201`) y `getEstimationSession` (`GET` del grupo plano)
       con anotaciones `swag` en `handler.go` y sus rutas en `routes.go` — depende de T058
-- [ ] T060 [US4] Implementar `RoundHistory` y el botón **Nueva ronda** de `FacilitatorActions` en
+- [X] T060 [US4] Implementar `RoundHistory` y el botón **Nueva ronda** de `FacilitatorActions` en
       `frontend/src/features/poker/components/` y las llamadas en `api.ts` — depende de T057, T059
 
 **Checkpoint**: US1 a US4 funcionan.

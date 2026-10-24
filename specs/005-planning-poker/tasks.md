@@ -443,7 +443,7 @@ reciben la ronda `revealed` con `divergence`, mínimo 3 y máximo 13 con sus aut
       desconectado sin voto no impide; un desconectado con voto y nadie conectado → falso; `?` cuenta
       como voto; el voto del facilitador cuenta igual; `CanRevealManually` sin votos →
       `ErrNoVotesToReveal` y con un voto de un desconectado → ok — depende de T044
-- [ ] T046 [P] [US3] Pruebas unitarias **obligatorias** de `Summarize` en
+- [X] T046 [P] [US3] Pruebas unitarias **obligatorias** de `Summarize` en
       `backend/internal/poker/domain/outcome_test.go` con la tabla completa de data-model.md sección
       6, cubriendo RN-12 a RN-14, SC-008 y SC-009, más el orden de los autores por nombre y que el
       resultado no tiene ningún campo de promedio ni mediana (FR-042) — depende de T044

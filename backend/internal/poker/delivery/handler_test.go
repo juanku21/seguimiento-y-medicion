@@ -2521,25 +2521,35 @@ func TestUS6_ReconexionEnRondaPosterior(t *testing.T) {
 	}
 }
 
-// Escenario: Facilitador retoma el rol (005/US6)
-// Ana, facilitadora, cierra su canal y al vencer la gracia queda desconectada. Dos minutos después
-// abre un canal nuevo: vuelve conectada y como facilitadora, sin momento de relevo disponible. Con el
-// voto 5 de Bruno, Ana revela, inicia una ronda y registra la estimación, cada acción en su subtest
-// (FR-065, FR-067). El subtest de cancelar se agrega en T079, cuando llega la cancelación.
-func TestUS6_FacilitadorRetomaElRol(t *testing.T) {
+// newPokerRejoinedFacilitatorFixture prepara el "Dado" de US6-5: Ana, facilitadora, cierra su canal
+// y al vencer la gracia queda desconectada; dos minutos después abre un canal nuevo y vuelve
+// conectada y como facilitadora, sin momento de relevo disponible, y Bruno vota 5.
+func newPokerRejoinedFacilitatorFixture(t *testing.T) pokerUS2Fixture {
+	t.Helper()
 	f := newPokerUS2Fixture(t)
 	f.env.dropAndExpire(t, f.ana)
 	f.bruno.NextUntil(t, "Ana desconectada en el canal de Bruno", participantGone(f.anaID))
 	f.env.sweep(t, 2*time.Minute)
 
-	ana := f.env.openStream(t, f.anaToken, f.session.ID)
+	f.ana = f.env.openStream(t, f.anaToken, f.session.ID)
 
 	// Ana vuelve conectada y sigue siendo la facilitadora.
-	back := ana.NextUntil(t, "Ana conectada en su canal nuevo", participantBack(f.anaID))
+	back := f.ana.NextUntil(t, "Ana conectada en su canal nuevo", participantBack(f.anaID))
 	requireFacilitatorRole(t, back, f.anaID, "canal nuevo de Ana")
 	assert.Nil(t, back.FacilitatorAvailableAt, "con el facilitador conectado el rol no está disponible: %s", back.Raw)
 	requireStoredFacilitator(t, f.env.db, f.session.ID, f.anaID, "Ana retoma el rol al reconectarse")
 	f.env.requireVoted(t, f.brunoToken, f.session.ID, "5")
+	return f
+}
+
+// Escenario: Facilitador retoma el rol (005/US6)
+// Ana, facilitadora, cierra su canal y al vencer la gracia queda desconectada. Dos minutos después
+// abre un canal nuevo: vuelve conectada y como facilitadora, sin momento de relevo disponible. Con el
+// voto 5 de Bruno, Ana revela, inicia una ronda y registra la estimación, cada acción en su subtest
+// (FR-065, FR-067). El subtest de cancelar, escrito en T079 cuando llegó la cancelación, prepara su
+// propia sesión, porque los anteriores terminan registrando la estimación.
+func TestUS6_FacilitadorRetomaElRol(t *testing.T) {
+	f := newPokerRejoinedFacilitatorFixture(t)
 
 	t.Run("revela", func(t *testing.T) {
 		resp := f.env.reveal(t, f.anaToken, f.session.ID)
@@ -2557,6 +2567,17 @@ func TestUS6_FacilitadorRetomaElRol(t *testing.T) {
 
 		requireFinishedSession(t, resp, 5, f.anaID, "respuesta de Ana")
 		requireStoredFinished(t, f.env.db, f.session.ID, 5, f.anaID, f.env.clock.Now())
+	})
+	// Escenario: Facilitador retoma el rol (005/US6)
+	// Con una sesión propia en la que Ana retomó el rol, Ana cancela: responde 200 con la sesión
+	// cancelada por ella y en la base queda cancelada por Ana, sin motivo del sistema (FR-065, FR-057).
+	t.Run("cancela", func(t *testing.T) {
+		g := newPokerRejoinedFacilitatorFixture(t)
+
+		resp := g.env.requireCanceled(t, g.anaToken, g.session.ID)
+
+		requireCanceledByFacilitator(t, resp, g.anaID, "respuesta de Ana")
+		requireStoredCanceled(t, g.env.db, g.session.ID, &g.anaID, nil, g.env.clock.Now())
 	})
 }
 
@@ -2900,4 +2921,563 @@ func TestPokerPresence_ReinicioDelServidor(t *testing.T) {
 		assert.True(t, p.Connected, "%s vuelve a estar conectado", id)
 		assert.Nil(t, p.DisconnectedAt, "%s ya no tiene momento de desconexión", id)
 	}
+}
+
+// Pruebas de integración de punta a punta de la historia 7 de Planning Poker (T079): cancelan la
+// sesión con POST /api/v1/estimation-sessions/{sessionId}/cancel y llaman al barrido con el reloj
+// falso para la cancelación automática por inactividad, por historia completada y por proyecto
+// finalizado, sobre el mismo router compuesto como cmd/app y contra smye_test. Verifican la
+// respuesta, el último estado que llega por los canales ya abiertos antes de que el servidor los
+// cierre, la sesión guardada en estimation_sessions y los Story Points de la historia leídos con la
+// 003, que la cancelación no toca (FR-057 a FR-063, RN-21, RN-30, RN-31). También van acá, sin
+// etiqueta de historia, la cancelación por historia completada y por proyecto finalizado, la acción
+// que llega antes del barrido y el canal pedido sobre una sesión cerrada (FR-018).
+
+// Textos exactos que fija el contrato para el 409 de sesión cerrada (research.md sección 19), la
+// ventana de inactividad de FR-063 y el margen con que cada hecho llega antes de cumplirse.
+const (
+	pokerSessionClosedMessage     = "La sesión de estimación ya está cerrada."
+	pokerInactivityClosedMessage  = "La sesión de estimación se cerró por inactividad."
+	pokerInactivityWindow         = 60 * time.Minute
+	pokerInactivityFactLeadMargin = time.Minute
+)
+
+// cancelPath es la ruta de la cancelación de la sesión según contracts/openapi.yaml.
+func cancelPath(sessionID string) string {
+	return "/api/v1/estimation-sessions/" + sessionID + "/cancel"
+}
+
+// cancel pide POST /api/v1/estimation-sessions/{sessionId}/cancel, sin cuerpo, con el token como
+// Bearer.
+func (e *pokerTestEnv) cancel(t *testing.T, token, sessionID string) pokerResponse {
+	t.Helper()
+	return e.do(t, http.MethodPost, cancelPath(sessionID), token, nil)
+}
+
+// requireCanceled cancela la sesión, exige el 200 y devuelve la sesión resultante vista por quien la
+// canceló.
+func (e *pokerTestEnv) requireCanceled(t *testing.T, token, sessionID string) pokerSessionBody {
+	t.Helper()
+	var session pokerSessionBody
+	resp := e.cancel(t, token, sessionID)
+	requirePokerStatus(t, resp, http.StatusOK, &session)
+	session.Raw = resp.Body
+	return session
+}
+
+// sweepAt adelanta el reloj falso hasta el instante indicado y ejecuta una pasada del barrido.
+func (e *pokerTestEnv) sweepAt(t *testing.T, at time.Time) {
+	t.Helper()
+	e.sweep(t, at.Sub(e.clock.Now()))
+}
+
+// sessionCanceled es la condición "la sesión está cancelada", para esperar con NextUntil.
+func sessionCanceled(s pokerSessionBody) bool {
+	return s.Status == "canceled"
+}
+
+// requireCanceledByFacilitator exige que la instantánea muestre la sesión cancelada por la persona
+// indicada, con su momento de cierre, sin valor acordado ni motivo del sistema (FR-058).
+func requireCanceledByFacilitator(t *testing.T, snapshot pokerSessionBody, closedBy uuid.UUID, where string) {
+	t.Helper()
+	assert.Equal(t, "canceled", snapshot.Status, "%s: estado de la sesión: %s", where, snapshot.Raw)
+	assert.Nil(t, snapshot.AgreedStoryPoints, "%s: una sesión cancelada no tiene valor acordado", where)
+	if assert.NotNil(t, snapshot.ClosedBy, "%s: closedBy no debería ser null", where) {
+		assert.Equal(t, closedBy.String(), snapshot.ClosedBy.ID, "%s: quien canceló la sesión", where)
+	}
+	assert.NotNil(t, snapshot.ClosedAt, "%s: closedAt no debería ser null", where)
+	assert.Nil(t, snapshot.CancelReason, "%s: la cancelación del facilitador no lleva motivo del sistema", where)
+}
+
+// requireCanceledBySystem exige que la instantánea muestre la sesión cancelada por el sistema con el
+// motivo indicado: sin quien la cerró, con su momento de cierre y sin valor acordado (FR-061, FR-063).
+func requireCanceledBySystem(t *testing.T, snapshot pokerSessionBody, reason domain.CancelReason, where string) {
+	t.Helper()
+	assert.Equal(t, "canceled", snapshot.Status, "%s: estado de la sesión: %s", where, snapshot.Raw)
+	assert.Nil(t, snapshot.AgreedStoryPoints, "%s: una sesión cancelada no tiene valor acordado", where)
+	assert.Nil(t, snapshot.ClosedBy, "%s: la cancelación del sistema no tiene quien la cerró", where)
+	assert.NotNil(t, snapshot.ClosedAt, "%s: closedAt no debería ser null", where)
+	if assert.NotNil(t, snapshot.CancelReason, "%s: cancelReason no debería ser null", where) {
+		assert.Equal(t, string(reason), *snapshot.CancelReason, "%s: motivo de la cancelación", where)
+	}
+}
+
+// requireStoredCanceled exige que la sesión quede cancelada en la base en el instante indicado del
+// reloj falso, sin valor acordado, con closed_by_id igual a closedBy (nil en las cancelaciones del
+// sistema) y cancel_reason igual a reason (nil en la del facilitador), según data-model.md sección 3.
+func requireStoredCanceled(t *testing.T, db *gorm.DB, sessionID string, closedBy *uuid.UUID, reason *domain.CancelReason, at time.Time) {
+	t.Helper()
+	stored := pokerStoredSession(t, db, sessionID)
+	assert.Equal(t, domain.SessionStatusCanceled, stored.Status, "la sesión debería quedar cancelada en la base")
+	assert.Nil(t, stored.AgreedStoryPoints, "una sesión cancelada no tiene agreed_story_points")
+	assert.Equal(t, closedBy, stored.ClosedByID, "closed_by_id")
+	assert.Equal(t, reason, stored.CancelReason, "cancel_reason")
+	if assert.NotNil(t, stored.ClosedAt, "closed_at no debería ser nulo") {
+		assert.True(t, stored.ClosedAt.Equal(at), "closed_at = %s, se esperaba %s", stored.ClosedAt, at)
+	}
+}
+
+// requireSessionClosedBody exige el 409 de sesión cerrada del contrato con el mensaje, el estado, el
+// valor acordado y el motivo indicados; nil en agreed o en reason es null en el cuerpo.
+func requireSessionClosedBody(t *testing.T, resp pokerResponse, message, status string, agreed *int, reason *domain.CancelReason) {
+	t.Helper()
+	want, err := json.Marshal(map[string]any{
+		"error":             message,
+		"status":            status,
+		"agreedStoryPoints": agreed,
+		"cancelReason":      reason,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusConflict, resp.Code, "cuerpo: %s", resp.Body)
+	assert.JSONEq(t, string(want), string(resp.Body))
+}
+
+// pokerReason devuelve un puntero al motivo de cancelación indicado.
+func pokerReason(reason domain.CancelReason) *domain.CancelReason {
+	return &reason
+}
+
+// pokerSessionVotes cuenta las filas de estimation_votes de todas las rondas de la sesión.
+func pokerSessionVotes(t *testing.T, db *gorm.DB, sessionID string) int64 {
+	t.Helper()
+	var n int64
+	require.NoError(t, db.Model(&domain.EstimationVote{}).
+		Joins("JOIN estimation_rounds ON estimation_rounds.id = estimation_votes.round_id").
+		Where("estimation_rounds.session_id = ?", sessionID).Count(&n).Error,
+		"no se pudieron contar los votos de la sesión %s", sessionID)
+	return n
+}
+
+// requireStreamsCanceled exige que cada canal reciba la sesión cancelada por el sistema con el motivo
+// indicado, sin recargar y en menos de 2 segundos, y que el servidor lo cierre después.
+func requireStreamsCanceled(t *testing.T, streams map[string]*pokerStream, reason domain.CancelReason) {
+	t.Helper()
+	for name, stream := range streams {
+		snapshot := stream.NextUntil(t, "la sesión cancelada en el canal de "+name, sessionCanceled)
+		requireCanceledBySystem(t, snapshot, reason, "canal de "+name)
+		stream.requireEnded(t, "canal de "+name)
+	}
+}
+
+// Escenario: Cancelación conserva la estimación (005/US7)
+// Con Ana, Bruno y Carla conectados sobre una historia estimada en 5 Story Points desde el backlog de
+// la 003 y el voto 8 de Bruno, un minuto después Ana, facilitadora, cancela: responde 200 con la
+// sesión cancelada por Ana, sin valor acordado ni motivo del sistema; los tres canales reciben ese
+// último estado sin recargar y en menos de 2 segundos, y el servidor los cierra. En la base la sesión
+// queda cancelada con closed_at en el instante del reloj y la versión sube en uno, y la historia sigue
+// en 5 Story Points (FR-057, FR-058, FR-073, RN-21).
+func TestUS7_CancelacionConservaEstimacion(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.env.requireStoryEstimated(t, f.brunoToken, f.storyID, 5)
+	f.env.requireVoted(t, f.brunoToken, f.session.ID, "8")
+	before := pokerStoredVersion(t, f.env.db, f.session.ID)
+	f.env.clock.Advance(time.Minute)
+
+	resp := f.env.requireCanceled(t, f.anaToken, f.session.ID)
+	requireCanceledByFacilitator(t, resp, f.anaID, "respuesta de Ana")
+
+	// Cada canal recibe el estado final y después se cierra.
+	for name, stream := range f.threeStreams() {
+		snapshot := stream.NextUntil(t, "la sesión cancelada en el canal de "+name, sessionCanceled)
+		requireCanceledByFacilitator(t, snapshot, f.anaID, "canal de "+name)
+		stream.requireEnded(t, "canal de "+name)
+	}
+
+	requireStoredCanceled(t, f.env.db, f.session.ID, &f.anaID, nil, f.env.clock.Now())
+	assert.Equal(t, before+1, pokerStoredVersion(t, f.env.db, f.session.ID), "cancelar cierra la sesión y sube la versión")
+	requireStoryPoints(t, f.env.requireStoryDetail(t, f.brunoToken, f.storyID), pokerIntPtr(5), "historia de la 003")
+}
+
+// Escenario: Nueva sesión tras cancelar (005/US7)
+// Ana abre una sesión sola y la cancela. Bruno abre una sesión nueva sobre la misma historia: responde
+// 201 con un identificador distinto y su ronda 1 en votación, porque la historia ya no tiene ninguna
+// sesión abierta; la historia queda con dos sesiones, una cancelada y otra open (FR-062, RN-04).
+func TestUS7_NuevaSesionTrasCancelar(t *testing.T) {
+	f := newPokerUS1Fixture(t)
+	canceled, _ := f.newPokerSoloSession(t, f.storyID)
+	f.env.requireCanceled(t, f.anaToken, canceled.ID)
+
+	session := f.env.requireOpenedSession(t, f.brunoToken, f.storyID)
+
+	assert.NotEqual(t, canceled.ID, session.ID, "la sesión nueva tiene su propio identificador")
+	requireFirstRoundVoting(t, session)
+	assert.Equal(t, int64(2), pokerSessionRows(t, f.env.db, f.storyID))
+	assert.Equal(t, int64(1), pokerSessionRows(t, f.env.db, f.storyID, domain.SessionStatusOpen))
+	assert.Equal(t, int64(1), pokerSessionRows(t, f.env.db, f.storyID, domain.SessionStatusCanceled))
+}
+
+// Escenario: Rondas conservadas (005/US7)
+// Con tres rondas reveladas con los votos 3, 5 y 13 de Ana, Bruno y Carla, Ana cancela: la consulta de
+// la sesión de Bruno con GET /api/v1/estimation-sessions/{sessionId} muestra la sesión cancelada con
+// las tres rondas reveladas, cada una con sus tres votos y la divergencia de 3 a 13, y en la base
+// quedan las tres rondas con sus nueve votos (FR-058, RN-28).
+func TestUS7_RondasConservadas(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.revealDivergentRound(t)
+	for number := 2; number <= 3; number++ {
+		f.env.requireStartedRound(t, f.anaToken, f.session.ID)
+		f.revealDivergentRound(t)
+	}
+
+	f.env.requireCanceled(t, f.anaToken, f.session.ID)
+
+	// La consulta de la sesión cancelada muestra las tres rondas completas.
+	session := f.env.requireSessionFetched(t, f.brunoToken, f.session.ID)
+	requireCanceledByFacilitator(t, session, f.anaID, "consulta de Bruno")
+	rounds := pokerAllRounds(t, session)
+	require.Len(t, rounds, 3, "rondas: %s", session.Raw)
+	for i, round := range rounds {
+		where := fmt.Sprintf("ronda %d", i+1)
+		assert.Equal(t, i+1, round.Number, "%s: número", where)
+		assert.Equal(t, "revealed", round.Status, "%s: estado", where)
+		assert.Equal(t, f.divergentCards(), pokerRevealedCards(round), "%s: votos", where)
+		requireDivergence(t, round, 3, []uuid.UUID{f.anaID}, 13, []uuid.UUID{f.carlaID}, where)
+	}
+
+	// En la base quedan las tres rondas con sus tres votos cada una.
+	stored := pokerStoredRounds(t, f.env.db, f.session.ID)
+	require.Len(t, stored, 3, "la sesión debería conservar sus rondas en la base")
+	for _, round := range stored {
+		assert.Equal(t, domain.RoundStatusRevealed, round.Status, "ronda %d", round.Number)
+		assert.EqualValues(t, 3, pokerStoredRoundVotes(t, f.env.db, round.ID), "ronda %d conserva sus votos", round.Number)
+	}
+}
+
+// Escenario: Cancelación sin votos (005/US7)
+// Ana abre una sesión sola y, sin que nadie vote, la cancela: responde 200 con la sesión cancelada por
+// Ana y su única ronda, la 1, todavía en votación; en la base la sesión queda cancelada sin ninguna
+// ronda revelada y sin votos (FR-057, FR-058).
+func TestUS7_CancelacionSinVotos(t *testing.T) {
+	f := newPokerUS1Fixture(t)
+	session, _ := f.newPokerSoloSession(t, f.storyID)
+
+	resp := f.env.requireCanceled(t, f.anaToken, session.ID)
+
+	requireCanceledByFacilitator(t, resp, f.anaID, "respuesta de Ana")
+	if assert.Len(t, resp.Rounds, 1, "rondas: %s", resp.Raw) {
+		assert.Equal(t, "voting", resp.Rounds[0].Status, "la ronda 1 nunca se reveló")
+	}
+	requireStoredCanceled(t, f.env.db, session.ID, &f.anaID, nil, f.env.clock.Now())
+	rounds := pokerStoredRounds(t, f.env.db, session.ID)
+	if assert.Len(t, rounds, 1, "la sesión conserva su única ronda") {
+		assert.Equal(t, domain.RoundStatusVoting, rounds[0].Status, "la sesión queda sin ninguna ronda revelada")
+	}
+	assert.Zero(t, pokerSessionVotes(t, f.env.db, session.ID), "la sesión no tiene votos")
+}
+
+// Escenario: Cancelación por inactividad (005/US7)
+// Con Ana, Bruno y Carla conectados sobre una historia estimada en 5 Story Points y el voto 8 de
+// Bruno como último hecho, a los 59:59 minutos el barrido no cancela nada; a los 60 minutos cancela la
+// sesión por inactividad: los tres canales reciben la sesión cancelada con cancelReason inactivity y
+// sin quien la cerró, y el servidor los cierra. En la base la sesión queda cancelada con closed_by_id
+// nulo, cancel_reason inactivity y closed_at en el instante del barrido; el voto se conserva, la
+// historia sigue en 5 y Bruno puede abrir una sesión nueva sobre ella (FR-063, RN-31, SC-021).
+func TestUS7_CancelacionPorInactividad(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.env.requireStoryEstimated(t, f.brunoToken, f.storyID, 5)
+	f.env.requireVoted(t, f.brunoToken, f.session.ID, "8")
+	lastFact := pokerStoredSession(t, f.env.db, f.session.ID).LastActivityAt
+
+	// Un segundo antes del límite la sesión sigue abierta.
+	f.env.sweepAt(t, lastFact.Add(pokerInactivityWindow-time.Second))
+	requireStoredOpen(t, f.env.db, f.session.ID, "a los 59:59 minutos sin hechos todavía no caduca")
+
+	// Al cumplirse los 60 minutos el barrido la cancela y avisa a los conectados.
+	f.env.sweepAt(t, lastFact.Add(pokerInactivityWindow))
+	requireStreamsCanceled(t, f.threeStreams(), domain.CancelReasonInactivity)
+
+	requireStoredCanceled(t, f.env.db, f.session.ID, nil, pokerReason(domain.CancelReasonInactivity), f.env.clock.Now())
+	requireSingleStoredVote(t, f.env.db, f.session.ID, f.brunoID, "8")
+	requireStoryPoints(t, f.env.requireStoryDetail(t, f.brunoToken, f.storyID), pokerIntPtr(5), "historia de la 003")
+	session := f.env.requireOpenedSession(t, f.brunoToken, f.storyID)
+	assert.NotEqual(t, f.session.ID, session.ID, "la sesión nueva tiene su propio identificador")
+}
+
+// Escenario: Hecho reinicia la inactividad (005/US7)
+// Sobre el "Dado" de US2, cada tipo de hecho de data-model.md sección 7 ocurre a los 59 minutos del
+// último hecho anterior, en su subtest: la incorporación de Diego, la desconexión de Carla al vencer
+// su gracia, el voto de Bruno, la revelación manual de Ana, la ronda nueva de Ana y el cambio de
+// facilitador a Bruno. El hecho fija last_activity_at en ese instante; a los 60 minutos del inicio el
+// barrido deja la sesión open, y recién a los 60 minutos del hecho la cancela por inactividad (FR-063,
+// RN-31, SC-021).
+func TestUS7_HechoReiniciaInactividad(t *testing.T) {
+	// Cada caso prepara su "Dado" y produce su hecho; lead es cuánto antes del minuto 59 empieza la
+	// acción, para que el hecho quede registrado justo en él.
+	facts := []struct {
+		name    string
+		lead    time.Duration
+		prepare func(t *testing.T, f pokerUS2Fixture)
+		act     func(t *testing.T, f pokerUS2Fixture)
+	}{
+		{
+			name: "incorporación",
+			prepare: func(t *testing.T, f pokerUS2Fixture) {
+				f.env.addMember(t, f.anaToken, f.projectID, "diego@example.com")
+			},
+			act: func(t *testing.T, f pokerUS2Fixture) {
+				f.env.openStream(t, f.diegoToken, f.session.ID).NextUntil(t, "Diego conectado", participantBack(f.diegoID))
+			},
+		},
+		{
+			name: "desconexión",
+			lead: 30 * time.Second,
+			act: func(t *testing.T, f pokerUS2Fixture) {
+				f.env.dropAndExpire(t, f.carla)
+			},
+		},
+		{
+			name: "voto",
+			act: func(t *testing.T, f pokerUS2Fixture) {
+				f.env.requireVoted(t, f.brunoToken, f.session.ID, "5")
+			},
+		},
+		{
+			name: "revelación",
+			prepare: func(t *testing.T, f pokerUS2Fixture) {
+				f.env.requireVoted(t, f.brunoToken, f.session.ID, "5")
+			},
+			act: func(t *testing.T, f pokerUS2Fixture) {
+				requirePokerStatus(t, f.env.reveal(t, f.anaToken, f.session.ID), http.StatusOK, nil)
+			},
+		},
+		{
+			name: "ronda nueva",
+			prepare: func(t *testing.T, f pokerUS2Fixture) {
+				f.revealDivergentRound(t)
+			},
+			act: func(t *testing.T, f pokerUS2Fixture) {
+				f.env.requireStartedRound(t, f.anaToken, f.session.ID)
+			},
+		},
+		{
+			name: "cambio de facilitador",
+			prepare: func(t *testing.T, f pokerUS2Fixture) {
+				f.env.dropAndExpire(t, f.ana)
+			},
+			act: func(t *testing.T, f pokerUS2Fixture) {
+				f.env.requireTookFacilitator(t, f.brunoToken, f.session.ID)
+			},
+		},
+	}
+	for _, tc := range facts {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newPokerUS2Fixture(t)
+			if tc.prepare != nil {
+				tc.prepare(t, f)
+			}
+			start := pokerStoredSession(t, f.env.db, f.session.ID).LastActivityAt
+			factAt := start.Add(pokerInactivityWindow - pokerInactivityFactLeadMargin)
+
+			// El hecho ocurre a los 59 minutos del inicio y reinicia la cuenta.
+			f.env.clock.Advance(factAt.Add(-tc.lead).Sub(f.env.clock.Now()))
+			tc.act(t, f)
+			stored := pokerStoredSession(t, f.env.db, f.session.ID)
+			require.True(t, stored.LastActivityAt.Equal(factAt),
+				"last_activity_at = %s, se esperaba el instante del hecho %s", stored.LastActivityAt, factAt)
+
+			// A los 60 minutos del inicio la sesión sigue abierta.
+			f.env.sweepAt(t, start.Add(pokerInactivityWindow))
+			requireStoredOpen(t, f.env.db, f.session.ID, "el hecho del minuto 59 reinició la inactividad")
+
+			// A los 60 minutos del hecho caduca por inactividad.
+			f.env.sweepAt(t, factAt.Add(pokerInactivityWindow))
+			requireStoredCanceled(t, f.env.db, f.session.ID, nil, pokerReason(domain.CancelReasonInactivity), f.env.clock.Now())
+		})
+	}
+}
+
+// Escenario: Cancelar sin ser facilitador (005/US7)
+// Con Ana, facilitadora, Bruno y Carla conectados, Bruno intenta cancelar: responde 403 con el
+// mensaje de que la acción está reservada al facilitador; la sesión sigue abierta y la versión no
+// cambia, porque el rechazo no es un hecho (FR-059, FR-064, SC-011).
+func TestUS7_CancelarSinSerFacilitador(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	before := pokerStoredVersion(t, f.env.db, f.session.ID)
+
+	resp := f.env.cancel(t, f.brunoToken, f.session.ID)
+
+	assert.Equal(t, http.StatusForbidden, resp.Code, "cuerpo: %s", resp.Body)
+	assert.JSONEq(t, pokerFacilitatorOnlyBodyJSON, string(resp.Body))
+	requireStoredOpen(t, f.env.db, f.session.ID, "el rechazo no cancela la sesión")
+	assert.Equal(t, before, pokerStoredVersion(t, f.env.db, f.session.ID), "un rechazo no sube la versión")
+}
+
+// Escenario: Cancelar sesión finalizada (005/US7)
+// Ana abre una sesión sola, vota 8 y registra 8. Después intenta cancelarla: responde 409 de sesión
+// cerrada con el estado finished y el valor 8; la sesión sigue finalizada con su valor y su cierre, la
+// versión no cambia y la historia sigue en 8 Story Points (FR-060, RN-22).
+func TestUS7_CancelarSesionFinalizada(t *testing.T) {
+	f := newPokerUS1Fixture(t)
+	session, _ := f.newPokerSoloSession(t, f.storyID)
+	f.env.requireVoted(t, f.anaToken, session.ID, "8")
+	f.env.requireFinalized(t, f.anaToken, session.ID, 8)
+	finishedAt := f.env.clock.Now()
+	before := pokerStoredVersion(t, f.env.db, session.ID)
+	f.env.clock.Advance(time.Minute)
+
+	resp := f.env.cancel(t, f.anaToken, session.ID)
+
+	requireSessionClosedBody(t, resp, pokerSessionClosedMessage, "finished", pokerIntPtr(8), nil)
+	requireStoredFinished(t, f.env.db, session.ID, 8, f.anaID, finishedAt)
+	assert.Equal(t, before, pokerStoredVersion(t, f.env.db, session.ID), "un rechazo no sube la versión")
+	requireStoryPoints(t, f.env.requireStoryDetail(t, f.anaToken, f.storyID), pokerIntPtr(8), "historia de la 003")
+}
+
+// Escenario: Acción tras inactividad (005/US7)
+// Con Ana, Bruno y Carla conectados y el voto 5 de Bruno, la sesión caduca por inactividad al pasar 60
+// minutos y el barrido la cancela. Carla intenta votar y Ana intenta registrar 8, cada uno en su
+// subtest: los dos reciben 409 con el mensaje de que la sesión se cerró por inactividad, el estado
+// canceled y cancelReason inactivity; Carla no tiene voto y la historia sigue sin estimar (FR-063,
+// research.md sección 19).
+func TestUS7_AccionTrasInactividad(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.env.requireVoted(t, f.brunoToken, f.session.ID, "5")
+	lastFact := pokerStoredSession(t, f.env.db, f.session.ID).LastActivityAt
+	f.env.sweepAt(t, lastFact.Add(pokerInactivityWindow))
+	inactivity := pokerReason(domain.CancelReasonInactivity)
+
+	t.Run("votar", func(t *testing.T) {
+		resp := f.env.vote(t, f.carlaToken, f.session.ID, map[string]any{"card": "3"})
+
+		requireSessionClosedBody(t, resp, pokerInactivityClosedMessage, "canceled", nil, inactivity)
+		assert.Empty(t, pokerStoredVotes(t, f.env.db, f.session.ID, f.carlaID), "el voto rechazado no queda escrito")
+	})
+	t.Run("registrar", func(t *testing.T) {
+		resp := f.env.finalize(t, f.anaToken, f.session.ID, map[string]any{"storyPoints": 8})
+
+		requireSessionClosedBody(t, resp, pokerInactivityClosedMessage, "canceled", nil, inactivity)
+		requireStoryPoints(t, f.env.requireStoryDetail(t, f.anaToken, f.storyID), nil, "historia de la 003")
+	})
+}
+
+// newPokerCommittedStory crea, como Bruno, una historia lista con 5 Story Points y un criterio, y la
+// compromete en un sprint Activo del proyecto, para poder llevarla a Completada con la 004.
+func (f pokerUS1Fixture) newPokerCommittedStory(t *testing.T) uuid.UUID {
+	t.Helper()
+	storyID := f.env.createStory(t, f.brunoToken, f.projectID, pokerStoryInput{
+		Title:    "Exportar el reporte",
+		Points:   pokerIntPtr(5),
+		Criteria: []string{"El PDF incluye la velocidad de los últimos cinco sprints."},
+	})
+	pokerSeedActiveCommitment(t, f.env.db, f.projectID, f.anaID, storyID)
+	return storyID
+}
+
+// completeStory lleva la historia a En progreso y después a Completada con PUT
+// /api/v1/stories/{storyId}/status de la 004.
+func (e *pokerTestEnv) completeStory(t *testing.T, token string, storyID uuid.UUID) {
+	t.Helper()
+	for _, status := range []string{"in_progress", "completed"} {
+		requirePokerStatus(t, e.do(t, http.MethodPut, "/api/v1/stories/"+storyID.String()+"/status", token,
+			map[string]any{"status": status}), http.StatusOK, nil)
+	}
+}
+
+// TestPokerAutoCancel_HistoriaCompletada cubre la cancelación del sistema por historia completada
+// (FR-061, RN-30). Con Ana conectada a una sesión sobre una historia comprometida en el sprint Activo,
+// Bruno la avanza a Completada con la 004 y el barrido lo detecta: el canal de Ana recibe la sesión
+// cancelada con cancelReason story_completed y sin quien la cerró, y el servidor lo cierra. En la base
+// la sesión queda cancelada con closed_by_id nulo y ese motivo, y la historia conserva sus 5 Story
+// Points.
+func TestPokerAutoCancel_HistoriaCompletada(t *testing.T) {
+	f := newPokerUS1Fixture(t)
+	storyID := f.newPokerCommittedStory(t)
+	session, ana := f.newPokerSoloSession(t, storyID)
+
+	f.env.completeStory(t, f.brunoToken, storyID)
+	f.env.sweep(t, time.Second)
+
+	requireStreamsCanceled(t, map[string]*pokerStream{"Ana": ana}, domain.CancelReasonStoryCompleted)
+	requireStoredCanceled(t, f.env.db, session.ID, nil, pokerReason(domain.CancelReasonStoryCompleted), f.env.clock.Now())
+	requireStoryPoints(t, f.env.requireStoryDetail(t, f.anaToken, storyID), pokerIntPtr(5), "historia de la 003")
+}
+
+// TestPokerAutoCancel_ProyectoFinalizado cubre la cancelación del sistema por proyecto finalizado
+// (FR-061, RN-30). Con Ana, Bruno y Carla conectados, Ana finaliza el proyecto con la 002 y el barrido
+// lo detecta: los tres canales reciben la sesión cancelada con cancelReason project_finished y se
+// cierran, y en la base queda cancelada con closed_by_id nulo y ese motivo. Un voto posterior de Bruno
+// responde 409 con el mensaje de proyecto de solo lectura y no queda escrito (research.md sección
+// 19).
+func TestPokerAutoCancel_ProyectoFinalizado(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+
+	f.env.setProjectStatus(t, f.anaToken, f.projectID, "finished")
+	f.env.sweep(t, time.Second)
+
+	requireStreamsCanceled(t, f.threeStreams(), domain.CancelReasonProjectFinished)
+	requireStoredCanceled(t, f.env.db, f.session.ID, nil, pokerReason(domain.CancelReasonProjectFinished), f.env.clock.Now())
+
+	resp := f.env.vote(t, f.brunoToken, f.session.ID, map[string]any{"card": "5"})
+	requireSessionClosedBody(t, resp, pokerProjectFinishedMessage, "canceled", nil, pokerReason(domain.CancelReasonProjectFinished))
+	assert.Empty(t, pokerStoredVotes(t, f.env.db, f.session.ID, f.brunoID), "el voto rechazado no queda escrito")
+}
+
+// TestPokerJoin_SesionCerrada cubre la incorporación a una sesión cerrada (FR-018, RN-22). Con una
+// sesión que Ana dejó finalizada con valor 8 y otra que canceló, cada una en su subtest, Bruno, que
+// nunca participó, pide el canal: responde 409 en JSON y no como text/event-stream, con el
+// SessionClosedResponse del contrato con el estado y el valor acordado registrados, sin ningún evento
+// en el cuerpo, y Bruno no queda como participante.
+func TestPokerJoin_SesionCerrada(t *testing.T) {
+	// Cada caso cierra la sesión de una forma y declara el estado y el valor que debe informar el 409.
+	closures := []struct {
+		name   string
+		close  func(t *testing.T, f pokerUS1Fixture, sessionID string)
+		status string
+		agreed *int
+	}{
+		{
+			name: "finalizada con valor 8",
+			close: func(t *testing.T, f pokerUS1Fixture, sessionID string) {
+				f.env.requireVoted(t, f.anaToken, sessionID, "8")
+				f.env.requireFinalized(t, f.anaToken, sessionID, 8)
+			},
+			status: "finished",
+			agreed: pokerIntPtr(8),
+		},
+		{
+			name: "cancelada por el facilitador",
+			close: func(t *testing.T, f pokerUS1Fixture, sessionID string) {
+				f.env.requireCanceled(t, f.anaToken, sessionID)
+			},
+			status: "canceled",
+		},
+	}
+	for _, tc := range closures {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newPokerUS1Fixture(t)
+			session, _ := f.newPokerSoloSession(t, f.storyID)
+			tc.close(t, f, session.ID)
+
+			resp := f.env.do(t, http.MethodGet, eventsPath(session.ID), f.brunoToken, nil)
+
+			requireSessionClosedBody(t, resp, pokerSessionClosedMessage, tc.status, tc.agreed, nil)
+			assert.Contains(t, resp.ContentType, "application/json", "el rechazo no abre el canal de eventos")
+			assert.NotContains(t, string(resp.Body), "event:", "el rechazo no envía ningún evento")
+			var n int64
+			require.NoError(t, f.env.db.Model(&domain.EstimationParticipant{}).
+				Where("session_id = ? AND user_id = ?", session.ID, f.brunoID).Count(&n).Error)
+			assert.Zero(t, n, "Bruno no debería quedar como participante")
+		})
+	}
+}
+
+// TestPokerAutoCancel_AccionAntesDelBarrido cubre la acción que llega después de que la historia se
+// completa y antes de la pasada del barrido (data-model.md sección 9). Con Ana conectada a una sesión
+// sobre una historia comprometida, Bruno la avanza a Completada con la 004 y, sin barrido, Ana vota 5:
+// responde 409 de sesión cerrada con el estado canceled y cancelReason story_completed, el voto no
+// queda escrito, la cancelación queda confirmada en la base y el canal de Ana recibe la sesión
+// cancelada y se cierra.
+func TestPokerAutoCancel_AccionAntesDelBarrido(t *testing.T) {
+	f := newPokerUS1Fixture(t)
+	storyID := f.newPokerCommittedStory(t)
+	session, ana := f.newPokerSoloSession(t, storyID)
+	f.env.completeStory(t, f.brunoToken, storyID)
+
+	resp := f.env.vote(t, f.anaToken, session.ID, map[string]any{"card": "5"})
+
+	storyCompleted := pokerReason(domain.CancelReasonStoryCompleted)
+	requireSessionClosedBody(t, resp, pokerSessionClosedMessage, "canceled", nil, storyCompleted)
+	assert.Empty(t, pokerStoredVotes(t, f.env.db, session.ID, f.anaID), "el voto rechazado no queda escrito")
+	requireStoredCanceled(t, f.env.db, session.ID, nil, storyCompleted, f.env.clock.Now())
+	requireStreamsCanceled(t, map[string]*pokerStream{"Ana": ana}, domain.CancelReasonStoryCompleted)
 }

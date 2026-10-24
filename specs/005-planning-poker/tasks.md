@@ -711,7 +711,7 @@ tras `Sweep`.
       cubriendo RN-30, RN-31 y SC-021: historia `completed` → `story_completed`; proyecto `finished`
       → `project_finished`; las dos a la vez → `story_completed` (precedencia); 59:59 → ninguno; 60:00
       → `inactivity` — depende de T077
-- [ ] T079 [US7] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
+- [X] T079 [US7] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
       escenario con `// Escenario: <nombre> (005/US7)`: `TestUS7_CancelacionConservaEstimacion`,
       `TestUS7_NuevaSesionTrasCancelar`, `TestUS7_RondasConservadas`, `TestUS7_CancelacionSinVotos`,
       `TestUS7_CancelacionPorInactividad` (reloj + 60 min, `Sweep`; los canales reciben

@@ -899,6 +899,7 @@ func TestUS2_RetiroDeVoto(t *testing.T) {
 const (
 	pokerNoVotesToRevealBodyJSON = `{"error":"Hace falta al menos un voto para revelar la ronda."}`
 	pokerFacilitatorOnlyBodyJSON = `{"error":"Esta acción está reservada al facilitador de la sesión."}`
+	pokerAlreadyRevealedBodyJSON = `{"error":"La ronda ya fue revelada."}`
 )
 
 // revealPath es la ruta de la revelación manual de la sesión según contracts/openapi.yaml.
@@ -1325,6 +1326,30 @@ func TestUS3_RevelarSinSerFacilitador(t *testing.T) {
 	snapshot := second.NextUntil(t, "Ana y Bruno ya votaron en la conexión nueva de Carla", both)
 	requireSecretVote(t, snapshot, f.anaID, "Carla")
 	requireSecretVote(t, snapshot, f.brunoID, "Carla")
+}
+
+// Escenario: Ronda ya revelada (005/US3)
+// Ana, Bruno y Carla votan 3, 5 y 8 y la ronda se revela sola. Pasado un minuto, Ana, facilitadora,
+// intenta revelarla otra vez: responde 409 con el mensaje de que la ronda ya fue revelada, la ronda
+// sigue revelada con el mismo momento de revelado y la versión de la sesión no
+// cambia, porque el rechazo no es un hecho.
+func TestUS3_RevelarRondaYaRevelada(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.env.requireVoted(t, f.anaToken, f.session.ID, "3")
+	f.env.requireVoted(t, f.brunoToken, f.session.ID, "5")
+	f.env.requireVoted(t, f.carlaToken, f.session.ID, "8")
+	revealedAt := f.env.clock.Now()
+	requireStoredRevealed(t, f.env.db, f.session.ID, revealedAt)
+	before := pokerStoredVersion(t, f.env.db, f.session.ID)
+
+	// El reloj avanza para que una segunda revelación aceptada se notara en revealed_at.
+	f.env.clock.Advance(time.Minute)
+	resp := f.env.reveal(t, f.anaToken, f.session.ID)
+
+	assert.Equal(t, http.StatusConflict, resp.Code, "cuerpo: %s", resp.Body)
+	assert.JSONEq(t, pokerAlreadyRevealedBodyJSON, string(resp.Body))
+	requireStoredRevealed(t, f.env.db, f.session.ID, revealedAt)
+	assert.Equal(t, before, pokerStoredVersion(t, f.env.db, f.session.ID), "un rechazo no sube la versión")
 }
 
 // pokerSend envía una petición sin usar require, porque corre en una goroutine distinta de la de la

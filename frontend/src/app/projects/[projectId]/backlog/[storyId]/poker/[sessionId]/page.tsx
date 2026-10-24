@@ -8,10 +8,12 @@ export const metadata: Metadata = {
   title: "Planning Poker | Software Metrics & Estimation",
 };
 
-// Pantalla protegida de la sala en vivo de una sesión de Planning Poker (005/US1). Es un Server
-// Component que solo toma los identificadores de la ruta y encuadra la vista: la guardia de sesión
-// corre en el cliente, porque el token vive en sessionStorage, y muestra el regreso a la historia y
-// la sala únicamente cuando hay una sesión vigente.
+// Pantalla protegida de una sesión de Planning Poker: la sala en vivo si la sesión está abierta
+// (005/US1 a US7) o el resultado con sus rondas y votos si ya está cerrada (005/US8), lo que resuelve
+// la sala según la respuesta del canal. Es un Server Component que solo toma los identificadores de
+// la ruta y encuadra la vista: la guardia de sesión corre en el cliente, porque el token vive en
+// sessionStorage, y muestra el regreso a la historia y la sala únicamente cuando hay una sesión
+// vigente.
 export default async function PokerSessionPage({
   params,
 }: {

@@ -96,6 +96,15 @@ export function getStoryEstimationHistory(
   );
 }
 
+// Consulta una sesión con todas sus rondas con GET /api/v1/estimation-sessions/{sessionId}, sin
+// unirse a ella (005/US8). Se usa para mostrar el resultado de una sesión cerrada, cuyo canal ya no
+// se abre; la sesión inexistente o ajena llega como 404.
+export function getEstimationSession(
+  sessionId: string,
+): Promise<ApiResult<EstimationSession>> {
+  return getJson(sessionPath(sessionId), isEstimationSession);
+}
+
 // Abre el canal GET /api/v1/estimation-sessions/{sessionId}/events, que une a quien pide como
 // participante conectado y emite la sesión ante cada cambio (FR-011, FR-073). Devuelve el cuerpo
 // text/event-stream sin leer; signal permite abortar la petición al salir de la sala.

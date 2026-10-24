@@ -830,7 +830,7 @@ responde `409` con el motivo `estimation_sessions`.
       `listStoryEstimationSessions` con anotaciones `swag`, los esquemas
       `StoryEstimationHistory`, `EstimationSessionSummary` y `OpenEstimationSession` en `dto.go`, y
       `GET` en `RegisterStoryRoutes` — depende de T085
-- [ ] T090 [US8] Implementar el historial en `StoryEstimationSection` (lista, sesión en curso con
+- [X] T090 [US8] Implementar el historial en `StoryEstimationSection` (lista, sesión en curso con
       **Unirse**, vacío) y la vista de una sesión cerrada en la pantalla
       `frontend/src/app/projects/[projectId]/backlog/[storyId]/poker/[sessionId]/page.tsx`
       reutilizando `RoundHistory` y `SessionClosedNotice` — depende de T087, T087a, T089

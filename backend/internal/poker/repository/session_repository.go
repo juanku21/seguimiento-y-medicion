@@ -416,11 +416,11 @@ func findConnectedParticipant(tx *gorm.DB, sessionID, userID uuid.UUID) (uuid.UU
 }
 
 // findCurrentRound lee, dentro de la transacción recibida, la ronda vigente de la sesión, que es la
-// de mayor número, con su identificador y su estado.
+// de mayor número, con su identificador, su número y su estado.
 func findCurrentRound(tx *gorm.DB, sessionID uuid.UUID) (*domain.EstimationRound, error) {
 	var round domain.EstimationRound
 	err := tx.
-		Select("id, status").
+		Select("id, number, status").
 		Where("session_id = ?", sessionID).
 		Order("number DESC").
 		Take(&round).Error
@@ -493,9 +493,47 @@ func revealRound(tx *gorm.DB, roundID uuid.UUID, now time.Time) error {
 	return nil
 }
 
-// StartRound abre la ronda siguiente. Firma mínima de T014.
+// StartRound abre la ronda siguiente en una transacción que bloquea la sesión con lockOpenSession
+// (FR-043 a FR-048, RN-11). Exige que quien la pide sea participante conectado (si no,
+// ErrNotParticipant) y el facilitador de la sesión (si no, ErrFacilitatorOnly), y que la ronda
+// vigente ya esté revelada (si no, ErrRoundNotRevealed). La ronda nueva se inserta con el número
+// siguiente, en votación y sin votos; las anteriores quedan intactas como historial. Abrir la ronda
+// es un hecho, así que touchSession fija last_activity_at = now y sube version.
 func (r *SessionRepository) StartRound(ctx context.Context, sessionID, userID uuid.UUID, now time.Time) error {
-	return errNotImplemented
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		session, err := lockOpenSession(tx, sessionID)
+		if err != nil {
+			return err
+		}
+		if _, err := findConnectedParticipant(tx, sessionID, userID); err != nil {
+			return err
+		}
+		if session.FacilitatorID != userID {
+			return domain.ErrFacilitatorOnly
+		}
+
+		// La ronda vigente tiene que estar revelada para abrir la siguiente.
+		current, err := findCurrentRound(tx, sessionID)
+		if err != nil {
+			return err
+		}
+		if current.Status != domain.RoundStatusRevealed {
+			return domain.ErrRoundNotRevealed
+		}
+
+		// La ronda siguiente nace en votación con el número que sigue al de la vigente.
+		round := domain.EstimationRound{
+			ID:        uuid.New(),
+			SessionID: sessionID,
+			Number:    current.Number + 1,
+			Status:    domain.RoundStatusVoting,
+			CreatedAt: now,
+		}
+		if err := tx.Create(&round).Error; err != nil {
+			return fmt.Errorf("crear la ronda siguiente de la sesión: %w", err)
+		}
+		return touchSession(tx, sessionID, now)
+	})
 }
 
 // Finalize cierra la sesión con el valor acordado. Firma mínima de T014.

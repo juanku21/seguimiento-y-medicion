@@ -530,7 +530,7 @@ historial de la sesión.
 
 ### Implementación de la Historia 4
 
-- [ ] T058 [US4] Implementar `StartRound` en
+- [X] T058 [US4] Implementar `StartRound` en
       `backend/internal/poker/repository/session_repository.go` (bloqueo, `EnsureOpen`, participante
       conectado, facilitador, ronda vigente `revealed` o `ErrRoundNotRevealed`, inserción de la ronda
       con `number + 1` en `voting`, hecho) — depende de T056

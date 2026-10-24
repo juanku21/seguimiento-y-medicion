@@ -887,6 +887,15 @@ documentación viva, cobertura, vulnerabilidades y verificación de las puertas 
 
 ---
 
+## Phase 11: Convergence and Security
+
+Propósito: ajustes transversales detectados por /speckit-converge y /revisar-seguridad.
+
+- [ ] T102 Agregar prueba de concurrencia que, con una transacción de prueba que bloquea la historia con FOR UPDATE y la pasa a `completed`, lanza el registro de la estimación en una goroutine, espera a que quede bloqueada en la historia (consultando `pg_stat_activity` con `wait_event_type = 'Lock'`), confirma la transacción y verifica que `user_stories.story_points` no cambió y que la sesión quedó `canceled` con `story_completed`; con una variante en la que el proyecto pasa a `finished` y se espera `project_finished`, en backend/internal/poker/delivery/handler_test.go per hallazgo de seguridad: registro de la estimación sin releer el estado de la historia bajo bloqueo (security) — origen: seguridad, detectado en 005/US7
+- [ ] T103 Hacer que el registro de la estimación lea el estado de la historia y del proyecto con la historia ya bloqueada (FOR UPDATE OF user_stories) y el proyecto con FOR SHARE, y reevaluar con AutoCancelReason antes de escribir story_points, de modo que una historia completada o un proyecto finalizado en paralelo cancelen la sesión en lugar de registrar, en backend/internal/poker/repository/session_repository.go per hallazgo de seguridad: registro de la estimación sin releer el estado de la historia bajo bloqueo (security) — origen: seguridad, detectado en 005/US7
+
+---
+
 ## Dependencias y Orden de Ejecución
 
 ### Dependencias entre fases

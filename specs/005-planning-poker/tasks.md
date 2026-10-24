@@ -625,7 +625,7 @@ nuevo facilitador.
 
 ### Pruebas de la Historia 6 ⚠️
 
-- [ ] T070 [P] [US6] Pruebas unitarias **obligatorias** de `FacilitatorTakeover` en
+- [X] T070 [P] [US6] Pruebas unitarias **obligatorias** de `FacilitatorTakeover` en
       `backend/internal/poker/domain/facilitator_test.go`, cubriendo RN-24, RN-25, RN-26 y RN-35 y
       SC-015: facilitador conectado → `FacilitatorUnavailableError` con `RetryAfter` cero;
       desconectado hace 2 min → `RetryAfter` 3 min; 4:59 → 1 s; 5:00 y 7:00 → ok; quien pide ya es

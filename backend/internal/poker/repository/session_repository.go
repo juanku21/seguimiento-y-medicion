@@ -129,8 +129,8 @@ func (r *SessionRepository) Open(ctx context.Context, storyID, openerID uuid.UUI
 	return &session, nil
 }
 
-// openableStoryRow es la fila que lee lockOpenableStory: el estado de la historia y el de su
-// proyecto, que llega por el JOIN a projects con el alias project_status.
+// openableStoryRow es la fila que leen lockOpenableStory y autoCancelLocked: el estado de la historia
+// y el de su proyecto, que llega por el JOIN a projects con el alias project_status.
 type openableStoryRow struct {
 	StoryStatus   backlogdomain.StoryStatus
 	ProjectStatus projectsdomain.ProjectStatus
@@ -186,17 +186,13 @@ func ensureNoOpenSession(tx *gorm.DB, storyID uuid.UUID) error {
 	return nil
 }
 
-// Connect da de alta o reconecta al participante en una transacción que bloquea la sesión con
-// lockOpenSession (FR-011 a FR-013, FR-015). Si la persona nunca estuvo en la sesión se inserta su
-// fila conectada; si ya estaba, se reutiliza su fila (RN-34) marcándola conectada y borrando
-// disconnected_at. Con la presencia ya actualizada evalúa la revelación automática (FR-031). La
-// incorporación es un hecho, así que touchSession fija last_activity_at = now y sube version.
+// Connect da de alta o reconecta al participante con el paso común de withOpenSession (FR-011 a
+// FR-013, FR-015). Si la persona nunca estuvo en la sesión se inserta su fila conectada; si ya
+// estaba, se reutiliza su fila (RN-34) marcándola conectada y borrando disconnected_at. Con la
+// presencia ya actualizada evalúa la revelación automática (FR-031). La incorporación es un hecho,
+// así que touchSession fija last_activity_at = now y sube version.
 func (r *SessionRepository) Connect(ctx context.Context, sessionID, userID uuid.UUID, now time.Time) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := lockOpenSession(tx, sessionID); err != nil {
-			return err
-		}
-
+	return r.withOpenSession(ctx, sessionID, now, func(tx *gorm.DB, _ *domain.EstimationSession) error {
 		// Se busca la fila previa de la persona con Find y LIMIT 1, porque no tenerla es un caso
 		// normal.
 		var existing []domain.EstimationParticipant
@@ -238,16 +234,13 @@ func (r *SessionRepository) Connect(ctx context.Context, sessionID, userID uuid.
 	})
 }
 
-// Disconnect marca desconectado al participante en una transacción que bloquea la sesión con
-// lockOpenSession (FR-013, FR-014): fija connected = false con un map, porque GORM descarta el false
-// de un struct, y disconnected_at = now. Si la persona no es participante de la sesión devuelve
-// ErrNotParticipant. Sin la persona entre los conectados evalúa la revelación automática (FR-031).
-// La desconexión es un hecho, así que touchSession fija last_activity_at = now y sube version.
+// Disconnect marca desconectado al participante con el paso común de withOpenSession (FR-013,
+// FR-014): fija connected = false con un map, porque GORM descarta el false de un struct, y
+// disconnected_at = now. Si la persona no es participante de la sesión devuelve ErrNotParticipant.
+// Sin la persona entre los conectados evalúa la revelación automática (FR-031). La desconexión es un
+// hecho, así que touchSession fija last_activity_at = now y sube version.
 func (r *SessionRepository) Disconnect(ctx context.Context, sessionID, userID uuid.UUID, now time.Time) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := lockOpenSession(tx, sessionID); err != nil {
-			return err
-		}
+	return r.withOpenSession(ctx, sessionID, now, func(tx *gorm.DB, _ *domain.EstimationSession) error {
 		result := tx.
 			Model(&domain.EstimationParticipant{}).
 			Where("session_id = ? AND user_id = ?", sessionID, userID).
@@ -265,17 +258,110 @@ func (r *SessionRepository) Disconnect(ctx context.Context, sessionID, userID uu
 	})
 }
 
+// withOpenSession es el paso común de todas las escrituras sobre una sesión abierta (data-model.md
+// sección 9): en una transacción bloquea la sesión con lockOpenSession, que aplica EnsureOpen, y con
+// autoCancelLocked reevalúa AutoCancelReason. Si corresponde una cancelación del sistema, la
+// transacción confirma esa cancelación sin ejecutar la acción y se devuelve SessionClosedError con el
+// motivo (research.md sección 13); si no, ejecuta la acción con la sesión releída dentro de la misma
+// transacción.
+func (r *SessionRepository) withOpenSession(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	now time.Time,
+	action func(tx *gorm.DB, session *domain.EstimationSession) error,
+) error {
+	var closedErr error
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		session, err := lockOpenSession(tx, sessionID)
+		if err != nil {
+			return err
+		}
+		reason, canceled, err := autoCancelLocked(tx, session, now)
+		if err != nil {
+			return err
+		}
+		if canceled {
+			closedErr = &domain.SessionClosedError{Status: domain.SessionStatusCanceled, CancelReason: &reason}
+			return nil
+		}
+		return action(tx, session)
+	})
+	if err != nil {
+		return err
+	}
+	return closedErr
+}
+
+// autoCancelLocked lee, dentro de la transacción que ya bloqueó la sesión, el estado de su historia y
+// el de su proyecto, y con el last_activity_at releído decide con AutoCancelReason si el sistema debe
+// cancelarla (FR-061, FR-063). Si corresponde, la cancela sin quien cerró y con el motivo, y devuelve
+// el motivo y verdadero. Si la historia ya no existe devuelve el ErrStoryNotFound de la 003.
+func autoCancelLocked(tx *gorm.DB, session *domain.EstimationSession, now time.Time) (domain.CancelReason, bool, error) {
+	var row openableStoryRow
+	err := tx.
+		Table("user_stories").
+		Select("user_stories.status AS story_status, projects.status AS project_status").
+		Joins("JOIN projects ON projects.id = user_stories.project_id").
+		Where("user_stories.id = ?", session.StoryID).
+		Take(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", false, backlogdomain.ErrStoryNotFound
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("leer el estado de la historia de la sesión: %w", err)
+	}
+
+	// La regla pura decide el motivo; sin motivo la sesión sigue abierta.
+	projectFinished := row.ProjectStatus == projectsdomain.ProjectStatusFinished
+	reason, cancel := domain.AutoCancelReason(row.StoryStatus, projectFinished, session.LastActivityAt, now)
+	if !cancel {
+		return "", false, nil
+	}
+	if err := cancelSession(tx, session.ID, nil, &reason, now); err != nil {
+		return "", false, err
+	}
+	return reason, true, nil
+}
+
+// cancelSession cierra la sesión como canceled dentro de la transacción recibida, con closed_at = now,
+// y sube version sin tocar last_activity_at, porque la cancelación cierra la sesión (data-model.md
+// sección 7). En la cancelación del facilitador recibe closedByID y ningún motivo; en la del sistema,
+// el motivo y ningún closedByID, que quedan en NULL.
+func cancelSession(tx *gorm.DB, sessionID uuid.UUID, closedByID *uuid.UUID, reason *domain.CancelReason, now time.Time) error {
+	values := map[string]any{
+		"status":        domain.SessionStatusCanceled,
+		"closed_by_id":  nil,
+		"cancel_reason": nil,
+		"closed_at":     now,
+		"version":       gorm.Expr("version + 1"),
+	}
+	if closedByID != nil {
+		values["closed_by_id"] = *closedByID
+	}
+	if reason != nil {
+		values["cancel_reason"] = *reason
+	}
+	err := tx.
+		Model(&domain.EstimationSession{}).
+		Where("id = ?", sessionID).
+		Updates(values).Error
+	if err != nil {
+		return fmt.Errorf("cancelar la sesión de estimación: %w", err)
+	}
+	return nil
+}
+
 // lockOpenSession bloquea con SELECT … FOR UPDATE, dentro de la transacción recibida, la fila de la
 // sesión, de modo que todas las acciones sobre ella se serialicen (research.md sección 6), y con el
 // estado releído aplica EnsureOpen, que rechaza la sesión cerrada con SessionClosedError (RN-22). Si
-// la sesión no existe devuelve ErrSessionNotFound. La comparten todas las escrituras sobre una
-// sesión abierta; devuelve la sesión releída con su facilitator_id para las acciones reservadas y su
-// story_id para el registro de la estimación.
+// la sesión no existe devuelve ErrSessionNotFound. Devuelve la sesión releída con su facilitator_id
+// para las acciones reservadas, su story_id para el registro de la estimación y su last_activity_at
+// para la cancelación por inactividad.
 func lockOpenSession(tx *gorm.DB, sessionID uuid.UUID) (*domain.EstimationSession, error) {
 	var session domain.EstimationSession
 	err := tx.
 		Clauses(clause.Locking{Strength: "UPDATE"}).
-		Select("id, story_id, facilitator_id, status, cancel_reason, agreed_story_points").
+		Select("id, story_id, facilitator_id, status, cancel_reason, agreed_story_points, last_activity_at").
 		Where("id = ?", sessionID).
 		Take(&session).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -303,18 +389,15 @@ func touchSession(tx *gorm.DB, sessionID uuid.UUID, now time.Time) error {
 	return nil
 }
 
-// Vote registra o cambia la carta de un participante en una transacción que bloquea la sesión con
-// lockOpenSession (FR-020 a FR-022, RN-07). Exige que quien vota sea participante conectado (si no,
+// Vote registra o cambia la carta de un participante con el paso común de withOpenSession (FR-020 a
+// FR-022, RN-07). Exige que quien vota sea participante conectado (si no,
 // ErrNotParticipant) y que la ronda vigente, la de mayor número, siga en votación (si no,
 // ErrRoundRevealed). El voto se guarda con un upsert sobre el índice único (round_id, participant_id):
 // el primero inserta la fila y los siguientes actualizan card y updated_at sobre la misma fila,
 // conservando su id y su created_at. Con el voto escrito evalúa la revelación automática (FR-031).
 // El voto es un hecho, así que touchSession fija last_activity_at = now y sube version.
 func (r *SessionRepository) Vote(ctx context.Context, sessionID, userID uuid.UUID, card domain.Card, now time.Time) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := lockOpenSession(tx, sessionID); err != nil {
-			return err
-		}
+	return r.withOpenSession(ctx, sessionID, now, func(tx *gorm.DB, _ *domain.EstimationSession) error {
 		participantID, err := findConnectedParticipant(tx, sessionID, userID)
 		if err != nil {
 			return err
@@ -355,18 +438,14 @@ func (r *SessionRepository) Vote(ctx context.Context, sessionID, userID uuid.UUI
 	})
 }
 
-// Reveal revela a mano la ronda vigente en una transacción que bloquea la sesión con
-// lockOpenSession (FR-032, FR-033, RN-10, RN-15). Exige que quien la pide sea participante conectado
-// (si no, ErrNotParticipant) y el facilitador de la sesión (si no, ErrFacilitatorOnly), que la ronda
-// vigente siga en votación (si no, ErrRoundRevealed) y que CanRevealManually admita sus votos, que
-// cuentan aunque su autor esté desconectado. La revelación es un hecho, así que touchSession fija
-// last_activity_at = now y sube version.
+// Reveal revela a mano la ronda vigente con el paso común de withOpenSession (FR-032, FR-033, RN-10,
+// RN-15). Exige que quien la pide sea participante conectado (si no, ErrNotParticipant) y el
+// facilitador de la sesión (si no, ErrFacilitatorOnly), que la ronda vigente siga en votación (si
+// no, ErrRoundRevealed) y que CanRevealManually admita sus votos, que cuentan aunque su autor esté
+// desconectado. La revelación es un hecho, así que touchSession fija last_activity_at = now y sube
+// version.
 func (r *SessionRepository) Reveal(ctx context.Context, sessionID, userID uuid.UUID, now time.Time) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		session, err := lockOpenSession(tx, sessionID)
-		if err != nil {
-			return err
-		}
+	return r.withOpenSession(ctx, sessionID, now, func(tx *gorm.DB, session *domain.EstimationSession) error {
 		if _, err := findConnectedParticipant(tx, sessionID, userID); err != nil {
 			return err
 		}
@@ -494,18 +573,14 @@ func revealRound(tx *gorm.DB, roundID uuid.UUID, now time.Time) error {
 	return nil
 }
 
-// StartRound abre la ronda siguiente en una transacción que bloquea la sesión con lockOpenSession
-// (FR-043 a FR-048, RN-11). Exige que quien la pide sea participante conectado (si no,
-// ErrNotParticipant) y el facilitador de la sesión (si no, ErrFacilitatorOnly), y que la ronda
-// vigente ya esté revelada (si no, ErrRoundNotRevealed). La ronda nueva se inserta con el número
-// siguiente, en votación y sin votos; las anteriores quedan intactas como historial. Abrir la ronda
-// es un hecho, así que touchSession fija last_activity_at = now y sube version.
+// StartRound abre la ronda siguiente con el paso común de withOpenSession (FR-043 a FR-048, RN-11).
+// Exige que quien la pide sea participante conectado (si no, ErrNotParticipant) y el facilitador de
+// la sesión (si no, ErrFacilitatorOnly), y que la ronda vigente ya esté revelada (si no,
+// ErrRoundNotRevealed). La ronda nueva se inserta con el número siguiente, en votación y sin votos;
+// las anteriores quedan intactas como historial. Abrir la ronda es un hecho, así que touchSession
+// fija last_activity_at = now y sube version.
 func (r *SessionRepository) StartRound(ctx context.Context, sessionID, userID uuid.UUID, now time.Time) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		session, err := lockOpenSession(tx, sessionID)
-		if err != nil {
-			return err
-		}
+	return r.withOpenSession(ctx, sessionID, now, func(tx *gorm.DB, session *domain.EstimationSession) error {
 		if _, err := findConnectedParticipant(tx, sessionID, userID); err != nil {
 			return err
 		}
@@ -537,20 +612,16 @@ func (r *SessionRepository) StartRound(ctx context.Context, sessionID, userID uu
 	})
 }
 
-// Finalize cierra la sesión con el valor acordado en una transacción que bloquea la sesión con
-// lockOpenSession (FR-049 a FR-056). Exige que quien registra sea participante conectado (si no,
-// ErrNotParticipant) y el facilitador de la sesión (si no, ErrFacilitatorOnly), y que la sesión tenga
-// al menos una ronda revelada (si no, ErrNoRevealedRound). Recién después bloquea la fila de la
-// historia, respetando el orden sesión → historia (research.md sección 6). Cierra la sesión como
-// finished con el valor acordado, quien la cerró y closed_at = now, y sube version sin tocar
-// last_activity_at, porque el registro cierra la sesión (data-model.md sección 7). En la misma
-// transacción escribe story_points y updated_at en la historia (SC-013).
+// Finalize cierra la sesión con el valor acordado con el paso común de withOpenSession (FR-049 a
+// FR-056). Exige que quien registra sea participante conectado (si no, ErrNotParticipant) y el
+// facilitador de la sesión (si no, ErrFacilitatorOnly), y que la sesión tenga al menos una ronda
+// revelada (si no, ErrNoRevealedRound). Recién después bloquea la fila de la historia, respetando el
+// orden sesión → historia (research.md sección 6). Cierra la sesión como finished con el valor
+// acordado, quien la cerró y closed_at = now, y sube version sin tocar last_activity_at, porque el
+// registro cierra la sesión (data-model.md sección 7). En la misma transacción escribe story_points y
+// updated_at en la historia (SC-013).
 func (r *SessionRepository) Finalize(ctx context.Context, sessionID, userID uuid.UUID, storyPoints int, now time.Time) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		session, err := lockOpenSession(tx, sessionID)
-		if err != nil {
-			return err
-		}
+	return r.withOpenSession(ctx, sessionID, now, func(tx *gorm.DB, session *domain.EstimationSession) error {
 		if _, err := findConnectedParticipant(tx, sessionID, userID); err != nil {
 			return err
 		}
@@ -566,7 +637,7 @@ func (r *SessionRepository) Finalize(ctx context.Context, sessionID, userID uuid
 
 		// La sesión se cierra con un map para escribir todos los campos del cierre y subir version en
 		// la misma sentencia.
-		err = tx.
+		err := tx.
 			Model(&domain.EstimationSession{}).
 			Where("id = ?", sessionID).
 			Updates(map[string]any{
@@ -629,25 +700,33 @@ func lockSessionStory(tx *gorm.DB, storyID uuid.UUID) error {
 	return nil
 }
 
-// Cancel cancela la sesión a pedido del facilitador. Firma mínima de T014.
+// Cancel cancela la sesión a pedido del facilitador con el paso común de withOpenSession (FR-057 a
+// FR-060). Exige que quien la pide sea participante conectado (si no, ErrNotParticipant) y el
+// facilitador de la sesión (si no, ErrFacilitatorOnly). Cierra la sesión como canceled con
+// closed_by_id = titular, cancel_reason = NULL y closed_at = now, y sube version; la historia, sus
+// rondas y sus votos no se tocan (FR-058).
 func (r *SessionRepository) Cancel(ctx context.Context, sessionID, userID uuid.UUID, now time.Time) error {
-	return errNotImplemented
-}
-
-// TakeFacilitator transfiere el rol de facilitador a quien lo pide en una transacción que bloquea la
-// sesión con lockOpenSession (FR-068 a FR-072, RN-25). Exige que quien lo pide sea participante
-// conectado (si no, ErrNotParticipant) y relee, bajo el bloqueo, la fila del facilitador vigente para
-// que FacilitatorTakeover decida con su presencia actual: entre dos pedidos simultáneos, el segundo
-// ya lee al nuevo facilitador conectado y recibe FacilitatorUnavailableError con su nombre (FR-072).
-// Si lo admite, fija facilitator_id = titular; el anterior queda como participante común (FR-070).
-// El cambio de facilitador es un hecho, así que touchSession fija last_activity_at = now y sube
-// version.
-func (r *SessionRepository) TakeFacilitator(ctx context.Context, sessionID, userID uuid.UUID, now time.Time) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		session, err := lockOpenSession(tx, sessionID)
-		if err != nil {
+	return r.withOpenSession(ctx, sessionID, now, func(tx *gorm.DB, session *domain.EstimationSession) error {
+		if _, err := findConnectedParticipant(tx, sessionID, userID); err != nil {
 			return err
 		}
+		if session.FacilitatorID != userID {
+			return domain.ErrFacilitatorOnly
+		}
+		return cancelSession(tx, sessionID, &userID, nil, now)
+	})
+}
+
+// TakeFacilitator transfiere el rol de facilitador a quien lo pide con el paso común de
+// withOpenSession (FR-068 a FR-072, RN-25). Exige que quien lo pide sea participante conectado (si
+// no, ErrNotParticipant) y relee, bajo el bloqueo, la fila del facilitador vigente para que
+// FacilitatorTakeover decida con su presencia actual: entre dos pedidos simultáneos, el segundo ya
+// lee al nuevo facilitador conectado y recibe FacilitatorUnavailableError con su nombre (FR-072). Si
+// lo admite, fija facilitator_id = titular; el anterior queda como participante común (FR-070). El
+// cambio de facilitador es un hecho, así que touchSession fija last_activity_at = now y sube
+// version.
+func (r *SessionRepository) TakeFacilitator(ctx context.Context, sessionID, userID uuid.UUID, now time.Time) error {
+	return r.withOpenSession(ctx, sessionID, now, func(tx *gorm.DB, session *domain.EstimationSession) error {
 		if _, err := findConnectedParticipant(tx, sessionID, userID); err != nil {
 			return err
 		}
@@ -698,9 +777,29 @@ func findFacilitatorParticipant(tx *gorm.DB, sessionID, facilitatorID uuid.UUID)
 	}, nil
 }
 
-// AutoCancel cancela la sesión si corresponde una cancelación del sistema. Firma mínima de T014.
+// AutoCancel aplica, a pedido del barrido, la cancelación del sistema (FR-061, FR-063; research.md
+// sección 13): en una transacción bloquea la sesión y reevalúa AutoCancelReason con autoCancelLocked
+// sobre el estado releído, porque entre la lista del barrido y el bloqueo pudo ocurrir un hecho.
+// Informa si la canceló. Una sesión que ya se cerró en el medio no tiene nada que cancelar y devuelve
+// falso sin error.
 func (r *SessionRepository) AutoCancel(ctx context.Context, sessionID uuid.UUID, now time.Time) (bool, error) {
-	return false, errNotImplemented
+	var canceled bool
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		session, err := lockOpenSession(tx, sessionID)
+		var closed *domain.SessionClosedError
+		if errors.As(err, &closed) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		_, canceled, err = autoCancelLocked(tx, session, now)
+		return err
+	})
+	if err != nil {
+		return false, err
+	}
+	return canceled, nil
 }
 
 // ResetPresence marca desconectados, al arrancar el servidor, a los participantes que figuran
@@ -723,16 +822,20 @@ func (r *SessionRepository) ResetPresence(ctx context.Context, now time.Time) er
 	return nil
 }
 
-// ListOpenForSweep devuelve las sesiones abiertas para el barrido (research.md sección 13). Por ahora
-// solo lee lo que necesita el paso de cambios de la historia: el identificador de la sesión y, por un
-// JOIN a user_stories, su updated_at, que el servicio compara con el último visto (FR-074). Sin
-// sesiones abiertas devuelve la lista vacía.
+// ListOpenForSweep devuelve las sesiones abiertas para el barrido (research.md sección 13): el
+// identificador y last_activity_at de la sesión y, por un JOIN a user_stories y a projects, el estado
+// de la historia, si el proyecto está finalizado, que alimentan AutoCancelReason (FR-061, FR-063), y
+// el updated_at de la historia, que el servicio compara con el último visto (FR-074). Sin sesiones
+// abiertas devuelve la lista vacía.
 func (r *SessionRepository) ListOpenForSweep(ctx context.Context) ([]domain.OpenSessionStatus, error) {
 	sessions := []domain.OpenSessionStatus{}
 	err := r.db.WithContext(ctx).
 		Table("estimation_sessions").
-		Select("estimation_sessions.id AS session_id, user_stories.updated_at AS story_updated_at").
+		Select(`estimation_sessions.id AS session_id, user_stories.status AS story_status,
+			projects.status = ? AS project_finished, estimation_sessions.last_activity_at,
+			user_stories.updated_at AS story_updated_at`, projectsdomain.ProjectStatusFinished).
 		Joins("JOIN user_stories ON user_stories.id = estimation_sessions.story_id").
+		Joins("JOIN projects ON projects.id = user_stories.project_id").
 		Where("estimation_sessions.status = ?", domain.SessionStatusOpen).
 		Find(&sessions).Error
 	if err != nil {

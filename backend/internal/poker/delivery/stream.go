@@ -66,7 +66,7 @@ func (h *Handler) streamEstimationSession(c *gin.Context) {
 	var closed *domain.SessionClosedError
 	switch {
 	case errors.As(err, &closed):
-		c.JSON(http.StatusConflict, newSessionClosedResponse(msgSessionClosed, closed))
+		c.JSON(http.StatusConflict, newSessionClosedResponse(closed))
 		return
 	case errors.Is(err, domain.ErrSessionNotFound):
 		abortEstimationSessionNotFound(c)

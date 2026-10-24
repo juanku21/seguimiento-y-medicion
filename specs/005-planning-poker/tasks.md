@@ -706,12 +706,12 @@ tras `Sweep`.
 
 ### Pruebas de la Historia 7 ⚠️
 
-- [ ] T078 [P] [US7] Pruebas unitarias **obligatorias** de `AutoCancelReason` en
+- [X] T078 [P] [US7] Pruebas unitarias **obligatorias** de `AutoCancelReason` en
       `backend/internal/poker/domain/auto_cancel_test.go` con la tabla de data-model.md sección 6,
       cubriendo RN-30, RN-31 y SC-021: historia `completed` → `story_completed`; proyecto `finished`
       → `project_finished`; las dos a la vez → `story_completed` (precedencia); 59:59 → ninguno; 60:00
       → `inactivity` — depende de T077
-- [ ] T079 [US7] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
+- [X] T079 [US7] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
       escenario con `// Escenario: <nombre> (005/US7)`: `TestUS7_CancelacionConservaEstimacion`,
       `TestUS7_NuevaSesionTrasCancelar`, `TestUS7_RondasConservadas`, `TestUS7_CancelacionSinVotos`,
       `TestUS7_CancelacionPorInactividad` (reloj + 60 min, `Sweep`; los canales reciben
@@ -732,7 +732,7 @@ tras `Sweep`.
       `Sweep` → `409` de sesión cerrada con `story_completed`). Agrega también a
       `TestUS6_FacilitadorRetomaElRol` el subtest de cancelar, con su comentario `(005/US6)`, que
       T071 no pudo escribir porque la cancelación llega en esta historia — depende de T077
-- [ ] T080 [P] [US7] Pruebas de frontend en
+- [X] T080 [P] [US7] Pruebas de frontend en
       `frontend/src/features/poker/components/session-closed-notice.test.tsx` y
       `frontend/src/features/poker/components/facilitator-actions.test.tsx`, con
       `describe("005/US7 - Cancelar una sesión sin registrar estimación")`: el botón **Cancelar
@@ -741,9 +741,9 @@ tras `Sweep`.
 
 ### Implementación de la Historia 7
 
-- [ ] T081 [P] [US7] Implementar `AutoCancelReason` en `backend/internal/poker/domain/auto_cancel.go`,
+- [X] T081 [P] [US7] Implementar `AutoCancelReason` en `backend/internal/poker/domain/auto_cancel.go`,
       con los **60 minutos** como constante nombrada — depende de T078
-- [ ] T082 [US7] Implementar `Cancel` y `AutoCancel` en
+- [X] T082 [US7] Implementar `Cancel` y `AutoCancel` en
       `backend/internal/poker/repository/session_repository.go`, completar `ListOpenForSweep` con el
       estado de la historia, el del proyecto y `last_activity_at`, y extraer el paso común de todas
       las escrituras sobre una sesión abierta (data-model.md sección 9: bloqueo, `EnsureOpen`,
@@ -751,7 +751,7 @@ tras `Sweep`.
       `Disconnect`, `Vote`, `Reveal`, `StartRound`, `Finalize` y `TakeFacilitator` lo usen. En la
       cancelación del facilitador `closed_by_id = titular` y `cancel_reason = NULL`; en la del
       sistema `closed_by_id = NULL` y el motivo — depende de T079, T081
-- [ ] T083 [US7] Implementar `Cancel` en `backend/internal/poker/service/session_service.go`, sumar
+- [X] T083 [US7] Implementar `Cancel` en `backend/internal/poker/service/session_service.go`, sumar
       a `Sweep`, en `sweeper.go`, el paso de cancelaciones automáticas (publicar y
       `hub.CloseSession`), publicar
       también cuando una acción devuelve `SessionClosedError` por cancelación automática, y el
@@ -760,9 +760,11 @@ tras `Sweep`.
       `inactivity`, `El proyecto está finalizado y es de solo lectura.` cuando es
       `project_finished` y `La sesión de estimación ya está cerrada.` en los demás casos (research.md
       sección 19) — depende de T082
-- [ ] T084 [US7] Implementar el botón **Cancelar sesión** de `FacilitatorActions` y los motivos de
+- [X] T084 [US7] Implementar el botón **Cancelar sesión** de `FacilitatorActions` y los motivos de
       `SessionClosedNotice` en `frontend/src/features/poker/components/`, con la llamada en `api.ts`
       — depende de T080, T083
+- [X] T104 [US7] Agregar en frontend/src/features/poker/components/poker-room.test.tsx, dentro de describe("005/US7 - Cancelar una sesión sin registrar estimación"), una prueba de que el facilitador que confirma Cancelar sesión envía POST /api/v1/estimation-sessions/{sessionId}/cancel y de que un rechazo muestra el mensaje recibido en el aviso de la ronda per 005/US7 AC1 (partial)
+- [X] T105 [US7] Agregar en backend/internal/poker/domain/view_test.go casos de ViewFor que verifiquen que una sesión cancelada por el sistema expone su CancelReason y que una cancelada por el facilitador lo deja nulo per plan: ViewFor como única salida de la sesión (partial)
 
 **Checkpoint**: ninguna sesión queda abierta para siempre bloqueando su historia.
 
@@ -884,6 +886,15 @@ documentación viva, cobertura, vulnerabilidades y verificación de las puertas 
       flujo en la interfaz con tres navegadores, las cancelaciones del sistema, las pruebas de
       concurrencia con `-count=5` y la verificación de que las pruebas corrieron contra `smye_test`
       en el puerto 5433 y no contra desarrollo — depende de T095, T096, T099
+
+---
+
+## Phase 11: Convergence and Security
+
+Propósito: ajustes transversales detectados por /speckit-converge y /revisar-seguridad.
+
+- [ ] T102 Agregar prueba de concurrencia que, con una transacción de prueba que bloquea la historia con FOR UPDATE y la pasa a `completed`, lanza el registro de la estimación en una goroutine, espera a que quede bloqueada en la historia (consultando `pg_stat_activity` con `wait_event_type = 'Lock'`), confirma la transacción y verifica que `user_stories.story_points` no cambió y que la sesión quedó `canceled` con `story_completed`; con una variante en la que el proyecto pasa a `finished` y se espera `project_finished`, en backend/internal/poker/delivery/handler_test.go per hallazgo de seguridad: registro de la estimación sin releer el estado de la historia bajo bloqueo (security) — origen: seguridad, detectado en 005/US7
+- [ ] T103 Hacer que el registro de la estimación lea el estado de la historia y del proyecto con la historia ya bloqueada (FOR UPDATE OF user_stories) y el proyecto con FOR SHARE, y reevaluar con AutoCancelReason antes de escribir story_points, de modo que una historia completada o un proyecto finalizado en paralelo cancelen la sesión en lugar de registrar, en backend/internal/poker/repository/session_repository.go per hallazgo de seguridad: registro de la estimación sin releer el estado de la historia bajo bloqueo (security) — origen: seguridad, detectado en 005/US7
 
 ---
 

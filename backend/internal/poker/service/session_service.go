@@ -4,7 +4,9 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -107,7 +109,7 @@ func (s *SessionService) Join(ctx context.Context, access *domain.SessionAccess,
 	if s.presence.Connect(sessionID, userID) {
 		if err := s.repo.Connect(ctx, sessionID, userID, s.now()); err != nil {
 			s.Leave(conn)
-			return nil, err
+			return nil, s.rejectAction(ctx, sessionID, err)
 		}
 	}
 	if err := s.publish(ctx, sessionID); err != nil {
@@ -123,7 +125,7 @@ func (s *SessionService) Join(ctx context.Context, access *domain.SessionAccess,
 // errores del repositorio se devuelven tal cual, para que el manejador los traduzca.
 func (s *SessionService) Vote(ctx context.Context, sessionID, userID uuid.UUID, card domain.Card) (*domain.SessionView, error) {
 	if err := s.repo.Vote(ctx, sessionID, userID, card, s.now()); err != nil {
-		return nil, err
+		return nil, s.rejectAction(ctx, sessionID, err)
 	}
 	if err := s.publish(ctx, sessionID); err != nil {
 		return nil, err
@@ -143,7 +145,7 @@ func (s *SessionService) Vote(ctx context.Context, sessionID, userID uuid.UUID, 
 // manejador los traduzca.
 func (s *SessionService) Reveal(ctx context.Context, sessionID, userID uuid.UUID) (*domain.SessionView, error) {
 	if err := s.repo.Reveal(ctx, sessionID, userID, s.now()); err != nil {
-		return nil, err
+		return nil, s.rejectAction(ctx, sessionID, err)
 	}
 	if err := s.publish(ctx, sessionID); err != nil {
 		return nil, err
@@ -163,7 +165,7 @@ func (s *SessionService) Reveal(ctx context.Context, sessionID, userID uuid.UUID
 // manejador los traduzca.
 func (s *SessionService) StartRound(ctx context.Context, sessionID, userID uuid.UUID) (*domain.SessionView, error) {
 	if err := s.repo.StartRound(ctx, sessionID, userID, s.now()); err != nil {
-		return nil, err
+		return nil, s.rejectAction(ctx, sessionID, err)
 	}
 	if err := s.publish(ctx, sessionID); err != nil {
 		return nil, err
@@ -185,16 +187,36 @@ func (s *SessionService) StartRound(ctx context.Context, sessionID, userID uuid.
 // manejador los traduzca.
 func (s *SessionService) Finalize(ctx context.Context, sessionID, userID uuid.UUID, storyPoints int) (*domain.SessionView, error) {
 	if err := s.repo.Finalize(ctx, sessionID, userID, storyPoints, s.now()); err != nil {
+		return nil, s.rejectAction(ctx, sessionID, err)
+	}
+	if err := s.closeSession(ctx, sessionID); err != nil {
 		return nil, err
 	}
-	if err := s.publish(ctx, sessionID); err != nil {
-		return nil, err
-	}
-	s.hub.CloseSession(sessionID)
 
 	snapshot, err := s.repo.FindSnapshot(ctx, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("reading finalized session snapshot: %w", err)
+	}
+	view := domain.ViewFor(*snapshot, userID)
+	return &view, nil
+}
+
+// Cancel cancela la sesión a pedido del facilitador sin registrar estimación: la historia no se toca
+// y las rondas y los votos se conservan (FR-057, FR-058). Igual que Finalize, publica el estado final
+// después de que el repositorio confirma la transacción y recién entonces cierra las suscripciones
+// de la sesión, y devuelve la sesión resultante vista por quien la canceló. Los errores del
+// repositorio se devuelven tal cual, para que el manejador los traduzca.
+func (s *SessionService) Cancel(ctx context.Context, sessionID, userID uuid.UUID) (*domain.SessionView, error) {
+	if err := s.repo.Cancel(ctx, sessionID, userID, s.now()); err != nil {
+		return nil, s.rejectAction(ctx, sessionID, err)
+	}
+	if err := s.closeSession(ctx, sessionID); err != nil {
+		return nil, err
+	}
+
+	snapshot, err := s.repo.FindSnapshot(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("reading canceled session snapshot: %w", err)
 	}
 	view := domain.ViewFor(*snapshot, userID)
 	return &view, nil
@@ -207,7 +229,7 @@ func (s *SessionService) Finalize(ctx context.Context, sessionID, userID uuid.UU
 // FacilitatorUnavailableError, para que el manejador los traduzca.
 func (s *SessionService) TakeFacilitator(ctx context.Context, sessionID, userID uuid.UUID) (*domain.SessionView, error) {
 	if err := s.repo.TakeFacilitator(ctx, sessionID, userID, s.now()); err != nil {
-		return nil, err
+		return nil, s.rejectAction(ctx, sessionID, err)
 	}
 	if err := s.publish(ctx, sessionID); err != nil {
 		return nil, err
@@ -255,6 +277,38 @@ func (s *SessionService) publish(ctx context.Context, sessionID uuid.UUID) error
 		return domain.ViewFor(*snapshot, userID)
 	})
 	return nil
+}
+
+// closeSession publica el estado final de una sesión que acaba de cerrarse y después cierra sus
+// suscripciones, así cada canal recibe el último state antes de terminar (research.md sección 7).
+func (s *SessionService) closeSession(ctx context.Context, sessionID uuid.UUID) error {
+	if err := s.publish(ctx, sessionID); err != nil {
+		return err
+	}
+	s.hub.CloseSession(sessionID)
+	return nil
+}
+
+// closeIfAutoCanceled publica y cierra los canales de la sesión cuando err es el SessionClosedError
+// de una cancelación del sistema, que el repositorio pudo confirmar en esa misma operación
+// (data-model.md sección 9), para que los conectados se enteren sin esperar al barrido. Devuelve solo
+// el error de la publicación; ante cualquier otro err no hace nada.
+func (s *SessionService) closeIfAutoCanceled(ctx context.Context, sessionID uuid.UUID, err error) error {
+	var closed *domain.SessionClosedError
+	if !errors.As(err, &closed) || closed.CancelReason == nil {
+		return nil
+	}
+	return s.closeSession(ctx, sessionID)
+}
+
+// rejectAction avisa la cancelación del sistema que pudo producir una acción rechazada y devuelve el
+// rechazo original, que es lo que el manejador traduce. Una falla al avisar se registra con slog en
+// lugar de devolverse, porque la respuesta a quien actuó no depende de ella.
+func (s *SessionService) rejectAction(ctx context.Context, sessionID uuid.UUID, err error) error {
+	if closeErr := s.closeIfAutoCanceled(ctx, sessionID, err); closeErr != nil {
+		slog.ErrorContext(ctx, "notifying estimation session auto cancel failed", "error", closeErr)
+	}
+	return err
 }
 
 // setRevoked anota o borra la revocación de la membresía de la persona en la sesión.

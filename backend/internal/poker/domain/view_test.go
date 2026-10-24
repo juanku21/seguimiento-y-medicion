@@ -415,3 +415,56 @@ func TestUS2_DominioVistaRondaRevelada(t *testing.T) {
 		})
 	}
 }
+
+// Escenario: Cancelación por inactividad (005/US7)
+// Una sesión que canceló el sistema sale con su motivo y sin quien la cerró: la vista copia el
+// CancelReason de la instantánea junto con el estado y el momento de cierre, para que los
+// participantes sepan por qué terminó (FR-063, RN-30, RN-31; T105). Cada motivo del sistema va en su
+// propio subtest.
+func TestUS7_DominioVistaCancelacionPorSistema(t *testing.T) {
+	for _, reason := range []CancelReason{
+		CancelReasonInactivity,
+		CancelReasonStoryCompleted,
+		CancelReasonProjectFinished,
+	} {
+		t.Run(string(reason), func(t *testing.T) {
+			f := newOpenViewFixture()
+			closedAt := f.round2At.Add(60 * time.Minute)
+			f.snapshot.Session.Status = SessionStatusCanceled
+			f.snapshot.Session.CancelReason = reasonPtr(reason)
+			f.snapshot.Session.ClosedAt = &closedAt
+
+			view := ViewFor(f.snapshot, f.alice.ID)
+
+			assert.Equal(t, SessionStatusCanceled, view.Status)
+			require.NotNil(t, view.CancelReason, "la cancelación del sistema expone su motivo")
+			assert.Equal(t, reason, *view.CancelReason)
+			assert.Nil(t, view.ClosedBy, "el sistema no figura como quien cerró la sesión")
+			assert.Nil(t, view.AgreedStoryPoints)
+			require.NotNil(t, view.ClosedAt)
+			assert.True(t, closedAt.Equal(*view.ClosedAt))
+		})
+	}
+}
+
+// Escenario: Cancelación conserva la estimación (005/US7)
+// Una sesión que canceló el facilitador sale con quien la cerró y sin motivo del sistema ni valor
+// acordado: la vista deja CancelReason nulo porque la instantánea no lo tiene (FR-057, FR-058; T105).
+func TestUS7_DominioVistaCancelacionPorFacilitador(t *testing.T) {
+	f := newOpenViewFixture()
+	closedAt := f.round2At.Add(time.Minute)
+	f.snapshot.Session.Status = SessionStatusCanceled
+	f.snapshot.Session.ClosedByID = &f.bob.ID
+	f.snapshot.Session.ClosedAt = &closedAt
+	f.snapshot.ClosedBy = &f.bob
+
+	view := ViewFor(f.snapshot, f.alice.ID)
+
+	assert.Equal(t, SessionStatusCanceled, view.Status)
+	assert.Nil(t, view.CancelReason, "la cancelación del facilitador no lleva motivo del sistema")
+	assert.Nil(t, view.AgreedStoryPoints)
+	require.NotNil(t, view.ClosedBy)
+	assert.Equal(t, f.bob, *view.ClosedBy)
+	require.NotNil(t, view.ClosedAt)
+	assert.True(t, closedAt.Equal(*view.ClosedAt))
+}

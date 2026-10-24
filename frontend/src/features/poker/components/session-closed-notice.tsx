@@ -4,6 +4,7 @@ import type {
   ScaleStoryPoints,
   SessionStatus,
 } from "@/types/poker";
+import { CANCEL_REASON_LABELS } from "@/utils/poker-labels";
 
 // Propiedades del aviso de cierre: el estado final de la sesión, el valor acordado (solo si quedó
 // Finalizada) y el motivo de una cancelación hecha por el sistema.
@@ -22,10 +23,12 @@ const CLOSED_STATUS_LABELS: Record<SessionClosedNoticeProps["status"], string> =
 
 // Aviso de que la sesión de estimación está cerrada, con su resultado (005/US5): el estado en
 // español y, si quedó Finalizada, el valor acordado en Story Points, incluido el 0 (FR-052,
-// RC-05). La presentación del motivo de una cancelación la completa 005/US7.
+// RC-05). Si la canceló el sistema muestra además el motivo en español (005/US7, FR-061, FR-063);
+// cancelada por el facilitador no muestra ninguno.
 export function SessionClosedNotice({
   status,
   agreedStoryPoints,
+  cancelReason,
 }: SessionClosedNoticeProps): ReactElement {
   const headingId = useId();
   return (
@@ -39,6 +42,9 @@ export function SessionClosedNotice({
       <p className="text-sm">{CLOSED_STATUS_LABELS[status]}</p>
       {agreedStoryPoints !== null && (
         <p className="text-sm font-medium">{agreedStoryPoints} Story Points</p>
+      )}
+      {cancelReason !== null && (
+        <p className="text-sm">{CANCEL_REASON_LABELS[cancelReason]}</p>
       )}
     </section>
   );

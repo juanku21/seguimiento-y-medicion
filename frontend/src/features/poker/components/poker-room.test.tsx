@@ -20,7 +20,8 @@ import { SessionProvider } from "@/providers/session-provider";
 import type { ErrorResponse, UserProfile } from "@/types/auth";
 import type { EstimationSession, UserRef } from "@/types/poker";
 
-// Pruebas de la toma del rol de facilitador desde la sala en vivo (T077). Atraviesan la sala, el
+// Pruebas de la toma del rol de facilitador (T077) y de la cancelación de la sesión (T104) desde la
+// sala en vivo. Atraviesan la sala, el
 // hook del canal, la llamada takeEstimationFacilitator de features/poker/api.ts y el cliente HTTP
 // real; solo se sustituye fetch, que es la frontera con el backend. Si el rol se puede tomar lo
 // resuelve el backend (FR-068, FR-069): acá se verifica que la sala envíe el pedido y muestre el
@@ -32,6 +33,9 @@ import type { EstimationSession, UserRef } from "@/types/poker";
 // - Pulsar "Tomar el rol" envía un único POST /api/v1/estimation-sessions/{sessionId}/facilitator,
 //   sin cuerpo y con la sesión de la pestaña. La sesión resultante llega por el canal.
 // - Un rechazo muestra su mensaje con role="alert"; un pedido aceptado después limpia ese aviso.
+// - Con la sesión abierta, el facilitador que pulsa "Cancelar sesión" y después "Confirmar
+//   cancelación" envía un único POST /api/v1/estimation-sessions/{sessionId}/cancel, sin cuerpo y
+//   con la sesión de la pestaña; un rechazo muestra su mensaje en el aviso de la sección de la ronda.
 
 // Sustituye el enrutador de Next.js que usa la guardia de sesión: fuera del App Router no hay
 // enrutador montado.
@@ -56,21 +60,34 @@ type FacilitatorUnavailableBody = {
   facilitator: UserRef;
   retryAfterSeconds?: number;
 };
-type TakeReply = {
+// Rechazo por sesión cerrada de contracts/openapi.yaml: el mensaje y el resultado registrado.
+type SessionClosedBody = {
+  error: string;
+  status: EstimationSession["status"];
+  agreedStoryPoints: number | null;
+  cancelReason: EstimationSession["cancelReason"];
+};
+type PostReply = {
   status: number;
-  body: EstimationSession | FacilitatorUnavailableBody | ErrorResponse;
+  body:
+    | EstimationSession
+    | FacilitatorUnavailableBody
+    | SessionClosedBody
+    | ErrorResponse;
 };
 
 const sessionToken = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJicnVubyJ9.firma";
 const sessionId = "6f1c2a52-7d0e-4c8b-9a35-0b0c1f3e9d11";
 const eventsPath = `/api/v1/estimation-sessions/${sessionId}/events`;
 const takePath = `/api/v1/estimation-sessions/${sessionId}/facilitator`;
+const cancelPath = `/api/v1/estimation-sessions/${sessionId}/cancel`;
 const profilePath = "/api/v1/users/me";
 const takeButtonName = "Tomar el rol";
 
 // Mensajes de contracts/openapi.yaml para los rechazos de la toma del rol.
 const presentMessage = "El facilitador está conectado.";
 const notYetMessage = "El rol de facilitador todavía no está disponible.";
+const closedMessage = "La sesión de estimación ya está cerrada.";
 
 // Ana facilita la sesión y Bruno es quien mira la sala.
 const ana: UserRef = {
@@ -197,9 +214,14 @@ function describeRequest(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 // Simula el backend de la sala: el canal entrega la instantánea indicada, el perfil propio es el de
-// Bruno y cada toma del rol recibe la siguiente respuesta encolada (agotada la cola, se repite la
-// última). Cualquier otra ruta responde 404, para que una llamada inesperada no pase inadvertida.
-function serveRoom(session: EstimationSession, ...takeReplies: TakeReply[]) {
+// Bruno y cada POST a la ruta indicada recibe la siguiente respuesta encolada (agotada la cola, se
+// repite la última). Cualquier otra ruta responde 404, para que una llamada inesperada no pase
+// inadvertida.
+function serveRoomPost(
+  session: EstimationSession,
+  postPath: string,
+  ...replies: PostReply[]
+) {
   let next = 0;
   return async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = describeRequest(input, init);
@@ -209,8 +231,8 @@ function serveRoom(session: EstimationSession, ...takeReplies: TakeReply[]) {
     if (request.method === "GET" && request.path === profilePath) {
       return jsonResponse(200, brunoProfile);
     }
-    if (request.method === "POST" && request.path === takePath) {
-      const reply = takeReplies[Math.min(next, takeReplies.length - 1)];
+    if (request.method === "POST" && request.path === postPath) {
+      const reply = replies[Math.min(next, replies.length - 1)];
       next += 1;
       return jsonResponse(reply.status, reply.body);
     }
@@ -218,13 +240,21 @@ function serveRoom(session: EstimationSession, ...takeReplies: TakeReply[]) {
   };
 }
 
-// Devuelve los pedidos de toma del rol enviados, ya interpretados.
-function takeRequests(fetchMock: FetchMock) {
+// Simula el backend de la sala con las respuestas encoladas para la toma del rol.
+function serveRoom(session: EstimationSession, ...takeReplies: PostReply[]) {
+  return serveRoomPost(session, takePath, ...takeReplies);
+}
+
+// Devuelve los POST enviados a la ruta indicada, ya interpretados.
+function postRequests(fetchMock: FetchMock, path: string) {
   return fetchMock.mock.calls
     .map(([input, init]) => describeRequest(input, init))
-    .filter(
-      (request) => request.method === "POST" && request.path === takePath,
-    );
+    .filter((request) => request.method === "POST" && request.path === path);
+}
+
+// Devuelve los pedidos de toma del rol enviados, ya interpretados.
+function takeRequests(fetchMock: FetchMock) {
+  return postRequests(fetchMock, takePath);
 }
 
 // Monta la sala dentro del proveedor de sesión, como en el layout raíz, y espera la instantánea.
@@ -349,5 +379,86 @@ describe("005/US6 - Sobrevivir a las desconexiones y relevar al facilitador", ()
     await renderRoom();
 
     expect(screen.queryByRole("button", { name: takeButtonName })).toBeNull();
+  });
+});
+
+describe("005/US7 - Cancelar una sesión sin registrar estimación", () => {
+  let fetchMock: FetchMock;
+
+  // Cada prueba arranca con la sesión de Bruno en la pestaña; fetch se sustituye en cada prueba.
+  beforeEach(() => {
+    sessionStorage.clear();
+    writeToken(sessionToken);
+  });
+
+  // Al desmontar la sala se aborta el canal; después se restaura fetch.
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  // Caso normal: Bruno facilita la sesión abierta; pedir la cancelación no envía nada hasta que la
+  // confirma, y al confirmarla la sala envía un único pedido sin cuerpo con su sesión (FR-058). La
+  // sesión Cancelada llega por el canal; la conservación de la estimación la verifica el backend.
+  it("Cancelación conserva estimación", async () => {
+    fetchMock = vi.fn<typeof fetch>(
+      serveRoomPost(takenView(), cancelPath, {
+        status: 200,
+        body: { ...takenView(), status: "canceled", closedBy: bruno },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await renderRoom();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Cancelar sesión" }),
+    );
+    expect(postRequests(fetchMock, cancelPath)).toHaveLength(0);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Confirmar cancelación" }),
+    );
+
+    await waitFor(() =>
+      expect(postRequests(fetchMock, cancelPath)).toHaveLength(1),
+    );
+    expect(postRequests(fetchMock, cancelPath)[0]).toMatchObject({
+      authorization: `Bearer ${sessionToken}`,
+      body: undefined,
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  // Regla de la sala: si el backend rechaza la cancelación confirmada (por ejemplo, porque la sesión
+  // ya se cerró), el mensaje recibido se muestra en el aviso de la sección de la ronda (FR-060).
+  it("muestra en el aviso de la ronda el motivo de una cancelación rechazada", async () => {
+    fetchMock = vi.fn<typeof fetch>(
+      serveRoomPost(takenView(), cancelPath, {
+        status: 409,
+        body: {
+          error: closedMessage,
+          status: "finished",
+          agreedStoryPoints: 8,
+          cancelReason: null,
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await renderRoom();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Cancelar sesión" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Confirmar cancelación" }),
+    );
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain(closedMessage);
+    const roundSection = screen
+      .getByRole("heading", { name: "Ronda 1" })
+      .closest("section");
+    expect(roundSection?.contains(alert)).toBe(true);
+    expect(postRequests(fetchMock, cancelPath)).toHaveLength(1);
   });
 });

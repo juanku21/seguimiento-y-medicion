@@ -151,6 +151,7 @@ func ViewFor(snapshot SessionSnapshot, viewerID uuid.UUID) SessionView {
 		ClosedBy:          snapshot.ClosedBy,
 		ClosedAt:          session.ClosedAt,
 		AgreedStoryPoints: session.AgreedStoryPoints,
+		CancelReason:      session.CancelReason,
 		Cards:             slices.Clone(Cards),
 		Participants:      participantViews(snapshot.Participants, session.FacilitatorID, currentVotes),
 		Rounds:            roundViews(snapshot.Rounds, session.Status, snapshot.Participants),

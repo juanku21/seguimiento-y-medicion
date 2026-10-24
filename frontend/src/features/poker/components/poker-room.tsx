@@ -4,6 +4,7 @@ import { useState, type ReactElement } from "react";
 import { Alert } from "@/components/alert";
 import { getOwnProfile } from "@/features/auth/api";
 import {
+  cancelEstimationSession,
   castEstimationVote,
   finalizeEstimationSession,
   revealEstimationRound,
@@ -41,7 +42,8 @@ export type PokerRoomProps = {
 // recibido y, cuando la instantánea llega cerrada, la sala muestra el aviso de cierre con su
 // resultado en lugar del mazo y de las acciones. Con el facilitador desconectado la sala muestra
 // cuánto falta para que el rol quede disponible y, al vencer, ofrece tomarlo (005/US6); un rechazo
-// muestra el motivo recibido.
+// muestra el motivo recibido. El facilitador cancela la sesión sin registrar estimación (005/US7); un
+// rechazo muestra el motivo recibido y la sesión Cancelada llega por el canal.
 export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
   const { session, error } = useEstimationStream(sessionId);
   const profile = useAuthorizedQuery(getOwnProfile);
@@ -85,6 +87,13 @@ export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
         ? null
         : (result.error.fields[0]?.message ?? result.error.message),
     );
+  };
+
+  // Pide la cancelación confirmada; ante un rechazo muestra el mensaje recibido y ante una
+  // cancelación aceptada limpia el aviso anterior. La sesión Cancelada llega por el canal.
+  const handleCancel = async () => {
+    const result = await cancelEstimationSession(sessionId);
+    setRoundError(result.ok ? null : result.error.message);
   };
 
   // Pide el rol de facilitador; ante un rechazo muestra el mensaje recibido y ante un pedido aceptado
@@ -169,6 +178,7 @@ export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
             roundStatus={currentRound.status}
             onReveal={() => void handleReveal()}
             onNewRound={() => void handleNewRound()}
+            onCancel={() => void handleCancel()}
           />
           {currentRound.status === "revealed" && (
             <RoundResult round={currentRound} />
@@ -188,7 +198,8 @@ export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
         </section>
       )}
 
-      {/* Aviso de la sesión cerrada con su estado y el valor acordado. */}
+      {/* Aviso de la sesión cerrada con su estado, el valor acordado y el motivo de una cancelación
+          del sistema. */}
       {session.status !== "open" && (
         <SessionClosedNotice
           status={session.status}

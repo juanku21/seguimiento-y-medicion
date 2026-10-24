@@ -760,7 +760,7 @@ tras `Sweep`.
       `inactivity`, `El proyecto está finalizado y es de solo lectura.` cuando es
       `project_finished` y `La sesión de estimación ya está cerrada.` en los demás casos (research.md
       sección 19) — depende de T082
-- [ ] T084 [US7] Implementar el botón **Cancelar sesión** de `FacilitatorActions` y los motivos de
+- [X] T084 [US7] Implementar el botón **Cancelar sesión** de `FacilitatorActions` y los motivos de
       `SessionClosedNotice` en `frontend/src/features/poker/components/`, con la llamada en `api.ts`
       — depende de T080, T083
 

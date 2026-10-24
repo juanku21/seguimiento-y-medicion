@@ -125,6 +125,21 @@ export function finalizeEstimationSession(
   );
 }
 
+// Cancela la sesión sin registrar estimación con POST
+// /api/v1/estimation-sessions/{sessionId}/cancel, sin cuerpo (005/US7). Devuelve la sesión Cancelada
+// (200), que además llega por el canal como último state. Las reglas las resuelve el backend: quien
+// no es el facilitador recibe 403, la sesión inexistente 404 y la sesión cerrada 409 (FR-058 a
+// FR-060); ante un 401 el cliente HTTP descarta la sesión.
+export function cancelEstimationSession(
+  sessionId: string,
+): Promise<ApiResult<EstimationSession>> {
+  return postAuthorizedJson(
+    `${sessionPath(sessionId)}/cancel`,
+    undefined,
+    isEstimationSession,
+  );
+}
+
 // Toma el rol de facilitador con POST /api/v1/estimation-sessions/{sessionId}/facilitator, sin
 // cuerpo (005/US6). Devuelve la sesión con quien pidió como facilitador (200), que además llega por
 // el canal. Las reglas las resuelve el backend: quien no participa recibe 403, la sesión inexistente

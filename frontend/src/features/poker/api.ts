@@ -92,3 +92,18 @@ export function revealEstimationRound(
     isEstimationSession,
   );
 }
+
+// Inicia una ronda nueva con POST /api/v1/estimation-sessions/{sessionId}/rounds, sin cuerpo
+// (005/US4). Devuelve la sesión vista por el facilitador con la ronda siguiente en votación (201).
+// Las reglas las resuelve el backend: quien no es el facilitador recibe 403, la sesión inexistente
+// 404 y la ronda vigente todavía en votación o la sesión cerrada 409; ante un 401 el cliente HTTP
+// descarta la sesión.
+export function startEstimationRound(
+  sessionId: string,
+): Promise<ApiResult<EstimationSession>> {
+  return postAuthorizedJson(
+    `${sessionPath(sessionId)}/rounds`,
+    undefined,
+    isEstimationSession,
+  );
+}

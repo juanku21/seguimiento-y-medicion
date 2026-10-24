@@ -538,7 +538,7 @@ historial de la sesión.
       `backend/internal/poker/service/session_service.go`, y los manejadores
       `startEstimationRound` (`POST /rounds`, `201`) y `getEstimationSession` (`GET` del grupo plano)
       con anotaciones `swag` en `handler.go` y sus rutas en `routes.go` — depende de T058
-- [ ] T060 [US4] Implementar `RoundHistory` y el botón **Nueva ronda** de `FacilitatorActions` en
+- [X] T060 [US4] Implementar `RoundHistory` y el botón **Nueva ronda** de `FacilitatorActions` en
       `frontend/src/features/poker/components/` y las llamadas en `api.ts` — depende de T057, T059
 
 **Checkpoint**: US1 a US4 funcionan.

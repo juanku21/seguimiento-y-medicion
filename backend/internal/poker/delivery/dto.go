@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/poker/domain"
+	"github.com/juanku21/seguimiento-y-medicion/backend/internal/poker/service"
 )
 
 // Los errores reutilizan sin cambios ErrorResponse, FieldError y ValidationErrorResponse de
@@ -190,6 +191,53 @@ type FacilitatorUnavailableResponse struct {
 	RetryAfterSeconds *int `json:"retryAfterSeconds,omitempty" minimum:"1" example:"180"`
 }
 
+// EstimationSessionSummary es una sesión cerrada del historial de una historia, sin votos (FR-079,
+// FR-080).
+type EstimationSessionSummary struct {
+	// Identificador de la sesión.
+	ID string `json:"id" validate:"required" format:"uuid" example:"5d2b8f71-0c3a-4e9d-b6a4-2f1e7c9d0a85"`
+	// Estado final de la sesión: finished (Finalizada) o canceled (Cancelada).
+	Status domain.SessionStatus `json:"status" validate:"required" enums:"finished,canceled" example:"finished"`
+	// Persona que abrió la sesión, aunque haya dejado de ser integrante (FR-084).
+	OpenedBy UserRef `json:"openedBy" validate:"required"`
+	// Fecha y hora de apertura (RFC 3339).
+	OpenedAt string `json:"openedAt" validate:"required" format:"date-time" example:"2026-10-20T14:30:00Z"`
+	// Persona que cerró la sesión, o null si la cerró el sistema.
+	ClosedBy *UserRef `json:"closedBy" validate:"required" extensions:"x-nullable"`
+	// Fecha y hora de cierre (RFC 3339).
+	ClosedAt string `json:"closedAt" validate:"required" format:"date-time" example:"2026-10-20T15:00:00Z"`
+	// Story Points acordados, o null si la sesión se canceló.
+	AgreedStoryPoints *int `json:"agreedStoryPoints" validate:"required" enums:"0,1,2,3,5,8,13,20,40,100" extensions:"x-nullable" example:"8"`
+	// Motivo de la cancelación del sistema, o null (FR-061, FR-063).
+	CancelReason *domain.CancelReason `json:"cancelReason" validate:"required" enums:"inactivity,story_completed,project_finished" extensions:"x-nullable" example:"inactivity"`
+	// Cantidad de rondas de la sesión.
+	RoundCount int `json:"roundCount" validate:"required" minimum:"1" example:"3"`
+}
+
+// OpenEstimationSession es la sesión abierta de la historia, sin votos (FR-081, FR-082).
+type OpenEstimationSession struct {
+	// Identificador de la sesión.
+	ID string `json:"id" validate:"required" format:"uuid" example:"5d2b8f71-0c3a-4e9d-b6a4-2f1e7c9d0a85"`
+	// Facilitador vigente de la sesión.
+	Facilitator UserRef `json:"facilitator" validate:"required"`
+	// Número de la ronda vigente, desde 1.
+	RoundNumber int `json:"roundNumber" validate:"required" minimum:"1" example:"2"`
+	// Estado de la ronda vigente: voting (En votación) o revealed (Revelada).
+	RoundStatus domain.RoundStatus `json:"roundStatus" validate:"required" enums:"voting,revealed" example:"voting"`
+}
+
+// StoryEstimationHistory es el historial de estimación de una historia (FR-079 a FR-083). Sessions
+// nunca es null; OpenSession y EmptyReason son null cuando no corresponden.
+type StoryEstimationHistory struct {
+	// Sesión abierta en este momento, o null si no hay.
+	OpenSession *OpenEstimationSession `json:"openSession" validate:"required" extensions:"x-nullable"`
+	// Sesiones cerradas, de la más reciente a la más antigua por su apertura (FR-080); vacía si no hay.
+	Sessions []EstimationSessionSummary `json:"sessions" validate:"required"`
+	// no_sessions si la historia nunca tuvo una sesión de estimación, ni abierta ni cerrada (FR-083);
+	// null en los demás casos.
+	EmptyReason *service.EmptyReason `json:"emptyReason" validate:"required" swaggertype:"string" enums:"no_sessions" extensions:"x-nullable" example:"no_sessions"`
+}
+
 // newOpenSessionExistsResponse arma el cuerpo del 409 de apertura con el mensaje recibido y la sesión
 // en curso que informa el error de dominio.
 func newOpenSessionExistsResponse(message string, sessionID uuid.UUID) OpenSessionExistsResponse {
@@ -281,6 +329,38 @@ func newEstimationSession(view *domain.SessionView) EstimationSession {
 		MyVote:                 view.MyVote,
 		FacilitatorAvailableAt: formatOptionalTime(view.FacilitatorAvailableAt),
 	}
+}
+
+// newStoryEstimationHistory arma StoryEstimationHistory a partir del historial del servicio. La lista
+// de sesiones nunca queda nula, de modo que se serializa como [], y la sesión abierta y el motivo del
+// vacío ausentes salen como null.
+func newStoryEstimationHistory(view *service.HistoryView) StoryEstimationHistory {
+	sessions := make([]EstimationSessionSummary, 0, len(view.Sessions))
+	for _, summary := range view.Sessions {
+		sessions = append(sessions, EstimationSessionSummary{
+			ID:                summary.ID.String(),
+			Status:            summary.Status,
+			OpenedBy:          newUserRef(summary.OpenedBy),
+			OpenedAt:          formatTime(summary.OpenedAt),
+			ClosedBy:          newOptionalUserRef(summary.ClosedBy),
+			ClosedAt:          formatTime(summary.ClosedAt),
+			AgreedStoryPoints: summary.AgreedStoryPoints,
+			CancelReason:      summary.CancelReason,
+			RoundCount:        summary.RoundCount,
+		})
+	}
+
+	// La sesión abierta se convierte solo si existe.
+	var open *OpenEstimationSession
+	if view.OpenSession != nil {
+		open = &OpenEstimationSession{
+			ID:          view.OpenSession.ID.String(),
+			Facilitator: newUserRef(view.OpenSession.Facilitator),
+			RoundNumber: view.OpenSession.RoundNumber,
+			RoundStatus: view.OpenSession.RoundStatus,
+		}
+	}
+	return StoryEstimationHistory{OpenSession: open, Sessions: sessions, EmptyReason: view.EmptyReason}
 }
 
 // newEstimationStory convierte la historia de la vista; una historia sin criterios sale con la lista

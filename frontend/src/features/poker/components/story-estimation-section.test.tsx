@@ -21,7 +21,9 @@ import { SessionProvider } from "@/providers/session-provider";
 import type { ErrorResponse } from "@/types/auth";
 import type {
   EstimationSession,
+  EstimationSessionSummary,
   OpenSessionExistsResponse,
+  StoryEstimationHistory,
 } from "@/types/poker";
 
 // Pruebas de la sección "Planning Poker" del detalle de una historia (T017). Atraviesan el
@@ -296,5 +298,239 @@ describe("005/US1 - Abrir una sesión y reunir al equipo", () => {
     ).toBeTruthy();
     expect(openRequests(fetchMock)).toHaveLength(0);
     expect(router.push).not.toHaveBeenCalled();
+  });
+});
+
+// Pruebas del historial de estimación en la sección "Planning Poker" (T087). Igual que las de la
+// apertura, atraviesan el componente, la llamada de features/poker/api.ts y el cliente HTTP real, y
+// solo sustituyen fetch y el enrutador. El orden de las sesiones, el ocultamiento de los votos de la
+// sesión abierta y la indicación de historia sin sesiones los resuelve el backend: acá se verifica
+// qué pide la sección y qué muestra con cada respuesta.
+//
+// Contrato que fijan estas pruebas para el historial de StoryEstimationSection:
+// - Al montarse envía GET /api/v1/stories/{storyId}/estimation-sessions con la sesión de la pestaña,
+//   sin esperar a que se pulse ningún botón.
+// - Lista las sesiones cerradas en una lista con el nombre accesible "Historial de estimación", un
+//   elemento por sesión y en el orden recibido. Cada elemento muestra el estado en español
+//   (Finalizada o Cancelada), el valor acordado como "<n> Story Points" solo si lo hay, el motivo de
+//   una cancelación del sistema en español, la cantidad de rondas ("1 ronda", "<n> rondas") y el
+//   enlace "Ver sesión" a /projects/{projectId}/backlog/{storyId}/poker/{sessionId}.
+// - Con una sesión abierta muestra "Sesión en curso" con el nombre del facilitador, "Ronda <n>" y el
+//   enlace "Unirse" a la sala de esa sesión.
+// - Con emptyReason no_sessions muestra "La historia no tiene sesiones de estimación." sin
+//   role="alert", porque no es un error, y no muestra la lista.
+
+const historyListName = "Historial de estimación";
+const noSessionsMessage = "La historia no tiene sesiones de estimación.";
+
+// Integrantes que abren, facilitan y cierran las sesiones del historial.
+const bruno = {
+  id: "7c2d4e6f-8a9b-4c0d-9e1f-2a3b4c5d6e7f",
+  fullName: "Bruno Díaz",
+};
+
+// Sesión Finalizada con tres rondas y 5 Story Points acordados, abierta y cerrada por Ana.
+const finishedSession: EstimationSessionSummary = {
+  id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+  status: "finished",
+  openedBy: ana,
+  openedAt: "2026-10-20T10:00:00Z",
+  closedBy: ana,
+  closedAt: "2026-10-20T10:25:00Z",
+  agreedStoryPoints: 5,
+  cancelReason: null,
+  roundCount: 3,
+};
+
+// Sesión Finalizada más reciente que la anterior, con 13 Story Points acordados en dos rondas.
+const laterFinishedSession: EstimationSessionSummary = {
+  id: "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+  status: "finished",
+  openedBy: bruno,
+  openedAt: "2026-10-22T15:00:00Z",
+  closedBy: bruno,
+  closedAt: "2026-10-22T15:10:00Z",
+  agreedStoryPoints: 13,
+  cancelReason: null,
+  roundCount: 2,
+};
+
+// Sesión Cancelada por el sistema por inactividad después de una ronda, sin valor acordado.
+const canceledSession: EstimationSessionSummary = {
+  id: "c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f",
+  status: "canceled",
+  openedBy: ana,
+  openedAt: "2026-10-21T09:00:00Z",
+  closedBy: null,
+  closedAt: "2026-10-21T10:00:00Z",
+  agreedStoryPoints: null,
+  cancelReason: "inactivity",
+  roundCount: 1,
+};
+
+// Construye la respuesta del historial con la sesión abierta y las sesiones cerradas indicadas.
+function history(
+  sessions: EstimationSessionSummary[],
+  openSession: StoryEstimationHistory["openSession"] = null,
+): StoryEstimationHistory {
+  return { openSession, sessions, emptyReason: null };
+}
+
+// Simula el backend del historial respondiendo al GET con el cuerpo indicado. Cualquier otra ruta
+// responde 404, para que una llamada inesperada no pase inadvertida.
+function serveHistory(body: StoryEstimationHistory) {
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    const request = describeRequest(input, init);
+    if (request.method === "GET" && request.path === openPath) {
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    return jsonResponse(404, { error: "Ruta inesperada en la prueba." });
+  };
+}
+
+// Verifica que se envió un único pedido del historial con la sesión de la pestaña.
+function expectSingleHistoryRequest(fetchMock: FetchMock) {
+  const requests = fetchMock.mock.calls
+    .map(([input, init]) => describeRequest(input, init))
+    .filter((request) => request.method === "GET");
+  expect(requests).toHaveLength(1);
+  expect(requests[0]).toMatchObject({
+    path: openPath,
+    authorization: `Bearer ${sessionToken}`,
+  });
+}
+
+// Espera a que la sección muestre la lista del historial y devuelve sus elementos en orden.
+async function findHistoryItems(region: HTMLElement): Promise<HTMLElement[]> {
+  const list = await within(region).findByRole("list", {
+    name: historyListName,
+  });
+  return within(list).getAllByRole("listitem");
+}
+
+// Verifica que un elemento del historial enlaza a la vista de su sesión.
+function expectSessionLink(item: HTMLElement, sessionId: string) {
+  const link = within(item).getByRole("link", { name: "Ver sesión" });
+  expect(link.getAttribute("href")).toBe(roomPath(sessionId));
+}
+
+describe("005/US8 - Consultar el historial de estimación de una historia", () => {
+  let fetchMock: FetchMock;
+
+  // Cada prueba arranca con una sesión válida en la pestaña, un fetch sustituido que responde un
+  // historial vacío y el enrutador sin llamadas previas.
+  beforeEach(() => {
+    sessionStorage.clear();
+    writeToken(sessionToken);
+    fetchMock = vi.fn<typeof fetch>(
+      serveHistory({
+        openSession: null,
+        sessions: [],
+        emptyReason: "no_sessions",
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    router.push.mockClear();
+  });
+
+  // Sin globals de Vitest, la limpieza del DOM de Testing Library se hace a mano.
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  // Caso normal: la historia tiene una sesión Finalizada de tres rondas; la sección la lista con su
+  // estado, su valor acordado y su cantidad de rondas, y enlaza a la sesión para ver sus rondas y
+  // votos (US8-1, FR-079).
+  it("Sesión finalizada con rondas", async () => {
+    fetchMock.mockImplementation(serveHistory(history([finishedSession])));
+    const region = await renderSection();
+
+    const items = await findHistoryItems(region);
+
+    expect(items).toHaveLength(1);
+    expect(items[0].textContent).toContain("Finalizada");
+    expect(items[0].textContent).toContain("5 Story Points");
+    expect(items[0].textContent).toContain("3 rondas");
+    expectSessionLink(items[0], finishedSession.id);
+    expectSingleHistoryRequest(fetchMock);
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  // Caso normal: la historia se estimó dos veces; la sección muestra ambas sesiones en el orden
+  // recibido, de la más reciente a la más antigua, cada una con su valor acordado (US8-2, FR-080).
+  it("Orden de sesiones", async () => {
+    fetchMock.mockImplementation(
+      serveHistory(history([laterFinishedSession, finishedSession])),
+    );
+    const region = await renderSection();
+
+    const items = await findHistoryItems(region);
+
+    expect(items).toHaveLength(2);
+    expect(items[0].textContent).toContain("13 Story Points");
+    expect(items[0].textContent).toContain("2 rondas");
+    expectSessionLink(items[0], laterFinishedSession.id);
+    expect(items[1].textContent).toContain("5 Story Points");
+    expect(items[1].textContent).toContain("3 rondas");
+    expectSessionLink(items[1], finishedSession.id);
+  });
+
+  // Caso alternativo: la sesión Cancelada figura como Cancelada, sin valor acordado, con su motivo
+  // y con sus rondas (US8-3, FR-063).
+  it("Sesión cancelada", async () => {
+    fetchMock.mockImplementation(serveHistory(history([canceledSession])));
+    const region = await renderSection();
+
+    const items = await findHistoryItems(region);
+
+    expect(items).toHaveLength(1);
+    expect(items[0].textContent).toContain("Cancelada");
+    expect(items[0].textContent).toContain("Por inactividad");
+    expect(items[0].textContent).toContain("1 ronda");
+    expect(items[0].textContent).not.toContain("Story Points");
+    expectSessionLink(items[0], canceledSession.id);
+  });
+
+  // Caso alternativo: la historia tiene una sesión Abierta; la sección indica que hay una sesión en
+  // curso con su facilitador y su número de ronda, y ofrece unirse a ella (US8-4, FR-081).
+  it("Sesión en curso", async () => {
+    const openSession = {
+      id: existingSessionId,
+      facilitator: bruno,
+      roundNumber: 2,
+      roundStatus: "voting" as const,
+    };
+    fetchMock.mockImplementation(
+      serveHistory(history([finishedSession], openSession)),
+    );
+    const region = await renderSection();
+
+    const join = await within(region).findByRole("link", { name: "Unirse" });
+
+    expect(join.getAttribute("href")).toBe(roomPath(existingSessionId));
+    expect(region.textContent).toContain("Sesión en curso");
+    expect(region.textContent).toContain(bruno.fullName);
+    expect(region.textContent).toContain("Ronda 2");
+    expect(region.textContent).not.toContain(noSessionsMessage);
+    expect(await findHistoryItems(region)).toHaveLength(1);
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  // Caso límite: la historia nunca se estimó por Planning Poker; la sección muestra la indicación de
+  // que no tiene sesiones, sin tratarlo como error y sin lista (US8-5, FR-083).
+  it("Historia sin sesiones", async () => {
+    const region = await renderSection();
+
+    expect(await within(region).findByText(noSessionsMessage)).toBeTruthy();
+    expect(
+      within(region).queryByRole("list", { name: historyListName }),
+    ).toBeNull();
+    expect(within(region).queryByRole("alert")).toBeNull();
+    expect(within(region).queryByRole("link", { name: "Unirse" })).toBeNull();
+    expectSingleHistoryRequest(fetchMock);
   });
 });

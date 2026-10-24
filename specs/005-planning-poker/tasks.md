@@ -783,7 +783,7 @@ responde `409` con el motivo `estimation_sessions`.
 
 ### Pruebas de la Historia 8 ⚠️
 
-- [ ] T085 [US8] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
+- [X] T085 [US8] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
       escenario con `// Escenario: <nombre> (005/US8)`: `TestUS8_SesionFinalizadaConRondas`,
       `TestUS8_OrdenDeSesiones`, `TestUS8_SesionCancelada`, `TestUS8_SesionEnCurso` (`openSession`
       con facilitador y número de ronda, sin votos), `TestUS8_HistoriaSinSesiones` (`200`,
@@ -792,25 +792,37 @@ responde `409` con el motivo `estimation_sessions`.
       mismo cuerpo que un `storyId` inexistente) y `TestUS8_EliminacionBloqueada` (una historia con
       una sesión `finished` y otra con una `canceled`: el `DELETE` de la 003 responde `409` con
       `estimation_sessions` y el historial sigue consultable) — depende de T084
-- [ ] T086 [P] [US8] Prueba de integración del puerto reemplazado en
+- [X] T086 [P] [US8] Prueba de integración del puerto reemplazado en
       `backend/internal/backlog/repository/estimation_sessions_test.go`, cubriendo RN-33 y SC-023:
       sin sesiones → `false`; con una sesión `open`, `finished` o `canceled` → `true`; las sesiones de
       otra historia no cuentan — depende de T084
-- [ ] T087 [P] [US8] Pruebas de frontend en
+- [X] T087 [P] [US8] Pruebas de frontend en
       `frontend/src/features/poker/components/story-estimation-section.test.tsx`, con
       `describe("005/US8 - Consultar el historial de estimación de una historia")`: la sección lista
       las sesiones con estado, valor y cantidad de rondas, muestra "Sesión en curso" con **Unirse**,
       y el mensaje de historia sin sesiones
+- [X] T087a [US8] Pruebas de frontend de la vista de una sesión cerrada en
+      `frontend/src/features/poker/components/poker-room.test.tsx`, con
+      `describe("005/US8 - Consultar el historial de estimación de una historia")`: cuando el canal
+      responde `409` (FR-018), la pantalla no se une ni muestra un error, consulta la sesión con
+      `GET /api/v1/estimation-sessions/{sessionId}` y muestra su resultado.
+      `it("Sesión finalizada con rondas")`: muestra el momento de apertura y de cierre, quién la abrió
+      y quién la cerró, el valor acordado, y las rondas con el voto de cada participante y el
+      resultado de consenso o divergencia de cada una.
+      `it("Sesión cancelada")`: muestra la sesión como Cancelada, sin valor acordado, con sus rondas
+      completas; si la canceló el sistema (`closedBy` en `null`), lo indica en lugar de un nombre.
+      `it("Ex integrante")`: el voto de quien ya no integra el proyecto sigue con su nombre
+      — depende de T087
 
 ### Implementación de la Historia 8
 
-- [ ] T088 [US8] Reemplazar el cuerpo de `backend/internal/backlog/repository/estimation_sessions.go`:
+- [X] T088 [US8] Reemplazar el cuerpo de `backend/internal/backlog/repository/estimation_sessions.go`:
       `NewEstimationSessions(db *gorm.DB)` y `HasSessions` con un `EXISTS` sobre
       `estimation_sessions` por `story_id`, en cualquier estado, usando el modelo
       `pokerdomain.EstimationSession`; actualizar la llamada en `backend/cmd/app/main.go` y en los
       ayudantes de prueba de `backend/internal/backlog/` que construyan el servicio. `backlog/service`
       no cambia (research.md sección 15.1) — depende de T086
-- [ ] T089 [US8] Implementar `ListForStory` (sesiones cerradas ordenadas por `created_at`
+- [X] T089 [US8] Implementar `ListForStory` (sesiones cerradas ordenadas por `created_at`
       descendente con el conteo de rondas por subconsulta, en una consulta) y `FindOpenForStory`
       (identificador, facilitador, número y estado de la ronda vigente, o `nil`) en
       `backend/internal/poker/repository/session_repository.go`; `History` en el servicio, con
@@ -818,10 +830,10 @@ responde `409` con el motivo `estimation_sessions`.
       `listStoryEstimationSessions` con anotaciones `swag`, los esquemas
       `StoryEstimationHistory`, `EstimationSessionSummary` y `OpenEstimationSession` en `dto.go`, y
       `GET` en `RegisterStoryRoutes` — depende de T085
-- [ ] T090 [US8] Implementar el historial en `StoryEstimationSection` (lista, sesión en curso con
+- [X] T090 [US8] Implementar el historial en `StoryEstimationSection` (lista, sesión en curso con
       **Unirse**, vacío) y la vista de una sesión cerrada en la pantalla
       `frontend/src/app/projects/[projectId]/backlog/[storyId]/poker/[sessionId]/page.tsx`
-      reutilizando `RoundHistory` y `SessionClosedNotice` — depende de T087, T089
+      reutilizando `RoundHistory` y `SessionClosedNotice` — depende de T087, T087a, T089
 
 **Checkpoint**: las ocho historias funcionan y el historial de estimación está protegido.
 
@@ -895,6 +907,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
 
 - [ ] T102 Agregar prueba de concurrencia que, con una transacción de prueba que bloquea la historia con FOR UPDATE y la pasa a `completed`, lanza el registro de la estimación en una goroutine, espera a que quede bloqueada en la historia (consultando `pg_stat_activity` con `wait_event_type = 'Lock'`), confirma la transacción y verifica que `user_stories.story_points` no cambió y que la sesión quedó `canceled` con `story_completed`; con una variante en la que el proyecto pasa a `finished` y se espera `project_finished`, en backend/internal/poker/delivery/handler_test.go per hallazgo de seguridad: registro de la estimación sin releer el estado de la historia bajo bloqueo (security) — origen: seguridad, detectado en 005/US7
 - [ ] T103 Hacer que el registro de la estimación lea el estado de la historia y del proyecto con la historia ya bloqueada (FOR UPDATE OF user_stories) y el proyecto con FOR SHARE, y reevaluar con AutoCancelReason antes de escribir story_points, de modo que una historia completada o un proyecto finalizado en paralelo cancelen la sesión en lugar de registrar, en backend/internal/poker/repository/session_repository.go per hallazgo de seguridad: registro de la estimación sin releer el estado de la historia bajo bloqueo (security) — origen: seguridad, detectado en 005/US7
+- [ ] T106 Traducir la violación de la clave foránea de `estimation_sessions.story_id` al borrar una historia en `backend/internal/backlog/repository/story_repository.go` al mismo error de eliminación bloqueada con el motivo `estimation_sessions` que devuelve `backend/internal/backlog/service/story_service.go`, para que una sesión abierta entre `HasSessions` y el borrado responda `409` en lugar de `500`, con una prueba de integración que fuerce esa carrera per plan: ventana de carrera al eliminar una historia, research 15.4 (partial) — origen: converge, detectado en hu/005-us8-consultar-el-historial-de-estimacion
 
 ---
 

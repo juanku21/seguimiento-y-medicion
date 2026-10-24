@@ -165,7 +165,7 @@ func newBacklogTestEnv(t *testing.T, overrides ...func(*backlogTestPorts)) backl
 		sprints:  repository.NewSprintAssignments(db),
 		effort:   repository.NewEffortRecords(),
 		defects:  repository.NewDefectRecords(),
-		sessions: repository.NewEstimationSessions(),
+		sessions: repository.NewEstimationSessions(db),
 		stories:  repository.NewStoryRepository(db),
 		projects: repository.NewProjectDirectory(db),
 		db:       db,

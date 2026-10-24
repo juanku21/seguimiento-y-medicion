@@ -254,6 +254,50 @@ func (s *SessionService) Get(ctx context.Context, access *domain.SessionAccess, 
 	return &view, nil
 }
 
+// EmptyReason explica por qué el historial de estimación de una historia vino vacío (FR-083). Viaja
+// como texto en el campo emptyReason del contrato; su ausencia (nil) significa que la historia tiene
+// alguna sesión.
+type EmptyReason string
+
+// EmptyReasonNoSessions indica que la historia nunca tuvo una sesión de estimación, ni abierta ni
+// cerrada.
+const EmptyReasonNoSessions EmptyReason = "no_sessions"
+
+// HistoryView es el historial de estimación de una historia: la sesión abierta o nil, las sesiones
+// cerradas de la más reciente a la más antigua, nunca nil, y el motivo del vacío, nil si hay alguna
+// sesión.
+type HistoryView struct {
+	OpenSession *domain.OpenSessionSummary
+	Sessions    []domain.SessionSummary
+	EmptyReason *EmptyReason
+}
+
+// History devuelve el historial de estimación de la historia (FR-079 a FR-083): primero la sesión
+// abierta y después las cerradas, de modo que una sesión que se cierra entre ambas lecturas no se
+// pierde. emptyReason es no_sessions solo si no hay ninguna sesión, ni abierta ni cerrada; una
+// historia con solo una sesión en curso no está vacía.
+func (s *SessionService) History(ctx context.Context, storyID uuid.UUID) (*HistoryView, error) {
+	open, err := s.repo.FindOpenForStory(ctx, storyID)
+	if err != nil {
+		return nil, err
+	}
+	sessions, err := s.repo.ListForStory(ctx, storyID)
+	if err != nil {
+		return nil, err
+	}
+
+	// La lista nunca queda nil y el motivo del vacío solo aparece sin ninguna sesión.
+	view := &HistoryView{OpenSession: open, Sessions: sessions}
+	if view.Sessions == nil {
+		view.Sessions = []domain.SessionSummary{}
+	}
+	if open == nil && len(sessions) == 0 {
+		reason := EmptyReasonNoSessions
+		view.EmptyReason = &reason
+	}
+	return view, nil
+}
+
 // Leave da de baja la suscripción de la conexión y la descuenta de la presencia; si era la última
 // de la persona, empieza a correr la gracia de FR-014.
 func (s *SessionService) Leave(conn *Connection) {

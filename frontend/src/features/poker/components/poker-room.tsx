@@ -12,6 +12,7 @@ import {
   takeEstimationFacilitator,
 } from "@/features/poker/api";
 import { CardDeck } from "@/features/poker/components/card-deck";
+import { ClosedSessionView } from "@/features/poker/components/closed-session-view";
 import { FacilitatorActions } from "@/features/poker/components/facilitator-actions";
 import { FinalizeDialog } from "@/features/poker/components/finalize-dialog";
 import { ParticipantList } from "@/features/poker/components/participant-list";
@@ -43,7 +44,9 @@ export type PokerRoomProps = {
 // resultado en lugar del mazo y de las acciones. Con el facilitador desconectado la sala muestra
 // cuánto falta para que el rol quede disponible y, al vencer, ofrece tomarlo (005/US6); un rechazo
 // muestra el motivo recibido. El facilitador cancela la sesión sin registrar estimación (005/US7); un
-// rechazo muestra el motivo recibido y la sesión Cancelada llega por el canal.
+// rechazo muestra el motivo recibido y la sesión Cancelada llega por el canal. Si la sesión ya estaba
+// cerrada al entrar, el canal se rechaza con 409 y la sala muestra en su lugar la vista de la sesión
+// cerrada con sus rondas y votos (005/US8).
 export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
   const { session, error } = useEstimationStream(sessionId);
   const profile = useAuthorizedQuery(getOwnProfile);
@@ -103,6 +106,9 @@ export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
     setTakeError(result.ok ? null : result.error.message);
   };
 
+  if (error !== null && error.status === 409) {
+    return <ClosedSessionView sessionId={sessionId} />;
+  }
   if (error !== null) {
     return <Alert>{error.message}</Alert>;
   }

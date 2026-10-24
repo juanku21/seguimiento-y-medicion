@@ -116,3 +116,34 @@ export type SessionClosedResponse = {
 // se cierra (FR-019). Los comentarios ": ping" no llegan como evento.
 export type EstimationEvent =
   { event: "state"; session: EstimationSession } | { event: "removed" };
+
+// Sesión cerrada en el historial de una historia, sin rondas ni votos (EstimationSessionSummary,
+// FR-079, FR-080).
+export type EstimationSessionSummary = {
+  id: string;
+  status: Exclude<SessionStatus, "open">;
+  openedBy: UserRef;
+  openedAt: string;
+  closedBy: UserRef | null;
+  closedAt: string;
+  agreedStoryPoints: ScaleStoryPoints | null;
+  cancelReason: CancelReason | null;
+  roundCount: number;
+};
+
+// Sesión abierta de la historia, sin votos (OpenEstimationSession, FR-081, FR-082).
+export type OpenEstimationSession = {
+  id: string;
+  facilitator: UserRef;
+  roundNumber: number;
+  roundStatus: RoundStatus;
+};
+
+// Historial de estimación de una historia: la sesión abierta, si la hay, y las sesiones cerradas de
+// la más reciente a la más antigua; no_sessions si nunca tuvo ninguna (StoryEstimationHistory,
+// FR-083).
+export type StoryEstimationHistory = {
+  openSession: OpenEstimationSession | null;
+  sessions: EstimationSessionSummary[];
+  emptyReason: "no_sessions" | null;
+};

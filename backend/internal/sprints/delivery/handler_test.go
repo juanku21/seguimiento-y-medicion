@@ -171,7 +171,7 @@ func newSprintTestEnv(t *testing.T, overrides ...func(*sprintTestPorts)) sprintT
 		backlogrepository.NewSprintAssignments(db),
 		backlogrepository.NewEffortRecords(),
 		backlogrepository.NewDefectRecords(),
-		backlogrepository.NewEstimationSessions(),
+		backlogrepository.NewEstimationSessions(db),
 		backlogrepository.NewProjectDirectory(db),
 	)
 	backlogHandler := backlogdelivery.NewHandler(stories)

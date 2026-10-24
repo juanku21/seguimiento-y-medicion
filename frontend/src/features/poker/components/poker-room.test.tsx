@@ -13,12 +13,18 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { PokerRoom } from "@/features/poker/components/poker-room";
 import { writeToken } from "@/lib/session-storage";
 import { SessionProvider } from "@/providers/session-provider";
 import type { ErrorResponse, UserProfile } from "@/types/auth";
-import type { EstimationSession, UserRef } from "@/types/poker";
+import type {
+  EstimationRound,
+  EstimationSession,
+  UserRef,
+} from "@/types/poker";
+import { formatInstant } from "@/utils/format-date";
 
 // Pruebas de la toma del rol de facilitador (T077) y de la cancelación de la sesión (T104) desde la
 // sala en vivo. Atraviesan la sala, el
@@ -460,5 +466,260 @@ describe("005/US7 - Cancelar una sesión sin registrar estimación", () => {
       .closest("section");
     expect(roundSection?.contains(alert)).toBe(true);
     expect(postRequests(fetchMock, cancelPath)).toHaveLength(1);
+  });
+});
+
+// Pruebas de la vista de una sesión cerrada (T087a). Si el canal responde 409 porque la sesión ya
+// está Finalizada o Cancelada (FR-018), la pantalla no se une ni muestra el rechazo como error:
+// consulta la sesión con GET /api/v1/estimation-sessions/{sessionId}, que no une a quien pide, y
+// muestra su resultado con todas sus rondas (US8-1, US8-3, US8-6). Solo se sustituye fetch.
+//
+// Contrato que fijan estas pruebas para la vista cerrada:
+// - Muestra la fecha (DD/MM/AAAA en la zona del navegador) de apertura y de cierre, el nombre de
+//   quien la abrió y el de quien la cerró, o "El sistema" si closedBy es null.
+// - Muestra el estado (Finalizada o Cancelada) y el valor acordado como "<n> Story Points".
+// - Muestra todas las rondas, incluida la última, cada una con su lista "Votos" y su región
+//   "Resultado de la ronda", como RoundResult.
+
+// Carla abrió la sesión y Diego la cerró; ninguno votó, así que sus nombres solo pueden aparecer
+// como autores de la apertura y del cierre. Elena votó y después dejó de integrar el proyecto.
+const carla: UserRef = {
+  id: "1d2e3f40-5a6b-4c7d-8e9f-0a1b2c3d4e50",
+  fullName: "Carla Gómez",
+};
+const diego: UserRef = {
+  id: "2e3f4051-6b7c-4d8e-9f0a-1b2c3d4e5f61",
+  fullName: "Diego Romero",
+};
+const elena: UserRef = {
+  id: "3f405162-7c8d-4e9f-8a1b-2c3d4e5f6a72",
+  fullName: "Elena Ruiz",
+};
+const sessionPath = `/api/v1/estimation-sessions/${sessionId}`;
+
+// Ronda revelada con los votos de Ana y Bruno y el resultado calculado por el backend.
+function revealedRound(
+  number: number,
+  anaCard: "3" | "5" | "8",
+  brunoCard: "8" | "13",
+): EstimationRound {
+  const consensus = anaCard === brunoCard;
+  return {
+    number,
+    status: "revealed",
+    openedAt: `2026-10-20T10:0${number}:00Z`,
+    revealedAt: `2026-10-20T10:0${number}:30Z`,
+    votes: [
+      { user: ana, card: anaCard },
+      { user: bruno, card: brunoCard },
+    ],
+    outcome: consensus
+      ? { kind: "consensus", value: 8 }
+      : {
+          kind: "divergence",
+          min: { value: Number(anaCard) as 3 | 5, authors: [ana] },
+          max: { value: Number(brunoCard) as 8 | 13, authors: [bruno] },
+        },
+    notVoted: [],
+  };
+}
+
+// Sesión Finalizada con 8 story points en su tercera ronda: abierta por Carla un día y cerrada por
+// Diego al día siguiente, para que las dos fechas se distingan.
+function closedFinishedView(): EstimationSession {
+  return {
+    ...facilitatorGoneView(),
+    version: 12,
+    status: "finished",
+    facilitator: diego,
+    openedBy: carla,
+    openedAt: "2026-10-20T10:00:00Z",
+    closedBy: diego,
+    closedAt: "2026-10-21T10:30:00Z",
+    agreedStoryPoints: 8,
+    participants: [
+      { user: ana, connected: false, isFacilitator: false, hasVoted: true },
+      { user: bruno, connected: false, isFacilitator: false, hasVoted: true },
+    ],
+    rounds: [
+      revealedRound(1, "3", "13"),
+      revealedRound(2, "5", "13"),
+      revealedRound(3, "8", "8"),
+    ],
+    facilitatorAvailableAt: null,
+  };
+}
+
+// Sesión Cancelada por el sistema por inactividad, con sus dos rondas reveladas y sin valor.
+function closedCanceledView(): EstimationSession {
+  const view = closedFinishedView();
+  return {
+    ...view,
+    status: "canceled",
+    closedBy: null,
+    agreedStoryPoints: null,
+    cancelReason: "inactivity",
+    rounds: view.rounds.slice(0, 2),
+  };
+}
+
+// Simula el backend de una sesión ya cerrada: el canal responde 409 con el resultado registrado, el
+// GET de la sesión la devuelve completa y el perfil propio es el de Bruno. Cualquier otra ruta
+// responde 404.
+function serveClosedSession(session: EstimationSession) {
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    const request = describeRequest(input, init);
+    if (request.method === "GET" && request.path === eventsPath) {
+      return jsonResponse(409, {
+        error: closedMessage,
+        status: session.status,
+        agreedStoryPoints: session.agreedStoryPoints,
+        cancelReason: session.cancelReason,
+      });
+    }
+    if (request.method === "GET" && request.path === sessionPath) {
+      return jsonResponse(200, session);
+    }
+    if (request.method === "GET" && request.path === profilePath) {
+      return jsonResponse(200, brunoProfile);
+    }
+    return jsonResponse(404, { error: "Ruta inesperada en la prueba." });
+  };
+}
+
+// Devuelve los GET enviados a la ruta indicada, ya interpretados.
+function getRequests(fetchMock: FetchMock, path: string) {
+  return fetchMock.mock.calls
+    .map(([input, init]) => describeRequest(input, init))
+    .filter((request) => request.method === "GET" && request.path === path);
+}
+
+// Monta la pantalla de la sesión cerrada y espera las listas de votos de sus rondas.
+async function renderClosedRoom() {
+  render(
+    <SessionProvider>
+      <PokerRoom sessionId={sessionId} />
+    </SessionProvider>,
+  );
+  return screen.findAllByRole("list", { name: "Votos" });
+}
+
+// Verifica la regla común de la vista cerrada: un único intento de canal, un único GET de la sesión
+// con la sesión de la pestaña y ningún aviso de error.
+function expectClosedViewRequests(fetchMock: FetchMock) {
+  expect(getRequests(fetchMock, eventsPath)).toHaveLength(1);
+  const sessionRequests = getRequests(fetchMock, sessionPath);
+  expect(sessionRequests).toHaveLength(1);
+  expect(sessionRequests[0].authorization).toBe(`Bearer ${sessionToken}`);
+  expect(screen.queryByRole("alert")).toBeNull();
+}
+
+describe("005/US8 - Consultar el historial de estimación de una historia", () => {
+  let fetchMock: FetchMock;
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  // Cada prueba arranca con la sesión de Bruno en la pestaña; fetch se sustituye en cada prueba.
+  beforeEach(() => {
+    sessionStorage.clear();
+    writeToken(sessionToken);
+  });
+
+  // Se desmonta la pantalla y se restaura fetch.
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  // Caso normal: la sesión Finalizada de tres rondas muestra sus fechas de apertura y de cierre,
+  // quién la abrió y quién la cerró, el valor acordado y cada ronda con los votos y su resultado
+  // (US8-1, FR-018).
+  it("Sesión finalizada con rondas", async () => {
+    const view = closedFinishedView();
+    fetchMock = vi.fn<typeof fetch>(serveClosedSession(view));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const voteLists = await renderClosedRoom();
+
+    const page = document.body.textContent ?? "";
+    expect(page).toContain(formatInstant(view.openedAt, timeZone));
+    expect(page).toContain(formatInstant(view.closedAt ?? "", timeZone));
+    expect(page).toContain(carla.fullName);
+    expect(page).toContain(diego.fullName);
+    expect(page).toContain("Finalizada");
+    expect(page).toContain("8 Story Points");
+
+    expect(voteLists).toHaveLength(3);
+    const expectedCards = [
+      ["3", "13"],
+      ["5", "13"],
+      ["8", "8"],
+    ];
+    voteLists.forEach((list, index) => {
+      const items = within(list).getAllByRole("listitem");
+      expect(items).toHaveLength(2);
+      expect(items[0].textContent).toContain(ana.fullName);
+      expect(items[0].textContent).toContain(expectedCards[index][0]);
+      expect(items[1].textContent).toContain(bruno.fullName);
+      expect(items[1].textContent).toContain(expectedCards[index][1]);
+    });
+    const outcomes = screen
+      .getAllByRole("region", { name: "Resultado de la ronda" })
+      .map((region) => region.textContent ?? "");
+    expect(outcomes).toHaveLength(3);
+    expect(outcomes[0]).toContain("Divergencia");
+    expect(outcomes[1]).toContain("Divergencia");
+    expect(outcomes[2]).toContain("Consenso");
+
+    expectClosedViewRequests(fetchMock);
+  });
+
+  // Caso alternativo: la sesión Cancelada por el sistema figura como Cancelada, sin valor acordado,
+  // con su motivo y sus rondas completas, e indica que la cerró el sistema (US8-3, FR-063).
+  it("Sesión cancelada", async () => {
+    fetchMock = vi.fn<typeof fetch>(serveClosedSession(closedCanceledView()));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const voteLists = await renderClosedRoom();
+
+    const page = document.body.textContent ?? "";
+    expect(page).toContain("Cancelada");
+    expect(page).toContain("Por inactividad");
+    expect(page).toContain("El sistema");
+    expect(page).not.toContain(diego.fullName);
+    expect(page).not.toContain("Story Points");
+    expect(voteLists).toHaveLength(2);
+    expect(
+      screen.getAllByRole("region", { name: "Resultado de la ronda" }),
+    ).toHaveLength(2);
+
+    expectClosedViewRequests(fetchMock);
+  });
+
+  // Caso límite: Elena votó en la sesión y después dejó de integrar el proyecto; su voto sigue con
+  // su nombre aunque ya no figure entre los participantes (US8-6, FR-019).
+  it("Ex integrante", async () => {
+    const view = closedFinishedView();
+    const [first, ...rest] = view.rounds;
+    const withElena: EstimationSession = {
+      ...view,
+      rounds: [
+        {
+          ...first,
+          votes: [...(first.votes ?? []), { user: elena, card: "5" }],
+        },
+        ...rest,
+      ],
+    };
+    fetchMock = vi.fn<typeof fetch>(serveClosedSession(withElena));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const voteLists = await renderClosedRoom();
+
+    const elenaVote = within(voteLists[0])
+      .getAllByRole("listitem")
+      .find((item) => item.textContent?.includes(elena.fullName));
+    expect(elenaVote?.textContent).toContain("5");
+
+    expectClosedViewRequests(fetchMock);
   });
 });

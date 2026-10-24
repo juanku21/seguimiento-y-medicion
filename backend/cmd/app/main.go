@@ -145,7 +145,7 @@ func run() error {
 		backlogrepository.NewSprintAssignments(db),
 		backlogrepository.NewEffortRecords(),
 		backlogrepository.NewDefectRecords(),
-		backlogrepository.NewEstimationSessions(),
+		backlogrepository.NewEstimationSessions(db),
 		backlogrepository.NewProjectDirectory(db),
 	)
 	backlogHandler := backlogdelivery.NewHandler(stories)

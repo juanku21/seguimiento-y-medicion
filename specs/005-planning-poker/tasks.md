@@ -437,7 +437,7 @@ reciben la ronda `revealed` con `divergence`, mínimo 3 y máximo 13 con sus aut
 
 ### Pruebas de la Historia 3 ⚠️
 
-- [ ] T045 [P] [US3] Pruebas unitarias **obligatorias** de `ShouldAutoReveal` y `CanRevealManually`
+- [X] T045 [P] [US3] Pruebas unitarias **obligatorias** de `ShouldAutoReveal` y `CanRevealManually`
       en `backend/internal/poker/domain/reveal_test.go`, cubriendo RN-09, RN-10, RN-12, RN-16, RN-23 y
       SC-006: 1, 2 y 5 conectados con todos sus votos → verdadero; un conectado sin voto → falso; un
       desconectado sin voto no impide; un desconectado con voto y nadie conectado → falso; `?` cuenta

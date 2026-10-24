@@ -651,7 +651,7 @@ nuevo facilitador.
       de la sesión abierta, con `disconnected_at` igual al instante recibido y sin cambiar `version`
       ni `last_activity_at`; al reabrir el canal, cada uno se reincorpora como un hecho nuevo
       (research.md sección 9) — depende de T069
-- [ ] T072 [US6] Prueba de concurrencia `TestPokerFacilitator_Concurrency` en
+- [X] T072 [US6] Prueba de concurrencia `TestPokerFacilitator_Concurrency` en
       `backend/internal/poker/delivery/poker_concurrency_test.go`, **sin** etiqueta: diez
       participantes piden el rol a la vez con el facilitador desconectado hace más de 5 minutos;
       exactamente uno `200`, nueve `409` con el facilitador vigente y ninguna `500` (SC-025) —

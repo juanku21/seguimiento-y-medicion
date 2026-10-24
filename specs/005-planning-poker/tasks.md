@@ -751,7 +751,7 @@ tras `Sweep`.
       `Disconnect`, `Vote`, `Reveal`, `StartRound`, `Finalize` y `TakeFacilitator` lo usen. En la
       cancelación del facilitador `closed_by_id = titular` y `cancel_reason = NULL`; en la del
       sistema `closed_by_id = NULL` y el motivo — depende de T079, T081
-- [ ] T083 [US7] Implementar `Cancel` en `backend/internal/poker/service/session_service.go`, sumar
+- [X] T083 [US7] Implementar `Cancel` en `backend/internal/poker/service/session_service.go`, sumar
       a `Sweep`, en `sweeper.go`, el paso de cancelaciones automáticas (publicar y
       `hub.CloseSession`), publicar
       también cuando una acción devuelve `SessionClosedError` por cancelación automática, y el

@@ -196,14 +196,31 @@ func newOpenSessionExistsResponse(message string, sessionID uuid.UUID) OpenSessi
 	return OpenSessionExistsResponse{Error: message, SessionID: sessionID.String()}
 }
 
-// newSessionClosedResponse arma el cuerpo del 409 de sesión cerrada con el mensaje recibido y el
-// estado, el valor acordado y el motivo que informa el error de dominio.
-func newSessionClosedResponse(message string, closed *domain.SessionClosedError) SessionClosedResponse {
+// newSessionClosedResponse arma el cuerpo del 409 de sesión cerrada con el estado, el valor acordado
+// y el motivo que informa el error de dominio, y el mensaje que corresponde a ese motivo.
+func newSessionClosedResponse(closed *domain.SessionClosedError) SessionClosedResponse {
 	return SessionClosedResponse{
-		Error:             message,
+		Error:             sessionClosedMessage(closed.CancelReason),
 		Status:            closed.Status,
 		AgreedStoryPoints: closed.AgreedStoryPoints,
 		CancelReason:      closed.CancelReason,
+	}
+}
+
+// sessionClosedMessage elige el texto del 409 de sesión cerrada según el motivo de la cancelación del
+// sistema (research.md sección 19): inactividad y proyecto finalizado tienen su propio mensaje; la
+// cancelación por historia completada, la del facilitador y la sesión finalizada usan el genérico.
+func sessionClosedMessage(reason *domain.CancelReason) string {
+	if reason == nil {
+		return msgSessionClosed
+	}
+	switch *reason {
+	case domain.CancelReasonInactivity:
+		return msgSessionInactive
+	case domain.CancelReasonProjectFinished:
+		return msgProjectFinished
+	default:
+		return msgSessionClosed
 	}
 }
 

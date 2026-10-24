@@ -12,17 +12,49 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/poker/domain"
 )
 
-// Sweep ejecuta una pasada del barrido periódico (research.md sección 13): las gracias vencidas, la
-// membresía revocada y los cambios de la historia, en ese orden. Una sesión que ya está cerrada no
-// necesita la desconexión y se saltea; los demás errores no cortan la pasada y se devuelven juntos al
-// final.
+// Sweep ejecuta una pasada del barrido periódico (research.md sección 13): las cancelaciones
+// automáticas, las gracias vencidas, la membresía revocada y los cambios de la historia, en ese
+// orden. Si una desconexión encuentra la sesión cerrada se saltea, salvo que la haya cancelado el
+// sistema, en cuyo caso se avisa a los conectados; los demás errores no cortan la pasada y se
+// devuelven juntos al final.
 func (s *SessionService) Sweep(ctx context.Context) error {
 	now := s.now()
 	var errs []error
+	errs = append(errs, s.sweepAutoCancel(ctx, now)...)
 	errs = append(errs, s.sweepExpired(ctx, now)...)
 	errs = append(errs, s.sweepRevoked(ctx, now)...)
 	errs = append(errs, s.sweepStoryChanges(ctx)...)
 	return errors.Join(errs...)
+}
+
+// sweepAutoCancel cancela las sesiones abiertas cuya historia se completó, cuyo proyecto se finalizó
+// o que llevan 60 minutos sin hechos (FR-061, FR-063). AutoCancelReason filtra la lista leída y
+// AutoCancel vuelve a decidir bajo el bloqueo, así una sesión que recibió un hecho entretanto no se
+// cancela. Cada sesión cancelada publica su estado final y cierra sus canales.
+func (s *SessionService) sweepAutoCancel(ctx context.Context, now time.Time) []error {
+	sessions, err := s.repo.ListOpenForSweep(ctx)
+	if err != nil {
+		return []error{err}
+	}
+
+	var errs []error
+	for _, open := range sessions {
+		if _, due := domain.AutoCancelReason(open.StoryStatus, open.ProjectFinished, open.LastActivityAt, now); !due {
+			continue
+		}
+		canceled, err := s.repo.AutoCancel(ctx, open.SessionID, now)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("auto canceling estimation session: %w", err))
+			continue
+		}
+		if !canceled {
+			continue
+		}
+		if err := s.closeSession(ctx, open.SessionID); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errs
 }
 
 // sweepExpired desconecta a cada persona cuya última conexión cayó hace la gracia o más y publica la
@@ -33,6 +65,9 @@ func (s *SessionService) sweepExpired(ctx context.Context, now time.Time) []erro
 		err := s.repo.Disconnect(ctx, key.SessionID, key.UserID, now)
 		var closed *domain.SessionClosedError
 		if errors.As(err, &closed) {
+			if err := s.closeIfAutoCanceled(ctx, key.SessionID, err); err != nil {
+				errs = append(errs, err)
+			}
 			continue
 		}
 		if err != nil {
@@ -62,6 +97,9 @@ func (s *SessionService) sweepRevoked(ctx context.Context, now time.Time) []erro
 		err := s.repo.Disconnect(ctx, key.SessionID, key.UserID, now)
 		var closed *domain.SessionClosedError
 		if errors.As(err, &closed) {
+			if err := s.closeIfAutoCanceled(ctx, key.SessionID, err); err != nil {
+				errs = append(errs, err)
+			}
 			continue
 		}
 		if err != nil {

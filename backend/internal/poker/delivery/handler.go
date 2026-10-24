@@ -22,8 +22,9 @@ import (
 // participa, el 403 de acción reservada al facilitador, el 409 de ronda revelada del voto y los dos
 // 409 de la revelación (ronda ya revelada y ronda sin votos), el 409 de iniciar una ronda con la
 // vigente en votación, el 409 de registrar sin ninguna ronda revelada y los dos 409 de la toma del
-// rol de facilitador (facilitador conectado y rol todavía no disponible). Los dos 400 de cuerpo son
-// los de los demás módulos.
+// rol de facilitador (facilitador conectado y rol todavía no disponible). El 409 de sesión cerrada
+// usa el mensaje de inactividad o el de proyecto finalizado según el motivo de la cancelación del
+// sistema (research.md sección 19). Los dos 400 de cuerpo son los de los demás módulos.
 const (
 	msgInvalidFields            = "Hay campos inválidos en la solicitud."
 	msgInvalidBody              = "El cuerpo de la solicitud debe ser un JSON válido."
@@ -41,6 +42,7 @@ const (
 	msgStoryCompleted           = "Una historia completada no se estima."
 	msgProjectFinished          = "El proyecto está finalizado y es de solo lectura."
 	msgSessionClosed            = "La sesión de estimación ya está cerrada."
+	msgSessionInactive          = "La sesión de estimación se cerró por inactividad."
 	msgFacilitatorPresent       = "El facilitador está conectado."
 	msgFacilitatorNotYet        = "El rol de facilitador todavía no está disponible."
 	msgInternalError            = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
@@ -176,7 +178,7 @@ func (h *Handler) castEstimationVote(c *gin.Context) {
 	var closed *domain.SessionClosedError
 	switch {
 	case errors.As(err, &closed):
-		c.JSON(http.StatusConflict, newSessionClosedResponse(msgSessionClosed, closed))
+		c.JSON(http.StatusConflict, newSessionClosedResponse(closed))
 		return
 	case errors.Is(err, domain.ErrRoundRevealed):
 		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgRoundRevealed})
@@ -235,7 +237,7 @@ func (h *Handler) revealEstimationRound(c *gin.Context) {
 	var closed *domain.SessionClosedError
 	switch {
 	case errors.As(err, &closed):
-		c.JSON(http.StatusConflict, newSessionClosedResponse(msgSessionClosed, closed))
+		c.JSON(http.StatusConflict, newSessionClosedResponse(closed))
 		return
 	case errors.Is(err, domain.ErrRoundRevealed):
 		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgRoundAlreadyRevealed})
@@ -298,7 +300,7 @@ func (h *Handler) startEstimationRound(c *gin.Context) {
 	var closed *domain.SessionClosedError
 	switch {
 	case errors.As(err, &closed):
-		c.JSON(http.StatusConflict, newSessionClosedResponse(msgSessionClosed, closed))
+		c.JSON(http.StatusConflict, newSessionClosedResponse(closed))
 		return
 	case errors.Is(err, domain.ErrRoundNotRevealed):
 		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgRoundNotRevealed})
@@ -378,7 +380,7 @@ func (h *Handler) finalizeEstimationSession(c *gin.Context) {
 	var closed *domain.SessionClosedError
 	switch {
 	case errors.As(err, &closed):
-		c.JSON(http.StatusConflict, newSessionClosedResponse(msgSessionClosed, closed))
+		c.JSON(http.StatusConflict, newSessionClosedResponse(closed))
 		return
 	case errors.Is(err, domain.ErrNoRevealedRound):
 		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgNoRevealedRound})
@@ -394,6 +396,64 @@ func (h *Handler) finalizeEstimationSession(c *gin.Context) {
 		return
 	case err != nil:
 		respondInternalError(c, "no se pudo registrar la estimación acordada", "error", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, newEstimationSession(view))
+}
+
+// cancelEstimationSession godoc
+//
+//	@Summary		Cancela la sesión sin registrar estimación (solo el facilitador)
+//	@Description	Pasa la sesión a canceled con la ronda vigente en votación o revelada; los Story Points de
+//	@Description	la historia quedan como estaban y las rondas y los votos se conservan (FR-057, FR-058).
+//	@Description	Reservada al facilitador (FR-059). La sesión cancelada por el facilitador no lleva motivo
+//	@Description	del sistema. Los canales abiertos reciben el estado final y se cierran. Un rechazo no
+//	@Description	produce ningún efecto (SC-011).
+//	@Tags			Planning Poker
+//	@ID				cancelEstimationSession
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			sessionId	path		string					true	"Identificador de la sesión de estimación"	format(uuid)
+//	@Success		200			{object}	EstimationSession		"Sesión cancelada."
+//	@Failure		401			{object}	delivery.ErrorResponse	"Se requiere iniciar sesión."
+//	@Failure		403			{object}	delivery.ErrorResponse	"Quien pide no es participante conectado de la sesión («No participás de esta sesión de estimación.», FR-028) o no es el facilitador («Esta acción está reservada al facilitador de la sesión.», FR-059)."
+//	@Failure		404			{object}	delivery.ErrorResponse	"La sesión de estimación no existe o pertenece a un proyecto del que quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo."
+//	@Failure		409			{object}	SessionClosedResponse	"La sesión está cerrada, con el resultado registrado («La sesión de estimación ya está cerrada.»; «La sesión de estimación se cerró por inactividad.» si la canceló el sistema por inactividad y «El proyecto está finalizado y es de solo lectura.» si la canceló por proyecto finalizado, FR-060)."
+//	@Failure		500			{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/estimation-sessions/{sessionId}/cancel [post]
+func (h *Handler) cancelEstimationSession(c *gin.Context) {
+	// RequireEstimationAccess y la sesión de la 001 ya dejaron el acceso y el titular en el contexto;
+	// su ausencia aquí es un error de composición y responde 500.
+	access, ok := sessionAccessFromContext(c)
+	if !ok {
+		respondInternalError(c, "cancelEstimationSession sin acceso a la sesión en el contexto")
+		return
+	}
+	userID, ok := authdelivery.CurrentUserID(c)
+	if !ok {
+		respondInternalError(c, "cancelEstimationSession sin titular de sesión en el contexto")
+		return
+	}
+
+	// Se cancela la sesión y se traducen los rechazos de dominio a los 403, 404 y 409 del contrato.
+	view, err := h.sessions.Cancel(c.Request.Context(), access.SessionID, userID)
+	var closed *domain.SessionClosedError
+	switch {
+	case errors.As(err, &closed):
+		c.JSON(http.StatusConflict, newSessionClosedResponse(closed))
+		return
+	case errors.Is(err, domain.ErrNotParticipant):
+		c.JSON(http.StatusForbidden, authdelivery.ErrorResponse{Error: msgNotParticipant})
+		return
+	case errors.Is(err, domain.ErrFacilitatorOnly):
+		c.JSON(http.StatusForbidden, authdelivery.ErrorResponse{Error: msgFacilitatorOnly})
+		return
+	case errors.Is(err, domain.ErrSessionNotFound):
+		abortEstimationSessionNotFound(c)
+		return
+	case err != nil:
+		respondInternalError(c, "no se pudo cancelar la sesión de estimación", "error", err)
 		return
 	}
 
@@ -441,7 +501,7 @@ func (h *Handler) takeEstimationFacilitator(c *gin.Context) {
 	var unavailable *domain.FacilitatorUnavailableError
 	switch {
 	case errors.As(err, &closed):
-		c.JSON(http.StatusConflict, newSessionClosedResponse(msgSessionClosed, closed))
+		c.JSON(http.StatusConflict, newSessionClosedResponse(closed))
 		return
 	case errors.As(err, &unavailable):
 		c.JSON(http.StatusConflict, newFacilitatorUnavailableResponse(unavailable))

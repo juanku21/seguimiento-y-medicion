@@ -706,7 +706,7 @@ tras `Sweep`.
 
 ### Pruebas de la Historia 7 ⚠️
 
-- [ ] T078 [P] [US7] Pruebas unitarias **obligatorias** de `AutoCancelReason` en
+- [X] T078 [P] [US7] Pruebas unitarias **obligatorias** de `AutoCancelReason` en
       `backend/internal/poker/domain/auto_cancel_test.go` con la tabla de data-model.md sección 6,
       cubriendo RN-30, RN-31 y SC-021: historia `completed` → `story_completed`; proyecto `finished`
       → `project_finished`; las dos a la vez → `story_completed` (precedencia); 59:59 → ninguno; 60:00

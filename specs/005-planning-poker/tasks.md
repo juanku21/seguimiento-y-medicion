@@ -557,7 +557,7 @@ Points de la historia toman ese valor.
 
 ### Pruebas de la Historia 5 ⚠️
 
-- [ ] T061 [P] [US5] Pruebas unitarias **obligatorias** de `ValidateAgreedValue` en
+- [X] T061 [P] [US5] Pruebas unitarias **obligatorias** de `ValidateAgreedValue` en
       `backend/internal/poker/domain/card_test.go`, cubriendo RN-18: los diez valores de la escala
       aceptados; 7, 4, -1 y 101 rechazados con el mensaje que enumera la escala — depende de T060
 - [ ] T062 [P] [US5] Pruebas unitarias **obligatorias** de validación del cuerpo de registro en

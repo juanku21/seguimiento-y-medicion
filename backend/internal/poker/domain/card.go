@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -40,6 +41,13 @@ func ParseCard(text string) (Card, error) {
 		return "", fmt.Errorf("la carta %q no es válida; cartas admitidas: %s", text, AdmittedCardsList())
 	}
 	return card, nil
+}
+
+// ValidateAgreedValue verifica que el valor acordado pertenezca a la escala numérica de Story Points
+// y, si no, devuelve un error que enumera la escala (FR-049, FR-050, RN-18).
+// Firma mínima de T061: la implementación corresponde a T065.
+func ValidateAgreedValue(value int) error {
+	return errors.New("not implemented")
 }
 
 // AdmittedCardsList arma la lista legible de cartas en orden, separadas por comas y con "y" antes de

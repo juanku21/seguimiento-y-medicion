@@ -447,7 +447,7 @@ reciben la ronda `revealed` con `divergence`, mínimo 3 y máximo 13 con sus aut
       `backend/internal/poker/domain/outcome_test.go` con la tabla completa de data-model.md sección
       6, cubriendo RN-12 a RN-14, SC-008 y SC-009, más el orden de los autores por nombre y que el
       resultado no tiene ningún campo de promedio ni mediana (FR-042) — depende de T044
-- [ ] T047 [US3] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una
+- [X] T047 [US3] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una
       por escenario con `// Escenario: <nombre> (005/US3)`: `TestUS3_RevelacionAutomatica`,
       `TestUS3_RevelacionManualConConsenso` (`notVoted` con el cuarto),
       `TestUS3_InterrogacionFueraDelCalculo`, `TestUS3_ConsensoSinExtremos`,

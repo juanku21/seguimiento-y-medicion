@@ -1,8 +1,11 @@
 package delivery
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -881,4 +884,526 @@ func TestUS2_RetiroDeVoto(t *testing.T) {
 			assert.Equal(t, before, pokerStoredVersion(t, f.env.db, f.session.ID), "un rechazo no sube la versión")
 		})
 	}
+}
+
+// Pruebas de integración de punta a punta de la historia 3 de Planning Poker (T047): revelan la
+// ronda sola, al completarse el último voto de los conectados o al vencer la gracia de quien se
+// desconecta sin votar, o a mano con POST /api/v1/estimation-sessions/{sessionId}/reveal, sobre el
+// mismo router compuesto como cmd/app y contra smye_test. Verifican la respuesta, las instantáneas
+// que llegan sin recargar por los canales ya abiertos y la ronda guardada en estimation_rounds. El
+// orden de los votos revelados y de notVoted no lo fija el contrato, así que se comparan como
+// conjuntos; los autores de cada extremo sí se esperan ordenados por nombre (T046). También va acá
+// el cambio de voto simultáneo con la revelación de US2, porque necesita revelar.
+
+// Textos exactos que fija el contrato para los rechazos de la revelación.
+const (
+	pokerNoVotesToRevealBodyJSON = `{"error":"Hace falta al menos un voto para revelar la ronda."}`
+	pokerFacilitatorOnlyBodyJSON = `{"error":"Esta acción está reservada al facilitador de la sesión."}`
+)
+
+// revealPath es la ruta de la revelación manual de la sesión según contracts/openapi.yaml.
+func revealPath(sessionID string) string {
+	return "/api/v1/estimation-sessions/" + sessionID + "/reveal"
+}
+
+// reveal pide POST /api/v1/estimation-sessions/{sessionId}/reveal, sin cuerpo, con el token como
+// Bearer.
+func (e *pokerTestEnv) reveal(t *testing.T, token, sessionID string) pokerResponse {
+	t.Helper()
+	return e.do(t, http.MethodPost, revealPath(sessionID), token, nil)
+}
+
+// pokerVoteBody refleja EstimationVote del contrato.
+type pokerVoteBody struct {
+	User pokerUserRef `json:"user"`
+	Card string       `json:"card"`
+}
+
+// pokerOutcomeExtremeBody refleja OutcomeExtreme del contrato.
+type pokerOutcomeExtremeBody struct {
+	Value   int            `json:"value"`
+	Authors []pokerUserRef `json:"authors"`
+}
+
+// pokerOutcomeBody refleja RoundOutcome del contrato.
+type pokerOutcomeBody struct {
+	Kind  string                   `json:"kind"`
+	Value *int                     `json:"value"`
+	Min   *pokerOutcomeExtremeBody `json:"min"`
+	Max   *pokerOutcomeExtremeBody `json:"max"`
+}
+
+// pokerRevealedRoundBody refleja EstimationRound del contrato con los campos de la revelación, que
+// pokerRoundBody de US1 no lee.
+type pokerRevealedRoundBody struct {
+	Number     int               `json:"number"`
+	Status     string            `json:"status"`
+	RevealedAt *string           `json:"revealedAt"`
+	Votes      []pokerVoteBody   `json:"votes"`
+	Outcome    *pokerOutcomeBody `json:"outcome"`
+	NotVoted   []pokerUserRef    `json:"notVoted"`
+}
+
+// pokerCurrentRound decodifica del JSON recibido la ronda vigente (la última) con sus votos, su
+// resultado y quienes no votaron.
+func pokerCurrentRound(t *testing.T, snapshot pokerSessionBody) pokerRevealedRoundBody {
+	t.Helper()
+	var raw struct {
+		Rounds []pokerRevealedRoundBody `json:"rounds"`
+	}
+	require.NoError(t, json.Unmarshal(snapshot.Raw, &raw), "el cuerpo no es JSON válido: %s", snapshot.Raw)
+	require.NotEmpty(t, raw.Rounds, "la sesión debería tener rondas: %s", snapshot.Raw)
+	return raw.Rounds[len(raw.Rounds)-1]
+}
+
+// currentRoundRevealed es la condición "la ronda vigente está revelada", para esperar con NextUntil.
+func currentRoundRevealed(s pokerSessionBody) bool {
+	return len(s.Rounds) > 0 && s.Rounds[len(s.Rounds)-1].Status == "revealed"
+}
+
+// pokerRevealedCards devuelve las cartas reveladas de la ronda indexadas por el identificador de su
+// autor, para compararlas como conjunto.
+func pokerRevealedCards(round pokerRevealedRoundBody) map[string]string {
+	cards := make(map[string]string, len(round.Votes))
+	for _, v := range round.Votes {
+		cards[v.User.ID] = v.Card
+	}
+	return cards
+}
+
+// pokerUserIDs devuelve los identificadores de las referencias en su orden.
+func pokerUserIDs(users []pokerUserRef) []string {
+	ids := make([]string, 0, len(users))
+	for _, u := range users {
+		ids = append(ids, u.ID)
+	}
+	return ids
+}
+
+// pokerIDStrings convierte los identificadores a texto, en su orden.
+func pokerIDStrings(ids ...uuid.UUID) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, id.String())
+	}
+	return out
+}
+
+// requireRevealedRound exige que la instantánea tenga la ronda vigente revelada con su momento de
+// revelado, exactamente los votos indicados (autor → carta) y, en notVoted, exactamente a las
+// personas indicadas; devuelve la ronda para verificar su resultado.
+func requireRevealedRound(t *testing.T, snapshot pokerSessionBody, votes map[uuid.UUID]string, notVoted []uuid.UUID, where string) pokerRevealedRoundBody {
+	t.Helper()
+	round := pokerCurrentRound(t, snapshot)
+	require.Equal(t, "revealed", round.Status, "%s: la ronda vigente debería estar revelada: %s", where, snapshot.Raw)
+	assert.NotNil(t, round.RevealedAt, "%s: revealedAt no debería ser null", where)
+	want := make(map[string]string, len(votes))
+	for id, card := range votes {
+		want[id.String()] = card
+	}
+	assert.Equal(t, want, pokerRevealedCards(round), "%s: votos revelados: %s", where, snapshot.Raw)
+	assert.ElementsMatch(t, pokerIDStrings(notVoted...), pokerUserIDs(round.NotVoted), "%s: notVoted: %s", where, snapshot.Raw)
+	return round
+}
+
+// requireConsensus exige un resultado consensus con el valor indicado y sin mínimo ni máximo
+// (FR-037, FR-040).
+func requireConsensus(t *testing.T, round pokerRevealedRoundBody, value int, where string) {
+	t.Helper()
+	require.NotNil(t, round.Outcome, "%s: la ronda revelada debería tener resultado", where)
+	assert.Equal(t, "consensus", round.Outcome.Kind, "%s: tipo de resultado", where)
+	if assert.NotNil(t, round.Outcome.Value, "%s: el consenso debería llevar su valor", where) {
+		assert.Equal(t, value, *round.Outcome.Value, "%s: valor del consenso", where)
+	}
+	assert.Nil(t, round.Outcome.Min, "%s: el consenso no señala mínimo", where)
+	assert.Nil(t, round.Outcome.Max, "%s: el consenso no señala máximo", where)
+}
+
+// requireDivergence exige un resultado divergence sin valor, con el mínimo y el máximo indicados y
+// sus autores en el orden dado, que es el orden por nombre (FR-038, FR-039).
+func requireDivergence(t *testing.T, round pokerRevealedRoundBody, minValue int, minAuthors []uuid.UUID, maxValue int, maxAuthors []uuid.UUID, where string) {
+	t.Helper()
+	require.NotNil(t, round.Outcome, "%s: la ronda revelada debería tener resultado", where)
+	assert.Equal(t, "divergence", round.Outcome.Kind, "%s: tipo de resultado", where)
+	assert.Nil(t, round.Outcome.Value, "%s: la divergencia no lleva valor", where)
+	if assert.NotNil(t, round.Outcome.Min, "%s: la divergencia debería señalar el mínimo", where) {
+		assert.Equal(t, minValue, round.Outcome.Min.Value, "%s: valor mínimo", where)
+		assert.Equal(t, pokerIDStrings(minAuthors...), pokerUserIDs(round.Outcome.Min.Authors), "%s: autores del mínimo", where)
+	}
+	if assert.NotNil(t, round.Outcome.Max, "%s: la divergencia debería señalar el máximo", where) {
+		assert.Equal(t, maxValue, round.Outcome.Max.Value, "%s: valor máximo", where)
+		assert.Equal(t, pokerIDStrings(maxAuthors...), pokerUserIDs(round.Outcome.Max.Authors), "%s: autores del máximo", where)
+	}
+}
+
+// pokerStoredCurrentRound lee de estimation_rounds la ronda vigente de la sesión.
+func pokerStoredCurrentRound(t *testing.T, db *gorm.DB, sessionID string) domain.EstimationRound {
+	t.Helper()
+	var round domain.EstimationRound
+	require.NoError(t, db.Where("session_id = ?", sessionID).Order("number DESC").First(&round).Error,
+		"no se encontró la ronda vigente de la sesión %s", sessionID)
+	return round
+}
+
+// requireStoredRevealed exige que la ronda vigente quede revelada en la base, con revealed_at en el
+// instante indicado del reloj falso.
+func requireStoredRevealed(t *testing.T, db *gorm.DB, sessionID string, at time.Time) {
+	t.Helper()
+	round := pokerStoredCurrentRound(t, db, sessionID)
+	assert.Equal(t, domain.RoundStatusRevealed, round.Status, "la ronda vigente debería quedar revelada en la base")
+	if assert.NotNil(t, round.RevealedAt, "debería registrarse el momento de la revelación") {
+		assert.True(t, round.RevealedAt.Equal(at), "revealed_at = %s, se esperaba %s", round.RevealedAt, at)
+	}
+}
+
+// requireStoredVoting exige que la ronda vigente siga en votación en la base, sin momento de
+// revelado.
+func requireStoredVoting(t *testing.T, db *gorm.DB, sessionID, why string) {
+	t.Helper()
+	round := pokerStoredCurrentRound(t, db, sessionID)
+	assert.Equal(t, domain.RoundStatusVoting, round.Status, "la ronda vigente debería seguir en votación: %s", why)
+	assert.Nil(t, round.RevealedAt, "la ronda en votación no tiene momento de revelado: %s", why)
+}
+
+// pokerUS3Fixture es el "Dado" de cuatro participantes de US3: el de US2 con Diego sumado como
+// integrante del proyecto y su canal abierto, los cuatro conectados y la ronda 1 en votación.
+type pokerUS3Fixture struct {
+	pokerUS2Fixture
+	diego *pokerStream
+}
+
+// newPokerUS3Fixture prepara el "Dado" de cuatro participantes y espera a que cada canal vea a los
+// cuatro conectados, para que la instantánea siguiente sea la de un voto.
+func newPokerUS3Fixture(t *testing.T) pokerUS3Fixture {
+	t.Helper()
+	f := pokerUS3Fixture{pokerUS2Fixture: newPokerUS2Fixture(t)}
+	f.env.addMember(t, f.anaToken, f.projectID, "diego@example.com")
+	f.diego = f.env.openStream(t, f.diegoToken, f.session.ID)
+	four := allConnected(f.anaID, f.brunoID, f.carlaID, f.diegoID)
+	for name, stream := range f.streams() {
+		stream.NextUntil(t, "los cuatro conectados en el canal de "+name, four)
+	}
+	return f
+}
+
+// streams devuelve los canales de los cuatro participantes por nombre.
+func (f pokerUS3Fixture) streams() map[string]*pokerStream {
+	return map[string]*pokerStream{"Ana": f.ana, "Bruno": f.bruno, "Carla": f.carla, "Diego": f.diego}
+}
+
+// threeStreams devuelve los canales de Ana, Bruno y Carla del "Dado" de US2 por nombre.
+func (f pokerUS2Fixture) threeStreams() map[string]*pokerStream {
+	return map[string]*pokerStream{"Ana": f.ana, "Bruno": f.bruno, "Carla": f.carla}
+}
+
+// Escenario: Revelación automática (005/US3)
+// Con Ana, Bruno y Carla conectados, votan 3, 5 y 13: los dos primeros votos dejan la ronda en
+// votación y, al emitirse el último, la ronda se revela sola en la misma transacción. La respuesta
+// de Carla y los tres canales, sin recargar y en menos de 2 segundos, muestran el voto de cada uno,
+// la divergencia con el mínimo 3 de Ana y el máximo 13 de Carla, y notVoted vacío; en la base la
+// ronda queda revelada con revealed_at en el instante del reloj (FR-030, FR-031, FR-036, FR-038,
+// FR-039, FR-073).
+func TestUS3_RevelacionAutomatica(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+
+	f.env.requireVoted(t, f.anaToken, f.session.ID, "3")
+	f.env.requireVoted(t, f.brunoToken, f.session.ID, "5")
+	requireStoredVoting(t, f.env.db, f.session.ID, "falta el voto de Carla")
+	last := f.env.requireVoted(t, f.carlaToken, f.session.ID, "13")
+
+	// La respuesta del último voto ya trae la ronda revelada.
+	votes := map[uuid.UUID]string{f.anaID: "3", f.brunoID: "5", f.carlaID: "13"}
+	round := requireRevealedRound(t, last, votes, nil, "respuesta de Carla")
+	requireDivergence(t, round, 3, []uuid.UUID{f.anaID}, 13, []uuid.UUID{f.carlaID}, "respuesta de Carla")
+
+	// Los tres canales reciben la revelación sin recargar.
+	for name, stream := range f.threeStreams() {
+		snapshot := stream.NextUntil(t, "la ronda revelada en el canal de "+name, currentRoundRevealed)
+		round := requireRevealedRound(t, snapshot, votes, nil, "canal de "+name)
+		requireDivergence(t, round, 3, []uuid.UUID{f.anaID}, 13, []uuid.UUID{f.carlaID}, "canal de "+name)
+	}
+	requireStoredRevealed(t, f.env.db, f.session.ID, f.env.clock.Now())
+}
+
+// Escenario: Revelación manual con consenso (005/US3)
+// Con Ana, Bruno, Carla y Diego conectados, los tres primeros votan 8 y Diego no vota: la ronda sigue
+// en votación. Ana, facilitadora, revela: responde 200 con la ronda revelada, y los cuatro canales
+// muestran los tres votos 8, a Diego en notVoted como "sin voto" y el consenso en 8 sin mínimo ni
+// máximo; en la base la ronda queda revelada (FR-032, FR-035, FR-037, FR-040).
+func TestUS3_RevelacionManualConConsenso(t *testing.T) {
+	f := newPokerUS3Fixture(t)
+	for _, token := range []string{f.anaToken, f.brunoToken, f.carlaToken} {
+		f.env.requireVoted(t, token, f.session.ID, "8")
+	}
+	requireStoredVoting(t, f.env.db, f.session.ID, "Diego todavía no votó")
+
+	resp := f.env.reveal(t, f.anaToken, f.session.ID)
+
+	var revealed pokerSessionBody
+	requirePokerStatus(t, resp, http.StatusOK, &revealed)
+	revealed.Raw = resp.Body
+	votes := map[uuid.UUID]string{f.anaID: "8", f.brunoID: "8", f.carlaID: "8"}
+	requireConsensus(t, requireRevealedRound(t, revealed, votes, []uuid.UUID{f.diegoID}, "respuesta de Ana"), 8, "respuesta de Ana")
+
+	// Los cuatro canales reciben la revelación con Diego sin voto.
+	for name, stream := range f.streams() {
+		snapshot := stream.NextUntil(t, "la ronda revelada en el canal de "+name, currentRoundRevealed)
+		round := requireRevealedRound(t, snapshot, votes, []uuid.UUID{f.diegoID}, "canal de "+name)
+		requireConsensus(t, round, 8, "canal de "+name)
+	}
+	requireStoredRevealed(t, f.env.db, f.session.ID, f.env.clock.Now())
+}
+
+// Escenario: Interrogación fuera del cálculo (005/US3)
+// Ana y Bruno votan 5 y Carla vota "?": al completarse los votos la ronda se revela sola; los tres
+// canales muestran el "?" de Carla tal como se jugó y el consenso en 5, porque el "?" no participa
+// del cálculo (FR-036, FR-037, RN-12).
+func TestUS3_InterrogacionFueraDelCalculo(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+
+	f.env.requireVoted(t, f.anaToken, f.session.ID, "5")
+	f.env.requireVoted(t, f.brunoToken, f.session.ID, "5")
+	f.env.requireVoted(t, f.carlaToken, f.session.ID, "?")
+
+	votes := map[uuid.UUID]string{f.anaID: "5", f.brunoID: "5", f.carlaID: "?"}
+	for name, stream := range f.threeStreams() {
+		snapshot := stream.NextUntil(t, "la ronda revelada en el canal de "+name, currentRoundRevealed)
+		requireConsensus(t, requireRevealedRound(t, snapshot, votes, nil, "canal de "+name), 5, "canal de "+name)
+	}
+	requireStoredRevealed(t, f.env.db, f.session.ID, f.env.clock.Now())
+}
+
+// Escenario: Consenso sin extremos (005/US3)
+// Ana, Bruno y Carla votan 20: la ronda se revela sola con consenso en 20 y sin mínimo ni máximo,
+// porque no hay diferencias que explicar (FR-037, FR-040, RN-13).
+func TestUS3_ConsensoSinExtremos(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+
+	for _, token := range []string{f.anaToken, f.brunoToken, f.carlaToken} {
+		f.env.requireVoted(t, token, f.session.ID, "20")
+	}
+
+	votes := map[uuid.UUID]string{f.anaID: "20", f.brunoID: "20", f.carlaID: "20"}
+	for name, stream := range f.threeStreams() {
+		snapshot := stream.NextUntil(t, "la ronda revelada en el canal de "+name, currentRoundRevealed)
+		requireConsensus(t, requireRevealedRound(t, snapshot, votes, nil, "canal de "+name), 20, "canal de "+name)
+	}
+}
+
+// Escenario: Único participante (005/US3)
+// Ana abre la sesión y nadie más se une: al votar 13, la ronda se revela sola porque votó el único
+// conectado; la respuesta y su canal muestran su voto y el consenso en 13, y en la base la ronda
+// queda revelada (FR-030, RN-09, RN-23, SC-006).
+func TestUS3_UnicoParticipante(t *testing.T) {
+	f := newPokerUS1Fixture(t)
+	session := f.env.requireOpenedSession(t, f.anaToken, f.storyID)
+	stream := f.env.openStream(t, f.anaToken, session.ID)
+	stream.NextUntil(t, "Ana conectada", allConnected(f.anaID))
+
+	resp := f.env.requireVoted(t, f.anaToken, session.ID, "13")
+
+	votes := map[uuid.UUID]string{f.anaID: "13"}
+	requireConsensus(t, requireRevealedRound(t, resp, votes, nil, "respuesta de Ana"), 13, "respuesta de Ana")
+	snapshot := stream.NextUntil(t, "la ronda revelada en el canal de Ana", currentRoundRevealed)
+	requireConsensus(t, requireRevealedRound(t, snapshot, votes, nil, "canal de Ana"), 13, "canal de Ana")
+	requireStoredRevealed(t, f.env.db, session.ID, f.env.clock.Now())
+}
+
+// Escenario: Todos interrogación (005/US3)
+// Ana, Bruno y Carla votan "?": la ronda se revela sola sin consenso, sin valor y sin mínimo ni
+// máximo, y el resultado indica que no hubo ningún voto numérico (FR-041, RN-14).
+func TestUS3_TodosInterrogacion(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+
+	for _, token := range []string{f.anaToken, f.brunoToken, f.carlaToken} {
+		f.env.requireVoted(t, token, f.session.ID, "?")
+	}
+
+	votes := map[uuid.UUID]string{f.anaID: "?", f.brunoID: "?", f.carlaID: "?"}
+	for name, stream := range f.threeStreams() {
+		snapshot := stream.NextUntil(t, "la ronda revelada en el canal de "+name, currentRoundRevealed)
+		round := requireRevealedRound(t, snapshot, votes, nil, "canal de "+name)
+		if assert.NotNil(t, round.Outcome, "canal de %s: la ronda revelada debería tener resultado", name) {
+			assert.Equal(t, "no_numeric_votes", round.Outcome.Kind, "canal de %s: tipo de resultado", name)
+			assert.Nil(t, round.Outcome.Value, "canal de %s: sin votos numéricos no hay valor", name)
+			assert.Nil(t, round.Outcome.Min, "canal de %s: sin votos numéricos no hay mínimo", name)
+			assert.Nil(t, round.Outcome.Max, "canal de %s: sin votos numéricos no hay máximo", name)
+		}
+	}
+}
+
+// Escenario: Desconexión dispara la revelación (005/US3)
+// Con Ana, Bruno y Carla conectados que votaron 3, 5 y 8, y Diego conectado sin votar, Diego cierra
+// su canal: mientras dura la gracia la ronda sigue en votación. Al avanzar el reloj 30 segundos el
+// barrido registra su desconexión y, en la misma transacción, la ronda se revela sola porque todos
+// los que siguen conectados ya votaron; los canales de Ana, Bruno y Carla muestran los tres votos, la
+// divergencia de 3 a 8 y notVoted vacío, porque Diego ya no está conectado (FR-014, FR-030, FR-031,
+// RN-09).
+func TestUS3_DesconexionDisparaRevelacion(t *testing.T) {
+	f := newPokerUS3Fixture(t)
+	f.env.requireVoted(t, f.anaToken, f.session.ID, "3")
+	f.env.requireVoted(t, f.brunoToken, f.session.ID, "5")
+	f.env.requireVoted(t, f.carlaToken, f.session.ID, "8")
+
+	// Diego cierra su canal sin votar; hasta que vence la gracia la ronda no se revela.
+	f.diego.Close()
+	requireStoredVoting(t, f.env.db, f.session.ID, "Diego sigue dentro de la gracia")
+	f.env.sweep(t, 30*time.Second)
+
+	votes := map[uuid.UUID]string{f.anaID: "3", f.brunoID: "5", f.carlaID: "8"}
+	for name, stream := range f.threeStreams() {
+		snapshot := stream.NextUntil(t, "la ronda revelada en el canal de "+name, currentRoundRevealed)
+		round := requireRevealedRound(t, snapshot, votes, nil, "canal de "+name)
+		requireDivergence(t, round, 3, []uuid.UUID{f.anaID}, 8, []uuid.UUID{f.carlaID}, "canal de "+name)
+		if p := snapshot.participant(f.diegoID); assert.NotNil(t, p, "canal de %s: Diego sigue en la lista", name) {
+			assert.False(t, p.Connected, "canal de %s: Diego figura desconectado", name)
+		}
+	}
+	requireStoredRevealed(t, f.env.db, f.session.ID, f.env.clock.Now())
+}
+
+// Escenario: Autores múltiples (005/US3)
+// Con los cuatro conectados, Ana y Carla votan 3 y Bruno y Diego votan 40: la ronda se revela sola y
+// los cuatro canales señalan como autores del mínimo a Ana y Carla y como autores del máximo a Bruno
+// y Diego, ordenados por nombre (FR-039).
+func TestUS3_AutoresMultiples(t *testing.T) {
+	f := newPokerUS3Fixture(t)
+
+	f.env.requireVoted(t, f.anaToken, f.session.ID, "3")
+	f.env.requireVoted(t, f.brunoToken, f.session.ID, "40")
+	f.env.requireVoted(t, f.carlaToken, f.session.ID, "3")
+	f.env.requireVoted(t, f.diegoToken, f.session.ID, "40")
+
+	votes := map[uuid.UUID]string{f.anaID: "3", f.brunoID: "40", f.carlaID: "3", f.diegoID: "40"}
+	for name, stream := range f.streams() {
+		snapshot := stream.NextUntil(t, "la ronda revelada en el canal de "+name, currentRoundRevealed)
+		round := requireRevealedRound(t, snapshot, votes, nil, "canal de "+name)
+		requireDivergence(t, round,
+			3, []uuid.UUID{f.anaID, f.carlaID},
+			40, []uuid.UUID{f.brunoID, f.diegoID},
+			"canal de "+name)
+	}
+}
+
+// Escenario: Revelar sin votos (005/US3)
+// Con Ana, Bruno y Carla conectados y ningún voto emitido, Ana, facilitadora, intenta revelar:
+// responde 409 con el mensaje de que hace falta al menos un voto, la ronda sigue en votación y la
+// versión de la sesión no cambia, porque el rechazo no es un hecho (FR-033, RN-10).
+func TestUS3_RevelarSinVotos(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	before := pokerStoredVersion(t, f.env.db, f.session.ID)
+
+	resp := f.env.reveal(t, f.anaToken, f.session.ID)
+
+	assert.Equal(t, http.StatusConflict, resp.Code, "cuerpo: %s", resp.Body)
+	assert.JSONEq(t, pokerNoVotesToRevealBodyJSON, string(resp.Body))
+	requireStoredVoting(t, f.env.db, f.session.ID, "el rechazo no revela")
+	assert.Equal(t, before, pokerStoredVersion(t, f.env.db, f.session.ID), "un rechazo no sube la versión")
+}
+
+// Escenario: Revelar sin ser facilitador (005/US3)
+// Con Ana y Bruno ya votados y Carla conectada sin votar, Carla, que no es la facilitadora, intenta
+// revelar: responde 403 con el mensaje de que la acción está reservada al facilitador, la ronda sigue
+// en votación, la versión no cambia y una conexión nueva de Carla sigue viendo los votos ocultos
+// (FR-034, FR-064, SC-011).
+func TestUS3_RevelarSinSerFacilitador(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.env.requireVoted(t, f.anaToken, f.session.ID, "5")
+	f.env.requireVoted(t, f.brunoToken, f.session.ID, "8")
+	before := pokerStoredVersion(t, f.env.db, f.session.ID)
+
+	resp := f.env.reveal(t, f.carlaToken, f.session.ID)
+
+	assert.Equal(t, http.StatusForbidden, resp.Code, "cuerpo: %s", resp.Body)
+	assert.JSONEq(t, pokerFacilitatorOnlyBodyJSON, string(resp.Body))
+	requireStoredVoting(t, f.env.db, f.session.ID, "el rechazo no revela")
+	assert.Equal(t, before, pokerStoredVersion(t, f.env.db, f.session.ID), "un rechazo no sube la versión")
+
+	// Una conexión nueva de Carla recibe la ronda en votación con los votos ocultos.
+	second := f.env.openStream(t, f.carlaToken, f.session.ID)
+	both := func(s pokerSessionBody) bool { return hasVoted(f.anaID)(s) && hasVoted(f.brunoID)(s) }
+	snapshot := second.NextUntil(t, "Ana y Bruno ya votaron en la conexión nueva de Carla", both)
+	requireSecretVote(t, snapshot, f.anaID, "Carla")
+	requireSecretVote(t, snapshot, f.brunoID, "Carla")
+}
+
+// pokerSend envía una petición sin usar require, porque corre en una goroutine distinta de la de la
+// prueba y ahí no se puede llamar a FailNow; el error de transporte vuelve como valor.
+func (e *pokerTestEnv) pokerSend(method, path, token string, body []byte) pokerConcurrentResult {
+	req, err := http.NewRequest(method, e.server.URL+path, bytes.NewReader(body))
+	if err != nil {
+		return pokerConcurrentResult{err: err}
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := (&http.Client{Timeout: pokerHTTPTimeout}).Do(req)
+	if err != nil {
+		return pokerConcurrentResult{err: err}
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return pokerConcurrentResult{err: err}
+	}
+	return pokerConcurrentResult{resp: pokerResponse{
+		Code:        resp.StatusCode,
+		ContentType: resp.Header.Get("Content-Type"),
+		Body:        data,
+	}}
+}
+
+// Escenario: Cambio simultáneo con revelación (005/US2)
+// Bruno ya votó 5 y Carla 8, y Ana todavía no votó. Bruno cambia su carta a 13 en el mismo instante en
+// que Ana, facilitadora, revela: la revelación responde 200 y el cambio 200 si llegó antes o 409 si
+// la ronda ya estaba revelada. Los tres canales reciben la misma instantánea revelada, con la misma
+// versión y el mismo conjunto de votos: el 13 de Bruno si su cambio fue aceptado y el 5 si fue
+// rechazado, igual que en la base (FR-031, RN-11, SC-007).
+func TestUS2_CambioSimultaneoConRevelacion(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.env.requireVoted(t, f.brunoToken, f.session.ID, "5")
+	f.env.requireVoted(t, f.carlaToken, f.session.ID, "8")
+	payload, err := json.Marshal(map[string]any{"card": "13"})
+	require.NoError(t, err)
+
+	// El cambio de Bruno y la revelación de Ana salen a la vez tras la misma señal.
+	var change, reveal pokerConcurrentResult
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		<-start
+		change = f.env.pokerSend(http.MethodPut, votePath(f.session.ID), f.brunoToken, payload)
+	})
+	wg.Go(func() {
+		<-start
+		reveal = f.env.pokerSend(http.MethodPost, revealPath(f.session.ID), f.anaToken, nil)
+	})
+	close(start)
+	wg.Wait()
+
+	// La revelación se acepta y el cambio queda aceptado o rechazado por la ronda revelada.
+	require.NoError(t, reveal.err, "la revelación no obtuvo respuesta")
+	require.NoError(t, change.err, "el cambio de voto no obtuvo respuesta")
+	require.Equal(t, http.StatusOK, reveal.resp.Code, "revelación; cuerpo: %s", reveal.resp.Body)
+	brunoCard := "5"
+	switch change.resp.Code {
+	case http.StatusOK:
+		brunoCard = "13"
+	case http.StatusConflict:
+		assert.JSONEq(t, pokerRoundRevealedBodyJSON, string(change.resp.Body))
+	default:
+		t.Fatalf("cambio de voto: código %d inesperado; cuerpo: %s", change.resp.Code, change.resp.Body)
+	}
+
+	// Los tres canales ven la misma revelación, con la carta de Bruno que corresponde al resultado.
+	votes := map[uuid.UUID]string{f.brunoID: brunoCard, f.carlaID: "8"}
+	versions := map[string]int64{}
+	for name, stream := range f.threeStreams() {
+		snapshot := stream.NextUntil(t, "la ronda revelada en el canal de "+name, currentRoundRevealed)
+		requireRevealedRound(t, snapshot, votes, []uuid.UUID{f.anaID}, "canal de "+name)
+		versions[name] = snapshot.Version
+	}
+	assert.Equal(t, versions["Ana"], versions["Bruno"], "Ana y Bruno deberían ver la misma versión revelada")
+	assert.Equal(t, versions["Ana"], versions["Carla"], "Ana y Carla deberían ver la misma versión revelada")
+	requireSingleStoredVote(t, f.env.db, f.session.ID, f.brunoID, brunoCard)
+	requireStoredRevealed(t, f.env.db, f.session.ID, f.env.clock.Now())
 }

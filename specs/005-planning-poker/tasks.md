@@ -589,7 +589,7 @@ Points de la historia toman ese valor.
 
 - [X] T065 [P] [US5] Implementar `ValidateAgreedValue` en `backend/internal/poker/domain/card.go`
       sobre `backlogdomain.IsValidStoryPoints` — depende de T061
-- [ ] T066 [US5] Implementar la validación del cuerpo de registro en
+- [X] T066 [US5] Implementar la validación del cuerpo de registro en
       `backend/internal/poker/delivery/validation.go` — depende de T062, T065
 - [ ] T067 [US5] Implementar `Finalize` en
       `backend/internal/poker/repository/session_repository.go`: bloqueo de la sesión, `EnsureOpen`,

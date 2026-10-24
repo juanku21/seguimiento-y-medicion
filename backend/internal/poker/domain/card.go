@@ -48,14 +48,15 @@ func ParseCard(text string) (Card, error) {
 // votos de la ronda: cualquier valor de la escala es válido aunque nadie lo haya votado.
 func ValidateAgreedValue(value int) error {
 	if !backlogdomain.IsValidStoryPoints(value) {
-		return fmt.Errorf("el valor acordado %d no es válido; debe ser uno de %s", value, agreedScaleList())
+		return fmt.Errorf("el valor acordado %d no es válido; debe ser uno de %s", value, AgreedScaleList())
 	}
 	return nil
 }
 
-// agreedScaleList arma la lista legible de la escala numérica de Story Points en orden, separada por
-// comas y con "o" antes del último valor, por ejemplo "0, 1, 2, 3, 5, 8, 13, 20, 40 o 100".
-func agreedScaleList() string {
+// AgreedScaleList arma la lista legible de la escala numérica de Story Points en orden, separada por
+// comas y con "o" antes del último valor, por ejemplo "0, 1, 2, 3, 5, 8, 13, 20, 40 o 100". Se
+// exporta para que delivery arme su mensaje de validación sin repetir la escala.
+func AgreedScaleList() string {
 	scale := backlogdomain.StoryPointsScale
 	texts := make([]string, len(scale))
 	for i, points := range scale {

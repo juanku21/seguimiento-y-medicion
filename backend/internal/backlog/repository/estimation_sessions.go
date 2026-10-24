@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // EstimationSessions implementa domain.EstimationSessions mientras la feature
@@ -12,9 +13,9 @@ import (
 // Canceladas, sin tocar backlog/service.
 type EstimationSessions struct{}
 
-// NewEstimationSessions crea el puerto de sesiones de estimación. No recibe dependencias porque hoy
-// no consulta ninguna tabla.
-func NewEstimationSessions() *EstimationSessions {
+// NewEstimationSessions crea el puerto de sesiones de estimación sobre la conexión recibida. Firma
+// mínima de la T086: todavía no guarda la conexión ni consulta ninguna tabla (lo implementa la T088).
+func NewEstimationSessions(_ *gorm.DB) *EstimationSessions {
 	return &EstimationSessions{}
 }
 

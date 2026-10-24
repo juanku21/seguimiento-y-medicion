@@ -792,7 +792,7 @@ responde `409` con el motivo `estimation_sessions`.
       mismo cuerpo que un `storyId` inexistente) y `TestUS8_EliminacionBloqueada` (una historia con
       una sesión `finished` y otra con una `canceled`: el `DELETE` de la 003 responde `409` con
       `estimation_sessions` y el historial sigue consultable) — depende de T084
-- [ ] T086 [P] [US8] Prueba de integración del puerto reemplazado en
+- [X] T086 [P] [US8] Prueba de integración del puerto reemplazado en
       `backend/internal/backlog/repository/estimation_sessions_test.go`, cubriendo RN-33 y SC-023:
       sin sesiones → `false`; con una sesión `open`, `finished` o `canceled` → `true`; las sesiones de
       otra historia no cuentan — depende de T084

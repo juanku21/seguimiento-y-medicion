@@ -511,7 +511,7 @@ historial de la sesión.
 
 ### Pruebas de la Historia 4 ⚠️
 
-- [ ] T056 [US4] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
+- [X] T056 [US4] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
       escenario con `// Escenario: <nombre> (005/US4)`: `TestUS4_NuevaRonda`,
       `TestUS4_HistorialDeRondas` (con `GET /estimation-sessions/{id}`),
       `TestUS4_NuevaRondaTrasConsenso`, `TestUS4_IncorporacionEnRondaPosterior`,

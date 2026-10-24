@@ -630,7 +630,7 @@ nuevo facilitador.
       SC-015: facilitador conectado → `FacilitatorUnavailableError` con `RetryAfter` cero;
       desconectado hace 2 min → `RetryAfter` 3 min; 4:59 → 1 s; 5:00 y 7:00 → ok; quien pide ya es
       el facilitador → `FacilitatorUnavailableError` — depende de T069
-- [ ] T071 [US6] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
+- [X] T071 [US6] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
       escenario con `// Escenario: <nombre> (005/US6)`: `TestUS6_DesconexionDisparaRevelacion`,
       `TestUS6_ReconexionConVoto`, `TestUS6_ReconexionSinVoto`,
       `TestUS6_ReconexionEnRondaPosterior`, `TestUS6_FacilitadorRetomaElRol` (se reconecta a los 2

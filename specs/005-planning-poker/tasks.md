@@ -863,7 +863,7 @@ documentación viva, cobertura, vulnerabilidades y verificación de las puertas 
       `testing.Short()`: 10 sesiones con 10 canales cada una (100 conexiones); un voto por sesión;
       las 100 conexiones reciben la instantánea con la nueva `version` en menos de 2 segundos medidos
       desde la respuesta del voto (SC-004, RC-14). Caracterización, sin RED — depende de T090
-- [ ] T093 Prueba en `backend/internal/poker/delivery/stream_test.go`: con un token que vence en 2
+- [X] T093 Prueba en `backend/internal/poker/delivery/stream_test.go`: con un token que vence en 2
       segundos de reloj real, el canal se cierra al vencer y no vuelve a recibir instantáneas
       (research.md punto abierto 5) — depende de T090
 - [ ] T094 Exportar en `backend/internal/auth/delivery/middleware.go` el accesor

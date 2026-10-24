@@ -485,7 +485,7 @@ reciben la ronda `revealed` con `divergence`, mínimo 3 y máximo 13 con sus aut
       `notVoted` en la ronda vigente revelada de una sesión abierta, en
       `backend/internal/poker/domain/view.go`, e implementar `Reveal` en
       `backend/internal/poker/service/session_service.go` — depende de T051, T052
-- [ ] T054 [US3] Implementar el manejador `revealEstimationRound` (`POST /reveal`) con anotaciones
+- [X] T054 [US3] Implementar el manejador `revealEstimationRound` (`POST /reveal`) con anotaciones
       `swag` en `backend/internal/poker/delivery/handler.go`, los esquemas `RoundOutcome` y
       `OutcomeExtreme` en `dto.go` y la ruta en `routes.go` — depende de T053
 - [ ] T055 [US3] Implementar `RoundResult` y `FacilitatorActions` (revelar) en

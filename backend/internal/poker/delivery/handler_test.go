@@ -3481,3 +3481,459 @@ func TestPokerAutoCancel_AccionAntesDelBarrido(t *testing.T) {
 	requireStoredCanceled(t, f.env.db, session.ID, nil, storyCompleted, f.env.clock.Now())
 	requireStreamsCanceled(t, map[string]*pokerStream{"Ana": ana}, domain.CancelReasonStoryCompleted)
 }
+
+// Pruebas de integración de punta a punta de la historia 8 de Planning Poker (T085): consultan el
+// historial de estimación de una historia con GET /api/v1/stories/{storyId}/estimation-sessions sobre
+// el mismo router compuesto como cmd/app y contra smye_test. El historial trae el resumen de cada
+// sesión cerrada, sin votos, y la sesión abierta sin votos (research.md sección 8); las rondas con el
+// voto de cada participante se leen con GET /api/v1/estimation-sessions/{sessionId}. Las sesiones se
+// abren, se votan, se registran y se cancelan con los endpoints de US1 a US7, y la eliminación
+// bloqueada se pide con el DELETE /api/v1/stories/{storyId} de la 003.
+
+// Textos exactos del 404 de historia de la 003 y del 409 de eliminación bloqueada por sesiones de
+// estimación (data-model.md sección 7 de la 003).
+const (
+	pokerStoryNotFoundBody         = `{"error":"La historia no existe."}`
+	pokerDeletionBlockedMessage    = "La historia tiene historial asociado y no se puede eliminar."
+	pokerEstimationSessionsBlocker = "estimation_sessions"
+	pokerEstimationSessionsMessage = "Tiene sesiones de estimación por Planning Poker."
+	pokerHistoryEmptyBody          = `{"openSession":null,"sessions":[],"emptyReason":"no_sessions"}`
+)
+
+// pokerSessionSummaryBody refleja EstimationSessionSummary del contrato.
+type pokerSessionSummaryBody struct {
+	ID                string        `json:"id"`
+	Status            string        `json:"status"`
+	OpenedBy          pokerUserRef  `json:"openedBy"`
+	OpenedAt          string        `json:"openedAt"`
+	ClosedBy          *pokerUserRef `json:"closedBy"`
+	ClosedAt          string        `json:"closedAt"`
+	AgreedStoryPoints *int          `json:"agreedStoryPoints"`
+	CancelReason      *string       `json:"cancelReason"`
+	RoundCount        int           `json:"roundCount"`
+}
+
+// pokerOpenSessionSummaryBody refleja OpenEstimationSession del contrato.
+type pokerOpenSessionSummaryBody struct {
+	ID          string       `json:"id"`
+	Facilitator pokerUserRef `json:"facilitator"`
+	RoundNumber int          `json:"roundNumber"`
+	RoundStatus string       `json:"roundStatus"`
+}
+
+// pokerHistoryBody refleja StoryEstimationHistory del contrato. Raw guarda el JSON recibido, para
+// comprobar que un campo vale [] o null y que no viajan campos de más.
+type pokerHistoryBody struct {
+	OpenSession *pokerOpenSessionSummaryBody `json:"openSession"`
+	Sessions    []pokerSessionSummaryBody    `json:"sessions"`
+	EmptyReason *string                      `json:"emptyReason"`
+	Raw         []byte                       `json:"-"`
+}
+
+// history pide GET /api/v1/stories/{storyId}/estimation-sessions con el token como Bearer.
+func (e *pokerTestEnv) history(t *testing.T, token string, storyID uuid.UUID) pokerResponse {
+	t.Helper()
+	return e.do(t, http.MethodGet, openSessionPath(storyID), token, nil)
+}
+
+// requireHistory consulta el historial de la historia, exige el 200 y lo devuelve decodificado.
+func (e *pokerTestEnv) requireHistory(t *testing.T, token string, storyID uuid.UUID) pokerHistoryBody {
+	t.Helper()
+	var history pokerHistoryBody
+	resp := e.history(t, token, storyID)
+	requirePokerStatus(t, resp, http.StatusOK, &history)
+	history.Raw = resp.Body
+	return history
+}
+
+// finishSoloSession abre como Ana una sesión sola sobre la historia, vota la carta del valor indicado
+// (la ronda se revela sola porque es la única conectada) y registra ese valor; devuelve la sesión
+// finalizada.
+func (f pokerUS1Fixture) finishSoloSession(t *testing.T, storyID uuid.UUID, storyPoints int) pokerSessionBody {
+	t.Helper()
+	session, _ := f.newPokerSoloSession(t, storyID)
+	f.env.requireVoted(t, f.anaToken, session.ID, fmt.Sprint(storyPoints))
+	return f.env.requireFinalized(t, f.anaToken, session.ID, storyPoints)
+}
+
+// cancelSoloSession abre como Ana una sesión sola sobre la historia y la cancela; devuelve la sesión
+// cancelada.
+func (f pokerUS1Fixture) cancelSoloSession(t *testing.T, storyID uuid.UUID) pokerSessionBody {
+	t.Helper()
+	session, _ := f.newPokerSoloSession(t, storyID)
+	return f.env.requireCanceled(t, f.anaToken, session.ID)
+}
+
+// pokerParseTime interpreta un momento RFC 3339 del contrato.
+func pokerParseTime(t *testing.T, value, where string) time.Time {
+	t.Helper()
+	parsed, err := time.Parse(time.RFC3339, value)
+	require.NoError(t, err, "%s: %q no es un momento RFC 3339", where, value)
+	return parsed
+}
+
+// pokerJSONKeys devuelve las claves del objeto JSON recibido, para exigir que no viajen campos de
+// más (por ejemplo, votos).
+func pokerJSONKeys(t *testing.T, raw []byte) []string {
+	t.Helper()
+	var object map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(raw, &object), "el cuerpo no es un objeto JSON: %s", raw)
+	keys := make([]string, 0, len(object))
+	for key := range object {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
+// requireUserRef exige que la referencia sea la de la persona indicada, con su nombre completo.
+func requireUserRef(t *testing.T, got *pokerUserRef, id uuid.UUID, fullName, where string) {
+	t.Helper()
+	if assert.NotNil(t, got, "%s: no debería ser null", where) {
+		assert.Equal(t, id.String(), got.ID, "%s: identificador", where)
+		assert.Equal(t, fullName, got.FullName, "%s: nombre completo", where)
+	}
+}
+
+// requireHistoryKeys exige que el historial traiga exactamente openSession, sessions y emptyReason, y
+// que sessions sea una lista y no null.
+func requireHistoryKeys(t *testing.T, history pokerHistoryBody) {
+	t.Helper()
+	assert.ElementsMatch(t, []string{"openSession", "sessions", "emptyReason"}, pokerJSONKeys(t, history.Raw),
+		"campos del historial: %s", history.Raw)
+	var raw struct {
+		Sessions json.RawMessage `json:"sessions"`
+	}
+	require.NoError(t, json.Unmarshal(history.Raw, &raw))
+	assert.NotEqual(t, "null", string(raw.Sessions), "sessions debería ser una lista: %s", history.Raw)
+}
+
+// requireOnlySession exige que el historial no tenga sesión abierta ni motivo de vacío y que liste
+// exactamente una sesión cerrada, que devuelve.
+func requireOnlySession(t *testing.T, history pokerHistoryBody) pokerSessionSummaryBody {
+	t.Helper()
+	requireHistoryKeys(t, history)
+	assert.Nil(t, history.OpenSession, "no hay ninguna sesión abierta: %s", history.Raw)
+	assert.Nil(t, history.EmptyReason, "el historial no está vacío: %s", history.Raw)
+	require.Len(t, history.Sessions, 1, "sesiones del historial: %s", history.Raw)
+	return history.Sessions[0]
+}
+
+// requireDeletionBlockedBySessions exige el 409 de la 003 con un único motivo, estimation_sessions.
+func requireDeletionBlockedBySessions(t *testing.T, resp pokerResponse) {
+	t.Helper()
+	want, err := json.Marshal(map[string]any{
+		"error":   pokerDeletionBlockedMessage,
+		"reasons": []map[string]string{{"code": pokerEstimationSessionsBlocker, "message": pokerEstimationSessionsMessage}},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusConflict, resp.Code, "cuerpo: %s", resp.Body)
+	assert.JSONEq(t, string(want), string(resp.Body))
+}
+
+// Escenario: Sesión finalizada con rondas (005/US8)
+// Con Ana, Bruno y Carla conectados, la sesión que Ana abrió a las 15:00 tiene tres rondas: dos
+// divergentes de 3 (Ana) a 13 (Carla) y una tercera con consenso en 8. Diez minutos después Ana
+// registra 8. Bruno consulta el historial de la historia: responde 200 sin sesión abierta y con una
+// sola sesión, finalizada, con su apertura y su cierre, abierta y cerrada por Ana, el valor 8, sin
+// motivo de cancelación y con tres rondas. La consulta de esa sesión muestra las tres rondas con el
+// voto y el nombre de cada participante y el consenso o la divergencia de cada una (FR-079, FR-080).
+func TestUS8_SesionFinalizadaConRondas(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	openedAt := f.env.clock.Now()
+	f.revealDivergentRound(t)
+	f.env.requireStartedRound(t, f.anaToken, f.session.ID)
+	f.revealDivergentRound(t)
+	f.env.requireStartedRound(t, f.anaToken, f.session.ID)
+	for _, token := range []string{f.anaToken, f.brunoToken, f.carlaToken} {
+		f.env.requireVoted(t, token, f.session.ID, "8")
+	}
+	f.env.clock.Advance(10 * time.Minute)
+	f.env.requireFinalized(t, f.anaToken, f.session.ID, 8)
+	closedAt := f.env.clock.Now()
+
+	// El historial resume la sesión finalizada con sus tres rondas.
+	summary := requireOnlySession(t, f.env.requireHistory(t, f.brunoToken, f.storyID))
+	assert.Equal(t, f.session.ID, summary.ID, "identificador de la sesión")
+	assert.Equal(t, "finished", summary.Status, "estado de la sesión")
+	requireUserRef(t, &summary.OpenedBy, f.anaID, "Ana Pérez", "openedBy")
+	assert.True(t, pokerParseTime(t, summary.OpenedAt, "openedAt").Equal(openedAt), "openedAt = %s, se esperaba %s", summary.OpenedAt, openedAt)
+	requireUserRef(t, summary.ClosedBy, f.anaID, "Ana Pérez", "closedBy")
+	assert.True(t, pokerParseTime(t, summary.ClosedAt, "closedAt").Equal(closedAt), "closedAt = %s, se esperaba %s", summary.ClosedAt, closedAt)
+	assert.Equal(t, pokerIntPtr(8), summary.AgreedStoryPoints, "valor acordado")
+	assert.Nil(t, summary.CancelReason, "una sesión finalizada no tiene motivo de cancelación")
+	assert.Equal(t, 3, summary.RoundCount, "cantidad de rondas")
+
+	// La consulta de la sesión muestra cada ronda con sus votos y su resultado.
+	session := f.env.requireSessionFetched(t, f.brunoToken, summary.ID)
+	rounds := pokerAllRounds(t, session)
+	require.Len(t, rounds, 3, "rondas: %s", session.Raw)
+	names := map[string]string{f.anaID.String(): "Ana Pérez", f.brunoID.String(): "Bruno Gómez", f.carlaID.String(): "Carla Díaz"}
+	for i, round := range rounds {
+		where := fmt.Sprintf("ronda %d", i+1)
+		assert.Equal(t, "revealed", round.Status, "%s: estado", where)
+		for _, vote := range round.Votes {
+			assert.Equal(t, names[vote.User.ID], vote.User.FullName, "%s: nombre de quien votó", where)
+		}
+		if i < 2 {
+			assert.Equal(t, f.divergentCards(), pokerRevealedCards(round), "%s: votos", where)
+			requireDivergence(t, round, 3, []uuid.UUID{f.anaID}, 13, []uuid.UUID{f.carlaID}, where)
+			continue
+		}
+		assert.Equal(t, map[string]string{f.anaID.String(): "8", f.brunoID.String(): "8", f.carlaID.String(): "8"},
+			pokerRevealedCards(round), "%s: votos", where)
+		requireConsensus(t, round, 8, where)
+	}
+}
+
+// Escenario: Orden de sesiones (005/US8)
+// Ana estima la historia sola con una sesión que registra 5 y, una hora después, con otra que registra
+// 8. Bruno consulta el historial: responde 200 con las dos sesiones finalizadas de la más reciente a
+// la más antigua por su momento de apertura, la de 8 primero y la de 5 después, cada una con su valor
+// acordado (FR-080).
+func TestUS8_OrdenDeSesiones(t *testing.T) {
+	f := newPokerUS1Fixture(t)
+	older := f.finishSoloSession(t, f.storyID, 5)
+	f.env.clock.Advance(time.Hour)
+	newer := f.finishSoloSession(t, f.storyID, 8)
+
+	history := f.env.requireHistory(t, f.brunoToken, f.storyID)
+
+	requireHistoryKeys(t, history)
+	assert.Nil(t, history.OpenSession, "no hay ninguna sesión abierta: %s", history.Raw)
+	assert.Nil(t, history.EmptyReason, "el historial no está vacío: %s", history.Raw)
+	require.Len(t, history.Sessions, 2, "sesiones del historial: %s", history.Raw)
+	first, second := history.Sessions[0], history.Sessions[1]
+	assert.Equal(t, newer.ID, first.ID, "la sesión más reciente va primero")
+	assert.Equal(t, pokerIntPtr(8), first.AgreedStoryPoints, "valor de la sesión más reciente")
+	assert.Equal(t, older.ID, second.ID, "la sesión más antigua va después")
+	assert.Equal(t, pokerIntPtr(5), second.AgreedStoryPoints, "valor de la sesión más antigua")
+	assert.True(t, pokerParseTime(t, first.OpenedAt, "openedAt de la primera").
+		After(pokerParseTime(t, second.OpenedAt, "openedAt de la segunda")), "el orden es por apertura descendente")
+	for _, summary := range history.Sessions {
+		assert.Equal(t, "finished", summary.Status, "estado de la sesión %s", summary.ID)
+	}
+}
+
+// Escenario: Sesión cancelada (005/US8)
+// Con dos rondas reveladas con los votos 3, 5 y 13 de Ana, Bruno y Carla, Ana cancela la sesión.
+// Carla consulta el historial: responde 200 con la sesión cancelada por Ana, con agreedStoryPoints y
+// cancelReason en null y dos rondas; la consulta de la sesión muestra las dos rondas completas con sus
+// votos (FR-058, FR-079).
+func TestUS8_SesionCancelada(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.revealDivergentRound(t)
+	f.env.requireStartedRound(t, f.anaToken, f.session.ID)
+	f.revealDivergentRound(t)
+	f.env.requireCanceled(t, f.anaToken, f.session.ID)
+
+	history := f.env.requireHistory(t, f.carlaToken, f.storyID)
+
+	summary := requireOnlySession(t, history)
+	assert.Equal(t, f.session.ID, summary.ID, "identificador de la sesión")
+	assert.Equal(t, "canceled", summary.Status, "estado de la sesión")
+	assert.Nil(t, summary.AgreedStoryPoints, "una sesión cancelada no tiene valor acordado")
+	assert.Nil(t, summary.CancelReason, "la cancelación del facilitador no lleva motivo del sistema")
+	requireUserRef(t, summary.ClosedBy, f.anaID, "Ana Pérez", "closedBy")
+	assert.Equal(t, 2, summary.RoundCount, "cantidad de rondas")
+	var raw struct {
+		Sessions []map[string]json.RawMessage `json:"sessions"`
+	}
+	require.NoError(t, json.Unmarshal(history.Raw, &raw))
+	if assert.Len(t, raw.Sessions, 1) {
+		assert.Equal(t, "null", string(raw.Sessions[0]["agreedStoryPoints"]), "agreedStoryPoints debería viajar como null")
+	}
+
+	// Las rondas de la sesión cancelada se consultan completas.
+	session := f.env.requireSessionFetched(t, f.carlaToken, summary.ID)
+	rounds := pokerAllRounds(t, session)
+	require.Len(t, rounds, 2, "rondas: %s", session.Raw)
+	for i, round := range rounds {
+		where := fmt.Sprintf("ronda %d", i+1)
+		assert.Equal(t, "revealed", round.Status, "%s: estado", where)
+		assert.Equal(t, f.divergentCards(), pokerRevealedCards(round), "%s: votos", where)
+	}
+}
+
+// Escenario: Sesión en curso (005/US8)
+// Con la ronda 1 revelada, la ronda 2 en votación y el voto 8 de Ana todavía oculto, Bruno consulta
+// el historial: responde 200 con openSession, que lleva solo el identificador de la sesión, a Ana como
+// facilitadora, el número de ronda 2 y el estado voting, sin votos; sessions es la lista vacía, porque
+// no hay sesiones cerradas, y emptyReason es null, porque la historia sí tiene una sesión (FR-081,
+// FR-082, FR-083).
+func TestUS8_SesionEnCurso(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.revealDivergentRound(t)
+	f.env.requireStartedRound(t, f.anaToken, f.session.ID)
+	f.env.requireVoted(t, f.anaToken, f.session.ID, "8")
+
+	history := f.env.requireHistory(t, f.brunoToken, f.storyID)
+
+	requireHistoryKeys(t, history)
+	assert.Empty(t, history.Sessions, "no hay sesiones cerradas: %s", history.Raw)
+	assert.Nil(t, history.EmptyReason, "la historia tiene una sesión abierta: %s", history.Raw)
+	require.NotNil(t, history.OpenSession, "debería informar la sesión en curso: %s", history.Raw)
+	assert.Equal(t, f.session.ID, history.OpenSession.ID, "identificador de la sesión en curso")
+	requireUserRef(t, &history.OpenSession.Facilitator, f.anaID, "Ana Pérez", "facilitador")
+	assert.Equal(t, 2, history.OpenSession.RoundNumber, "número de la ronda vigente")
+	assert.Equal(t, "voting", history.OpenSession.RoundStatus, "estado de la ronda vigente")
+
+	// La sesión en curso no expone ningún voto.
+	var raw struct {
+		OpenSession json.RawMessage `json:"openSession"`
+	}
+	require.NoError(t, json.Unmarshal(history.Raw, &raw))
+	assert.ElementsMatch(t, []string{"id", "facilitator", "roundNumber", "roundStatus"}, pokerJSONKeys(t, raw.OpenSession),
+		"campos de openSession: %s", raw.OpenSession)
+}
+
+// Escenario: Historia sin sesiones (005/US8)
+// Bruno consulta el historial de una historia que nunca se estimó por Planning Poker: responde 200,
+// no un error, con openSession null, sessions como lista vacía y emptyReason no_sessions (FR-083).
+func TestUS8_HistoriaSinSesiones(t *testing.T) {
+	f := newPokerUS1Fixture(t)
+
+	resp := f.env.history(t, f.brunoToken, f.storyID)
+
+	assert.Equal(t, http.StatusOK, resp.Code, "cuerpo: %s", resp.Body)
+	assert.JSONEq(t, pokerHistoryEmptyBody, string(resp.Body))
+}
+
+// Escenario: Ex integrante (005/US8)
+// Carla abre una sesión con Ana y Bruno conectados; votan 3, 5 y 13 y Carla registra 5. Después Ana,
+// propietaria, la da de baja del proyecto con el DELETE de miembros de la 002. Bruno consulta el
+// historial: la sesión sigue abierta y cerrada por "Carla Díaz"; y la consulta de la sesión muestra
+// el voto 13 de Carla con su nombre (FR-084).
+func TestUS8_ExIntegrante(t *testing.T) {
+	f := newPokerUS1Fixture(t)
+	session := f.env.requireOpenedSession(t, f.carlaToken, f.storyID)
+	carla := f.env.openStream(t, f.carlaToken, session.ID)
+	ana := f.env.openStream(t, f.anaToken, session.ID)
+	bruno := f.env.openStream(t, f.brunoToken, session.ID)
+	three := allConnected(f.anaID, f.brunoID, f.carlaID)
+	for name, stream := range map[string]*pokerStream{"Carla": carla, "Ana": ana, "Bruno": bruno} {
+		stream.NextUntil(t, "los tres conectados en el canal de "+name, three)
+	}
+	f.env.requireVoted(t, f.anaToken, session.ID, "3")
+	f.env.requireVoted(t, f.brunoToken, session.ID, "5")
+	f.env.requireVoted(t, f.carlaToken, session.ID, "13")
+	carla.NextUntil(t, "la ronda revelada en el canal de Carla", currentRoundRevealed)
+	f.env.requireFinalized(t, f.carlaToken, session.ID, 5)
+
+	// Ana da de baja a Carla del proyecto.
+	requirePokerStatus(t, f.env.do(t, http.MethodDelete,
+		"/api/v1/projects/"+f.projectID.String()+"/members/"+f.carlaID.String(), f.anaToken, nil), http.StatusNoContent, nil)
+
+	// El historial sigue nombrando a Carla como quien abrió y cerró la sesión.
+	summary := requireOnlySession(t, f.env.requireHistory(t, f.brunoToken, f.storyID))
+	requireUserRef(t, &summary.OpenedBy, f.carlaID, "Carla Díaz", "openedBy")
+	requireUserRef(t, summary.ClosedBy, f.carlaID, "Carla Díaz", "closedBy")
+
+	// Su voto sigue figurando con su nombre.
+	fetched := f.env.requireSessionFetched(t, f.brunoToken, summary.ID)
+	rounds := pokerAllRounds(t, fetched)
+	require.Len(t, rounds, 1, "rondas: %s", fetched.Raw)
+	var found bool
+	for _, vote := range rounds[0].Votes {
+		if vote.User.ID == f.carlaID.String() {
+			found = true
+			assert.Equal(t, "Carla Díaz", vote.User.FullName, "nombre de la ex integrante")
+			assert.Equal(t, "13", vote.Card, "carta de la ex integrante")
+		}
+	}
+	assert.True(t, found, "el voto de Carla debería seguir en la ronda: %s", fetched.Raw)
+}
+
+// Escenario: Proyecto finalizado (005/US8)
+// Ana estima la historia sola con una sesión que registra 5 y después finaliza el proyecto con la
+// 002. Bruno consulta el historial: responde 200 con la sesión finalizada, porque un proyecto
+// Finalizado admite lectura (FR-085).
+func TestUS8_ProyectoFinalizado(t *testing.T) {
+	f := newPokerUS1Fixture(t)
+	finished := f.finishSoloSession(t, f.storyID, 5)
+	f.env.setProjectStatus(t, f.anaToken, f.projectID, "finished")
+
+	summary := requireOnlySession(t, f.env.requireHistory(t, f.brunoToken, f.storyID))
+
+	assert.Equal(t, finished.ID, summary.ID, "identificador de la sesión")
+	assert.Equal(t, "finished", summary.Status, "estado de la sesión")
+	assert.Equal(t, pokerIntPtr(5), summary.AgreedStoryPoints, "valor acordado")
+}
+
+// Escenario: No integrante (005/US8)
+// La historia tiene una sesión finalizada. Diego, que no integra el proyecto, consulta su historial:
+// responde 404 con el mismo código, tipo de contenido y cuerpo byte a byte que el historial de un
+// storyId inexistente, el de historia inexistente de la 003, sin revelar ningún dato (FR-087,
+// FR-088, SC-018).
+func TestUS8_NoIntegrante(t *testing.T) {
+	f := newPokerUS1Fixture(t)
+	f.finishSoloSession(t, f.storyID, 5)
+
+	missing := f.env.history(t, f.diegoToken, uuid.New())
+	foreign := f.env.history(t, f.diegoToken, f.storyID)
+
+	assert.Equal(t, http.StatusNotFound, missing.Code, "inexistente: cuerpo: %s", missing.Body)
+	assert.Equal(t, pokerStoryNotFoundBody, string(missing.Body), "inexistente: el cuerpo debería ser el de la 003")
+	assert.Equal(t, http.StatusNotFound, foreign.Code, "ajena: cuerpo: %s", foreign.Body)
+	assert.Equal(t, missing.ContentType, foreign.ContentType, "los tipos de contenido deberían ser idénticos")
+	assert.Equal(t, missing.Body, foreign.Body, "los cuerpos deberían ser idénticos byte a byte")
+}
+
+// Escenario: Eliminación bloqueada (005/US8)
+// Ana, propietaria, intenta eliminar con el DELETE /api/v1/stories/{storyId} de la 003 una historia
+// con historial de estimación, en tres variantes: con una sesión finalizada y otra cancelada, como
+// dice la spec, con solo una finalizada y con solo una cancelada. Responde 409 con el único motivo
+// estimation_sessions; la historia sigue existiendo y su historial sigue consultable con las mismas
+// sesiones (RN-33, SC-023).
+func TestUS8_EliminacionBloqueada(t *testing.T) {
+	f := newPokerUS1Fixture(t)
+
+	// Cada variante deja la historia con sus sesiones cerradas y devuelve sus identificadores.
+	variants := []struct {
+		name  string
+		close func(t *testing.T, storyID uuid.UUID) []string
+	}{
+		{
+			name: "una sesión finalizada y otra cancelada",
+			close: func(t *testing.T, storyID uuid.UUID) []string {
+				finished := f.finishSoloSession(t, storyID, 5)
+				f.env.clock.Advance(time.Hour)
+				canceled := f.cancelSoloSession(t, storyID)
+				return []string{canceled.ID, finished.ID}
+			},
+		},
+		{
+			name: "solo una sesión finalizada",
+			close: func(t *testing.T, storyID uuid.UUID) []string {
+				return []string{f.finishSoloSession(t, storyID, 5).ID}
+			},
+		},
+		{
+			name: "solo una sesión cancelada",
+			close: func(t *testing.T, storyID uuid.UUID) []string {
+				return []string{f.cancelSoloSession(t, storyID).ID}
+			},
+		},
+	}
+	for _, tc := range variants {
+		t.Run(tc.name, func(t *testing.T) {
+			storyID := f.env.createStory(t, f.brunoToken, f.projectID, pokerStoryInput{Title: "Historia de " + tc.name})
+			sessionIDs := tc.close(t, storyID)
+			f.env.clock.Advance(time.Minute)
+
+			resp := f.env.do(t, http.MethodDelete, "/api/v1/stories/"+storyID.String(), f.anaToken, nil)
+
+			requireDeletionBlockedBySessions(t, resp)
+			requirePokerStatus(t, f.env.do(t, http.MethodGet, "/api/v1/stories/"+storyID.String(), f.anaToken, nil),
+				http.StatusOK, nil)
+			assert.Equal(t, int64(len(sessionIDs)), pokerSessionRows(t, f.env.db, storyID), "las sesiones se conservan")
+
+			// El historial sigue consultable con las mismas sesiones, de la más reciente a la más antigua.
+			history := f.env.requireHistory(t, f.brunoToken, storyID)
+			got := make([]string, 0, len(history.Sessions))
+			for _, summary := range history.Sessions {
+				got = append(got, summary.ID)
+			}
+			assert.Equal(t, sessionIDs, got, "sesiones del historial: %s", history.Raw)
+		})
+	}
+}

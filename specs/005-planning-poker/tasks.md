@@ -783,7 +783,7 @@ responde `409` con el motivo `estimation_sessions`.
 
 ### Pruebas de la Historia 8 ⚠️
 
-- [ ] T085 [US8] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
+- [X] T085 [US8] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
       escenario con `// Escenario: <nombre> (005/US8)`: `TestUS8_SesionFinalizadaConRondas`,
       `TestUS8_OrdenDeSesiones`, `TestUS8_SesionCancelada`, `TestUS8_SesionEnCurso` (`openSession`
       con facilitador y número de ronda, sin votos), `TestUS8_HistoriaSinSesiones` (`200`,

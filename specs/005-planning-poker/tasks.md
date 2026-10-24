@@ -741,7 +741,7 @@ tras `Sweep`.
 
 ### Implementación de la Historia 7
 
-- [ ] T081 [P] [US7] Implementar `AutoCancelReason` en `backend/internal/poker/domain/auto_cancel.go`,
+- [X] T081 [P] [US7] Implementar `AutoCancelReason` en `backend/internal/poker/domain/auto_cancel.go`,
       con los **60 minutos** como constante nombrada — depende de T078
 - [ ] T082 [US7] Implementar `Cancel` y `AutoCancel` en
       `backend/internal/poker/repository/session_repository.go`, completar `ListOpenForSweep` con el

@@ -565,7 +565,7 @@ Points de la historia toman ese valor.
       `{"storyPoints":"?"}`, `{"storyPoints":null}`, cuerpo vacío, `7.5` y `7` → `FieldError` en
       `storyPoints` con
       `El valor acordado debe ser uno de 0, 1, 2, 3, 5, 8, 13, 20, 40 o 100.` — depende de T060
-- [ ] T063 [US5] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
+- [X] T063 [US5] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
       escenario con `// Escenario: <nombre> (005/US5)`: `TestUS5_RegistroConConsenso` (los canales
       reciben el último `state` y se cierran), `TestUS5_RegistroSinConsenso`,
       `TestUS5_ValorNoVotado`, `TestUS5_ReemplazaEstimacionAnterior`,

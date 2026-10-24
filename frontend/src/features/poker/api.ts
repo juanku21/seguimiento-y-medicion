@@ -1,11 +1,17 @@
 import {
+  getJson,
   isRecord,
   openAuthorizedStream,
   postAuthorizedJson,
   putAuthorizedJson,
   type ApiResult,
 } from "@/lib/api-client";
-import type { Card, EstimationSession, ScaleStoryPoints } from "@/types/poker";
+import type {
+  Card,
+  EstimationSession,
+  ScaleStoryPoints,
+  StoryEstimationHistory,
+} from "@/types/poker";
 
 // Reconoce la sesión de estimación (EstimationSession) que devuelven la apertura (201) y cada evento
 // state del canal, sin confiar en el cuerpo recibido. El cierre, el valor acordado, el motivo de
@@ -32,6 +38,30 @@ export function isEstimationSession(
   );
 }
 
+// Reconoce el historial de estimación de una historia (StoryEstimationHistory) sin confiar en el
+// cuerpo recibido: la sesión abierta puede llegar en null y las sesiones cerradas en una lista, que
+// queda vacía si la historia no tiene ninguna.
+export function isStoryEstimationHistory(
+  value: unknown,
+): value is StoryEstimationHistory {
+  return (
+    isRecord(value) &&
+    (value.openSession === null ||
+      (isRecord(value.openSession) &&
+        typeof value.openSession.id === "string" &&
+        isRecord(value.openSession.facilitator) &&
+        typeof value.openSession.roundNumber === "number")) &&
+    Array.isArray(value.sessions) &&
+    value.sessions.every(
+      (session: unknown) =>
+        isRecord(session) &&
+        typeof session.id === "string" &&
+        typeof session.status === "string" &&
+        typeof session.roundCount === "number",
+    )
+  );
+}
+
 // Arma la ruta de una sesión de estimación codificando el identificador, para que un valor con "/"
 // o "../" no altere la ruta pedida al backend.
 function sessionPath(sessionId: string): string {
@@ -50,6 +80,19 @@ export function openEstimationSession(
     `/api/v1/stories/${encodeURIComponent(storyId)}/estimation-sessions`,
     undefined,
     isEstimationSession,
+  );
+}
+
+// Consulta el historial de estimación de la historia con GET
+// /api/v1/stories/{storyId}/estimation-sessions (005/US8): la sesión en curso, si la hay, y las
+// sesiones cerradas de la más reciente a la más antigua. El orden y la indicación de historia sin
+// sesiones los resuelve el backend; ante un 401 el cliente HTTP descarta la sesión.
+export function getStoryEstimationHistory(
+  storyId: string,
+): Promise<ApiResult<StoryEstimationHistory>> {
+  return getJson(
+    `/api/v1/stories/${encodeURIComponent(storyId)}/estimation-sessions`,
+    isStoryEstimationHistory,
   );
 }
 

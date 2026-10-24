@@ -2,11 +2,12 @@ import type { ReactElement } from "react";
 import type { RoundStatus } from "@/types/poker";
 
 // Propiedades de las acciones del facilitador: si quien mira tiene el rol, el estado de la ronda
-// vigente y la acción que revela la ronda.
+// vigente, la acción que revela la ronda y la que inicia una ronda nueva (005/US4, T060).
 export type FacilitatorActionsProps = {
   isFacilitator: boolean;
   roundStatus: RoundStatus;
   onReveal: () => void;
+  onNewRound?: () => void;
 };
 
 // Acciones reservadas al facilitador de la sesión (005/US3). Es de presentación: solo al facilitador

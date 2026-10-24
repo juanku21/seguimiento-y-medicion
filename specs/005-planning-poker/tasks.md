@@ -522,7 +522,7 @@ historial de la sesión.
       que no había participado abre su canal y recibe los votos revelados y el resultado; su voto
       responde `409` de ronda revelada, y tras la ronda nueva puede votar (Casos Límite, FR-017) —
       depende de T055
-- [ ] T057 [P] [US4] Pruebas de frontend en
+- [X] T057 [P] [US4] Pruebas de frontend en
       `frontend/src/features/poker/components/round-history.test.tsx`, con
       `describe("005/US4 - Repetir la ronda hasta acercar posiciones")`: la sala muestra las rondas
       anteriores con sus votos y resultado, la ronda vigente sin votos, y el botón **Nueva ronda**

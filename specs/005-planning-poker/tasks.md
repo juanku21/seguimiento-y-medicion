@@ -858,7 +858,7 @@ documentación viva, cobertura, vulnerabilidades y verificación de las puertas 
       que ninguna contiene la carta (SC-005); y una aserción de que ninguna respuesta contiene
       `password_hash` ni `passwordHash` (Principio VI). Prueba de caracterización: las reglas ya
       existen, así que no tiene RED; el commit lo justifica — depende de T090
-- [ ] T092 Prueba de escala `TestPokerStream_Scale` en
+- [X] T092 Prueba de escala `TestPokerStream_Scale` en
       `backend/internal/poker/delivery/poker_scale_test.go`, **sin** etiqueta, omitida con
       `testing.Short()`: 10 sesiones con 10 canales cada una (100 conexiones); un voto por sesión;
       las 100 conexiones reciben la instantánea con la nueva `version` en menos de 2 segundos medidos

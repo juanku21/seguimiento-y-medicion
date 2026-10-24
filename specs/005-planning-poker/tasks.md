@@ -684,7 +684,7 @@ nuevo facilitador.
       `FacilitatorUnavailableResponse` en `dto.go` y la ruta en `routes.go`. `ListOpenForSweep` del
       repositorio se implementa en esta tarea con las columnas que el paso de cambios necesita —
       depende de T072, T075
-- [ ] T077 [US6] Implementar la reconexión con espera creciente en
+- [X] T077 [US6] Implementar la reconexión con espera creciente en
       `frontend/src/features/poker/use-estimation-stream.ts`, el aviso de `removed` y
       `TakeFacilitatorButton` en `frontend/src/features/poker/components/` con su llamada en
       `api.ts` — depende de T073, T076

@@ -124,3 +124,18 @@ export function finalizeEstimationSession(
     isEstimationSession,
   );
 }
+
+// Toma el rol de facilitador con POST /api/v1/estimation-sessions/{sessionId}/facilitator, sin
+// cuerpo (005/US6). Devuelve la sesión con quien pidió como facilitador (200), que además llega por
+// el canal. Las reglas las resuelve el backend: quien no participa recibe 403, la sesión inexistente
+// 404 y la sesión cerrada o el rol todavía no disponible 409 (FR-068, FR-069, FR-072); ante un 401
+// el cliente HTTP descarta la sesión.
+export function takeEstimationFacilitator(
+  sessionId: string,
+): Promise<ApiResult<EstimationSession>> {
+  return postAuthorizedJson(
+    `${sessionPath(sessionId)}/facilitator`,
+    undefined,
+    isEstimationSession,
+  );
+}

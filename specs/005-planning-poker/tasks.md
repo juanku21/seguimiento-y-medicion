@@ -666,7 +666,7 @@ nuevo facilitador.
 
 ### Implementación de la Historia 6
 
-- [ ] T074 [P] [US6] Implementar `FacilitatorTakeover` en
+- [X] T074 [P] [US6] Implementar `FacilitatorTakeover` en
       `backend/internal/poker/domain/facilitator.go`, con los **5 minutos** como constante nombrada —
       depende de T070
 - [ ] T075 [US6] Implementar `TakeFacilitator` y `ListRevokedParticipants` en

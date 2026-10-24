@@ -471,7 +471,7 @@ reciben la ronda `revealed` con `divergence`, mínimo 3 y máximo 13 con sus aut
 
 ### Implementación de la Historia 3
 
-- [ ] T050 [P] [US3] Implementar `ShouldAutoReveal` y `CanRevealManually` en
+- [X] T050 [P] [US3] Implementar `ShouldAutoReveal` y `CanRevealManually` en
       `backend/internal/poker/domain/reveal.go` — depende de T045
 - [ ] T051 [P] [US3] Implementar `RoundOutcome` y `Summarize` en
       `backend/internal/poker/domain/outcome.go` — depende de T046

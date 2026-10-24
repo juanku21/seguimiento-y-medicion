@@ -90,23 +90,6 @@ type ParticipantView struct {
 	HasVoted      bool
 }
 
-// OutcomeExtreme es el mínimo o el máximo de una ronda divergente, con todos los autores de ese
-// valor (FR-039).
-type OutcomeExtreme struct {
-	Value   int
-	Authors []UserRef
-}
-
-// RoundOutcome es el resultado de una ronda revelada, derivado de sus votos y nunca persistido
-// (data-model.md sección 8; research.md sección 5). Value solo se completa en consensus; Min y Max
-// solo en divergence; no_numeric_votes no lleva ninguno. No hay promedio ni mediana (FR-042).
-type RoundOutcome struct {
-	Kind  OutcomeKind
-	Value *int
-	Min   *OutcomeExtreme
-	Max   *OutcomeExtreme
-}
-
 // RoundView es una ronda tal como la ve quien pide. Votes es nil mientras la ronda está en votación,
 // para todos, incluido el autor (FR-023, FR-082); Outcome solo se completa en las rondas reveladas,
 // y NotVoted lista a los conectados sin voto solo en la ronda vigente revelada de una sesión abierta

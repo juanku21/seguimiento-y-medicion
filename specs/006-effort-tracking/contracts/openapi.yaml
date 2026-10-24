@@ -1,0 +1,820 @@
+# Contrato de la API de Registro de Esfuerzo (spec 006).
+# Fuente de verdad del diseño: specs/006-effort-tracking/spec.md
+# Este archivo es el contrato acordado en la Fase 1 del plan. La documentación publicada en
+# /swagger/index.html se genera con `swag init` a partir de las anotaciones del código y DEBE
+# coincidir con este contrato (Principio VIII).
+openapi: 3.0.3
+
+info:
+  title: Software Metrics & Estimation — Registro de Esfuerzo
+  description: |
+    Registro de las horas que cada integrante trabajó sobre las historias del proyecto, consulta del
+    esfuerzo por historia y por proyecto, corrección y eliminación de registros propios, y
+    comparación entre el esfuerzo estimado (Story Points × factor) y el real.
+
+    **Todas** las operaciones exigen una sesión válida, sin excepciones (FR-056). La sesión se envía
+    en la cabecera `Authorization: Bearer <token>` emitida por `/api/v1/auth/login` de la spec 001.
+
+    Reglas que gobiernan todas las respuestas:
+
+    - Cualquier **integrante vigente** del proyecto registra esfuerzo sobre cualquier historia y ve
+      el esfuerzo de todos (FR-001, FR-058). Solo el **autor** modifica o elimina un registro, y el
+      propietario del proyecto no es excepción (FR-022).
+    - El autor de un registro es **siempre** el titular de la sesión que lo crea; cualquier dato de
+      autoría enviado se ignora (FR-002).
+    - Ante una solicitud sobre un proyecto, una historia o un registro de un proyecto del que quien
+      pide no es integrante, la respuesta es `404` con **el mismo cuerpo** que ante un identificador
+      inexistente (FR-059, SC-018).
+    - En un proyecto `finished` el esfuerzo es de **solo lectura**: se consulta y se compara, y toda
+      escritura se rechaza con `409` (FR-060).
+    - Las horas son números con **exactamente 2 decimales** (`6.50`), siempre múltiplos de 0,25. El
+      valor **"no calculable" es `null`**, nunca `0` (FR-050, FR-051).
+    - El esfuerzo de un sprint `closed` se puede registrar, corregir y eliminar solo dentro del
+      **plazo de gracia** (`EFFORT_GRACE_PERIOD_HOURS`, por defecto 48 h desde el cierre real); el
+      plazo se cuenta cumplido al alcanzarse (FR-016, FR-021).
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Entorno de desarrollo local
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Esfuerzo
+    description: Registros de esfuerzo, consultas y comparación entre estimado y real
+
+paths:
+  /api/v1/stories/{storyId}/effort-entries:
+    parameters:
+      - $ref: '#/components/parameters/StoryId'
+
+    post:
+      tags: [Esfuerzo]
+      summary: Registra esfuerzo sobre una historia
+      description: |
+        Crea un registro con fecha, actividad y horas, atribuido al titular de la sesión (FR-001,
+        FR-002). Cualquier campo de autoría que llegue en el cuerpo se **ignora** (US1-25).
+
+        El sprint se asocia automáticamente y **nunca cambia** (FR-014, FR-015):
+
+        - Si la historia está comprometida en un sprint `planned` o `active`, a ese sprint.
+        - Si no, y la historia perteneció a un sprint `closed` cuyo plazo de gracia sigue vigente
+          —quedara `completed` o volviera al backlog—, a ese sprint; si hay varios, al de cierre más
+          reciente (RN-24).
+        - Si ese plazo venció y la historia quedó Completada en el sprint, se rechaza con `409`
+          porque el sprint ya es definitivo (US1-22).
+        - En otro caso, sin sprint (`sprint: null`).
+
+        Las horas son `> 0`, `≤ 24` y múltiplo de 0,25 (FR-004). La fecha no es futura —según la zona
+        horaria del sistema— ni anterior al inicio del proyecto; ambos extremos son válidos (FR-006,
+        FR-007). La suma de horas del integrante en esa fecha, contando **todos** sus proyectos, no
+        supera 24, aun ante pedidos simultáneos (FR-005).
+
+        La historia puede estar en cualquier estado y sin estimar (FR-009). Se admiten varios
+        registros del mismo integrante en la misma historia y fecha (FR-010).
+      operationId: createEffortEntry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EffortEntryInput'
+            example:
+              entryDate: '2026-10-24'
+              activity: Implementación del formulario de alta
+              hours: 6.5
+      responses:
+        '201':
+          description: Registro creado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EffortEntry'
+        '400':
+          $ref: '#/components/responses/EntradaInvalida'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/HistoriaInexistente'
+        '409':
+          $ref: '#/components/responses/ConflictoDeEscritura'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/v1/stories/{storyId}/effort:
+    parameters:
+      - $ref: '#/components/parameters/StoryId'
+
+    get:
+      tags: [Esfuerzo]
+      summary: Consulta el esfuerzo de una historia
+      description: |
+        Devuelve el total de horas reales de la historia, el desglose por integrante y la lista de
+        registros (FR-030 a FR-033). El total incluye **todos** los registros, de cualquier autor,
+        fecha y sprint, incluidos los sin sprint (FR-031). Las personas que ya no son integrantes
+        aparecen con su nombre (FR-032).
+
+        La lista se ordena por fecha descendente y, a igual fecha, por momento de creación (FR-035).
+        El desglose, por nombre. Una historia sin registros devuelve total `0.00` y listas vacías,
+        no un error (FR-034).
+      operationId: getStoryEffort
+      responses:
+        '200':
+          description: Esfuerzo de la historia, posiblemente vacío.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryEffort'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/HistoriaInexistente'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/v1/stories/{storyId}/effort-comparison:
+    parameters:
+      - $ref: '#/components/parameters/StoryId'
+
+    get:
+      tags: [Esfuerzo]
+      summary: Compara el esfuerzo estimado con el real de una historia
+      description: |
+        Devuelve Story Points, horas estimadas (Story Points × factor **vigente** del proyecto),
+        horas reales, diferencia absoluta (real − estimada) y diferencia porcentual (FR-046 a
+        FR-049, FR-053, FR-054). Ver `EffortComparisonRow` para los casos "no calculable".
+      operationId: getStoryEffortComparison
+      responses:
+        '200':
+          description: Comparación de la historia.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EffortComparisonRow'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/HistoriaInexistente'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/v1/effort-entries/{entryId}:
+    parameters:
+      - $ref: '#/components/parameters/EntryId'
+
+    patch:
+      tags: [Esfuerzo]
+      summary: Corrige un registro propio
+      description: |
+        Modifica la fecha, la actividad o las horas de un registro **propio** (FR-018). Todos los
+        campos son opcionales, pero debe venir al menos uno. Se aplican las mismas validaciones que en
+        el alta (FR-023); el tope diario se evalúa sobre la fecha resultante excluyendo las horas
+        vigentes del propio registro (FR-024). La modificación es atómica (FR-025).
+
+        El autor, la historia y el sprint asociado **no cambian**. Enviar `storyId`, `userId` o
+        `sprintId` se rechaza con `400` (FR-019, US3-16).
+
+        Se rechaza con `403` si el registro es de otra persona, aunque quien lo intente sea el
+        propietario del proyecto (FR-022); y con `409` si el proyecto está `finished` o si el sprint
+        asociado está `closed` con el plazo de gracia vencido (FR-020, FR-027). Una persona quitada
+        del proyecto recibe `404` sobre sus registros anteriores (FR-028, US3-18).
+      operationId: updateEffortEntry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EffortEntryPatch'
+            example:
+              hours: 6
+              activity: Implementación y pruebas del formulario de alta
+      responses:
+        '200':
+          description: Registro actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EffortEntry'
+        '400':
+          $ref: '#/components/responses/EntradaInvalida'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '403':
+          $ref: '#/components/responses/RegistroAjeno'
+        '404':
+          $ref: '#/components/responses/RegistroInexistente'
+        '409':
+          $ref: '#/components/responses/ConflictoDeEscritura'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+    delete:
+      tags: [Esfuerzo]
+      summary: Elimina un registro propio
+      description: |
+        Elimina definitivamente un registro **propio**; deja de contar de inmediato en los totales de
+        la historia, del sprint, del proyecto y del tope diario de esa fecha (FR-026). La historia
+        sigue sin poder eliminarse aunque se borren todos sus registros (RN-22).
+
+        Mismos rechazos que la modificación: `403` por registro ajeno; `409` por proyecto `finished`
+        o sprint `closed` con el plazo vencido; `404` para quien ya no es integrante.
+      operationId: deleteEffortEntry
+      responses:
+        '204':
+          description: Registro eliminado.
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '403':
+          $ref: '#/components/responses/RegistroAjeno'
+        '404':
+          $ref: '#/components/responses/RegistroInexistente'
+        '409':
+          $ref: '#/components/responses/ConflictoDeEscritura'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/v1/projects/{projectId}/effort-entries:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+
+    get:
+      tags: [Esfuerzo]
+      summary: Lista el esfuerzo del proyecto con filtros
+      description: |
+        Devuelve los registros del proyecto que cumplen **todos** los filtros indicados y el total de
+        horas del conjunto (FR-036, FR-037, FR-041). Orden: fecha descendente y, a igual fecha, por
+        momento de creación (FR-045). Sin paginación.
+
+        El filtro por sprint opera sobre el sprint **asociado al registro**, no sobre el sprint en el
+        que esté hoy la historia, y admite `none` para los registros sin sprint (FR-039). El filtro
+        por integrante admite a personas que ya no son integrantes, si dejaron registros en el
+        proyecto (FR-040). El rango de fechas es inclusivo en ambos extremos (FR-038).
+
+        Un filtro mal formado, inexistente o de otro proyecto se rechaza con `400` y el **mismo**
+        mensaje, sin revelar datos del otro proyecto (FR-044). Sin coincidencias, la respuesta es una
+        lista vacía con total `0.00`, no un error (FR-042).
+      operationId: listProjectEffort
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          description: Autor de los registros. Integrante vigente o persona con registros en el proyecto.
+          schema:
+            type: string
+            format: uuid
+        - name: storyId
+          in: query
+          required: false
+          description: Historia del proyecto.
+          schema:
+            type: string
+            format: uuid
+        - name: sprintId
+          in: query
+          required: false
+          description: Sprint del proyecto asociado a los registros, o `none` para los registros sin sprint.
+          schema:
+            oneOf:
+              - type: string
+                format: uuid
+              - type: string
+                enum: [none]
+        - name: from
+          in: query
+          required: false
+          description: Fecha mínima, inclusiva (`AAAA-MM-DD`).
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          description: Fecha máxima, inclusiva (`AAAA-MM-DD`). No puede ser anterior a `from` (FR-043).
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Registros filtrados con su total, posiblemente vacíos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectEffort'
+        '400':
+          description: Algún filtro es inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              examples:
+                rangoInvertido:
+                  summary: Fin anterior al inicio (US4-10)
+                  value:
+                    error: Hay campos inválidos en la solicitud.
+                    fields:
+                      - field: to
+                        message: La fecha de fin del rango no puede ser anterior a la de inicio.
+                filtroAjeno:
+                  summary: Historia de otro proyecto (US4-11)
+                  value:
+                    error: Hay campos inválidos en la solicitud.
+                    fields:
+                      - field: storyId
+                        message: El filtro no corresponde al proyecto.
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/ProyectoInexistente'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/v1/projects/{projectId}/effort-comparison:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+
+    get:
+      tags: [Esfuerzo]
+      summary: Compara el esfuerzo estimado con el real de todas las historias del proyecto
+      description: |
+        Una fila por cada historia del proyecto, de cualquier estado, incluidas las que no tienen
+        registros (horas reales `0.00`; FR-052). Mismo orden que el listado del backlog de la spec
+        003. Las horas estimadas se calculan con el factor **vigente** del proyecto en cada consulta
+        (FR-054).
+      operationId: getProjectEffortComparison
+      responses:
+        '200':
+          description: Comparación por historia.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectEffortComparison'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/ProyectoInexistente'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Token emitido por `/api/v1/auth/login` de la spec 001, enviado como
+        `Authorization: Bearer <token>`.
+
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      description: Identificador del proyecto de la spec 002.
+      schema:
+        type: string
+        format: uuid
+    StoryId:
+      name: storyId
+      in: path
+      required: true
+      description: Identificador de la historia de la spec 003.
+      schema:
+        type: string
+        format: uuid
+    EntryId:
+      name: entryId
+      in: path
+      required: true
+      description: Identificador propio, estable, inmutable y no secuencial del registro (FR-011).
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    SesionInvalida:
+      description: |
+        Se requiere iniciar sesión. Misma respuesta para sesión ausente, vencida, cerrada por su
+        titular o adulterada, definida por la spec 001 (FR-056). La acción no se ejecuta.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Se requiere iniciar sesión.
+
+    ProyectoInexistente:
+      description: |
+        El proyecto no existe, **o** existe y quien pide no es integrante. Mismo cuerpo de la spec
+        002 (FR-059, SC-018).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: El proyecto no existe.
+
+    HistoriaInexistente:
+      description: |
+        La historia no existe, **o** pertenece a un proyecto del que quien pide no es integrante.
+        Mismo cuerpo de la spec 003 (FR-059, SC-018).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: La historia no existe.
+
+    RegistroInexistente:
+      description: |
+        El registro no existe, fue eliminado, **o** pertenece a un proyecto del que quien pide no es
+        integrante vigente —incluida la persona que lo cargó y fue quitada del proyecto—. Todas las
+        situaciones devuelven exactamente el mismo cuerpo (FR-028, FR-059).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: El registro de esfuerzo no existe.
+
+    RegistroAjeno:
+      description: |
+        El registro es de otro integrante. Solo su autor lo modifica o lo elimina, aunque quien lo
+        intente sea el propietario del proyecto (FR-022, RN-11).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Solo quien registró este esfuerzo puede modificarlo o eliminarlo.
+
+    ConflictoDeEscritura:
+      description: |
+        La escritura no se admite por el estado del proyecto, del sprint o del día. El campo `code`
+        distingue el motivo: `read_only` (proyecto `finished`; FR-008, FR-027), `effort_finalized`
+        (sprint `closed` con el plazo de gracia vencido; FR-016, FR-020) o `daily_cap_exceeded`
+        (superaría las 24 horas del día, sin nombrar otros proyectos; FR-005, RC-09).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/EffortConflictResponse'
+          examples:
+            soloLectura:
+              summary: Proyecto finalizado (US1-23, US3-17)
+              value:
+                code: read_only
+                error: El proyecto está finalizado y su esfuerzo es de solo lectura.
+                availableHours: null
+            definitivo:
+              summary: Sprint cerrado con el plazo vencido (US1-22, US3-12)
+              value:
+                code: effort_finalized
+                error: Este esfuerzo pertenece a un sprint cerrado y ya es definitivo.
+                availableHours: null
+            topeDiario:
+              summary: Tope diario superado (US1-16)
+              value:
+                code: daily_cap_exceeded
+                error: Superarías las 24 horas registradas para ese día. Te quedan 4 horas disponibles.
+                availableHours: 4.00
+
+    EntradaInvalida:
+      description: |
+        Entrada inválida. Indica qué campo corregir y por qué, y no crea ni modifica nada (FR-013,
+        FR-025). Incluye las fechas futuras o anteriores al inicio del proyecto y el intento de
+        cambiar un dato inmutable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+          examples:
+            horas:
+              summary: Horas no múltiplo de 0,25 (US1-18)
+              value:
+                error: Hay campos inválidos en la solicitud.
+                fields:
+                  - field: hours
+                    message: Las horas se cargan en múltiplos de 0,25 (un cuarto de hora).
+            fecha:
+              summary: Fecha futura (US1-20)
+              value:
+                error: Hay campos inválidos en la solicitud.
+                fields:
+                  - field: entryDate
+                    message: No se registran horas en una fecha futura.
+            inmutable:
+              summary: Cambio de historia (US3-16)
+              value:
+                error: Hay campos inválidos en la solicitud.
+                fields:
+                  - field: storyId
+                    message: La historia, el integrante y el sprint de un registro no se modifican; para mover horas, eliminá el registro y creá uno nuevo.
+
+    ErrorInterno:
+      description: |
+        Error interno inesperado. La respuesta no expone ningún detalle de la causa (Principio VII).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Ocurrió un error inesperado. Intentá de nuevo más tarde.
+
+  schemas:
+    Hours:
+      type: number
+      description: |
+        Horas con **exactamente 2 decimales**, múltiplo de 0,25 cuando es una cantidad registrada.
+        Se calcula sin redondeos intermedios (SC-015).
+      example: 6.50
+
+    SprintStatus:
+      type: string
+      description: Estado del sprint de la spec 004; `planned`, `active` o `closed`.
+      enum: [planned, active, closed]
+      example: active
+
+    EffortEntryInput:
+      type: object
+      description: Cuerpo del alta. Cualquier otro campo, incluido uno de autoría, se ignora (FR-002).
+      required: [entryDate, activity, hours]
+      properties:
+        entryDate:
+          type: string
+          format: date
+          description: Fecha de calendario; no futura ni anterior al inicio del proyecto (FR-006).
+          example: '2026-10-24'
+        activity:
+          type: string
+          minLength: 1
+          maxLength: 300
+          description: Texto libre de 1 a 300 caracteres tras recortar los espacios extremos (FR-003).
+          example: Implementación del formulario de alta
+        hours:
+          type: number
+          exclusiveMinimum: true
+          minimum: 0
+          maximum: 24
+          multipleOf: 0.25
+          description: Horas trabajadas, con a lo sumo 2 decimales (FR-004).
+          example: 6.5
+
+    EffortEntryPatch:
+      type: object
+      description: |
+        Modificación parcial; debe incluir al menos uno de los tres campos. `storyId`, `userId` y
+        `sprintId` no forman parte del contrato: si llegan, se rechazan con `400` (FR-019).
+      minProperties: 1
+      properties:
+        entryDate:
+          type: string
+          format: date
+          example: '2026-10-23'
+        activity:
+          type: string
+          minLength: 1
+          maxLength: 300
+          example: Implementación y pruebas del formulario de alta
+        hours:
+          type: number
+          exclusiveMinimum: true
+          minimum: 0
+          maximum: 24
+          multipleOf: 0.25
+          example: 6
+
+    UserRef:
+      type: object
+      required: [id, fullName]
+      properties:
+        id:
+          type: string
+          format: uuid
+        fullName:
+          type: string
+          example: Ana Pérez
+
+    StoryRef:
+      type: object
+      required: [id, title]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          example: Alta de clientes
+
+    SprintRef:
+      type: object
+      description: Sprint asociado al registro al crearlo; nunca cambia (FR-015).
+      required: [id, name, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Sprint 3
+        status:
+          $ref: '#/components/schemas/SprintStatus'
+
+    EffortEntry:
+      type: object
+      required: [id, entryDate, activity, hours, author, story, sprint, definitive, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        entryDate:
+          type: string
+          format: date
+          example: '2026-10-24'
+        activity:
+          type: string
+          example: Implementación del formulario de alta
+        hours:
+          $ref: '#/components/schemas/Hours'
+        author:
+          $ref: '#/components/schemas/UserRef'
+        story:
+          $ref: '#/components/schemas/StoryRef'
+        sprint:
+          description: '`null` si el registro no tiene sprint asociado (FR-033).'
+          allOf:
+            - $ref: '#/components/schemas/SprintRef'
+          nullable: true
+        definitive:
+          type: boolean
+          description: |
+            `true` si el sprint asociado está `closed` y su plazo de gracia venció: el registro ya no
+            se modifica ni se elimina (FR-020). Valor derivado en cada respuesta.
+          example: false
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    MemberEffort:
+      type: object
+      required: [user, hours]
+      properties:
+        user:
+          $ref: '#/components/schemas/UserRef'
+        hours:
+          $ref: '#/components/schemas/Hours'
+
+    StoryEffort:
+      type: object
+      required: [storyId, totalHours, byMember, entries]
+      properties:
+        storyId:
+          type: string
+          format: uuid
+        totalHours:
+          $ref: '#/components/schemas/Hours'
+        byMember:
+          type: array
+          description: Una línea por persona con registros, incluidas las ex integrantes (FR-032).
+          items:
+            $ref: '#/components/schemas/MemberEffort'
+        entries:
+          type: array
+          description: Fecha descendente y, a igual fecha, por momento de creación (FR-035).
+          items:
+            $ref: '#/components/schemas/EffortEntry'
+      example:
+        storyId: 2b9f1c3e-8d4a-4f5b-9e6c-7a8b9c0d1e2f
+        totalHours: 16.00
+        byMember:
+          - user: { id: 0d1c2b3a-4f5e-4d6c-8b7a-9e0f1a2b3c4d, fullName: Ana Pérez }
+            hours: 10.00
+          - user: { id: 5e6f7a8b-9c0d-4e1f-a2b3-c4d5e6f7a8b9, fullName: Bruno Díaz }
+            hours: 6.00
+        entries: []
+
+    ProjectEffort:
+      type: object
+      required: [totalHours, entries, emptyReason]
+      properties:
+        totalHours:
+          $ref: '#/components/schemas/Hours'
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/EffortEntry'
+        emptyReason:
+          type: string
+          nullable: true
+          enum: [no_effort, no_matches, null]
+          description: |
+            `no_effort` si el proyecto no tiene ningún registro (US4-8); `no_matches` si los tiene pero
+            ninguno cumple los filtros (US4-7); `null` si la lista no está vacía.
+
+    EffortComparisonRow:
+      type: object
+      description: |
+        Comparación de una historia (FR-046 a FR-051, FR-055):
+
+        | Caso | `estimatedHours` | `deviationHours` | `deviationPercent` |
+        | --- | --- | --- | --- |
+        | Sin estimar (`storyPoints: null`) | `null` | `null` | `null` |
+        | 0 Story Points | `0.00` | igual a `actualHours` | `null` |
+        | Estimada | Story Points × factor | real − estimada | (real − estimada) / estimada × 100 |
+
+        `deviationPercent` se redondea a 2 decimales **solo al final**, mitad lejos de cero (FR-049,
+        RN-26). Positivo significa que se trabajó más de lo estimado.
+      required: [storyId, title, storyPoints, estimatedHours, actualHours, deviationHours, deviationPercent]
+      properties:
+        storyId:
+          type: string
+          format: uuid
+        title:
+          type: string
+          example: Alta de clientes
+        storyPoints:
+          type: integer
+          nullable: true
+          description: '`null` = "sin estimar"; `0` es una estimación válida.'
+          example: 5
+        estimatedHours:
+          allOf:
+            - $ref: '#/components/schemas/Hours'
+          nullable: true
+          example: 30.00
+        actualHours:
+          $ref: '#/components/schemas/Hours'
+        deviationHours:
+          allOf:
+            - $ref: '#/components/schemas/Hours'
+          nullable: true
+          example: 6.00
+        deviationPercent:
+          type: number
+          nullable: true
+          description: Porcentaje con exactamente 2 decimales, con signo.
+          example: 20.00
+
+    ProjectEffortComparison:
+      type: object
+      required: [hoursPerStoryPoint, stories]
+      properties:
+        hoursPerStoryPoint:
+          $ref: '#/components/schemas/Hours'
+        stories:
+          type: array
+          description: Todas las historias del proyecto, en el orden del backlog de la spec 003.
+          items:
+            $ref: '#/components/schemas/EffortComparisonRow'
+
+    EffortConflictResponse:
+      type: object
+      required: [code, error, availableHours]
+      properties:
+        code:
+          type: string
+          enum: [read_only, effort_finalized, daily_cap_exceeded]
+        error:
+          type: string
+          description: Mensaje en español dirigido a la persona.
+        availableHours:
+          allOf:
+            - $ref: '#/components/schemas/Hours'
+          nullable: true
+          description: Horas que quedan para la fecha; solo con `daily_cap_exceeded`, si no `null`.
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Mensaje en español dirigido a la persona.
+
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+          example: hours
+        message:
+          type: string
+          example: Las horas se cargan en múltiplos de 0,25 (un cuarto de hora).
+
+    ValidationErrorResponse:
+      type: object
+      required: [error, fields]
+      properties:
+        error:
+          type: string
+          example: Hay campos inválidos en la solicitud.
+        fields:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/FieldError'

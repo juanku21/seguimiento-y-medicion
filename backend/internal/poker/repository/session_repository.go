@@ -17,10 +17,6 @@ import (
 	projectsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/domain"
 )
 
-// errNotImplemented es el error de las firmas mínimas de T014 que todavía no tienen implementación;
-// las tareas de cada historia reemplazan cada cuerpo por su implementación.
-var errNotImplemented = errors.New("not implemented")
-
 // SessionRepository implementa domain.SessionRepository con GORM sobre estimation_sessions,
 // estimation_rounds, estimation_participants y estimation_votes.
 type SessionRepository struct {
@@ -1090,14 +1086,107 @@ func findSnapshotRounds(tx *gorm.DB, sessionID uuid.UUID) ([]domain.SnapshotRoun
 	return snapshotRounds, nil
 }
 
-// ListForStory devuelve las sesiones cerradas de la historia. Firma mínima de T014.
-func (r *SessionRepository) ListForStory(ctx context.Context, storyID uuid.UUID) ([]domain.SessionSummary, error) {
-	return nil, errNotImplemented
+// sessionSummaryRow es la fila que lee ListForStory: la sesión cerrada con el nombre de quien la abrió
+// y de quien la cerró, que llegan por los JOIN a users con alias, y su cantidad de rondas.
+type sessionSummaryRow struct {
+	ID                uuid.UUID
+	Status            domain.SessionStatus
+	AgreedStoryPoints *int
+	CancelReason      *domain.CancelReason
+	OpenedByID        uuid.UUID
+	OpenedByFullName  string
+	OpenedAt          time.Time
+	ClosedByID        *uuid.UUID
+	ClosedByFullName  *string
+	ClosedAt          time.Time
+	RoundCount        int
 }
 
-// FindOpenForStory devuelve la sesión abierta de la historia. Firma mínima de T014.
+// ListForStory devuelve las sesiones cerradas de la historia, de la más reciente a la más antigua por
+// su momento de apertura y luego por id, para que el orden sea determinista (FR-079, FR-080;
+// research.md sección 16). Se resuelve en una sola consulta: los nombres de quien abrió y de quien
+// cerró salen de users con un JOIN (LEFT JOIN para quien cerró, nulo si cerró el sistema) que
+// selecciona solo id y full_name y no filtra por membresía, de modo que una ex integrante conserva su
+// nombre (FR-084); la cantidad de rondas sale de una subconsulta. Sin sesiones cerradas devuelve la
+// lista vacía.
+func (r *SessionRepository) ListForStory(ctx context.Context, storyID uuid.UUID) ([]domain.SessionSummary, error) {
+	var rows []sessionSummaryRow
+	err := r.db.WithContext(ctx).
+		Table("estimation_sessions").
+		Select(`estimation_sessions.id, estimation_sessions.status, estimation_sessions.agreed_story_points,
+			estimation_sessions.cancel_reason, opener.id AS opened_by_id, opener.full_name AS opened_by_full_name,
+			estimation_sessions.created_at AS opened_at, closer.id AS closed_by_id,
+			closer.full_name AS closed_by_full_name, estimation_sessions.closed_at,
+			(SELECT COUNT(*) FROM estimation_rounds
+				WHERE estimation_rounds.session_id = estimation_sessions.id) AS round_count`).
+		Joins("JOIN users AS opener ON opener.id = estimation_sessions.opened_by_id").
+		Joins("LEFT JOIN users AS closer ON closer.id = estimation_sessions.closed_by_id").
+		Where("estimation_sessions.story_id = ? AND estimation_sessions.status <> ?", storyID, domain.SessionStatusOpen).
+		Order("estimation_sessions.created_at DESC, estimation_sessions.id DESC").
+		Find(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("listar las sesiones cerradas de la historia: %w", err)
+	}
+
+	// Cada fila se convierte al resumen del dominio; quien cerró queda nil si la cerró el sistema.
+	summaries := make([]domain.SessionSummary, 0, len(rows))
+	for _, row := range rows {
+		summary := domain.SessionSummary{
+			ID:                row.ID,
+			Status:            row.Status,
+			AgreedStoryPoints: row.AgreedStoryPoints,
+			CancelReason:      row.CancelReason,
+			OpenedBy:          domain.UserRef{ID: row.OpenedByID, FullName: row.OpenedByFullName},
+			OpenedAt:          row.OpenedAt,
+			ClosedAt:          row.ClosedAt,
+			RoundCount:        row.RoundCount,
+		}
+		if row.ClosedByID != nil && row.ClosedByFullName != nil {
+			summary.ClosedBy = &domain.UserRef{ID: *row.ClosedByID, FullName: *row.ClosedByFullName}
+		}
+		summaries = append(summaries, summary)
+	}
+	return summaries, nil
+}
+
+// openSessionSummaryRow es la fila que lee FindOpenForStory: la sesión abierta con el nombre de su
+// facilitador y el número y el estado de su ronda vigente, que llegan por los JOIN con alias.
+type openSessionSummaryRow struct {
+	ID                  uuid.UUID
+	FacilitatorID       uuid.UUID
+	FacilitatorFullName string
+	RoundNumber         int
+	RoundStatus         domain.RoundStatus
+}
+
+// FindOpenForStory devuelve la sesión abierta de la historia con su facilitador y el número y el
+// estado de la ronda vigente, la de mayor número, sin ningún voto (FR-081, FR-082). El facilitador se
+// lee de users seleccionando solo id y full_name. Si la historia no tiene una sesión abierta devuelve
+// nil sin error, porque es opcional.
 func (r *SessionRepository) FindOpenForStory(ctx context.Context, storyID uuid.UUID) (*domain.OpenSessionSummary, error) {
-	return nil, errNotImplemented
+	var row openSessionSummaryRow
+	err := r.db.WithContext(ctx).
+		Table("estimation_sessions").
+		Select(`estimation_sessions.id, users.id AS facilitator_id, users.full_name AS facilitator_full_name,
+			estimation_rounds.number AS round_number, estimation_rounds.status AS round_status`).
+		Joins("JOIN users ON users.id = estimation_sessions.facilitator_id").
+		Joins(`JOIN estimation_rounds ON estimation_rounds.session_id = estimation_sessions.id
+			AND estimation_rounds.number = (SELECT MAX(latest.number) FROM estimation_rounds AS latest
+				WHERE latest.session_id = estimation_sessions.id)`).
+		Where("estimation_sessions.story_id = ? AND estimation_sessions.status = ?", storyID, domain.SessionStatusOpen).
+		Take(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("leer la sesión abierta de la historia: %w", err)
+	}
+	return &domain.OpenSessionSummary{
+		ID:          row.ID,
+		Facilitator: domain.UserRef{ID: row.FacilitatorID, FullName: row.FacilitatorFullName},
+		RoundNumber: row.RoundNumber,
+		RoundStatus: row.RoundStatus,
+	}, nil
 }
 
 // Verificación en compilación de que el repositorio cumple el contrato del dominio.

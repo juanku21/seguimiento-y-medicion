@@ -121,6 +121,43 @@ func (h *Handler) openEstimationSession(c *gin.Context) {
 	c.JSON(http.StatusCreated, newEstimationSession(view))
 }
 
+// listStoryEstimationSessions godoc
+//
+//	@Summary		Consulta el historial de estimación de la historia
+//	@Description	Devuelve la sesión abierta en este momento, si la hay, con su facilitador, su número de
+//	@Description	ronda y el estado de la ronda, sin votos (FR-081, FR-082), y las sesiones cerradas de la
+//	@Description	más reciente a la más antigua por su momento de apertura (FR-079, FR-080). Una historia
+//	@Description	que nunca se estimó por Planning Poker devuelve la lista vacía con emptyReason
+//	@Description	no_sessions; no es un error (FR-083). Se responde también en un proyecto finished
+//	@Description	(FR-085).
+//	@Tags			Planning Poker
+//	@ID				listStoryEstimationSessions
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			storyId	path		string					true	"Identificador de la historia"	format(uuid)
+//	@Success		200		{object}	StoryEstimationHistory	"Historial de estimación de la historia."
+//	@Failure		401		{object}	delivery.ErrorResponse	"Se requiere iniciar sesión."
+//	@Failure		404		{object}	delivery.ErrorResponse	"La historia no existe, fue eliminada o pertenece a un proyecto del que quien pide no es integrante; las situaciones devuelven el mismo cuerpo."
+//	@Failure		500		{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/stories/{storyId}/estimation-sessions [get]
+func (h *Handler) listStoryEstimationSessions(c *gin.Context) {
+	// RequireStoryAccess de la 003 ya respondió 404 ante una historia inexistente, ajena o con
+	// identificador mal formado, así que un storyId inválido aquí es un error de composición.
+	storyID, err := uuid.Parse(c.Param("storyId"))
+	if err != nil {
+		respondInternalError(c, "listStoryEstimationSessions sin un storyId válido en la ruta", "error", err)
+		return
+	}
+
+	// Se lee el historial; las lecturas no exigen proyecto en curso (FR-085).
+	view, err := h.sessions.History(c.Request.Context(), storyID)
+	if err != nil {
+		respondInternalError(c, "no se pudo consultar el historial de estimación", "error", err)
+		return
+	}
+	c.JSON(http.StatusOK, newStoryEstimationHistory(view))
+}
+
 // castEstimationVote godoc
 //
 //	@Summary		Emite o cambia el voto en la ronda vigente

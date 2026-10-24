@@ -810,7 +810,7 @@ responde `409` con el motivo `estimation_sessions`.
       `pokerdomain.EstimationSession`; actualizar la llamada en `backend/cmd/app/main.go` y en los
       ayudantes de prueba de `backend/internal/backlog/` que construyan el servicio. `backlog/service`
       no cambia (research.md sección 15.1) — depende de T086
-- [ ] T089 [US8] Implementar `ListForStory` (sesiones cerradas ordenadas por `created_at`
+- [X] T089 [US8] Implementar `ListForStory` (sesiones cerradas ordenadas por `created_at`
       descendente con el conteo de rondas por subconsulta, en una consulta) y `FindOpenForStory`
       (identificador, facilitador, número y estado de la ronda vigente, o `nil`) en
       `backend/internal/poker/repository/session_repository.go`; `History` en el servicio, con

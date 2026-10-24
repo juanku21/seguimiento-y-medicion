@@ -804,7 +804,7 @@ responde `409` con el motivo `estimation_sessions`.
 
 ### Implementación de la Historia 8
 
-- [ ] T088 [US8] Reemplazar el cuerpo de `backend/internal/backlog/repository/estimation_sessions.go`:
+- [X] T088 [US8] Reemplazar el cuerpo de `backend/internal/backlog/repository/estimation_sessions.go`:
       `NewEstimationSessions(db *gorm.DB)` y `HasSessions` con un `EXISTS` sobre
       `estimation_sessions` por `story_id`, en cualquier estado, usando el modelo
       `pokerdomain.EstimationSession`; actualizar la llamada en `backend/cmd/app/main.go` y en los

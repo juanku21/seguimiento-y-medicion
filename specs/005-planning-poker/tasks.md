@@ -534,7 +534,7 @@ historial de la sesión.
       `backend/internal/poker/repository/session_repository.go` (bloqueo, `EnsureOpen`, participante
       conectado, facilitador, ronda vigente `revealed` o `ErrRoundNotRevealed`, inserción de la ronda
       con `number + 1` en `voting`, hecho) — depende de T056
-- [ ] T059 [US4] Implementar `StartRound` y `Get(ctx, access, viewerID)` en
+- [X] T059 [US4] Implementar `StartRound` y `Get(ctx, access, viewerID)` en
       `backend/internal/poker/service/session_service.go`, y los manejadores
       `startEstimationRound` (`POST /rounds`, `201`) y `getEstimationSession` (`GET` del grupo plano)
       con anotaciones `swag` en `handler.go` y sus rutas en `routes.go` — depende de T058

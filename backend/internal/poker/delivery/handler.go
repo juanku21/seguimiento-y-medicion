@@ -20,8 +20,8 @@ import (
 // identificador mal formado) y el canal; el 404 de historia es el de la 003. Los tres 409 de
 // apertura y el 409 de sesión cerrada los fija contracts/openapi.yaml, igual que el 403 de quien no
 // participa, el 403 de acción reservada al facilitador, el 409 de ronda revelada del voto y los dos
-// 409 de la revelación (ronda ya revelada y ronda sin votos). Los dos 400 de cuerpo son los de los
-// demás módulos.
+// 409 de la revelación (ronda ya revelada y ronda sin votos) y el 409 de iniciar una ronda con la
+// vigente en votación. Los dos 400 de cuerpo son los de los demás módulos.
 const (
 	msgInvalidFields            = "Hay campos inválidos en la solicitud."
 	msgInvalidBody              = "El cuerpo de la solicitud debe ser un JSON válido."
@@ -30,6 +30,7 @@ const (
 	msgRoundRevealed            = "La ronda ya está revelada. Esperá una ronda nueva para votar."
 	msgRoundAlreadyRevealed     = "La ronda ya fue revelada."
 	msgNoVotesToReveal          = "Hace falta al menos un voto para revelar la ronda."
+	msgRoundNotRevealed         = "Primero hay que revelar la ronda vigente."
 	msgSessionRequired          = "Se requiere iniciar sesión."
 	msgEstimationSessionMissing = "La sesión de estimación no existe."
 	msgStoryNotFound            = "La historia no existe."
@@ -248,6 +249,113 @@ func (h *Handler) revealEstimationRound(c *gin.Context) {
 		return
 	case err != nil:
 		respondInternalError(c, "no se pudo revelar la ronda", "error", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, newEstimationSession(view))
+}
+
+// startEstimationRound godoc
+//
+//	@Summary		Inicia una ronda nueva (solo el facilitador)
+//	@Description	Abre la ronda siguiente en voting, sin votos; la ronda revelada queda en el historial con
+//	@Description	sus votos y su resultado (FR-043, FR-044). Exige la ronda vigente revealed (FR-046). No hay
+//	@Description	límite de rondas (FR-048). Reservada al facilitador (FR-047, FR-064). Un rechazo no produce
+//	@Description	ningún efecto (SC-011).
+//	@Tags			Planning Poker
+//	@ID				startEstimationRound
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			sessionId	path		string					true	"Identificador de la sesión de estimación"	format(uuid)
+//	@Success		201			{object}	EstimationSession		"Ronda nueva abierta; sesión resultante vista por quien la inició."
+//	@Failure		401			{object}	delivery.ErrorResponse	"Se requiere iniciar sesión."
+//	@Failure		403			{object}	delivery.ErrorResponse	"Quien pide no es participante conectado de la sesión («No participás de esta sesión de estimación.», FR-028) o no es el facilitador («Esta acción está reservada al facilitador de la sesión.», FR-064)."
+//	@Failure		404			{object}	delivery.ErrorResponse	"La sesión de estimación no existe o pertenece a un proyecto del que quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo."
+//	@Failure		409			{object}	SessionClosedResponse	"La sesión está cerrada, con el resultado registrado («La sesión de estimación ya está cerrada.»), o la ronda vigente todavía está en votación («Primero hay que revelar la ronda vigente.», como ErrorResponse, FR-046)."
+//	@Failure		500			{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/estimation-sessions/{sessionId}/rounds [post]
+func (h *Handler) startEstimationRound(c *gin.Context) {
+	// RequireEstimationAccess y la sesión de la 001 ya dejaron el acceso y el titular en el contexto;
+	// su ausencia aquí es un error de composición y responde 500.
+	access, ok := sessionAccessFromContext(c)
+	if !ok {
+		respondInternalError(c, "startEstimationRound sin acceso a la sesión en el contexto")
+		return
+	}
+	userID, ok := authdelivery.CurrentUserID(c)
+	if !ok {
+		respondInternalError(c, "startEstimationRound sin titular de sesión en el contexto")
+		return
+	}
+
+	// Se abre la ronda nueva y se traducen los rechazos de dominio a los 403, 404 y 409 del contrato.
+	view, err := h.sessions.StartRound(c.Request.Context(), access.SessionID, userID)
+	var closed *domain.SessionClosedError
+	switch {
+	case errors.As(err, &closed):
+		c.JSON(http.StatusConflict, newSessionClosedResponse(msgSessionClosed, closed))
+		return
+	case errors.Is(err, domain.ErrRoundNotRevealed):
+		c.JSON(http.StatusConflict, authdelivery.ErrorResponse{Error: msgRoundNotRevealed})
+		return
+	case errors.Is(err, domain.ErrNotParticipant):
+		c.JSON(http.StatusForbidden, authdelivery.ErrorResponse{Error: msgNotParticipant})
+		return
+	case errors.Is(err, domain.ErrFacilitatorOnly):
+		c.JSON(http.StatusForbidden, authdelivery.ErrorResponse{Error: msgFacilitatorOnly})
+		return
+	case errors.Is(err, domain.ErrSessionNotFound):
+		abortEstimationSessionNotFound(c)
+		return
+	case err != nil:
+		respondInternalError(c, "no se pudo iniciar la ronda nueva", "error", err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, newEstimationSession(view))
+}
+
+// getEstimationSession godoc
+//
+//	@Summary		Consulta una sesión con todas sus rondas
+//	@Description	Devuelve la sesión vista por quien pide, con todas sus rondas. En una sesión cerrada
+//	@Description	incluye los momentos de apertura y cierre, quién la abrió y quién la cerró, el estado
+//	@Description	final, el valor acordado y cada ronda con sus votos y su resultado (US8-1). En una sesión
+//	@Description	abierta, la ronda vigente en votación se muestra sin votos ajenos y las anteriores con sus
+//	@Description	votos y su resultado (FR-044, FR-082). No une a quien pide a la sesión.
+//	@Tags			Planning Poker
+//	@ID				getEstimationSession
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			sessionId	path		string					true	"Identificador de la sesión de estimación"	format(uuid)
+//	@Success		200			{object}	EstimationSession		"Sesión de estimación."
+//	@Failure		401			{object}	delivery.ErrorResponse	"Se requiere iniciar sesión."
+//	@Failure		404			{object}	delivery.ErrorResponse	"La sesión de estimación no existe o pertenece a un proyecto del que quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo."
+//	@Failure		500			{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/estimation-sessions/{sessionId} [get]
+func (h *Handler) getEstimationSession(c *gin.Context) {
+	// RequireEstimationAccess y la sesión de la 001 ya dejaron el acceso y el titular en el contexto;
+	// su ausencia aquí es un error de composición y responde 500.
+	access, ok := sessionAccessFromContext(c)
+	if !ok {
+		respondInternalError(c, "getEstimationSession sin acceso a la sesión en el contexto")
+		return
+	}
+	userID, ok := authdelivery.CurrentUserID(c)
+	if !ok {
+		respondInternalError(c, "getEstimationSession sin titular de sesión en el contexto")
+		return
+	}
+
+	// Se lee la sesión vista por quien pide; una sesión borrada entre el middleware y la lectura
+	// recibe el mismo 404 que una inexistente.
+	view, err := h.sessions.Get(c.Request.Context(), access, userID)
+	switch {
+	case errors.Is(err, domain.ErrSessionNotFound):
+		abortEstimationSessionNotFound(c)
+		return
+	case err != nil:
+		respondInternalError(c, "no se pudo consultar la sesión de estimación", "error", err)
 		return
 	}
 

@@ -131,6 +131,37 @@ func (s *SessionService) Reveal(ctx context.Context, sessionID, userID uuid.UUID
 	return &view, nil
 }
 
+// StartRound abre la ronda siguiente a pedido del facilitador y devuelve la sesión resultante vista
+// por quien la pidió. Igual que Vote y Reveal, publica recién después de que el repositorio confirma
+// la transacción (research.md sección 7) y devuelve tal cual los errores del repositorio, para que el
+// manejador los traduzca.
+func (s *SessionService) StartRound(ctx context.Context, sessionID, userID uuid.UUID) (*domain.SessionView, error) {
+	if err := s.repo.StartRound(ctx, sessionID, userID, s.now()); err != nil {
+		return nil, err
+	}
+	if err := s.publish(ctx, sessionID); err != nil {
+		return nil, err
+	}
+
+	snapshot, err := s.repo.FindSnapshot(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("reading started round session snapshot: %w", err)
+	}
+	view := domain.ViewFor(*snapshot, userID)
+	return &view, nil
+}
+
+// Get devuelve la sesión a la que el middleware ya dio acceso, con todas sus rondas, vista por quien
+// la consulta. Es solo lectura: no une a la persona a la sesión ni publica nada.
+func (s *SessionService) Get(ctx context.Context, access *domain.SessionAccess, viewerID uuid.UUID) (*domain.SessionView, error) {
+	snapshot, err := s.repo.FindSnapshot(ctx, access.SessionID)
+	if err != nil {
+		return nil, fmt.Errorf("reading session snapshot: %w", err)
+	}
+	view := domain.ViewFor(*snapshot, viewerID)
+	return &view, nil
+}
+
 // Leave da de baja la suscripción de la conexión y la descuenta de la presencia; si era la última
 // de la persona, empieza a correr la gracia de FR-014.
 func (s *SessionService) Leave(conn *Connection) {

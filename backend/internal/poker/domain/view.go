@@ -133,7 +133,9 @@ type SessionView struct {
 // punto por el que una sesión sale hacia la API (research.md sección 8). Es una función pura sobre la
 // instantánea, sin I/O, porque Hub.Publish la ejecuta con su mutex tomado. Copia los datos de la
 // sesión, de la historia y de sus participantes y rondas, y aplica el secreto del voto: de la ronda
-// vigente solo salen quiénes votaron y la carta propia de quien pide (FR-023, FR-024, FR-082).
+// vigente solo salen quiénes votaron y la carta propia de quien pide (FR-023, FR-024, FR-082). Las
+// rondas reveladas llevan su resultado y, si la sesión sigue abierta, la vigente revelada lista a los
+// conectados sin voto (FR-035).
 func ViewFor(snapshot SessionSnapshot, viewerID uuid.UUID) SessionView {
 	session := snapshot.Session
 	currentVotes := currentRoundVotes(snapshot.Rounds)
@@ -149,7 +151,7 @@ func ViewFor(snapshot SessionSnapshot, viewerID uuid.UUID) SessionView {
 		ClosedAt:     session.ClosedAt,
 		Cards:        slices.Clone(Cards),
 		Participants: participantViews(snapshot.Participants, session.FacilitatorID, currentVotes),
-		Rounds:       roundViews(snapshot.Rounds),
+		Rounds:       roundViews(snapshot.Rounds, session.Status, snapshot.Participants),
 		MyVote:       myVote(currentVotes, viewerID),
 	}
 }
@@ -210,11 +212,12 @@ func participantViews(
 }
 
 // roundViews arma las rondas en el orden de la instantánea con su número, su estado y sus momentos
-// de apertura y revelado. Solo las rondas reveladas llevan sus votos con sus autores; las que están
-// en votación salen con Votes nil para todos (FR-023, FR-082).
-func roundViews(rounds []SnapshotRound) []RoundView {
+// de apertura y revelado. Solo las rondas reveladas llevan sus votos con sus autores y su resultado
+// calculado con Summarize; las que están en votación salen con Votes y Outcome nil para todos
+// (FR-023, FR-082). La ronda vigente revelada de una sesión abierta lleva además NotVoted (FR-035).
+func roundViews(rounds []SnapshotRound, status SessionStatus, participants []SnapshotParticipant) []RoundView {
 	views := make([]RoundView, 0, len(rounds))
-	for _, r := range rounds {
+	for i, r := range rounds {
 		view := RoundView{
 			Number:     r.Number,
 			Status:     r.Status,
@@ -223,10 +226,32 @@ func roundViews(rounds []SnapshotRound) []RoundView {
 		}
 		if r.Status == RoundStatusRevealed {
 			view.Votes = revealedVotes(r.Votes)
+			outcome := Summarize(r.Votes)
+			view.Outcome = &outcome
+			if i == len(rounds)-1 && status == SessionStatusOpen {
+				view.NotVoted = notVoted(participants, r.Votes)
+			}
 		}
 		views = append(views, view)
 	}
 	return views
+}
+
+// notVoted lista, en el orden de los participantes, a los conectados que no tienen voto en la ronda;
+// los desconectados no figuran aunque no hayan votado (FR-035).
+func notVoted(participants []SnapshotParticipant, votes []SessionVote) []UserRef {
+	voters := make(map[uuid.UUID]bool, len(votes))
+	for _, v := range votes {
+		voters[v.User.ID] = true
+	}
+
+	missing := []UserRef{}
+	for _, p := range participants {
+		if p.Connected && !voters[p.User.ID] {
+			missing = append(missing, p.User)
+		}
+	}
+	return missing
 }
 
 // revealedVotes copia los votos de una ronda revelada; una ronda sin votos sale con la lista vacía y

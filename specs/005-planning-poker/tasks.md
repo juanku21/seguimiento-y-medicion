@@ -481,7 +481,7 @@ reciben la ronda `revealed` con `divergence`, mínimo 3 y máximo 13 con sus aut
       revealed`, `revealed_at = now`, hecho) y agregar la evaluación de `ShouldAutoReveal`, con la
       misma escritura de revelación, al final de `Vote`, `Connect` y `Disconnect` dentro de su
       transacción (FR-031) — depende de T047, T050
-- [ ] T053 [US3] Completar `ViewFor` con `outcome` (desde `Summarize`) en las rondas reveladas y
+- [X] T053 [US3] Completar `ViewFor` con `outcome` (desde `Summarize`) en las rondas reveladas y
       `notVoted` en la ronda vigente revelada de una sesión abierta, en
       `backend/internal/poker/domain/view.go`, e implementar `Reveal` en
       `backend/internal/poker/service/session_service.go` — depende de T051, T052

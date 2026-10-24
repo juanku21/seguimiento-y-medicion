@@ -763,6 +763,8 @@ tras `Sweep`.
 - [X] T084 [US7] Implementar el botón **Cancelar sesión** de `FacilitatorActions` y los motivos de
       `SessionClosedNotice` en `frontend/src/features/poker/components/`, con la llamada en `api.ts`
       — depende de T080, T083
+- [ ] T104 [US7] Agregar en frontend/src/features/poker/components/poker-room.test.tsx, dentro de describe("005/US7 - Cancelar una sesión sin registrar estimación"), una prueba de que el facilitador que confirma Cancelar sesión envía POST /api/v1/estimation-sessions/{sessionId}/cancel y de que un rechazo muestra el mensaje recibido en el aviso de la ronda per 005/US7 AC1 (partial)
+- [ ] T105 [US7] Agregar en backend/internal/poker/domain/view_test.go casos de ViewFor que verifiquen que una sesión cancelada por el sistema expone su CancelReason y que una cancelada por el facilitador lo deja nulo per plan: ViewFor como única salida de la sesión (partial)
 
 **Checkpoint**: ninguna sesión queda abierta para siempre bloqueando su historia.
 

@@ -801,6 +801,18 @@ responde `409` con el motivo `estimation_sessions`.
       `describe("005/US8 - Consultar el historial de estimación de una historia")`: la sección lista
       las sesiones con estado, valor y cantidad de rondas, muestra "Sesión en curso" con **Unirse**,
       y el mensaje de historia sin sesiones
+- [ ] T087a [US8] Pruebas de frontend de la vista de una sesión cerrada en
+      `frontend/src/features/poker/components/poker-room.test.tsx`, con
+      `describe("005/US8 - Consultar el historial de estimación de una historia")`: cuando el canal
+      responde `409` (FR-018), la pantalla no se une ni muestra un error, consulta la sesión con
+      `GET /api/v1/estimation-sessions/{sessionId}` y muestra su resultado.
+      `it("Sesión finalizada con rondas")`: muestra el momento de apertura y de cierre, quién la abrió
+      y quién la cerró, el valor acordado, y las rondas con el voto de cada participante y el
+      resultado de consenso o divergencia de cada una.
+      `it("Sesión cancelada")`: muestra la sesión como Cancelada, sin valor acordado, con sus rondas
+      completas; si la canceló el sistema (`closedBy` en `null`), lo indica en lugar de un nombre.
+      `it("Ex integrante")`: el voto de quien ya no integra el proyecto sigue con su nombre
+      — depende de T087
 
 ### Implementación de la Historia 8
 
@@ -821,7 +833,7 @@ responde `409` con el motivo `estimation_sessions`.
 - [ ] T090 [US8] Implementar el historial en `StoryEstimationSection` (lista, sesión en curso con
       **Unirse**, vacío) y la vista de una sesión cerrada en la pantalla
       `frontend/src/app/projects/[projectId]/backlog/[storyId]/poker/[sessionId]/page.tsx`
-      reutilizando `RoundHistory` y `SessionClosedNotice` — depende de T087, T089
+      reutilizando `RoundHistory` y `SessionClosedNotice` — depende de T087, T087a, T089
 
 **Checkpoint**: las ocho historias funcionan y el historial de estimación está protegido.
 

@@ -732,7 +732,7 @@ tras `Sweep`.
       `Sweep` → `409` de sesión cerrada con `story_completed`). Agrega también a
       `TestUS6_FacilitadorRetomaElRol` el subtest de cancelar, con su comentario `(005/US6)`, que
       T071 no pudo escribir porque la cancelación llega en esta historia — depende de T077
-- [ ] T080 [P] [US7] Pruebas de frontend en
+- [X] T080 [P] [US7] Pruebas de frontend en
       `frontend/src/features/poker/components/session-closed-notice.test.tsx` y
       `frontend/src/features/poker/components/facilitator-actions.test.tsx`, con
       `describe("005/US7 - Cancelar una sesión sin registrar estimación")`: el botón **Cancelar

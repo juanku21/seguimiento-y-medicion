@@ -462,7 +462,7 @@ reciben la ronda `revealed` con `divergence`, mínimo 3 y máximo 13 con sus aut
       en las que un participante cambia su carta y el facilitador revela a la vez; ninguna `500`, y
       las vistas de los tres canales tienen la misma `version` y el mismo conjunto de votos revelados
       (SC-007) — depende de T047
-- [ ] T049 [P] [US3] Pruebas de frontend en
+- [X] T049 [P] [US3] Pruebas de frontend en
       `frontend/src/features/poker/components/round-result.test.tsx` y
       `frontend/src/features/poker/components/facilitator-actions.test.tsx`, con
       `describe("005/US3 - Revelar los votos y ver las diferencias")`: consenso con su valor,

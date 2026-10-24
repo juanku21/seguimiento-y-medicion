@@ -2266,3 +2266,638 @@ func TestUS5_RegistroSinSerFacilitador(t *testing.T) {
 	assert.Equal(t, before, pokerStoredVersion(t, f.env.db, f.session.ID), "un rechazo no sube la versión")
 	requireStoryPoints(t, f.env.requireStoryDetail(t, f.anaToken, f.storyID), nil, "historia de la 003")
 }
+
+// Pruebas de integración de punta a punta de la historia 6 de Planning Poker (T071): cortan y reabren
+// canales, avanzan el reloj falso y llaman al barrido para vencer la gracia de 30 segundos y los 5
+// minutos del relevo, y toman el rol con POST /api/v1/estimation-sessions/{sessionId}/facilitator,
+// sobre el mismo router compuesto como cmd/app y contra smye_test. Verifican la respuesta, las
+// instantáneas que llegan sin recargar por los canales ya abiertos y las filas de estimation_sessions,
+// estimation_participants y estimation_votes. El "Dado" habitual es el de US2: Ana facilitadora, con
+// Bruno y Carla, los tres conectados y la ronda 1 en votación. También van acá, sin etiqueta de
+// historia, el barrido de la membresía revocada y de los cambios de la historia, y el reinicio del
+// servidor.
+
+// Textos exactos que fija el contrato para los rechazos de la toma del rol de facilitador.
+const (
+	pokerFacilitatorPresentMessage = "El facilitador está conectado."
+	pokerFacilitatorNotYetMessage  = "El rol de facilitador todavía no está disponible."
+)
+
+// pokerTakeoverWait son los 5 minutos de desconexión continua del facilitador que habilitan el
+// relevo (FR-068).
+const pokerTakeoverWait = 5 * time.Minute
+
+// facilitatorPath es la ruta de la toma del rol de facilitador según contracts/openapi.yaml.
+func facilitatorPath(sessionID string) string {
+	return "/api/v1/estimation-sessions/" + sessionID + "/facilitator"
+}
+
+// takeFacilitator pide POST /api/v1/estimation-sessions/{sessionId}/facilitator, sin cuerpo, con el
+// token como Bearer.
+func (e *pokerTestEnv) takeFacilitator(t *testing.T, token, sessionID string) pokerResponse {
+	t.Helper()
+	return e.do(t, http.MethodPost, facilitatorPath(sessionID), token, nil)
+}
+
+// requireTookFacilitator toma el rol, exige el 200 y devuelve la sesión resultante vista por quien lo
+// tomó.
+func (e *pokerTestEnv) requireTookFacilitator(t *testing.T, token, sessionID string) pokerSessionBody {
+	t.Helper()
+	var session pokerSessionBody
+	resp := e.takeFacilitator(t, token, sessionID)
+	requirePokerStatus(t, resp, http.StatusOK, &session)
+	session.Raw = resp.Body
+	return session
+}
+
+// dropAndExpire cierra el canal y vence la gracia de 30 segundos con el barrido, de modo que la
+// persona queda desconectada con disconnected_at en el instante del reloj (FR-014).
+func (e *pokerTestEnv) dropAndExpire(t *testing.T, stream *pokerStream) {
+	t.Helper()
+	stream.Close()
+	e.sweep(t, 30*time.Second)
+}
+
+// facilitatorIs arma la condición "la persona es la facilitadora de la sesión", para esperar con
+// NextUntil.
+func facilitatorIs(userID uuid.UUID) func(pokerSessionBody) bool {
+	return func(s pokerSessionBody) bool {
+		return s.Facilitator.ID == userID.String()
+	}
+}
+
+// participantGone arma la condición "la persona figura en la lista como desconectada", para esperar
+// con NextUntil.
+func participantGone(userID uuid.UUID) func(pokerSessionBody) bool {
+	return func(s pokerSessionBody) bool {
+		p := s.participant(userID)
+		return p != nil && !p.Connected
+	}
+}
+
+// participantBack arma la condición "la persona figura conectada", para esperar con NextUntil.
+func participantBack(userID uuid.UUID) func(pokerSessionBody) bool {
+	return func(s pokerSessionBody) bool {
+		p := s.participant(userID)
+		return p != nil && p.Connected
+	}
+}
+
+// requireFacilitatorRole exige que la instantánea muestre a la persona indicada como única
+// facilitadora, también en la marca de la lista de participantes.
+func requireFacilitatorRole(t *testing.T, snapshot pokerSessionBody, facilitatorID uuid.UUID, where string) {
+	t.Helper()
+	assert.Equal(t, facilitatorID.String(), snapshot.Facilitator.ID, "%s: facilitador de la sesión: %s", where, snapshot.Raw)
+	for _, p := range snapshot.Participants {
+		assert.Equal(t, p.User.ID == facilitatorID.String(), p.IsFacilitator, "%s: marca de facilitador de %s", where, p.User.FullName)
+	}
+}
+
+// requireFacilitatorUnavailable exige el 409 del contrato con el mensaje, el facilitador vigente y,
+// si retryAfter no es nil, los segundos que faltan; si es nil, retryAfterSeconds debe estar ausente.
+func requireFacilitatorUnavailable(t *testing.T, resp pokerResponse, message string, facilitatorID uuid.UUID, fullName string, retryAfter *int) {
+	t.Helper()
+	want := map[string]any{
+		"error":       message,
+		"facilitator": map[string]string{"id": facilitatorID.String(), "fullName": fullName},
+	}
+	if retryAfter != nil {
+		want["retryAfterSeconds"] = *retryAfter
+	}
+	payload, err := json.Marshal(want)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusConflict, resp.Code, "cuerpo: %s", resp.Body)
+	assert.JSONEq(t, string(payload), string(resp.Body))
+}
+
+// requireStoredFacilitator exige que la sesión tenga en la base el facilitator_id indicado.
+func requireStoredFacilitator(t *testing.T, db *gorm.DB, sessionID string, facilitatorID uuid.UUID, why string) {
+	t.Helper()
+	assert.Equal(t, facilitatorID, pokerStoredSession(t, db, sessionID).FacilitatorID, "facilitator_id: %s", why)
+}
+
+// requireRemoved lee el canal hasta el evento removed, descartando los state que lleguen antes, y
+// falla si no llega dentro del plazo de 2 segundos, si llega otro evento o si el canal se cierra sin
+// enviarlo (FR-019).
+func (s *pokerStream) requireRemoved(t *testing.T, where string) {
+	t.Helper()
+	timer := time.NewTimer(pokerStreamDeadline)
+	defer timer.Stop()
+	for {
+		select {
+		case ev, ok := <-s.events:
+			if !ok {
+				t.Fatalf("%s: el canal se cerró sin enviar el evento removed", where)
+			}
+			if ev.Name == "removed" {
+				return
+			}
+			if ev.Name != "state" {
+				t.Fatalf("%s: se esperaba el evento removed y llegó %q con datos %s", where, ev.Name, ev.Data)
+			}
+		case <-timer.C:
+			t.Fatalf("%s: no llegó el evento removed en %s", where, pokerStreamDeadline)
+		}
+	}
+}
+
+// Escenario: Desconexión dispara la revelación (005/US6)
+// Con Ana, Bruno y Carla conectados en la ronda 1, Ana vota 3 y Bruno 5. Carla cierra su canal y, al
+// vencer la gracia, el barrido registra su desconexión: los canales de Ana y Bruno la muestran
+// desconectada en menos de 2 segundos y con la ronda revelada sola, porque todos los conectados ya
+// votaron, con los dos votos y notVoted vacío (FR-014, FR-030, FR-031, FR-073).
+func TestUS6_DesconexionDisparaRevelacion(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.env.requireVoted(t, f.anaToken, f.session.ID, "3")
+	f.env.requireVoted(t, f.brunoToken, f.session.ID, "5")
+
+	f.env.dropAndExpire(t, f.carla)
+
+	votes := map[uuid.UUID]string{f.anaID: "3", f.brunoID: "5"}
+	for name, stream := range map[string]*pokerStream{"Ana": f.ana, "Bruno": f.bruno} {
+		snapshot := stream.NextUntil(t, "Carla desconectada y la ronda revelada en el canal de "+name, func(s pokerSessionBody) bool {
+			return participantGone(f.carlaID)(s) && currentRoundRevealed(s)
+		})
+		requireDivergence(t, requireRevealedRound(t, snapshot, votes, nil, "canal de "+name),
+			3, []uuid.UUID{f.anaID}, 5, []uuid.UUID{f.brunoID}, "canal de "+name)
+	}
+	assert.False(t, pokerStoredParticipant(t, f.env.db, f.session.ID, f.carlaID).Connected, "Carla queda desconectada en la base")
+	requireStoredRevealed(t, f.env.db, f.session.ID, f.env.clock.Now())
+}
+
+// Escenario: Reconexión con voto (005/US6)
+// Bruno vota 13 y cierra su canal; al vencer la gracia queda desconectado con la ronda todavía en
+// votación, porque Ana y Carla no votaron. Bruno abre un canal nuevo en la misma ronda: su canal lo
+// muestra conectado, con su voto contado y su carta 13 en myVote; Ana lo ve conectado y como que ya
+// votó, y en la base sigue su única fila de voto con 13 (FR-015, FR-016).
+func TestUS6_ReconexionConVoto(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.env.requireVoted(t, f.brunoToken, f.session.ID, "13")
+	f.env.dropAndExpire(t, f.bruno)
+	f.ana.NextUntil(t, "Bruno desconectado en el canal de Ana", participantGone(f.brunoID))
+	requireStoredVoting(t, f.env.db, f.session.ID, "Ana y Carla todavía no votaron")
+
+	bruno := f.env.openStream(t, f.brunoToken, f.session.ID)
+
+	// Bruno vuelve conectado y ve su propia carta.
+	back := bruno.NextUntil(t, "Bruno conectado en su canal nuevo", participantBack(f.brunoID))
+	requireOwnVote(t, back, f.brunoID, "13", "canal nuevo de Bruno")
+
+	// Ana ve a Bruno conectado y con su voto contado, sin el valor.
+	seen := f.ana.NextUntil(t, "Bruno conectado en el canal de Ana", participantBack(f.brunoID))
+	requireSecretVote(t, seen, f.brunoID, "Ana")
+	assert.True(t, pokerStoredParticipant(t, f.env.db, f.session.ID, f.brunoID).Connected, "Bruno vuelve a estar conectado en la base")
+	requireSingleStoredVote(t, f.env.db, f.session.ID, f.brunoID, "13")
+}
+
+// Escenario: Reconexión sin voto (005/US6)
+// Ana vota 3 y Carla cierra su canal sin votar; al vencer la gracia queda desconectada y la ronda
+// sigue en votación porque Bruno no votó. Carla abre un canal nuevo en la misma ronda: figura
+// conectada y sin voto. Cuando Bruno vota 5 la ronda no se revela, porque Carla vuelve a contarse
+// para la revelación automática; cuando Carla vota 8 la ronda se revela sola con los tres votos
+// (FR-015, FR-030, FR-031).
+func TestUS6_ReconexionSinVoto(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.env.requireVoted(t, f.anaToken, f.session.ID, "3")
+	f.env.dropAndExpire(t, f.carla)
+	f.ana.NextUntil(t, "Carla desconectada en el canal de Ana", participantGone(f.carlaID))
+
+	carla := f.env.openStream(t, f.carlaToken, f.session.ID)
+
+	// Carla vuelve conectada, sin voto, en la ronda 1 en votación.
+	back := carla.NextUntil(t, "Carla conectada en su canal nuevo", participantBack(f.carlaID))
+	assert.True(t, roundVoting(1)(back), "la ronda 1 sigue en votación: %s", back.Raw)
+	assert.False(t, back.participant(f.carlaID).HasVoted, "Carla no tiene voto")
+	assert.Nil(t, back.MyVote, "Carla no tiene carta propia")
+
+	// El voto de Bruno no completa la ronda, porque Carla cuenta otra vez.
+	afterBruno := f.env.requireVoted(t, f.brunoToken, f.session.ID, "5")
+	assert.True(t, roundVoting(1)(afterBruno), "con Carla conectada sin votar la ronda no se revela: %s", afterBruno.Raw)
+	requireStoredVoting(t, f.env.db, f.session.ID, "Carla vuelve a contarse para la revelación")
+
+	// Carla vota y la ronda se revela sola con los tres votos.
+	last := f.env.requireVoted(t, f.carlaToken, f.session.ID, "8")
+	votes := map[uuid.UUID]string{f.anaID: "3", f.brunoID: "5", f.carlaID: "8"}
+	requireRevealedRound(t, last, votes, nil, "respuesta de Carla")
+	requireStoredRevealed(t, f.env.db, f.session.ID, f.env.clock.Now())
+}
+
+// Escenario: Reconexión en ronda posterior (005/US6)
+// Carla vota 13 en la ronda 1 y cierra su canal; al vencer la gracia queda desconectada. Ana y Bruno
+// votan 3 y 5 y la ronda 1 se revela con los tres votos; la ronda 2 se revela con los votos de Ana y
+// Bruno, y Ana inicia la ronda 3. Carla abre un canal nuevo: se incorpora a la ronda 3 en votación
+// sin voto, su 13 sigue en la ronda 1 del historial y en la base conserva una sola fila de voto, la de
+// la ronda 1 (FR-015, FR-017, FR-078).
+func TestUS6_ReconexionEnRondaPosterior(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.env.requireVoted(t, f.carlaToken, f.session.ID, "13")
+	f.env.dropAndExpire(t, f.carla)
+	f.ana.NextUntil(t, "Carla desconectada en el canal de Ana", participantGone(f.carlaID))
+
+	// Ronda 1 con el voto de Carla y ronda 2 sin ella; Ana deja abierta la ronda 3.
+	f.env.requireVoted(t, f.anaToken, f.session.ID, "3")
+	f.env.requireVoted(t, f.brunoToken, f.session.ID, "5")
+	f.env.requireStartedRound(t, f.anaToken, f.session.ID)
+	f.env.requireVoted(t, f.anaToken, f.session.ID, "3")
+	f.env.requireVoted(t, f.brunoToken, f.session.ID, "5")
+	f.env.requireStartedRound(t, f.anaToken, f.session.ID)
+
+	carla := f.env.openStream(t, f.carlaToken, f.session.ID)
+
+	// Carla entra a la ronda 3 sin voto y ve su voto de la ronda 1 en el historial.
+	joined := carla.NextUntil(t, "Carla conectada en la ronda 3", func(s pokerSessionBody) bool {
+		return participantBack(f.carlaID)(s) && roundVoting(3)(s)
+	})
+	requireFreshVotingRound(t, joined, 3, "canal de Carla")
+	rounds := pokerAllRounds(t, joined)
+	require.Len(t, rounds, 3, "rondas: %s", joined.Raw)
+	assert.Equal(t, map[string]string{f.anaID.String(): "3", f.brunoID.String(): "5", f.carlaID.String(): "13"},
+		pokerRevealedCards(rounds[0]), "la ronda 1 conserva el voto de Carla: %s", joined.Raw)
+	assert.NotContains(t, pokerRevealedCards(rounds[1]), f.carlaID.String(), "Carla no votó en la ronda 2")
+	votes := pokerStoredVotes(t, f.env.db, f.session.ID, f.carlaID)
+	if assert.Len(t, votes, 1, "Carla debería conservar solo su voto de la ronda 1") {
+		assert.Equal(t, pokerStoredRounds(t, f.env.db, f.session.ID)[0].ID, votes[0].RoundID, "el voto de Carla es de la ronda 1")
+		assert.Equal(t, domain.Card("13"), votes[0].Card)
+	}
+}
+
+// Escenario: Facilitador retoma el rol (005/US6)
+// Ana, facilitadora, cierra su canal y al vencer la gracia queda desconectada. Dos minutos después
+// abre un canal nuevo: vuelve conectada y como facilitadora, sin momento de relevo disponible. Con el
+// voto 5 de Bruno, Ana revela, inicia una ronda y registra la estimación, cada acción en su subtest
+// (FR-065, FR-067). El subtest de cancelar se agrega en T079, cuando llega la cancelación.
+func TestUS6_FacilitadorRetomaElRol(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.env.dropAndExpire(t, f.ana)
+	f.bruno.NextUntil(t, "Ana desconectada en el canal de Bruno", participantGone(f.anaID))
+	f.env.sweep(t, 2*time.Minute)
+
+	ana := f.env.openStream(t, f.anaToken, f.session.ID)
+
+	// Ana vuelve conectada y sigue siendo la facilitadora.
+	back := ana.NextUntil(t, "Ana conectada en su canal nuevo", participantBack(f.anaID))
+	requireFacilitatorRole(t, back, f.anaID, "canal nuevo de Ana")
+	assert.Nil(t, back.FacilitatorAvailableAt, "con el facilitador conectado el rol no está disponible: %s", back.Raw)
+	requireStoredFacilitator(t, f.env.db, f.session.ID, f.anaID, "Ana retoma el rol al reconectarse")
+	f.env.requireVoted(t, f.brunoToken, f.session.ID, "5")
+
+	t.Run("revela", func(t *testing.T) {
+		resp := f.env.reveal(t, f.anaToken, f.session.ID)
+
+		requirePokerStatus(t, resp, http.StatusOK, nil)
+		requireStoredRevealed(t, f.env.db, f.session.ID, f.env.clock.Now())
+	})
+	t.Run("inicia ronda", func(t *testing.T) {
+		resp := f.env.requireStartedRound(t, f.anaToken, f.session.ID)
+
+		requireFreshVotingRound(t, resp, 2, "respuesta de Ana")
+	})
+	t.Run("registra", func(t *testing.T) {
+		resp := f.env.requireFinalized(t, f.anaToken, f.session.ID, 5)
+
+		requireFinishedSession(t, resp, 5, f.anaID, "respuesta de Ana")
+		requireStoredFinished(t, f.env.db, f.session.ID, 5, f.anaID, f.env.clock.Now())
+	})
+}
+
+// Escenario: Todos desconectados (005/US6)
+// Ana abre la sesión y ella y Bruno abren su canal sin votar. Los dos cierran su canal y, al vencer la
+// gracia, el barrido los desconecta: no se revela nada, la sesión sigue abierta con su única ronda en
+// votación y sin votos, y los dos quedan desconectados en la base. Cuando Bruno vuelve, recibe la
+// sesión abierta en la misma ronda 1 en votación (FR-014, FR-030, RN-09).
+func TestUS6_TodosDesconectados(t *testing.T) {
+	f := newPokerUS1Fixture(t)
+	session := f.env.requireOpenedSession(t, f.anaToken, f.storyID)
+	ana := f.env.openStream(t, f.anaToken, session.ID)
+	bruno := f.env.openStream(t, f.brunoToken, session.ID)
+	both := allConnected(f.anaID, f.brunoID)
+	ana.NextUntil(t, "Ana y Bruno conectados en el canal de Ana", both)
+	bruno.NextUntil(t, "Ana y Bruno conectados en el canal de Bruno", both)
+
+	ana.Close()
+	bruno.Close()
+	f.env.sweep(t, 30*time.Second)
+
+	// Nada se revela y la sesión queda abierta esperando.
+	requireStoredOpen(t, f.env.db, session.ID, "nadie conectado no cierra la sesión")
+	requireStoredVoting(t, f.env.db, session.ID, "sin conectados no hay revelación")
+	assert.Len(t, pokerStoredRounds(t, f.env.db, session.ID), 1, "la sesión sigue en la ronda 1")
+	for _, id := range []uuid.UUID{f.anaID, f.brunoID} {
+		assert.False(t, pokerStoredParticipant(t, f.env.db, session.ID, id).Connected, "%s queda desconectado", id)
+	}
+
+	// Bruno vuelve a la misma ronda en votación.
+	back := f.env.openStream(t, f.brunoToken, session.ID)
+	snapshot := back.NextUntil(t, "Bruno conectado de nuevo", participantBack(f.brunoID))
+	requireFirstRoundVoting(t, snapshot)
+	assert.False(t, snapshot.participant(f.anaID).Connected, "Ana sigue desconectada")
+}
+
+// Escenario: Facilitador original relevado (005/US6)
+// Ana, facilitadora, cierra su canal y queda desconectada al vencer la gracia; 5 minutos después
+// Bruno toma el rol: responde 200 con Bruno como facilitador y Carla ve el cambio sin recargar. Ana
+// abre un canal nuevo: figura conectada como participante común y Bruno sigue como facilitador. Con
+// el voto 5 de Bruno, Ana intenta revelar y recibe 403 de acción reservada al facilitador, y Bruno
+// revela con 200; en la base facilitator_id queda en Bruno (FR-068, FR-070, FR-071).
+func TestUS6_FacilitadorOriginalRelevado(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.env.dropAndExpire(t, f.ana)
+	f.carla.NextUntil(t, "Ana desconectada en el canal de Carla", participantGone(f.anaID))
+	f.env.clock.Advance(pokerTakeoverWait)
+
+	taken := f.env.requireTookFacilitator(t, f.brunoToken, f.session.ID)
+
+	// La respuesta y el canal de Carla muestran a Bruno como facilitador.
+	requireFacilitatorRole(t, taken, f.brunoID, "respuesta de Bruno")
+	requireFacilitatorRole(t, f.carla.NextUntil(t, "Bruno facilitador en el canal de Carla", facilitatorIs(f.brunoID)), f.brunoID, "canal de Carla")
+
+	// Ana vuelve como participante común.
+	ana := f.env.openStream(t, f.anaToken, f.session.ID)
+	back := ana.NextUntil(t, "Ana conectada en su canal nuevo", participantBack(f.anaID))
+	requireFacilitatorRole(t, back, f.brunoID, "canal nuevo de Ana")
+
+	// Solo Bruno puede revelar.
+	f.env.requireVoted(t, f.brunoToken, f.session.ID, "5")
+	rejected := f.env.reveal(t, f.anaToken, f.session.ID)
+	assert.Equal(t, http.StatusForbidden, rejected.Code, "cuerpo: %s", rejected.Body)
+	assert.JSONEq(t, pokerFacilitatorOnlyBodyJSON, string(rejected.Body))
+	requirePokerStatus(t, f.env.reveal(t, f.brunoToken, f.session.ID), http.StatusOK, nil)
+	requireStoredFacilitator(t, f.env.db, f.session.ID, f.brunoID, "el original no recupera el rol al volver")
+}
+
+// Escenario: Único participante toma el rol (005/US6)
+// Ana abre la sesión y ella y Bruno abren su canal. Ana cierra el suyo y queda desconectada al vencer
+// la gracia; 5 minutos después Bruno, único conectado, toma el rol: responde 200 con él como
+// facilitador. Bruno vota 8, la ronda se revela sola y registra 8 por sí solo: la sesión queda
+// finalizada y cerrada por Bruno (FR-068, FR-070). La cancelación por sí solo llega con US7.
+func TestUS6_UnicoParticipanteTomaElRol(t *testing.T) {
+	f := newPokerUS1Fixture(t)
+	session := f.env.requireOpenedSession(t, f.anaToken, f.storyID)
+	ana := f.env.openStream(t, f.anaToken, session.ID)
+	bruno := f.env.openStream(t, f.brunoToken, session.ID)
+	both := allConnected(f.anaID, f.brunoID)
+	ana.NextUntil(t, "Ana y Bruno conectados en el canal de Ana", both)
+	bruno.NextUntil(t, "Ana y Bruno conectados en el canal de Bruno", both)
+	f.env.dropAndExpire(t, ana)
+	bruno.NextUntil(t, "Ana desconectada en el canal de Bruno", participantGone(f.anaID))
+	f.env.clock.Advance(pokerTakeoverWait)
+
+	taken := f.env.requireTookFacilitator(t, f.brunoToken, session.ID)
+
+	requireFacilitatorRole(t, taken, f.brunoID, "respuesta de Bruno")
+	requireStoredFacilitator(t, f.env.db, session.ID, f.brunoID, "Bruno toma el rol")
+
+	// Bruno, solo, cierra la sesión con el valor acordado.
+	f.env.requireVoted(t, f.brunoToken, session.ID, "8")
+	resp := f.env.requireFinalized(t, f.brunoToken, session.ID, 8)
+	requireFinishedSession(t, resp, 8, f.brunoID, "respuesta de Bruno")
+	requireStoredFinished(t, f.env.db, session.ID, 8, f.brunoID, f.env.clock.Now())
+}
+
+// Escenario: Dos pestañas (005/US6)
+// Bruno abre la sesión en una segunda pestaña, vota 8 y Ana vota 3. Bruno cierra una de las dos y
+// pasa la gracia: sigue conectado en la base y su pestaña abierta muestra su carta 8. Cuando Carla
+// vota 5, la ronda se revela sola con un voto por persona: la respuesta y los canales muestran los
+// tres votos, notVoted vacío y a Bruno conectado (FR-013, RN-34, SC-024).
+func TestUS6_DosPestanas(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	second := f.env.openStream(t, f.brunoToken, f.session.ID)
+	second.NextUntil(t, "los tres conectados en la segunda pestaña de Bruno", allConnected(f.anaID, f.brunoID, f.carlaID))
+	f.env.requireVoted(t, f.brunoToken, f.session.ID, "8")
+	f.env.requireVoted(t, f.anaToken, f.session.ID, "3")
+
+	f.env.dropAndExpire(t, f.bruno)
+
+	// Bruno sigue conectado y su pestaña abierta muestra su carta.
+	assert.True(t, pokerStoredParticipant(t, f.env.db, f.session.ID, f.brunoID).Connected,
+		"con una pestaña abierta Bruno sigue conectado")
+	requireOwnVote(t, second.NextUntil(t, "Bruno ya votó en su pestaña abierta", hasVoted(f.brunoID)), f.brunoID, "8", "pestaña abierta de Bruno")
+
+	// El voto de Carla completa la ronda con un voto por persona.
+	last := f.env.requireVoted(t, f.carlaToken, f.session.ID, "5")
+	votes := map[uuid.UUID]string{f.anaID: "3", f.brunoID: "8", f.carlaID: "5"}
+	requireRevealedRound(t, last, votes, nil, "respuesta de Carla")
+	for name, stream := range map[string]*pokerStream{"Ana": f.ana, "pestaña abierta de Bruno": second} {
+		snapshot := stream.NextUntil(t, "la ronda revelada en "+name, currentRoundRevealed)
+		requireRevealedRound(t, snapshot, votes, nil, name)
+		assert.True(t, snapshot.participant(f.brunoID).Connected, "%s: Bruno figura conectado", name)
+	}
+	requireSingleStoredVote(t, f.env.db, f.session.ID, f.brunoID, "8")
+}
+
+// Escenario: Facilitador presente (005/US6)
+// Con Ana, facilitadora, conectada, Bruno intenta tomar el rol: responde 409 con el mensaje de que el
+// facilitador está conectado, Ana como facilitadora vigente y sin retryAfterSeconds; facilitator_id
+// sigue en Ana y la versión no cambia, porque el rechazo no es un hecho (FR-069).
+func TestUS6_FacilitadorPresente(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	before := pokerStoredVersion(t, f.env.db, f.session.ID)
+
+	resp := f.env.takeFacilitator(t, f.brunoToken, f.session.ID)
+
+	requireFacilitatorUnavailable(t, resp, pokerFacilitatorPresentMessage, f.anaID, "Ana Pérez", nil)
+	requireStoredFacilitator(t, f.env.db, f.session.ID, f.anaID, "el rechazo no cambia el facilitador")
+	assert.Equal(t, before, pokerStoredVersion(t, f.env.db, f.session.ID), "un rechazo no sube la versión")
+}
+
+// Escenario: Rol todavía no disponible (005/US6)
+// Ana, facilitadora, cierra su canal y queda desconectada al vencer la gracia: el canal de Bruno
+// muestra facilitatorAvailableAt 5 minutos después de su desconexión. Dos minutos más tarde Bruno
+// intenta tomar el rol: responde 409 con el mensaje de que el rol todavía no está disponible, Ana
+// como facilitadora vigente y retryAfterSeconds 180; facilitator_id sigue en Ana y la versión no
+// cambia (FR-068, FR-069).
+func TestUS6_RolTodaviaNoDisponible(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.env.dropAndExpire(t, f.ana)
+
+	// El canal de Bruno informa desde cuándo queda disponible el rol.
+	disconnectedAt := pokerStoredParticipant(t, f.env.db, f.session.ID, f.anaID).DisconnectedAt
+	require.NotNil(t, disconnectedAt, "Ana debería tener momento de desconexión")
+	gone := f.bruno.NextUntil(t, "Ana desconectada en el canal de Bruno", participantGone(f.anaID))
+	if assert.NotNil(t, gone.FacilitatorAvailableAt, "facilitatorAvailableAt no debería ser null: %s", gone.Raw) {
+		availableAt, err := time.Parse(time.RFC3339, *gone.FacilitatorAvailableAt)
+		require.NoError(t, err, "facilitatorAvailableAt = %q no es una fecha RFC 3339", *gone.FacilitatorAvailableAt)
+		assert.True(t, availableAt.Equal(disconnectedAt.Add(pokerTakeoverWait)),
+			"facilitatorAvailableAt = %s, se esperaba %s", availableAt, disconnectedAt.Add(pokerTakeoverWait))
+	}
+	f.env.clock.Advance(2 * time.Minute)
+	before := pokerStoredVersion(t, f.env.db, f.session.ID)
+
+	resp := f.env.takeFacilitator(t, f.brunoToken, f.session.ID)
+
+	requireFacilitatorUnavailable(t, resp, pokerFacilitatorNotYetMessage, f.anaID, "Ana Pérez", pokerIntPtr(180))
+	requireStoredFacilitator(t, f.env.db, f.session.ID, f.anaID, "el rechazo no cambia el facilitador")
+	assert.Equal(t, before, pokerStoredVersion(t, f.env.db, f.session.ID), "un rechazo no sube la versión")
+}
+
+// Escenario: Tomas simultáneas (005/US6)
+// Ana, facilitadora, lleva 5 minutos desconectada. Bruno y Carla piden el rol en el mismo instante:
+// uno responde 200 y el otro 409 con el mensaje de que el facilitador está conectado y el nuevo
+// facilitador como vigente. En la base facilitator_id queda en quien ganó y la versión sube en uno,
+// y los canales de Bruno y Carla reciben ese único cambio de facilitador (FR-071, FR-072, SC-025).
+func TestUS6_TomasSimultaneas(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	f.env.dropAndExpire(t, f.ana)
+	f.bruno.NextUntil(t, "Ana desconectada en el canal de Bruno", participantGone(f.anaID))
+	f.carla.NextUntil(t, "Ana desconectada en el canal de Carla", participantGone(f.anaID))
+	f.env.clock.Advance(pokerTakeoverWait)
+	before := pokerStoredVersion(t, f.env.db, f.session.ID)
+
+	// Bruno y Carla piden el rol a la vez tras la misma señal.
+	var bruno, carla pokerConcurrentResult
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		<-start
+		bruno = f.env.pokerSend(http.MethodPost, facilitatorPath(f.session.ID), f.brunoToken, nil)
+	})
+	wg.Go(func() {
+		<-start
+		carla = f.env.pokerSend(http.MethodPost, facilitatorPath(f.session.ID), f.carlaToken, nil)
+	})
+	close(start)
+	wg.Wait()
+	require.NoError(t, bruno.err, "el pedido de Bruno no obtuvo respuesta")
+	require.NoError(t, carla.err, "el pedido de Carla no obtuvo respuesta")
+
+	// Exactamente uno obtiene el rol y el otro recibe al nuevo facilitador.
+	winnerID, winnerName, loser := f.brunoID, "Bruno Gómez", carla.resp
+	if carla.resp.Code == http.StatusOK {
+		winnerID, winnerName, loser = f.carlaID, "Carla Díaz", bruno.resp
+	}
+	codes := []int{bruno.resp.Code, carla.resp.Code}
+	require.ElementsMatch(t, []int{http.StatusOK, http.StatusConflict}, codes,
+		"un pedido debería prosperar y el otro rechazarse; Bruno: %s; Carla: %s", bruno.resp.Body, carla.resp.Body)
+	requireFacilitatorUnavailable(t, loser, pokerFacilitatorPresentMessage, winnerID, winnerName, nil)
+
+	// Un único cambio de facilitador, en la base y en los canales.
+	requireStoredFacilitator(t, f.env.db, f.session.ID, winnerID, "prospera solo el primer pedido")
+	assert.Equal(t, before+1, pokerStoredVersion(t, f.env.db, f.session.ID), "un único cambio de facilitador sube la versión en uno")
+	for name, stream := range map[string]*pokerStream{"Bruno": f.bruno, "Carla": f.carla} {
+		snapshot := stream.NextUntil(t, "el nuevo facilitador en el canal de "+name, facilitatorIs(winnerID))
+		requireFacilitatorRole(t, snapshot, winnerID, "canal de "+name)
+		assert.Equal(t, before+1, snapshot.Version, "canal de %s: el cambio de facilitador es un único hecho", name)
+	}
+}
+
+// TestPokerSweep_MembresiaRevocada cubre la baja de un participante conectado del proyecto (FR-019).
+// Con Ana, Bruno, Carla y Diego conectados, la ronda 1 se revela con el 8 de Diego y en la ronda 2
+// Ana, Bruno y Carla votan 5 y Diego no. Ana da de baja a Diego con DELETE
+// /api/v1/projects/{projectId}/members/{userId} de la 002 y el barrido lo detecta: el canal de Diego
+// recibe el evento removed y se cierra; Diego deja de contar para la revelación, así que los canales
+// de los demás reciben la ronda 2 revelada con los tres votos y a Diego desconectado; en la base
+// Diego queda desconectado y su voto de la ronda 1 se conserva.
+func TestPokerSweep_MembresiaRevocada(t *testing.T) {
+	f := newPokerUS3Fixture(t)
+	for token, card := range map[string]string{f.anaToken: "3", f.brunoToken: "5", f.carlaToken: "13", f.diegoToken: "8"} {
+		f.env.requireVoted(t, token, f.session.ID, card)
+	}
+	f.env.requireStartedRound(t, f.anaToken, f.session.ID)
+	for _, token := range []string{f.anaToken, f.brunoToken, f.carlaToken} {
+		f.env.requireVoted(t, token, f.session.ID, "5")
+	}
+	requireStoredVoting(t, f.env.db, f.session.ID, "Diego todavía no votó en la ronda 2")
+
+	requirePokerStatus(t, f.env.do(t, http.MethodDelete,
+		"/api/v1/projects/"+f.projectID.String()+"/members/"+f.diegoID.String(), f.anaToken, nil), http.StatusNoContent, nil)
+	f.env.sweep(t, time.Second)
+
+	// El canal de Diego recibe removed y se cierra.
+	f.diego.requireRemoved(t, "canal de Diego")
+	f.diego.requireEnded(t, "canal de Diego")
+
+	// Sin Diego, la ronda 2 se revela con los votos de los demás.
+	votes := map[uuid.UUID]string{f.anaID: "5", f.brunoID: "5", f.carlaID: "5"}
+	for name, stream := range f.threeStreams() {
+		snapshot := stream.NextUntil(t, "la ronda 2 revelada sin Diego en el canal de "+name, func(s pokerSessionBody) bool {
+			return participantGone(f.diegoID)(s) && currentRoundRevealed(s)
+		})
+		requireConsensus(t, requireRevealedRound(t, snapshot, votes, nil, "canal de "+name), 5, "canal de "+name)
+	}
+	assert.False(t, pokerStoredParticipant(t, f.env.db, f.session.ID, f.diegoID).Connected, "Diego queda desconectado en la base")
+	requireSingleStoredVote(t, f.env.db, f.session.ID, f.diegoID, "8")
+}
+
+// TestPokerSweep_CambioDeHistoria cubre el reflejo en la sesión de los cambios de la historia
+// (FR-074). Con Ana, Bruno y Carla conectados, Bruno cambia el título y los criterios de la historia
+// con PATCH /api/v1/stories/{storyId} de la 003 y el barrido lo detecta: los tres canales reciben, sin
+// recargar y en menos de 2 segundos, un state con el título y los criterios nuevos en su orden y la
+// misma version, porque no es un hecho de la sesión; en la base la versión no cambia.
+func TestPokerSweep_CambioDeHistoria(t *testing.T) {
+	f := newPokerUS2Fixture(t)
+	before := pokerStoredVersion(t, f.env.db, f.session.ID)
+	title := "Inicio de sesión con correo o teléfono"
+	criteria := []string{
+		"El formulario acepta un teléfono con código de área.",
+		"El formulario rechaza un correo mal formado.",
+		"Tras ingresar se muestra la lista de proyectos.",
+	}
+
+	requirePokerStatus(t, f.env.do(t, http.MethodPatch, "/api/v1/stories/"+f.storyID.String(), f.brunoToken,
+		map[string]any{"title": title, "acceptanceCriteria": criteria}), http.StatusOK, nil)
+	f.env.sweep(t, time.Second)
+
+	for name, stream := range f.threeStreams() {
+		snapshot := stream.NextUntil(t, "el título nuevo en el canal de "+name, func(s pokerSessionBody) bool {
+			return s.Story.Title == title
+		})
+		assert.Equal(t, criteria, snapshot.Story.AcceptanceCriteria, "canal de %s: criterios nuevos en su orden", name)
+		assert.Equal(t, before, snapshot.Version, "canal de %s: el cambio de la historia no sube la versión", name)
+	}
+	assert.Equal(t, before, pokerStoredVersion(t, f.env.db, f.session.ID), "el cambio de la historia no es un hecho de la sesión")
+}
+
+// TestPokerPresence_ReinicioDelServidor cubre el arranque del servidor con sesiones en curso
+// (research.md sección 9). Con Ana y Bruno conectados a una sesión abierta y Carla figurando
+// conectada en una sesión ya finalizada de otra historia, el servidor se reinicia: ResetPresence deja
+// desconectados solo a Ana y Bruno, con disconnected_at igual al instante recibido, sin cambiar la
+// versión ni last_activity_at de la sesión, y Carla sigue como estaba. Al reabrir su canal, Ana y
+// Bruno se reincorporan cada uno como un hecho nuevo: quedan conectados y la versión sube en dos.
+func TestPokerPresence_ReinicioDelServidor(t *testing.T) {
+	f := newPokerUS1Fixture(t)
+	session := f.env.requireOpenedSession(t, f.anaToken, f.storyID)
+	ana := f.env.openStream(t, f.anaToken, session.ID)
+	bruno := f.env.openStream(t, f.brunoToken, session.ID)
+	both := allConnected(f.anaID, f.brunoID)
+	ana.NextUntil(t, "Ana y Bruno conectados en el canal de Ana", both)
+	bruno.NextUntil(t, "Ana y Bruno conectados en el canal de Bruno", both)
+
+	// Carla figura conectada en una sesión finalizada de otra historia.
+	five := 5
+	otherStoryID := f.env.createStory(t, f.anaToken, f.projectID, pokerStoryInput{Title: "Exportar el reporte"})
+	closed := pokerSeedClosedSession(t, f.env.db, otherStoryID, f.carlaID, domain.SessionStatusFinished, &five, pokerFixedNow.Add(-2*time.Hour))
+	require.NoError(t, f.env.db.Model(&domain.EstimationParticipant{}).
+		Where("session_id = ? AND user_id = ?", closed.session.ID, f.carlaID).
+		Updates(map[string]any{"connected": true, "disconnected_at": nil}).Error, "no se pudo dejar conectada a Carla")
+	stored := pokerStoredSession(t, f.env.db, session.ID)
+
+	f.env.clock.Advance(10 * time.Minute)
+	f.env.restart(t)
+
+	// Solo los participantes de la sesión abierta quedan desconectados, sin un hecho.
+	resetAt := f.env.clock.Now()
+	for _, id := range []uuid.UUID{f.anaID, f.brunoID} {
+		p := pokerStoredParticipant(t, f.env.db, session.ID, id)
+		assert.False(t, p.Connected, "%s queda desconectado tras el reinicio", id)
+		if assert.NotNil(t, p.DisconnectedAt, "%s debería tener momento de desconexión", id) {
+			assert.True(t, p.DisconnectedAt.Equal(resetAt), "disconnected_at = %s, se esperaba %s", p.DisconnectedAt, resetAt)
+		}
+	}
+	afterReset := pokerStoredSession(t, f.env.db, session.ID)
+	assert.Equal(t, stored.Version, afterReset.Version, "el reinicio no sube la versión")
+	assert.True(t, stored.LastActivityAt.Equal(afterReset.LastActivityAt), "el reinicio no toca last_activity_at")
+	assert.True(t, pokerStoredParticipant(t, f.env.db, closed.session.ID.String(), f.carlaID).Connected,
+		"la sesión cerrada no se toca")
+
+	// Al reabrir el canal, cada uno se reincorpora como un hecho nuevo.
+	f.env.openStream(t, f.anaToken, session.ID).NextUntil(t, "Ana conectada tras el reinicio", participantBack(f.anaID))
+	f.env.openStream(t, f.brunoToken, session.ID).NextUntil(t, "Ana y Bruno conectados tras el reinicio", both)
+	rejoined := pokerStoredSession(t, f.env.db, session.ID)
+	assert.Equal(t, stored.Version+2, rejoined.Version, "cada reincorporación es un hecho")
+	assert.True(t, rejoined.LastActivityAt.Equal(resetAt), "last_activity_at = %s, se esperaba %s", rejoined.LastActivityAt, resetAt)
+	for _, id := range []uuid.UUID{f.anaID, f.brunoID} {
+		p := pokerStoredParticipant(t, f.env.db, session.ID, id)
+		assert.True(t, p.Connected, "%s vuelve a estar conectado", id)
+		assert.Nil(t, p.DisconnectedAt, "%s ya no tiene momento de desconexión", id)
+	}
+}

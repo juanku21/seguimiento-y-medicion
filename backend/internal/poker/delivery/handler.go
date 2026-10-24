@@ -21,8 +21,9 @@ import (
 // apertura y el 409 de sesión cerrada los fija contracts/openapi.yaml, igual que el 403 de quien no
 // participa, el 403 de acción reservada al facilitador, el 409 de ronda revelada del voto y los dos
 // 409 de la revelación (ronda ya revelada y ronda sin votos), el 409 de iniciar una ronda con la
-// vigente en votación y el 409 de registrar sin ninguna ronda revelada. Los dos 400 de cuerpo son los
-// de los demás módulos.
+// vigente en votación, el 409 de registrar sin ninguna ronda revelada y los dos 409 de la toma del
+// rol de facilitador (facilitador conectado y rol todavía no disponible). Los dos 400 de cuerpo son
+// los de los demás módulos.
 const (
 	msgInvalidFields            = "Hay campos inválidos en la solicitud."
 	msgInvalidBody              = "El cuerpo de la solicitud debe ser un JSON válido."
@@ -40,6 +41,8 @@ const (
 	msgStoryCompleted           = "Una historia completada no se estima."
 	msgProjectFinished          = "El proyecto está finalizado y es de solo lectura."
 	msgSessionClosed            = "La sesión de estimación ya está cerrada."
+	msgFacilitatorPresent       = "El facilitador está conectado."
+	msgFacilitatorNotYet        = "El rol de facilitador todavía no está disponible."
 	msgInternalError            = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
 )
 
@@ -391,6 +394,66 @@ func (h *Handler) finalizeEstimationSession(c *gin.Context) {
 		return
 	case err != nil:
 		respondInternalError(c, "no se pudo registrar la estimación acordada", "error", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, newEstimationSession(view))
+}
+
+// takeEstimationFacilitator godoc
+//
+//	@Summary		Toma el rol de facilitador
+//	@Description	El titular pasa a ser el único facilitador si el facilitador vigente lleva 5 minutos o
+//	@Description	más desconectado de forma continua (FR-068, FR-070); el anterior queda como participante
+//	@Description	común aunque vuelva. Si está conectado o lleva menos de 5 minutos desconectado, responde
+//	@Description	409 con el facilitador vigente y, si está desconectado, los segundos que faltan (FR-069).
+//	@Description	De varios pedidos simultáneos prospera solo el primero que se procesa; los demás reciben
+//	@Description	el 409 con el nuevo facilitador (FR-072, SC-025). Un rechazo no produce ningún efecto.
+//	@Tags			Planning Poker
+//	@ID				takeEstimationFacilitator
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			sessionId	path		string							true	"Identificador de la sesión de estimación"	format(uuid)
+//	@Success		200			{object}	EstimationSession				"Rol tomado; sesión resultante vista por quien lo tomó."
+//	@Failure		401			{object}	delivery.ErrorResponse			"Se requiere iniciar sesión."
+//	@Failure		403			{object}	delivery.ErrorResponse			"Quien pide no es participante conectado de la sesión («No participás de esta sesión de estimación.», FR-028)."
+//	@Failure		404			{object}	delivery.ErrorResponse			"La sesión de estimación no existe o pertenece a un proyecto del que quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo."
+//	@Failure		409			{object}	FacilitatorUnavailableResponse	"El rol no está disponible: el facilitador está conectado («El facilitador está conectado.», sin retryAfterSeconds) o lleva menos de 5 minutos desconectado («El rol de facilitador todavía no está disponible.», con retryAfterSeconds). Si la sesión está cerrada, la respuesta es SessionClosedResponse («La sesión de estimación ya está cerrada.»)."
+//	@Failure		500			{object}	delivery.ErrorResponse			"Error interno sin detalles expuestos."
+//	@Router			/api/v1/estimation-sessions/{sessionId}/facilitator [post]
+func (h *Handler) takeEstimationFacilitator(c *gin.Context) {
+	// RequireEstimationAccess y la sesión de la 001 ya dejaron el acceso y el titular en el contexto;
+	// su ausencia aquí es un error de composición y responde 500.
+	access, ok := sessionAccessFromContext(c)
+	if !ok {
+		respondInternalError(c, "takeEstimationFacilitator sin acceso a la sesión en el contexto")
+		return
+	}
+	userID, ok := authdelivery.CurrentUserID(c)
+	if !ok {
+		respondInternalError(c, "takeEstimationFacilitator sin titular de sesión en el contexto")
+		return
+	}
+
+	// Se toma el rol y se traducen los rechazos de dominio a los 403, 404 y 409 del contrato.
+	view, err := h.sessions.TakeFacilitator(c.Request.Context(), access.SessionID, userID)
+	var closed *domain.SessionClosedError
+	var unavailable *domain.FacilitatorUnavailableError
+	switch {
+	case errors.As(err, &closed):
+		c.JSON(http.StatusConflict, newSessionClosedResponse(msgSessionClosed, closed))
+		return
+	case errors.As(err, &unavailable):
+		c.JSON(http.StatusConflict, newFacilitatorUnavailableResponse(unavailable))
+		return
+	case errors.Is(err, domain.ErrNotParticipant):
+		c.JSON(http.StatusForbidden, authdelivery.ErrorResponse{Error: msgNotParticipant})
+		return
+	case errors.Is(err, domain.ErrSessionNotFound):
+		abortEstimationSessionNotFound(c)
+		return
+	case err != nil:
+		respondInternalError(c, "no se pudo tomar el rol de facilitador", "error", err)
 		return
 	}
 

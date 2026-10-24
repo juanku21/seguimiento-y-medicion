@@ -25,6 +25,7 @@ import (
 	backlogdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/delivery"
 	backlogrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/repository"
 	backlogservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/service"
+	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/config"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/httpserver"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/testsupport"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/poker/repository"
@@ -82,12 +83,13 @@ func (c *pokerClock) Advance(d time.Duration) {
 	c.now = c.now.Add(d)
 }
 
-// pokerTestEnv reúne el servidor de prueba, la base de test, el reloj falso y el servicio de
-// sesiones sobre el que la prueba llama a Sweep. connClosed registra, por dirección del cliente,
-// un canal que se cierra cuando el servidor termina de atender esa conexión.
+// pokerTestEnv reúne el servidor de prueba, la base de test con su configuración, el reloj falso y
+// el servicio de sesiones sobre el que la prueba llama a Sweep. connClosed registra, por dirección
+// del cliente, un canal que se cierra cuando el servidor termina de atender esa conexión.
 type pokerTestEnv struct {
 	server   *httptest.Server
 	db       *gorm.DB
+	cfg      config.Config
 	clock    *pokerClock
 	sessions *service.SessionService
 
@@ -95,17 +97,56 @@ type pokerTestEnv struct {
 	connClosed map[string]chan struct{}
 }
 
-// newPokerTestEnv abre la base de test vacía y compone, igual que cmd/app, el límite del cuerpo, el
-// rechazo de queries mal formadas, la cadena de autenticación de la 001, el módulo de proyectos de
-// la 002 con su subgrupo /:projectId, el backlog de la 003 con su grupo de historia, los sprints de
-// la 004 y el Planning Poker, sin CORS ni Swagger. El servidor se levanta con httptest y se cierra
-// al terminar la prueba, después de los canales que la prueba haya dejado abiertos.
+// newPokerTestEnv abre la base de test vacía, compone el router con newPokerRouter y lo levanta con
+// httptest. El servidor se cierra al terminar la prueba, después de los canales que la prueba haya
+// dejado abiertos.
 func newPokerTestEnv(t *testing.T) *pokerTestEnv {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	db, cfg := testsupport.OpenDatabase(t)
 	clock := &pokerClock{now: pokerFixedNow}
+	env := &pokerTestEnv{db: db, cfg: cfg, clock: clock, connClosed: map[string]chan struct{}{}}
+	env.start()
+	t.Cleanup(env.stop)
+	return env
+}
 
+// start compone un router nuevo, con su propio servicio de sesiones y su presencia vacía, y lo
+// levanta detrás de httptest. El servidor anota cuándo termina de atender cada conexión, para que
+// cerrar un canal espere a que el manejador haya liberado la conexión antes de que la prueba avance
+// el reloj.
+func (e *pokerTestEnv) start() {
+	router, sessions := newPokerRouter(e.db, e.cfg, e.clock)
+	server := httptest.NewUnstartedServer(router)
+	server.Config.ConnState = e.trackConn
+	server.Start()
+	e.server = server
+	e.sessions = sessions
+}
+
+// stop corta las conexiones abiertas con el servidor vigente y lo cierra.
+func (e *pokerTestEnv) stop() {
+	e.server.CloseClientConnections()
+	e.server.Close()
+}
+
+// restart simula el reinicio del servidor como cmd/app: cierra el servidor vigente, con lo que se
+// cortan todos los canales, ejecuta ResetPresence con el instante del reloj falso y levanta un
+// servidor nuevo cuyo servicio arranca con la presencia vacía (research.md sección 9).
+func (e *pokerTestEnv) restart(t *testing.T) {
+	t.Helper()
+	e.stop()
+	require.NoError(t, repository.NewSessionRepository(e.db).ResetPresence(context.Background(), e.clock.Now()),
+		"ResetPresence falló")
+	e.start()
+}
+
+// newPokerRouter compone, igual que cmd/app, el límite del cuerpo, el rechazo de queries mal
+// formadas, la cadena de autenticación de la 001, el módulo de proyectos de la 002 con su subgrupo
+// /:projectId, el backlog de la 003 con su grupo de historia, los sprints de la 004 y el Planning
+// Poker, sin CORS ni Swagger, y devuelve el router con el servicio de sesiones sobre el que la prueba
+// llama a Sweep.
+func newPokerRouter(db *gorm.DB, cfg config.Config, clock *pokerClock) (*gin.Engine, *service.SessionService) {
 	// Cadena de autenticación de la 001.
 	auth := authservice.NewAuthService(
 		authrepository.NewUserRepository(db),
@@ -163,19 +204,7 @@ func newPokerTestEnv(t *testing.T) *pokerTestEnv {
 	pokerHandler := NewHandler(sessions)
 	RegisterStoryRoutes(router, authHandler.RequireSession, backlogdelivery.RequireStoryAccess(storyRepository), pokerHandler)
 	RegisterSessionRoutes(router, authHandler.RequireSession, sessionRepository, pokerHandler)
-
-	// El servidor anota cuándo termina de atender cada conexión, para que cerrar un canal espere a
-	// que el manejador haya liberado la conexión antes de que la prueba avance el reloj.
-	env := &pokerTestEnv{db: db, clock: clock, sessions: sessions, connClosed: map[string]chan struct{}{}}
-	server := httptest.NewUnstartedServer(router)
-	server.Config.ConnState = env.trackConn
-	server.Start()
-	env.server = server
-	t.Cleanup(func() {
-		server.CloseClientConnections()
-		server.Close()
-	})
-	return env
+	return router, sessions
 }
 
 // trackConn cierra el canal de la conexión cuando el servidor deja de atenderla.

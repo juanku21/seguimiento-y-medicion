@@ -378,7 +378,7 @@ bajo el bloqueo.
   `facilitator_id = titular` dentro de la transacción; si no, `403` sin efecto (SC-011).
 - **Toda acción sobre la sesión exige ser participante conectado** (FR-028); el facilitador también,
   lo que hace que al reconectarse recupere sus atribuciones sin ningún paso extra (FR-067).
-- **Tomar el rol** (`FacilitatorTakeover(now, facilitator)`): se admite si el facilitador vigente
+- **Tomar el rol** (`FacilitatorTakeover(now, facilitator, requesterID)`): se admite si el facilitador vigente
   está desconectado y `now - disconnected_at ≥ 5 min`. Si no, `409` con el facilitador vigente y, si
   está desconectado, `retryAfterSeconds` (FR-069). El que pide ya facilitador recibe el mismo `409`.
   Al tomarlo cambia `facilitator_id`, sube la versión y se publica; el anterior queda como
@@ -549,7 +549,10 @@ El detalle de la historia (`app/projects/[projectId]/backlog/[storyId]/page.tsx`
 - `features/poker/use-estimation-stream.ts`: hook que abre el canal con el token de
   `session-storage`, descarta instantáneas viejas por `version`, reconecta con espera creciente
   (1, 2, 5 segundos, tope 5) y se detiene ante `409` (sesión cerrada: muestra el resultado), `404` y
-  `401` (`rejectSession`).
+  `401` (`rejectSession`). Cualquier otro rechazo, como `500` o `503`, se trata como un corte y se
+  reintenta con la misma espera. Una reconexión que entrega una instantánea reinicia la espera a 1
+  segundo. Mientras reconecta conserva la última instantánea y no expone error. No reconecta
+  después de recibir una instantánea de sesión cerrada ni después de desmontarse.
 - Pantalla `app/projects/[projectId]/backlog/[storyId]/poker/[sessionId]/page.tsx`: sala en vivo si
   la sesión está abierta; resultado y rondas si está cerrada.
 - Sección "Planning Poker" en el detalle de la historia: abrir o unirse, sesión en curso e historial.

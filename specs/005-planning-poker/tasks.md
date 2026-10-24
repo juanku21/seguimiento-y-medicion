@@ -625,12 +625,12 @@ nuevo facilitador.
 
 ### Pruebas de la Historia 6 ⚠️
 
-- [ ] T070 [P] [US6] Pruebas unitarias **obligatorias** de `FacilitatorTakeover` en
+- [X] T070 [P] [US6] Pruebas unitarias **obligatorias** de `FacilitatorTakeover` en
       `backend/internal/poker/domain/facilitator_test.go`, cubriendo RN-24, RN-25, RN-26 y RN-35 y
       SC-015: facilitador conectado → `FacilitatorUnavailableError` con `RetryAfter` cero;
       desconectado hace 2 min → `RetryAfter` 3 min; 4:59 → 1 s; 5:00 y 7:00 → ok; quien pide ya es
       el facilitador → `FacilitatorUnavailableError` — depende de T069
-- [ ] T071 [US6] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
+- [X] T071 [US6] Pruebas de integración en `backend/internal/poker/delivery/handler_test.go`, una por
       escenario con `// Escenario: <nombre> (005/US6)`: `TestUS6_DesconexionDisparaRevelacion`,
       `TestUS6_ReconexionConVoto`, `TestUS6_ReconexionSinVoto`,
       `TestUS6_ReconexionEnRondaPosterior`, `TestUS6_FacilitadorRetomaElRol` (se reconecta a los 2
@@ -651,12 +651,12 @@ nuevo facilitador.
       de la sesión abierta, con `disconnected_at` igual al instante recibido y sin cambiar `version`
       ni `last_activity_at`; al reabrir el canal, cada uno se reincorpora como un hecho nuevo
       (research.md sección 9) — depende de T069
-- [ ] T072 [US6] Prueba de concurrencia `TestPokerFacilitator_Concurrency` en
+- [X] T072 [US6] Prueba de concurrencia `TestPokerFacilitator_Concurrency` en
       `backend/internal/poker/delivery/poker_concurrency_test.go`, **sin** etiqueta: diez
       participantes piden el rol a la vez con el facilitador desconectado hace más de 5 minutos;
       exactamente uno `200`, nueve `409` con el facilitador vigente y ninguna `500` (SC-025) —
       depende de T071
-- [ ] T073 [P] [US6] Pruebas de frontend en
+- [X] T073 [P] [US6] Pruebas de frontend en
       `frontend/src/features/poker/components/take-facilitator-button.test.tsx` y
       `frontend/src/features/poker/use-estimation-stream.test.tsx`, con
       `describe("005/US6 - Sobrevivir a las desconexiones y relevar al facilitador")`: el botón
@@ -666,16 +666,16 @@ nuevo facilitador.
 
 ### Implementación de la Historia 6
 
-- [ ] T074 [P] [US6] Implementar `FacilitatorTakeover` en
+- [X] T074 [P] [US6] Implementar `FacilitatorTakeover` en
       `backend/internal/poker/domain/facilitator.go`, con los **5 minutos** como constante nombrada —
       depende de T070
-- [ ] T075 [US6] Implementar `TakeFacilitator` y `ListRevokedParticipants` en
+- [X] T075 [US6] Implementar `TakeFacilitator` y `ListRevokedParticipants` en
       `backend/internal/poker/repository/session_repository.go` (`TakeFacilitator`: bloqueo,
       `EnsureOpen`, participante conectado, `FacilitatorTakeover` sobre la fila del facilitador
       releída, `facilitator_id = titular`, hecho) y completar `ViewFor` con `facilitatorAvailableAt`
       (`disconnected_at + 5 min` si el facilitador está desconectado) en
       `backend/internal/poker/domain/view.go` — depende de T071, T074
-- [ ] T076 [US6] Implementar `TakeFacilitator` en `backend/internal/poker/service/session_service.go`
+- [X] T076 [US6] Implementar `TakeFacilitator` en `backend/internal/poker/service/session_service.go`
       y sumar a `Sweep`, en `backend/internal/poker/service/sweeper.go`, los pasos de membresía
       revocada (`Disconnect`, evento `removed` con
       `hub.CloseUser`) y de cambios de la historia (comparación de `user_stories.updated_at` con el
@@ -684,7 +684,7 @@ nuevo facilitador.
       `FacilitatorUnavailableResponse` en `dto.go` y la ruta en `routes.go`. `ListOpenForSweep` del
       repositorio se implementa en esta tarea con las columnas que el paso de cambios necesita —
       depende de T072, T075
-- [ ] T077 [US6] Implementar la reconexión con espera creciente en
+- [X] T077 [US6] Implementar la reconexión con espera creciente en
       `frontend/src/features/poker/use-estimation-stream.ts`, el aviso de `removed` y
       `TakeFacilitatorButton` en `frontend/src/features/poker/components/` con su llamada en
       `api.ts` — depende de T073, T076

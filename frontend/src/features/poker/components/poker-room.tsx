@@ -8,6 +8,7 @@ import {
   finalizeEstimationSession,
   revealEstimationRound,
   startEstimationRound,
+  takeEstimationFacilitator,
 } from "@/features/poker/api";
 import { CardDeck } from "@/features/poker/components/card-deck";
 import { FacilitatorActions } from "@/features/poker/components/facilitator-actions";
@@ -16,6 +17,7 @@ import { ParticipantList } from "@/features/poker/components/participant-list";
 import { RoundHistory } from "@/features/poker/components/round-history";
 import { RoundResult } from "@/features/poker/components/round-result";
 import { SessionClosedNotice } from "@/features/poker/components/session-closed-notice";
+import { TakeFacilitatorButton } from "@/features/poker/components/take-facilitator-button";
 import { useEstimationStream } from "@/features/poker/use-estimation-stream";
 import { useAuthorizedQuery } from "@/hooks/use-authorized-query";
 import type { Card, ScaleStoryPoints } from "@/types/poker";
@@ -37,13 +39,16 @@ export type PokerRoomProps = {
 // muestran en el historial; un rechazo de la ronda nueva muestra el motivo recibido. Con alguna ronda
 // revelada el facilitador registra la estimación acordada (005/US5); un rechazo muestra el motivo
 // recibido y, cuando la instantánea llega cerrada, la sala muestra el aviso de cierre con su
-// resultado en lugar del mazo y de las acciones.
+// resultado en lugar del mazo y de las acciones. Con el facilitador desconectado la sala muestra
+// cuánto falta para que el rol quede disponible y, al vencer, ofrece tomarlo (005/US6); un rechazo
+// muestra el motivo recibido.
 export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
   const { session, error } = useEstimationStream(sessionId);
   const profile = useAuthorizedQuery(getOwnProfile);
   const [voteError, setVoteError] = useState<string | null>(null);
   const [roundError, setRoundError] = useState<string | null>(null);
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
+  const [takeError, setTakeError] = useState<string | null>(null);
 
   // Envía la carta jugada; ante un rechazo muestra el detalle del campo si lo hay o el mensaje
   // general, y ante un voto aceptado limpia el aviso anterior.
@@ -80,6 +85,13 @@ export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
         ? null
         : (result.error.fields[0]?.message ?? result.error.message),
     );
+  };
+
+  // Pide el rol de facilitador; ante un rechazo muestra el mensaje recibido y ante un pedido aceptado
+  // limpia el aviso anterior. La sesión con el nuevo facilitador llega por el canal.
+  const handleTakeFacilitator = async () => {
+    const result = await takeEstimationFacilitator(sessionId);
+    setTakeError(result.ok ? null : result.error.message);
   };
 
   if (error !== null) {
@@ -188,10 +200,20 @@ export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
       {/* Rondas anteriores a la vigente con sus votos y su resultado. */}
       <RoundHistory rounds={session.rounds} />
 
-      {/* Participantes de la sesión con su conexión, la marca de facilitador y la de voto. */}
+      {/* Participantes de la sesión con su conexión, la marca de facilitador y la de voto, y, con la
+          sesión abierta, la toma del rol si el facilitador está desconectado. */}
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold">Participantes</h2>
         <ParticipantList participants={session.participants} />
+        {isOpen && (
+          <>
+            {takeError !== null && <Alert>{takeError}</Alert>}
+            <TakeFacilitatorButton
+              facilitatorAvailableAt={session.facilitatorAvailableAt}
+              onTake={() => void handleTakeFacilitator()}
+            />
+          </>
+        )}
       </section>
     </div>
   );

@@ -240,3 +240,123 @@ func TestPokerVoteReveal_Concurrency(t *testing.T) {
 		})
 	}
 }
+
+// Prueba de integración de la toma simultánea del rol de facilitador (T072; SC-025, FR-072): en cada
+// repetición, sobre una sesión nueva, diez participantes conectados piden a la vez POST
+// /api/v1/estimation-sessions/{sessionId}/facilitator con la facilitadora desconectada hace más de 5
+// minutos, y al terminar se verifica que prosperó un único pedido y que la base guarda un único cambio
+// de facilitador. No lleva la etiqueta de un escenario de la spec porque verifica un criterio de
+// éxito; el escenario de dos pedidos simultáneos es TestUS6_TomasSimultaneas.
+
+// Cantidad de repeticiones de la tanda de pedidos simultáneos de tomar el rol.
+const pokerTakeoverRounds = 5
+
+// pokerTakeAtOnce pide el rol de facilitador de la sesión con todos los tokens desde goroutines que
+// esperan la misma señal de salida, y devuelve los resultados en el orden de los tokens. Cada
+// goroutine escribe solo en su posición del slice.
+func (e *pokerTestEnv) pokerTakeAtOnce(tokens []string, sessionID string) []pokerConcurrentResult {
+	results := make([]pokerConcurrentResult, len(tokens))
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i, token := range tokens {
+		wg.Go(func() {
+			<-start
+			results[i] = e.pokerSend(http.MethodPost, facilitatorPath(sessionID), token, nil)
+		})
+	}
+	close(start)
+	wg.Wait()
+	return results
+}
+
+// pokerTakeoverMember es una de las diez cuentas integrantes que piden el rol a la vez.
+type pokerTakeoverMember struct {
+	id       uuid.UUID
+	fullName string
+	token    string
+}
+
+// Ana, propietaria y facilitadora, abre en cada repetición una sesión nueva a la que se conectan
+// ella y diez integrantes; Ana cierra su canal, vence la gracia y pasan 5 minutos. Los diez piden el
+// rol a la vez: exactamente uno responde 200 con él como facilitador, los nueve restantes 409 con el
+// mensaje de facilitador conectado y el ganador como vigente, ninguno 500, y en la base
+// facilitator_id queda en el ganador y la versión sube en uno (SC-025, FR-072).
+func TestPokerFacilitator_Concurrency(t *testing.T) {
+	env := newPokerTestEnv(t)
+
+	// Ana es propietaria de un proyecto En curso con diez cuentas integrantes.
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := env.createProject(t, anaToken, "Portal de Clientes")
+	members := make([]pokerTakeoverMember, 0, pokerConcurrentAccounts)
+	tokens := make([]string, 0, pokerConcurrentAccounts)
+	everyone := []uuid.UUID{anaID}
+	for i := range pokerConcurrentAccounts {
+		name := fmt.Sprintf("Integrante %d", i+1)
+		email := fmt.Sprintf("integrante%d@example.com", i+1)
+		id, token := env.signUp(t, name, email)
+		env.addMember(t, anaToken, projectID, email)
+		members = append(members, pokerTakeoverMember{id: id, fullName: name, token: token})
+		tokens = append(tokens, token)
+		everyone = append(everyone, id)
+	}
+	env.setProjectStatus(t, anaToken, projectID, "in_progress")
+
+	for round := range pokerTakeoverRounds {
+		t.Run(fmt.Sprintf("repeticion_%d", round+1), func(t *testing.T) {
+			// Sesión nueva con los once conectados; Ana se desconecta y el rol queda disponible.
+			storyID := env.createStory(t, anaToken, projectID, pokerStoryInput{
+				Title: fmt.Sprintf("Historia con relevo concurrente %d", round+1),
+			})
+			session := env.requireOpenedSession(t, anaToken, storyID)
+			ana := env.openStream(t, anaToken, session.ID)
+			streams := make([]*pokerStream, 0, len(members))
+			for _, m := range members {
+				streams = append(streams, env.openStream(t, m.token, session.ID))
+			}
+			all := allConnected(everyone...)
+			ana.NextUntil(t, "los once conectados en el canal de Ana", all)
+			for i, stream := range streams {
+				stream.NextUntil(t, fmt.Sprintf("los once conectados en el canal de %s", members[i].fullName), all)
+			}
+			env.dropAndExpire(t, ana)
+			streams[0].NextUntil(t, "Ana desconectada en el canal de "+members[0].fullName, participantGone(anaID))
+			env.clock.Advance(pokerTakeoverWait)
+			before := pokerStoredVersion(t, env.db, session.ID)
+
+			results := env.pokerTakeAtOnce(tokens, session.ID)
+
+			// Cada respuesta es una toma o un rechazo, y prospera una sola.
+			var winners []int
+			var conflicts []pokerResponse
+			for i, res := range results {
+				if !assert.NoError(t, res.err, "pedido %d sin respuesta", i+1) {
+					continue
+				}
+				switch res.resp.Code {
+				case http.StatusOK:
+					winners = append(winners, i)
+				case http.StatusConflict:
+					conflicts = append(conflicts, res.resp)
+				default:
+					t.Errorf("pedido de %s: código %d inesperado; cuerpo: %s", members[i].fullName, res.resp.Code, res.resp.Body)
+				}
+			}
+			require.Len(t, winners, 1, "debería prosperar exactamente un pedido")
+			assert.Len(t, conflicts, pokerConcurrentAccounts-1, "los demás pedidos deberían responder 409")
+			winner := members[winners[0]]
+
+			// El 200 muestra al ganador como facilitador y cada 409 lo trae como vigente.
+			var taken pokerSessionBody
+			require.NoError(t, json.Unmarshal(results[winners[0]].resp.Body, &taken), "el 200 no es JSON válido: %s", results[winners[0]].resp.Body)
+			taken.Raw = results[winners[0]].resp.Body
+			requireFacilitatorRole(t, taken, winner.id, "respuesta de "+winner.fullName)
+			for _, resp := range conflicts {
+				requireFacilitatorUnavailable(t, resp, pokerFacilitatorPresentMessage, winner.id, winner.fullName, nil)
+			}
+
+			// En la base hay un único cambio de facilitador, a favor del ganador.
+			requireStoredFacilitator(t, env.db, session.ID, winner.id, "prospera solo el primer pedido")
+			assert.Equal(t, before+1, pokerStoredVersion(t, env.db, session.ID), "un único cambio de facilitador sube la versión en uno")
+		})
+	}
+}

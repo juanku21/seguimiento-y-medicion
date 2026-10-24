@@ -178,6 +178,18 @@ type SessionClosedResponse struct {
 	CancelReason *domain.CancelReason `json:"cancelReason" validate:"required" enums:"inactivity,story_completed,project_finished" extensions:"x-nullable" example:"inactivity"`
 }
 
+// FacilitatorUnavailableResponse es el cuerpo del 409 al pedir el rol de facilitador sin que esté
+// disponible, con el facilitador vigente y, si está desconectado, los segundos que faltan (FR-069).
+type FacilitatorUnavailableResponse struct {
+	// Mensaje del rechazo.
+	Error string `json:"error" validate:"required" example:"El rol de facilitador todavía no está disponible."`
+	// Facilitador vigente de la sesión.
+	Facilitator UserRef `json:"facilitator" validate:"required"`
+	// Segundos que faltan para que el rol quede disponible; ausente si el facilitador está conectado
+	// (FR-069).
+	RetryAfterSeconds *int `json:"retryAfterSeconds,omitempty" minimum:"1" example:"180"`
+}
+
 // newOpenSessionExistsResponse arma el cuerpo del 409 de apertura con el mensaje recibido y la sesión
 // en curso que informa el error de dominio.
 func newOpenSessionExistsResponse(message string, sessionID uuid.UUID) OpenSessionExistsResponse {
@@ -193,6 +205,23 @@ func newSessionClosedResponse(message string, closed *domain.SessionClosedError)
 		AgreedStoryPoints: closed.AgreedStoryPoints,
 		CancelReason:      closed.CancelReason,
 	}
+}
+
+// newFacilitatorUnavailableResponse arma el cuerpo del 409 de la toma del rol a partir del error de
+// dominio: con RetryAfter cero el facilitador está conectado y el cuerpo no lleva retryAfterSeconds;
+// si no, lleva los segundos que faltan redondeados hacia arriba, para que nunca se informe 0 mientras
+// el rol todavía no está disponible.
+func newFacilitatorUnavailableResponse(unavailable *domain.FacilitatorUnavailableError) FacilitatorUnavailableResponse {
+	resp := FacilitatorUnavailableResponse{
+		Error:       msgFacilitatorPresent,
+		Facilitator: newUserRef(unavailable.Facilitator),
+	}
+	if unavailable.RetryAfter > 0 {
+		seconds := int((unavailable.RetryAfter + time.Second - 1) / time.Second)
+		resp.Error = msgFacilitatorNotYet
+		resp.RetryAfterSeconds = &seconds
+	}
+	return resp
 }
 
 // newEstimationSession arma EstimationSession del contrato a partir de la vista de dominio. Es el

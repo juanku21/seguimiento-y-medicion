@@ -16,7 +16,9 @@ import (
 // SessionService orquesta las sesiones de estimación sobre el repositorio, con el reloj inyectado
 // para que las pruebas controlen la gracia, el relevo y la caducidad (research.md secciones 7, 9 y
 // 13). Guarda en memoria la presencia por (sesión, usuario), el hub de suscripciones y un mutex por
-// sesión que ordena las publicaciones de una misma sesión.
+// sesión que ordena las publicaciones de una misma sesión. El barrido anota además las personas cuya
+// membresía revocó, para que sus canales envíen removed al cerrarse, y el último updated_at visto de
+// la historia de cada sesión abierta, para detectar sus cambios (research.md sección 13).
 type SessionService struct {
 	repo     domain.SessionRepository
 	now      func() time.Time
@@ -25,6 +27,12 @@ type SessionService struct {
 
 	locksMu sync.Mutex
 	locks   map[uuid.UUID]*sync.Mutex
+
+	revokedMu sync.Mutex
+	revoked   map[PresenceKey]struct{}
+
+	storySeenMu sync.Mutex
+	storySeen   map[uuid.UUID]time.Time
 }
 
 // Connection es una conexión abierta de una persona al canal de una sesión: Views entrega las vistas
@@ -35,17 +43,26 @@ type Connection struct {
 	UserID      uuid.UUID
 	Views       <-chan domain.SessionView
 	unsubscribe func()
+	removed     func() bool
+}
+
+// Removed informa si el barrido cerró la conexión porque la persona dejó de ser integrante del
+// proyecto (FR-019); el canal lo consulta al cerrarse Views para enviar el evento removed.
+func (c *Connection) Removed() bool {
+	return c.removed()
 }
 
 // NewSessionService crea el servicio de sesiones sobre el repositorio y el reloj recibidos, con la
 // presencia y el hub vacíos.
 func NewSessionService(repo domain.SessionRepository, now func() time.Time) *SessionService {
 	return &SessionService{
-		repo:     repo,
-		now:      now,
-		presence: NewPresence(),
-		hub:      NewHub(),
-		locks:    map[uuid.UUID]*sync.Mutex{},
+		repo:      repo,
+		now:       now,
+		presence:  NewPresence(),
+		hub:       NewHub(),
+		locks:     map[uuid.UUID]*sync.Mutex{},
+		revoked:   map[PresenceKey]struct{}{},
+		storySeen: map[uuid.UUID]time.Time{},
 	}
 }
 
@@ -72,11 +89,20 @@ func (s *SessionService) Open(ctx context.Context, storyID, openerID uuid.UUID) 
 // Join abre una conexión de la persona al canal de la sesión: la suscribe al hub y cuenta la
 // conexión en la presencia. Si es una llegada (su primera conexión fuera de la gracia), registra la
 // incorporación con Connect. Siempre publica después, para que la conexión nueva reciba el estado
-// vigente como primera vista (FR-077). Si algo falla, deshace la suscripción y la conexión contada.
+// vigente como primera vista (FR-077). Quien llega pasó el control de membresía, así que se borra
+// una revocación anterior. Si algo falla, deshace la suscripción y la conexión contada.
 func (s *SessionService) Join(ctx context.Context, access *domain.SessionAccess, userID uuid.UUID) (*Connection, error) {
 	sessionID := access.SessionID
+	key := PresenceKey{SessionID: sessionID, UserID: userID}
+	s.setRevoked(key, false)
 	views, unsubscribe := s.hub.Subscribe(sessionID, userID)
-	conn := &Connection{SessionID: sessionID, UserID: userID, Views: views, unsubscribe: unsubscribe}
+	conn := &Connection{
+		SessionID:   sessionID,
+		UserID:      userID,
+		Views:       views,
+		unsubscribe: unsubscribe,
+		removed:     func() bool { return s.isRevoked(key) },
+	}
 
 	if s.presence.Connect(sessionID, userID) {
 		if err := s.repo.Connect(ctx, sessionID, userID, s.now()); err != nil {
@@ -174,6 +200,27 @@ func (s *SessionService) Finalize(ctx context.Context, sessionID, userID uuid.UU
 	return &view, nil
 }
 
+// TakeFacilitator transfiere el rol de facilitador a quien lo pide, si el facilitador vigente lleva
+// 5 minutos o más desconectado (FR-068, FR-070), y devuelve la sesión resultante vista por quien lo
+// tomó. Igual que las demás acciones, publica recién después de que el repositorio confirma la
+// transacción (research.md sección 7) y devuelve tal cual los errores del repositorio, incluido
+// FacilitatorUnavailableError, para que el manejador los traduzca.
+func (s *SessionService) TakeFacilitator(ctx context.Context, sessionID, userID uuid.UUID) (*domain.SessionView, error) {
+	if err := s.repo.TakeFacilitator(ctx, sessionID, userID, s.now()); err != nil {
+		return nil, err
+	}
+	if err := s.publish(ctx, sessionID); err != nil {
+		return nil, err
+	}
+
+	snapshot, err := s.repo.FindSnapshot(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("reading taken facilitator session snapshot: %w", err)
+	}
+	view := domain.ViewFor(*snapshot, userID)
+	return &view, nil
+}
+
 // Get devuelve la sesión a la que el middleware ya dio acceso, con todas sus rondas, vista por quien
 // la consulta. Es solo lectura: no une a la persona a la sesión ni publica nada.
 func (s *SessionService) Get(ctx context.Context, access *domain.SessionAccess, viewerID uuid.UUID) (*domain.SessionView, error) {
@@ -208,6 +255,27 @@ func (s *SessionService) publish(ctx context.Context, sessionID uuid.UUID) error
 		return domain.ViewFor(*snapshot, userID)
 	})
 	return nil
+}
+
+// setRevoked anota o borra la revocación de la membresía de la persona en la sesión.
+func (s *SessionService) setRevoked(key PresenceKey, revoked bool) {
+	s.revokedMu.Lock()
+	defer s.revokedMu.Unlock()
+
+	if revoked {
+		s.revoked[key] = struct{}{}
+		return
+	}
+	delete(s.revoked, key)
+}
+
+// isRevoked informa si el barrido revocó la membresía de la persona en la sesión.
+func (s *SessionService) isRevoked(key PresenceKey) bool {
+	s.revokedMu.Lock()
+	defer s.revokedMu.Unlock()
+
+	_, ok := s.revoked[key]
+	return ok
 }
 
 // sessionLock devuelve el mutex de publicación de la sesión, creándolo la primera vez.

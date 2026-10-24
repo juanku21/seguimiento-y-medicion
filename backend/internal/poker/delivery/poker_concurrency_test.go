@@ -143,3 +143,100 @@ func TestPokerOpen_Concurrency(t *testing.T) {
 		})
 	}
 }
+
+// Prueba de integración del cambio de voto simultáneo con la revelación manual (T048; SC-007,
+// FR-031, RN-11): repite veinte veces, cada vez sobre una sesión nueva, el caso de
+// TestUS2_CambioSimultaneoConRevelacion y compara las vistas de los tres canales entre sí y con la
+// base. No lleva la etiqueta de un escenario de la spec porque verifica un criterio de éxito.
+
+// Cantidad de revelaciones simultáneas con un cambio de voto que exige SC-007.
+const pokerVoteRevealRounds = 20
+
+// pokerVoteAndRevealAtOnce envía el cambio de carta del participante y la revelación del facilitador
+// desde dos goroutines que esperan la misma señal de salida, y devuelve ambos resultados.
+func (e *pokerTestEnv) pokerVoteAndRevealAtOnce(voterToken, facilitatorToken, sessionID string, payload []byte) (change, reveal pokerConcurrentResult) {
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		<-start
+		change = e.pokerSend(http.MethodPut, votePath(sessionID), voterToken, payload)
+	})
+	wg.Go(func() {
+		<-start
+		reveal = e.pokerSend(http.MethodPost, revealPath(sessionID), facilitatorToken, nil)
+	})
+	close(start)
+	wg.Wait()
+	return change, reveal
+}
+
+// En cada repetición, Bruno ya votó 5, Carla 8 y Ana, facilitadora, no votó; Bruno cambia a 13 en el
+// mismo instante en que Ana revela. Ninguna respuesta es 500: la revelación responde 200 y el cambio
+// 200 o 409. Los canales de Ana, Bruno y Carla reciben la ronda revelada con la misma versión, que es
+// la guardada en la base, y el mismo conjunto de votos, que coincide con la carta guardada de Bruno
+// (SC-007).
+func TestPokerVoteReveal_Concurrency(t *testing.T) {
+	f := newPokerUS1Fixture(t)
+	payload, err := json.Marshal(map[string]any{"card": "13"})
+	require.NoError(t, err)
+
+	for round := range pokerVoteRevealRounds {
+		t.Run(fmt.Sprintf("repeticion_%d", round+1), func(t *testing.T) {
+			// Sesión nueva sobre una historia nueva, con los tres canales conectados y dos votos.
+			storyID := f.env.createStory(t, f.anaToken, f.projectID, pokerStoryInput{
+				Title: fmt.Sprintf("Historia con revelación concurrente %d", round+1),
+			})
+			session := f.env.requireOpenedSession(t, f.anaToken, storyID)
+			streams := map[string]*pokerStream{
+				"Ana":   f.env.openStream(t, f.anaToken, session.ID),
+				"Bruno": f.env.openStream(t, f.brunoToken, session.ID),
+				"Carla": f.env.openStream(t, f.carlaToken, session.ID),
+			}
+			three := allConnected(f.anaID, f.brunoID, f.carlaID)
+			for name, stream := range streams {
+				stream.NextUntil(t, "los tres conectados en el canal de "+name, three)
+			}
+			f.env.requireVoted(t, f.brunoToken, session.ID, "5")
+			f.env.requireVoted(t, f.carlaToken, session.ID, "8")
+
+			change, reveal := f.env.pokerVoteAndRevealAtOnce(f.brunoToken, f.anaToken, session.ID, payload)
+
+			// Ninguna respuesta es 500: la revelación se acepta y el cambio se acepta o se rechaza
+			// porque la ronda ya estaba revelada.
+			require.NoError(t, reveal.err, "la revelación no obtuvo respuesta")
+			require.NoError(t, change.err, "el cambio de voto no obtuvo respuesta")
+			assert.NotEqual(t, http.StatusInternalServerError, reveal.resp.Code, "revelación; cuerpo: %s", reveal.resp.Body)
+			assert.NotEqual(t, http.StatusInternalServerError, change.resp.Code, "cambio de voto; cuerpo: %s", change.resp.Body)
+			require.Equal(t, http.StatusOK, reveal.resp.Code, "revelación; cuerpo: %s", reveal.resp.Body)
+			brunoCard := "5"
+			switch change.resp.Code {
+			case http.StatusOK:
+				brunoCard = "13"
+			case http.StatusConflict:
+				assert.JSONEq(t, pokerRoundRevealedBodyJSON, string(change.resp.Body))
+			default:
+				t.Fatalf("cambio de voto: código %d inesperado; cuerpo: %s", change.resp.Code, change.resp.Body)
+			}
+
+			// Los tres canales muestran la misma revelación: misma versión y mismos votos.
+			votes := map[uuid.UUID]string{f.brunoID: brunoCard, f.carlaID: "8"}
+			versions := make(map[string]int64, len(streams))
+			cards := make(map[string]map[string]string, len(streams))
+			for name, stream := range streams {
+				snapshot := stream.NextUntil(t, "la ronda revelada en el canal de "+name, currentRoundRevealed)
+				revealed := requireRevealedRound(t, snapshot, votes, []uuid.UUID{f.anaID}, "canal de "+name)
+				versions[name] = snapshot.Version
+				cards[name] = pokerRevealedCards(revealed)
+			}
+			stored := pokerStoredVersion(t, f.env.db, session.ID)
+			for name := range streams {
+				assert.Equal(t, stored, versions[name], "el canal de %s debería ver la versión guardada de la revelación", name)
+				assert.Equal(t, cards["Ana"], cards[name], "el canal de %s debería ver los mismos votos que el de Ana", name)
+			}
+
+			// La base guarda la ronda revelada y la carta de Bruno que corresponde al resultado.
+			requireSingleStoredVote(t, f.env.db, session.ID, f.brunoID, brunoCard)
+			requireStoredRevealed(t, f.env.db, session.ID, f.env.clock.Now())
+		})
+	}
+}

@@ -457,7 +457,7 @@ reciben la ronda `revealed` con `divergence`, mínimo 3 y máximo 13 con sus aut
       `Hace falta al menos un voto para revelar la ronda.`) y `TestUS3_RevelarSinSerFacilitador`
       (`403` `Esta acción está reservada al facilitador de la sesión.`, votos ocultos); y, con
       `// Escenario: … (005/US2)`, `TestUS2_CambioSimultaneoConRevelacion` — depende de T044
-- [ ] T048 [US3] Prueba de concurrencia `TestPokerVoteReveal_Concurrency` en
+- [X] T048 [US3] Prueba de concurrencia `TestPokerVoteReveal_Concurrency` en
       `backend/internal/poker/delivery/poker_concurrency_test.go`, **sin** etiqueta: 20 repeticiones
       en las que un participante cambia su carta y el facilitador revela a la vez; ninguna `500`, y
       las vistas de los tres canales tienen la misma `version` y el mismo conjunto de votos revelados

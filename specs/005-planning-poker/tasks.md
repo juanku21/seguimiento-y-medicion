@@ -656,7 +656,7 @@ nuevo facilitador.
       participantes piden el rol a la vez con el facilitador desconectado hace más de 5 minutos;
       exactamente uno `200`, nueve `409` con el facilitador vigente y ninguna `500` (SC-025) —
       depende de T071
-- [ ] T073 [P] [US6] Pruebas de frontend en
+- [X] T073 [P] [US6] Pruebas de frontend en
       `frontend/src/features/poker/components/take-facilitator-button.test.tsx` y
       `frontend/src/features/poker/use-estimation-stream.test.tsx`, con
       `describe("005/US6 - Sobrevivir a las desconexiones y relevar al facilitador")`: el botón

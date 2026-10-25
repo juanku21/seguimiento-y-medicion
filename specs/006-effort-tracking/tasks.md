@@ -189,7 +189,7 @@ con `availableHours: 4.00`.
       → `20.00`, −2000 → `-20.00`, 25 → `0.25`, 0 → `0.00`, −5 → `-0.05`, 1310 → `13.10`; un
       puntero nulo se serializa `null`; el resultado es un número JSON válido (se vuelve a decodificar
       con `json.Unmarshal`) — depende de T007
-- [ ] T011 [P] [US1] Pruebas unitarias **obligatorias** de
+- [X] T011 [P] [US1] Pruebas unitarias **obligatorias** de
       `ValidateEntryDate(date, projectStart, today time.Time) error` en
       `backend/internal/effort/domain/entry_date_test.go`, cubriendo RN-05 y SC-007: hoy → ok;
       mañana → `ErrEntryDateInFuture`; día de inicio → ok; día anterior al inicio →

@@ -69,6 +69,10 @@ type SessionRepository interface {
 	// proyecto.
 	ListRevokedParticipants(ctx context.Context) ([]ParticipantRef, error)
 
+	// ListRevokedAuthSessions devuelve, de las sesiones de autenticación recibidas, las que tienen
+	// revoked_at no nulo.
+	ListRevokedAuthSessions(ctx context.Context, authSessionIDs []uuid.UUID) ([]uuid.UUID, error)
+
 	// FindSnapshot devuelve la instantánea completa de la sesión, entrada de ViewFor.
 	FindSnapshot(ctx context.Context, sessionID uuid.UUID) (*SessionSnapshot, error)
 

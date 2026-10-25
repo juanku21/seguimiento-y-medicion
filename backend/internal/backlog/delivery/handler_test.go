@@ -28,6 +28,7 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/service"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/httpserver"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/testsupport"
+	pokerdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/poker/domain"
 	projectsdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/delivery"
 	projectsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/domain"
 	projectsrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/repository"
@@ -1894,6 +1895,69 @@ func TestStoryDelete_ProyectoFinalizadoTrasResolverAcceso(t *testing.T) {
 	backlogRequireConflict(t, rec, backlogReadOnlyMessage)
 	backlogRequireStoryUntouched(t, env.db, storyID, domain.StoryStatusPending,
 		[]string{backlogFirstCriterion, backlogSecondCriterion})
+}
+
+// Prueba de integración de T106 (hallazgo de /speckit-converge detectado en 005/US8: ventana de
+// carrera al eliminar una historia, research.md de la 005, sección 15.4). Reproduce de forma
+// determinista la carrera en la que se abre una sesión de Planning Poker después de que el servicio
+// consultó HasSessions y antes de que el repositorio borre la historia: un envoltorio del puerto de
+// sesiones delega en la implementación real y, en cuanto esta responde que no hay sesiones, inserta
+// una sesión open de la historia en la base. Así la consulta previa no ve historial y solo la clave
+// foránea de estimation_sessions.story_id puede impedir el borrado.
+
+// backlogOpeningSessions envuelve el puerto real de sesiones de estimación: HasSessions consulta con
+// la implementación real y, si la historia todavía no tiene sesiones, abre una antes de devolver ese
+// resultado viejo al servicio. La sesión la abre la autora de la historia como facilitadora.
+type backlogOpeningSessions struct {
+	domain.EstimationSessions
+	db *gorm.DB
+}
+
+// HasSessions delega en el puerto real y abre una sesión cuando la respuesta es "sin sesiones". La
+// inserción usa una conexión propia y fuera de cualquier transacción de la solicitud, como lo haría
+// la 005 al abrir la sesión en otra solicitud.
+func (s backlogOpeningSessions) HasSessions(ctx context.Context, storyID uuid.UUID) (bool, error) {
+	has, err := s.EstimationSessions.HasSessions(ctx, storyID)
+	if err != nil || has {
+		return has, err
+	}
+	var story domain.UserStory
+	if err := s.db.WithContext(ctx).Select("created_by_id").Where("id = ?", storyID).Take(&story).Error; err != nil {
+		return false, fmt.Errorf("leer la autora de la historia: %w", err)
+	}
+	session := pokerdomain.EstimationSession{
+		ID:             uuid.New(),
+		StoryID:        storyID,
+		FacilitatorID:  story.CreatedByID,
+		Status:         pokerdomain.SessionStatusOpen,
+		OpenedByID:     story.CreatedByID,
+		LastActivityAt: time.Now(),
+	}
+	if err := s.db.WithContext(ctx).Create(&session).Error; err != nil {
+		return false, fmt.Errorf("abrir la sesión de estimación en la carrera: %w", err)
+	}
+	return false, nil
+}
+
+// TestStoryDelete_SesionAbiertaTrasVerificarHistorial verifica que una eliminación se rechaza con el
+// 409 de eliminación bloqueada con el motivo estimation_sessions, y no con un 500, cuando se abre una
+// sesión de estimación entre la consulta de HasSessions y el borrado, y que la historia y la sesión
+// siguen en la base (T106, FR-043, RN-16, RN-33).
+func TestStoryDelete_SesionAbiertaTrasVerificarHistorial(t *testing.T) {
+	env := newBacklogTestEnv(t, func(p *backlogTestPorts) {
+		p.sessions = backlogOpeningSessions{EstimationSessions: p.sessions, db: p.db}
+	})
+	anaID, anaToken := env.signUp(t, "Ana Pérez", "ana@example.com")
+	projectID := backlogSeedProject(t, env.db, anaID, projectsdomain.ProjectStatusInProgress)
+	storyID := backlogSeedEstimable(t, env.db, projectID, anaID, domain.StoryStatusPending, backlogPoints(8), 1)
+
+	rec := env.deleteStory(t, anaToken, storyID.String())
+
+	// La sesión quedó abierta durante la solicitud, así que la prueba reprodujo la carrera.
+	require.Equal(t, int64(1), backlogCountRows(t, env.db, &pokerdomain.EstimationSession{}, "story_id = ?", storyID),
+		"el envoltorio debería haber abierto una sesión de la historia durante la solicitud")
+	backlogRequireDeletionBlocked(t, rec, "estimation_sessions")
+	backlogRequireStoryUntouched(t, env.db, storyID, domain.StoryStatusPending, []string{backlogFirstCriterion})
 }
 
 // Pruebas de integración de US5 (T058): PATCH /api/v1/stories/{storyId}. Las historias se siembran

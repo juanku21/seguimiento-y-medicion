@@ -125,8 +125,9 @@ func (r *SessionRepository) Open(ctx context.Context, storyID, openerID uuid.UUI
 	return &session, nil
 }
 
-// openableStoryRow es la fila que leen lockOpenableStory y autoCancelLocked: el estado de la historia
-// y el de su proyecto, que llega por el JOIN a projects con el alias project_status.
+// openableStoryRow es el estado que leen lockOpenableStory, autoCancelLocked y lockSessionStory: el
+// de la historia y el de su proyecto, que en las dos primeras llega por el JOIN a projects con el
+// alias project_status.
 type openableStoryRow struct {
 	StoryStatus   backlogdomain.StoryStatus
 	ProjectStatus projectsdomain.ProjectStatus
@@ -259,7 +260,8 @@ func (r *SessionRepository) Disconnect(ctx context.Context, sessionID, userID uu
 // autoCancelLocked reevalúa AutoCancelReason. Si corresponde una cancelación del sistema, la
 // transacción confirma esa cancelación sin ejecutar la acción y se devuelve SessionClosedError con el
 // motivo (research.md sección 13); si no, ejecuta la acción con la sesión releída dentro de la misma
-// transacción.
+// transacción. Si la acción devuelve SessionClosedError, porque reevaluó la cancelación del sistema
+// bajo su propio bloqueo y canceló la sesión, la transacción también confirma y se devuelve ese error.
 func (r *SessionRepository) withOpenSession(
 	ctx context.Context,
 	sessionID uuid.UUID,
@@ -280,7 +282,13 @@ func (r *SessionRepository) withOpenSession(
 			closedErr = &domain.SessionClosedError{Status: domain.SessionStatusCanceled, CancelReason: &reason}
 			return nil
 		}
-		return action(tx, session)
+		err = action(tx, session)
+		var closed *domain.SessionClosedError
+		if errors.As(err, &closed) {
+			closedErr = err
+			return nil
+		}
+		return err
 	})
 	if err != nil {
 		return err
@@ -291,7 +299,8 @@ func (r *SessionRepository) withOpenSession(
 // autoCancelLocked lee, dentro de la transacción que ya bloqueó la sesión, el estado de su historia y
 // el de su proyecto, y con el last_activity_at releído decide con AutoCancelReason si el sistema debe
 // cancelarla (FR-061, FR-063). Si corresponde, la cancela sin quien cerró y con el motivo, y devuelve
-// el motivo y verdadero. Si la historia ya no existe devuelve el ErrStoryNotFound de la 003.
+// el motivo y verdadero. Si la historia ya no existe devuelve el ErrStoryNotFound de la 003. La
+// decisión y la cancelación las hace applyAutoCancel.
 func autoCancelLocked(tx *gorm.DB, session *domain.EstimationSession, now time.Time) (domain.CancelReason, bool, error) {
 	var row openableStoryRow
 	err := tx.
@@ -306,7 +315,18 @@ func autoCancelLocked(tx *gorm.DB, session *domain.EstimationSession, now time.T
 	if err != nil {
 		return "", false, fmt.Errorf("leer el estado de la historia de la sesión: %w", err)
 	}
+	return applyAutoCancel(tx, session, row, now)
+}
 
+// applyAutoCancel decide con AutoCancelReason, sobre el estado de la historia y del proyecto recibido
+// y el last_activity_at de la sesión bloqueada, si el sistema debe cancelarla (FR-061, FR-063). Si
+// corresponde, la cancela sin quien cerró y con el motivo, y devuelve el motivo y verdadero.
+func applyAutoCancel(
+	tx *gorm.DB,
+	session *domain.EstimationSession,
+	row openableStoryRow,
+	now time.Time,
+) (domain.CancelReason, bool, error) {
 	// La regla pura decide el motivo; sin motivo la sesión sigue abierta.
 	projectFinished := row.ProjectStatus == projectsdomain.ProjectStatusFinished
 	reason, cancel := domain.AutoCancelReason(row.StoryStatus, projectFinished, session.LastActivityAt, now)
@@ -612,7 +632,10 @@ func (r *SessionRepository) StartRound(ctx context.Context, sessionID, userID uu
 // FR-056). Exige que quien registra sea participante conectado (si no, ErrNotParticipant) y el
 // facilitador de la sesión (si no, ErrFacilitatorOnly), y que la sesión tenga al menos una ronda
 // revelada (si no, ErrNoRevealedRound). Recién después bloquea la fila de la historia, respetando el
-// orden sesión → historia (research.md sección 6). Cierra la sesión como finished con el valor
+// orden sesión → historia (research.md sección 6), y con el estado de la historia y del proyecto
+// releído bajo ese bloqueo reevalúa AutoCancelReason: si la historia se completó o el proyecto se
+// finalizó en paralelo, cancela la sesión y devuelve SessionClosedError con el motivo sin escribir
+// story_points (FR-061, FR-063). Si no, cierra la sesión como finished con el valor
 // acordado, quien la cerró y closed_at = now, y sube version sin tocar last_activity_at, porque el
 // registro cierra la sesión (data-model.md sección 7). En la misma transacción escribe story_points y
 // updated_at en la historia (SC-013).
@@ -627,13 +650,21 @@ func (r *SessionRepository) Finalize(ctx context.Context, sessionID, userID uuid
 		if err := ensureRevealedRound(tx, sessionID); err != nil {
 			return err
 		}
-		if err := lockSessionStory(tx, session.StoryID); err != nil {
+		row, err := lockSessionStory(tx, session.StoryID)
+		if err != nil {
 			return err
+		}
+		reason, canceled, err := applyAutoCancel(tx, session, row, now)
+		if err != nil {
+			return err
+		}
+		if canceled {
+			return &domain.SessionClosedError{Status: domain.SessionStatusCanceled, CancelReason: &reason}
 		}
 
 		// La sesión se cierra con un map para escribir todos los campos del cierre y subir version en
 		// la misma sentencia.
-		err := tx.
+		err = tx.
 			Model(&domain.EstimationSession{}).
 			Where("id = ?", sessionID).
 			Updates(map[string]any{
@@ -678,22 +709,35 @@ func ensureRevealedRound(tx *gorm.DB, sessionID uuid.UUID) error {
 	return nil
 }
 
-// lockSessionStory bloquea con FOR UPDATE, dentro de la transacción recibida, la fila de la historia
-// de la sesión. Si la historia ya no existe devuelve el ErrStoryNotFound de la 003.
-func lockSessionStory(tx *gorm.DB, storyID uuid.UUID) error {
+// lockSessionStory bloquea, dentro de la transacción recibida, la fila de la historia de la sesión con
+// FOR UPDATE y después la de su proyecto con FOR SHARE, y devuelve el estado de ambas leído bajo esos
+// bloqueos: si otra transacción completó la historia o finalizó el proyecto, la lectura espera a que
+// confirme y ve el estado nuevo. Si la historia ya no existe devuelve el ErrStoryNotFound de la 003.
+func lockSessionStory(tx *gorm.DB, storyID uuid.UUID) (openableStoryRow, error) {
 	var stories []backlogdomain.UserStory
 	err := tx.
-		Clauses(clause.Locking{Strength: "UPDATE"}).
-		Select("id").
+		Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).
+		Select("id, project_id, status").
 		Where("id = ?", storyID).
 		Find(&stories).Error
 	if err != nil {
-		return fmt.Errorf("bloquear la historia de la sesión: %w", err)
+		return openableStoryRow{}, fmt.Errorf("bloquear la historia de la sesión: %w", err)
 	}
 	if len(stories) == 0 {
-		return backlogdomain.ErrStoryNotFound
+		return openableStoryRow{}, backlogdomain.ErrStoryNotFound
 	}
-	return nil
+
+	// El proyecto se bloquea en modo compartido, después de la historia, para leer su estado vigente.
+	var project projectsdomain.Project
+	err = tx.
+		Clauses(clause.Locking{Strength: clause.LockingStrengthShare}).
+		Select("id, status").
+		Where("id = ?", stories[0].ProjectID).
+		Take(&project).Error
+	if err != nil {
+		return openableStoryRow{}, fmt.Errorf("bloquear el proyecto de la historia de la sesión: %w", err)
+	}
+	return openableStoryRow{StoryStatus: stories[0].Status, ProjectStatus: project.Status}, nil
 }
 
 // Cancel cancela la sesión a pedido del facilitador con el paso común de withOpenSession (FR-057 a
@@ -861,6 +905,25 @@ func (r *SessionRepository) ListRevokedParticipants(ctx context.Context) ([]doma
 		return nil, fmt.Errorf("listar los participantes con la membresía revocada: %w", err)
 	}
 	return refs, nil
+}
+
+// ListRevokedAuthSessions devuelve, de las sesiones de autenticación recibidas, las que el cierre de
+// sesión de la 001 ya revocó (revoked_at no nulo), para que el barrido cierre los canales abiertos
+// con ellas. Lee solo el id de la tabla sessions; sin identificadores no consulta y devuelve la lista
+// vacía.
+func (r *SessionRepository) ListRevokedAuthSessions(ctx context.Context, authSessionIDs []uuid.UUID) ([]uuid.UUID, error) {
+	revoked := []uuid.UUID{}
+	if len(authSessionIDs) == 0 {
+		return revoked, nil
+	}
+	err := r.db.WithContext(ctx).
+		Table("sessions").
+		Where("id IN ? AND revoked_at IS NOT NULL", authSessionIDs).
+		Pluck("id", &revoked).Error
+	if err != nil {
+		return nil, fmt.Errorf("listar las sesiones de autenticación revocadas: %w", err)
+	}
+	return revoked, nil
 }
 
 // FindSnapshot lee la instantánea completa de la sesión, entrada de ViewFor (research.md sección 7),

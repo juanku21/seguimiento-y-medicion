@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -330,11 +331,26 @@ func lockWritableStoryProject(tx *gorm.DB, storyID uuid.UUID) error {
 	return ensureProjectWritable(project.Status)
 }
 
+// estimationSessionsStoryFK es el nombre de la clave foránea de estimation_sessions.story_id que
+// genera GORM para la relación Story de la sesión de estimación de la 005.
+const estimationSessionsStoryFK = "fk_estimation_sessions_story"
+
+// isEstimationSessionsFKViolation informa si el error es la violación de la clave foránea de
+// estimation_sessions.story_id. GORM, con TranslateError, la entrega como ErrForeignKeyViolated
+// envolviendo el error de PostgreSQL, cuyo texto nombra la restricción; se compara ese nombre para
+// no confundirla con otras claves foráneas hacia user_stories, como la de sprint_stories.
+func isEstimationSessionsFKViolation(err error) bool {
+	return errors.Is(err, gorm.ErrForeignKeyViolated) && strings.Contains(err.Error(), estimationSessionsStoryFK)
+}
+
 // Delete elimina definitivamente la historia en una transacción (research.md sección 12). Primero
 // comprueba con lockWritableStoryProject que la historia existe y que su proyecto admite escrituras
 // (FR-048, RN-15). Después borra sus criterios de aceptación y la historia, sin borrado lógico ni
 // ON DELETE CASCADE, de modo que si falla cualquiera de los dos DELETE no se borra nada. Si el DELETE
-// de la historia no afecta ninguna fila, la historia no existe y se devuelve ErrStoryNotFound.
+// de la historia no afecta ninguna fila, la historia no existe y se devuelve ErrStoryNotFound. Si la
+// clave foránea de estimation_sessions lo impide, porque se abrió una sesión después de que el
+// servicio consultara HasSessions, se devuelve el mismo DeletionBlockedError con el motivo
+// estimation_sessions que da el servicio (research.md de la 005, sección 15.4).
 func (r *StoryRepository) Delete(ctx context.Context, storyID uuid.UUID) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockWritableStoryProject(tx, storyID); err != nil {
@@ -351,6 +367,9 @@ func (r *StoryRepository) Delete(ctx context.Context, storyID uuid.UUID) error {
 		result := tx.
 			Where("id = ?", storyID).
 			Delete(&domain.UserStory{})
+		if isEstimationSessionsFKViolation(result.Error) {
+			return &domain.DeletionBlockedError{Reasons: []domain.DeletionBlocker{domain.DeletionBlockerEstimationSessions}}
+		}
 		if result.Error != nil {
 			return fmt.Errorf("borrar la historia: %w", result.Error)
 		}

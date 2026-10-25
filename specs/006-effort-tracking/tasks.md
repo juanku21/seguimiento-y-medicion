@@ -298,7 +298,7 @@ con `availableHours: 4.00`.
       validación de actividad (recorte, 1 a 300 runas) y de `entryDate` (`AAAA-MM-DD`, fecha real, a
       medianoche UTC) y `ValidateEntryInput`, con los mensajes como constantes nombradas en un único
       lugar y todos los campos inválidos a la vez (Principio VII) — depende de T009
-- [ ] T026 [US1] Implementar `Create` en `backend/internal/effort/repository/effort_repository.go`
+- [X] T026 [US1] Implementar `Create` en `backend/internal/effort/repository/effort_repository.go`
       con el orden de bloqueos de research.md sección 10, en una transacción: (1) historia unida a su
       proyecto con `clause.Locking{Strength: "SHARE", Table: clause.Table{Name: "projects"}}`,
       `finished` → `ErrEffortReadOnly` **antes** de evaluar el plazo; (2) `ValidateEntryDate` con

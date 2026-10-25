@@ -99,7 +99,7 @@ estructuras y contratos, sin lógica de negocio.
 
 **Rama**: `fase/006-foundational`
 
-- [ ] T001 [P] Declarar la entidad `EffortEntry` en `backend/internal/effort/domain/entry.go` con los
+- [X] T001 [P] Declarar la entidad `EffortEntry` en `backend/internal/effort/domain/entry.go` con los
       campos de data-model.md sección 1: `ID uuid` PK generado con `google/uuid`;
       `StoryID uuid NOT NULL` con FK a `user_stories.id` (campo `Story *backlogdomain.UserStory` solo
       para la FK, nunca precargado); `UserID uuid NOT NULL` con FK a `users.id` (campo

@@ -252,7 +252,7 @@ con `availableHours: 4.00`.
       proyectos; exactamente 8 reciben `201` y 2 `409 daily_cap_exceeded`, ninguna `500`, y la suma
       de la fecha en la base es 24,00 (SC-005). Repetida varias veces para que el intercalado sea
       real — depende de T015
-- [ ] T017 [P] [US1] Pruebas de integración de los puertos reemplazados, contra `smye_test`: en
+- [X] T017 [P] [US1] Pruebas de integración de los puertos reemplazados, contra `smye_test`: en
       `backend/internal/backlog/repository/effort_records_test.go`, `HasEffort` es `false` sin
       registros, `true` después de insertar un registro con `ever_had_effort = true`, y **sigue**
       `true` después de borrar todas las filas de `effort_entries` (RN-22); en

@@ -143,7 +143,7 @@ func run() error {
 	stories := backlogservice.NewStoryService(
 		storyRepository,
 		backlogrepository.NewSprintAssignments(db),
-		backlogrepository.NewEffortRecords(),
+		backlogrepository.NewEffortRecords(db),
 		backlogrepository.NewDefectRecords(),
 		backlogrepository.NewEstimationSessions(db),
 		backlogrepository.NewProjectDirectory(db),
@@ -163,7 +163,7 @@ func run() error {
 	sprintRepository := sprintsrepository.NewSprintRepository(db)
 	sprints := sprintsservice.NewSprintService(
 		sprintRepository,
-		sprintsrepository.NewSprintEffort(),
+		sprintsrepository.NewSprintEffort(db),
 		cfg.Location,
 		time.Now,
 	)

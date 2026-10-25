@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // EffortRecords implementa domain.EffortRecords mientras la feature specs/006-effort-tracking no
@@ -12,8 +13,8 @@ import (
 type EffortRecords struct{}
 
 // NewEffortRecords crea el puerto de registros de esfuerzo. No recibe dependencias porque hoy no
-// consulta ninguna tabla.
-func NewEffortRecords() *EffortRecords {
+// consulta ninguna tabla. Firma mínima de T017: la implementación corresponde a T031.
+func NewEffortRecords(_ *gorm.DB) *EffortRecords {
 	return &EffortRecords{}
 }
 

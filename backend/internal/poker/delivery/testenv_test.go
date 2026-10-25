@@ -179,7 +179,7 @@ func newPokerRouter(db *gorm.DB, cfg config.Config, clock *pokerClock) (*gin.Eng
 	stories := backlogservice.NewStoryService(
 		storyRepository,
 		backlogrepository.NewSprintAssignments(db),
-		backlogrepository.NewEffortRecords(),
+		backlogrepository.NewEffortRecords(db),
 		backlogrepository.NewDefectRecords(),
 		backlogrepository.NewEstimationSessions(db),
 		backlogrepository.NewProjectDirectory(db),
@@ -190,7 +190,7 @@ func newPokerRouter(db *gorm.DB, cfg config.Config, clock *pokerClock) (*gin.Eng
 
 	// Módulo de sprints de la 004 con el reloj falso, para llevar una historia a Completada.
 	sprintRepository := sprintsrepository.NewSprintRepository(db)
-	sprints := sprintsservice.NewSprintService(sprintRepository, sprintsrepository.NewSprintEffort(), cfg.Location, clock.Now)
+	sprints := sprintsservice.NewSprintService(sprintRepository, sprintsrepository.NewSprintEffort(db), cfg.Location, clock.Now)
 	sprintsHandler := sprintsdelivery.NewHandler(sprints)
 	sprintsdelivery.RegisterRoutes(projectGroup, sprintsHandler)
 	sprintsdelivery.RegisterSprintRoutes(router, authHandler.RequireSession, sprintRepository, sprintsHandler)

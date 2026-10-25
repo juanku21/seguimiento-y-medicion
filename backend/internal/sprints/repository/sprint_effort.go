@@ -6,6 +6,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // SprintEffort implementa domain.SprintEffort mientras la feature specs/006-effort-tracking no
@@ -17,8 +18,8 @@ import (
 type SprintEffort struct{}
 
 // NewSprintEffort crea el puerto de esfuerzo de los sprints. No recibe dependencias porque hoy no
-// consulta ninguna tabla.
-func NewSprintEffort() *SprintEffort {
+// consulta ninguna tabla. Firma mínima de T017: la implementación corresponde a T031.
+func NewSprintEffort(_ *gorm.DB) *SprintEffort {
 	return &SprintEffort{}
 }
 

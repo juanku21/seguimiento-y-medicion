@@ -175,7 +175,7 @@ func newEffortRouter(db *gorm.DB, cfg config.Config, clock *effortClock, locatio
 	stories := backlogservice.NewStoryService(
 		storyRepository,
 		backlogrepository.NewSprintAssignments(db),
-		backlogrepository.NewEffortRecords(),
+		backlogrepository.NewEffortRecords(db),
 		backlogrepository.NewDefectRecords(),
 		backlogrepository.NewEstimationSessions(db),
 		backlogrepository.NewProjectDirectory(db),
@@ -187,7 +187,7 @@ func newEffortRouter(db *gorm.DB, cfg config.Config, clock *effortClock, locatio
 	// Módulo de sprints de la 004 con el reloj falso, para iniciar, cerrar y avanzar historias en
 	// instantes fijos.
 	sprintRepository := sprintsrepository.NewSprintRepository(db)
-	sprints := sprintsservice.NewSprintService(sprintRepository, sprintsrepository.NewSprintEffort(), location, clock.Now)
+	sprints := sprintsservice.NewSprintService(sprintRepository, sprintsrepository.NewSprintEffort(db), location, clock.Now)
 	sprintsHandler := sprintsdelivery.NewHandler(sprints)
 	sprintsdelivery.RegisterRoutes(projectGroup, sprintsHandler)
 	sprintsdelivery.RegisterSprintRoutes(router, authHandler.RequireSession, sprintRepository, sprintsHandler)

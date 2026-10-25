@@ -208,6 +208,7 @@ Después, editar los valores. Los secretos se pueden generar con `openssl rand -
 | `backend/.env.test` | `DB_PORT` | `5433` |
 | `backend/.env.test` | `DB_NAME` | `smye_test` |
 | `backend/.env.test` | `JWT_SECRET` | Un secreto de **al menos 32 caracteres**, distinto del de desarrollo |
+| `backend/.env` y `backend/.env.test` | `EFFORT_GRACE_PERIOD_HOURS` | Opcional, por defecto `48`: plazo de gracia, en horas enteras (`≥ 1`), para registrar y corregir esfuerzo después de cerrar un sprint. Si el valor no es un entero mayor o igual que 1, el backend no arranca |
 
 Los archivos del frontend no necesitan cambios: `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080` apunta al backend local. El resto de las claves (`DB_HOST=localhost`, `DB_USER=smye`, `SERVER_PORT=8080`, `CORS_ALLOWED_ORIGIN=http://localhost:3000`, `APP_TIMEZONE=America/Argentina/Buenos_Aires`) sirven tal como vienen en las plantillas.
 

@@ -6,12 +6,17 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
 
 // MinJWTSecretBytes es la longitud mínima del secreto de firma HS256 (research.md sección 2).
 const MinJWTSecretBytes = 32
+
+// defaultEffortGracePeriodHours es el plazo de gracia, en horas, que se usa cuando
+// EFFORT_GRACE_PERIOD_HOURS falta o está vacía (RC-11).
+const defaultEffortGracePeriodHours = 48
 
 // Config agrupa las variables de entorno que necesita el backend; sus claves coinciden con
 // backend/.env.example.
@@ -33,8 +38,9 @@ type Config struct {
 }
 
 // Load lee cada variable del entorno del proceso y devuelve un error que enumera todas las que
-// faltan o están vacías, más el aviso de un JWT_SECRET demasiado corto o de un APP_TIMEZONE que no
-// es una zona horaria válida, para que la aplicación no arranque con una configuración incompleta.
+// faltan o están vacías, más el aviso de un JWT_SECRET demasiado corto, de un APP_TIMEZONE que no
+// es una zona horaria válida o de un EFFORT_GRACE_PERIOD_HOURS que no es un entero mayor o igual
+// que 1, para que la aplicación no arranque con una configuración incompleta.
 func Load() (Config, error) {
 	var missing []string
 	read := func(key string) string {
@@ -56,6 +62,7 @@ func Load() (Config, error) {
 		CORSAllowedOrigin: read("CORS_ALLOWED_ORIGIN"),
 	}
 	timezone := read("APP_TIMEZONE")
+	graceHours := strings.TrimSpace(os.Getenv("EFFORT_GRACE_PERIOD_HOURS"))
 
 	// Se acumulan los problemas para informarlos todos juntos en un solo arranque fallido.
 	var errs []error
@@ -71,6 +78,16 @@ func Load() (Config, error) {
 			errs = append(errs, fmt.Errorf("APP_TIMEZONE %q no es una zona horaria válida: %w", timezone, err))
 		}
 		cfg.Location = location
+	}
+	// El plazo de gracia es opcional: sin valor se usa el defecto y, con valor, debe ser un entero
+	// de horas mayor o igual que 1.
+	cfg.EffortGracePeriod = defaultEffortGracePeriodHours * time.Hour
+	if graceHours != "" {
+		hours, err := strconv.Atoi(graceHours)
+		if err != nil || hours < 1 {
+			errs = append(errs, fmt.Errorf("EFFORT_GRACE_PERIOD_HOURS %q debe ser un entero de horas mayor o igual que 1", graceHours))
+		}
+		cfg.EffortGracePeriod = time.Duration(hours) * time.Hour
 	}
 	if len(errs) > 0 {
 		return Config{}, fmt.Errorf("configuración inválida: %w", errors.Join(errs...))

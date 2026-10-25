@@ -273,7 +273,7 @@ con `availableHours: 4.00`.
 
 ### Implementación de la Historia 1
 
-- [ ] T019 [US1] Implementar `EFFORT_GRACE_PERIOD_HOURS` en
+- [X] T019 [US1] Implementar `EFFORT_GRACE_PERIOD_HOURS` en
       `backend/internal/platform/config/config.go` (campo `EffortGracePeriod time.Duration`, defecto
       48 h si falta o está vacía, entero `≥ 1` o error acumulado) y agregar a `backend/.env.example`
       la línea `EFFORT_GRACE_PERIOD_HOURS=48` con un comentario en español: "Plazo de gracia, en

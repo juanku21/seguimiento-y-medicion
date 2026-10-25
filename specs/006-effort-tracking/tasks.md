@@ -290,7 +290,7 @@ con `availableHours: 4.00`.
       `backend/internal/effort/domain/entry_date.go` — depende de T011
 - [X] T022 [P] [US1] Implementar `CheckDailyCap` en `backend/internal/effort/domain/daily_cap.go` —
       depende de T012
-- [ ] T023 [US1] Implementar `ResolveAnchor` en `backend/internal/effort/domain/anchor.go`,
+- [X] T023 [US1] Implementar `ResolveAnchor` en `backend/internal/effort/domain/anchor.go`,
       usando `GraceOpen` para la vigencia — depende de T013, T024
 - [X] T024 [P] [US1] Implementar `GraceOpen` en `backend/internal/effort/domain/grace.go` — depende
       de T014

@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,8 +25,24 @@ type ClosedCommitment struct {
 }
 
 // ResolveAnchor decide a qué sprint se ancla el alta de un registro de esfuerzo con la tabla de
-// data-model.md sección 6.1 (FR-014, FR-016, RN-07, RN-24, RN-25). Firma mínima pendiente de
-// implementación (T013).
+// data-model.md sección 6.1 (FR-014, FR-016, RN-07, RN-24, RN-25): un compromiso abierto manda
+// siempre; sin él, el último compromiso cerrado ancla a su sprint mientras su plazo de gracia siga
+// vigente (GraceOpen). Vencido el plazo, la historia completada rechaza el alta con
+// ErrSprintFinalized y la no completada queda sin sprint, igual que la historia sin compromisos.
 func ResolveAnchor(open *OpenCommitment, lastClosed *ClosedCommitment, now time.Time, grace time.Duration) (*uuid.UUID, error) {
-	return nil, errors.New("not implemented")
+	if open != nil {
+		sprintID := open.SprintID
+		return &sprintID, nil
+	}
+	if lastClosed == nil {
+		return nil, nil
+	}
+	if GraceOpen(lastClosed.ClosedAt, now, grace) {
+		sprintID := lastClosed.SprintID
+		return &sprintID, nil
+	}
+	if lastClosed.Outcome == sprintsdomain.StoryOutcomeCompleted {
+		return nil, ErrSprintFinalized
+	}
+	return nil, nil
 }

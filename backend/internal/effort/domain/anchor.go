@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,4 +23,11 @@ type ClosedCommitment struct {
 	SprintID uuid.UUID
 	ClosedAt time.Time
 	Outcome  sprintsdomain.StoryOutcome
+}
+
+// ResolveAnchor decide a qué sprint se ancla el alta de un registro de esfuerzo con la tabla de
+// data-model.md sección 6.1 (FR-014, FR-016, RN-07, RN-24, RN-25). Firma mínima pendiente de
+// implementación (T013).
+func ResolveAnchor(open *OpenCommitment, lastClosed *ClosedCommitment, now time.Time, grace time.Duration) (*uuid.UUID, error) {
+	return nil, errors.New("not implemented")
 }

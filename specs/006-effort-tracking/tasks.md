@@ -201,7 +201,7 @@ con `availableHours: 4.00`.
       → ok; 2000 + 500 → `DailyCapExceededError{AvailableHundredths: 400}`; 2400 + 25 →
       `AvailableHundredths: 0`; un `alreadyLogged` mayor que 2400 nunca da disponible negativo —
       depende de T007
-- [ ] T013 [P] [US1] Pruebas unitarias **obligatorias** de
+- [X] T013 [P] [US1] Pruebas unitarias **obligatorias** de
       `ResolveAnchor(open *OpenCommitment, lastClosed *ClosedCommitment, now time.Time, grace time.Duration) (*uuid.UUID, error)`
       en `backend/internal/effort/domain/anchor_test.go` con la tabla completa de data-model.md
       sección 6.1, cubriendo RN-07, RN-24 y RN-25: con `open` → su sprint, aunque haya `lastClosed`

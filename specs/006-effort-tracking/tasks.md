@@ -195,7 +195,7 @@ con `availableHours: 4.00`.
       mañana → `ErrEntryDateInFuture`; día de inicio → ok; día anterior al inicio →
       `EntryDateBeforeProjectStartError` con `MinDate` igual al inicio; proyecto con inicio futuro →
       toda fecha rechazada (pasado por inicio, futuro por hoy) — depende de T007
-- [ ] T012 [P] [US1] Pruebas unitarias **obligatorias** de
+- [X] T012 [P] [US1] Pruebas unitarias **obligatorias** de
       `CheckDailyCap(alreadyLogged, requested int) error` en
       `backend/internal/effort/domain/daily_cap_test.go`, cubriendo RN-04: 0 + 2400 → ok; 2000 + 400
       → ok; 2000 + 500 → `DailyCapExceededError{AvailableHundredths: 400}`; 2400 + 25 →

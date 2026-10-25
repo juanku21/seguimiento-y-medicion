@@ -111,7 +111,7 @@ estructuras y contratos, sin lógica de negocio.
       `idx_effort_entries_user_date (user_id, entry_date)` e `idx_effort_entries_sprint (sprint_id)`
       con etiquetas de GORM. Claves foráneas **sin `ON DELETE CASCADE`**. **Sin** columnas
       `project_id`, de borrado lógico ni de "definitivo"
-- [ ] T002 [P] Agregar a `UserStory` en `backend/internal/backlog/domain/user_story.go` el campo
+- [X] T002 [P] Agregar a `UserStory` en `backend/internal/backlog/domain/user_story.go` el campo
       `EverHadEffort bool` con la etiqueta `gorm:"type:boolean;not null;default:false"` (columna
       `ever_had_effort`), y extender el comentario del modelo: "pasa a true con el primer registro de
       esfuerzo y nunca vuelve a false, aunque se eliminen todos los registros (RC-05, RN-22); solo la

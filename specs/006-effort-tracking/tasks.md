@@ -294,7 +294,7 @@ con `availableHours: 4.00`.
       usando `GraceOpen` para la vigencia — depende de T013, T024
 - [X] T024 [P] [US1] Implementar `GraceOpen` en `backend/internal/effort/domain/grace.go` — depende
       de T014
-- [ ] T025 [US1] Implementar en `backend/internal/effort/delivery/validation.go` `ParseHours`, la
+- [X] T025 [US1] Implementar en `backend/internal/effort/delivery/validation.go` `ParseHours`, la
       validación de actividad (recorte, 1 a 300 runas) y de `entryDate` (`AAAA-MM-DD`, fecha real, a
       medianoche UTC) y `ValidateEntryInput`, con los mensajes como constantes nombradas en un único
       lugar y todos los campos inválidos a la vez (Principio VII) — depende de T009

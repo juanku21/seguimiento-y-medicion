@@ -288,7 +288,7 @@ con `availableHours: 4.00`.
       escribe `%d.%02d` con signo) — depende de T010
 - [X] T021 [P] [US1] Implementar `ValidateEntryDate` en
       `backend/internal/effort/domain/entry_date.go` — depende de T011
-- [ ] T022 [P] [US1] Implementar `CheckDailyCap` en `backend/internal/effort/domain/daily_cap.go` —
+- [X] T022 [P] [US1] Implementar `CheckDailyCap` en `backend/internal/effort/domain/daily_cap.go` —
       depende de T012
 - [ ] T023 [US1] Implementar `ResolveAnchor` en `backend/internal/effort/domain/anchor.go`,
       usando `GraceOpen` para la vigencia — depende de T013, T024

@@ -321,7 +321,7 @@ con `availableHours: 4.00`.
       `StoryRef`, `SprintRef` y `EffortConflictResponse` (`code`, `error`, `availableHours`),
       reutilizando `ErrorResponse`, `FieldError` y `ValidationErrorResponse` de la 001. `sprint` y
       `availableHours` se serializan `null` cuando no aplican — depende de T020, T027
-- [ ] T029 [US1] Implementar el manejador `createEffortEntry` en
+- [X] T029 [US1] Implementar el manejador `createEffortEntry` en
       `backend/internal/effort/delivery/handler.go` con anotaciones `swag` en español, y la
       traducción de errores: `ErrEntryDateInFuture` y `EntryDateBeforeProjectStartError` → `400` con
       `field: entryDate` ("No se registran horas en una fecha futura." y "La fecha no puede ser

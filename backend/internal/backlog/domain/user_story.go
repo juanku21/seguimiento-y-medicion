@@ -22,7 +22,10 @@ import (
 // parte, a su orden. EverCommitted (columna ever_committed, NOT NULL DEFAULT false) registra si la
 // historia estuvo alguna vez comprometida en un sprint: solo la feature de sprints la escribe, pasa a
 // true al primer compromiso y nunca vuelve a false, aunque se quite la historia o se elimine el
-// sprint (004, research.md sección 7). Los campos Project y CreatedBy existen solo para que
+// sprint (004, research.md sección 7). EverHadEffort (columna ever_had_effort, NOT NULL DEFAULT
+// false) registra si la historia tuvo alguna vez esfuerzo cargado: pasa a true con el primer registro
+// de esfuerzo y nunca vuelve a false, aunque se eliminen todos los registros (RC-05, RN-22); solo la
+// escribe la feature de esfuerzo (006). Los campos Project y CreatedBy existen solo para que
 // AutoMigrate cree las claves foráneas hacia projects.id y users.id: no son columnas y nunca se
 // precargan. No hay columnas de lista para planificar, rango de prioridad, borrado lógico ni último
 // modificador (plan.md, reevaluación del Principio I), y CreatedAt y UpdatedAt los completa GORM.
@@ -36,6 +39,7 @@ type UserStory struct {
 	Status        StoryStatus             `gorm:"type:varchar(16);not null"`
 	StoryPoints   *int                    `gorm:"type:smallint"`
 	EverCommitted bool                    `gorm:"type:boolean;not null;default:false"`
+	EverHadEffort bool                    `gorm:"type:boolean;not null;default:false"`
 	CreatedByID   uuid.UUID               `gorm:"type:uuid;not null"`
 	CreatedBy     *authdomain.User        `gorm:"foreignKey:CreatedByID;references:ID"`
 	CreatedAt     time.Time               `gorm:"type:timestamptz;not null;index:idx_user_stories_project_order,priority:3"`

@@ -99,7 +99,7 @@ estructuras y contratos, sin lógica de negocio.
 
 **Rama**: `fase/006-foundational`
 
-- [ ] T001 [P] Declarar la entidad `EffortEntry` en `backend/internal/effort/domain/entry.go` con los
+- [X] T001 [P] Declarar la entidad `EffortEntry` en `backend/internal/effort/domain/entry.go` con los
       campos de data-model.md sección 1: `ID uuid` PK generado con `google/uuid`;
       `StoryID uuid NOT NULL` con FK a `user_stories.id` (campo `Story *backlogdomain.UserStory` solo
       para la FK, nunca precargado); `UserID uuid NOT NULL` con FK a `users.id` (campo
@@ -111,12 +111,12 @@ estructuras y contratos, sin lógica de negocio.
       `idx_effort_entries_user_date (user_id, entry_date)` e `idx_effort_entries_sprint (sprint_id)`
       con etiquetas de GORM. Claves foráneas **sin `ON DELETE CASCADE`**. **Sin** columnas
       `project_id`, de borrado lógico ni de "definitivo"
-- [ ] T002 [P] Agregar a `UserStory` en `backend/internal/backlog/domain/user_story.go` el campo
+- [X] T002 [P] Agregar a `UserStory` en `backend/internal/backlog/domain/user_story.go` el campo
       `EverHadEffort bool` con la etiqueta `gorm:"type:boolean;not null;default:false"` (columna
       `ever_had_effort`), y extender el comentario del modelo: "pasa a true con el primer registro de
       esfuerzo y nunca vuelve a false, aunque se eliminen todos los registros (RC-05, RN-22); solo la
       escribe la feature de esfuerzo", igual que `EverCommitted`
-- [ ] T003 [P] Declarar en `backend/internal/effort/domain/anchor.go` los tipos `OpenCommitment`
+- [X] T003 [P] Declarar en `backend/internal/effort/domain/anchor.go` los tipos `OpenCommitment`
       (`SprintID`) y `ClosedCommitment` (`SprintID`, `ClosedAt time.Time`,
       `Outcome sprintsdomain.StoryOutcome`); en `backend/internal/effort/domain/grace.go` el tipo
       `AnchoredSprint` (`ID`, `Name`, `Status sprintsdomain.SprintStatus`, `ClosedAt *time.Time`); y
@@ -124,24 +124,24 @@ estructuras y contratos, sin lógica de negocio.
       `MinEntryHundredths = 25`, `MaxEntryHundredths = 2400` y `HoursStepHundredths = 25`. Las
       funciones (`ResolveAnchor`, `GraceOpen`, `EnsureEntryWritable`, `CheckDailyCap`) se
       implementan en las historias
-- [ ] T004 [P] Declarar los errores de dominio en `backend/internal/effort/domain/errors.go` con la
+- [X] T004 [P] Declarar los errores de dominio en `backend/internal/effort/domain/errors.go` con la
       tabla de data-model.md sección 7: `ErrEntryNotFound`, `ErrEffortReadOnly`,
       `ErrSprintFinalized`, `ErrEffortFinalized`, `ErrNotEntryAuthor`, `ErrEntryDateInFuture` e
       `ErrInvalidFilter` (con el nombre del parámetro: tipo `InvalidFilterError{Field string}`); y
       los tipos con datos `DailyCapExceededError{AvailableHundredths int}` y
       `EntryDateBeforeProjectStartError{MinDate time.Time}`
-- [ ] T005 Declarar en `backend/internal/effort/domain/repository.go` la interfaz `EffortRepository`
+- [X] T005 Declarar en `backend/internal/effort/domain/repository.go` la interfaz `EffortRepository`
       con **exactamente** las nueve operaciones de data-model.md sección 9 (`FindAccessible`,
       `Create`, `Update`, `Delete`, `ListForStory`, `ListForProject`, `ValidateFilter`,
       `HasProjectEffort`, `ComparisonRows`) con sus firmas, y los tipos de lectura de la sección 8:
       `EntryAccess`, `EntryView`, `UserRef` (solo `ID` y `FullName`), `StoryRef`, `MemberEffort`,
       `StoryEffort`, `EntryFilter`, `ComparisonRow`, `EntryInput` y `EntryPatch`. Las escrituras
       reciben el instante, la zona y el plazo como parámetros — depende de T001, T003, T004
-- [ ] T006 Agregar `EffortEntry` al `AutoMigrate` de `backend/internal/platform/database/postgres.go`
+- [X] T006 Agregar `EffortEntry` al `AutoMigrate` de `backend/internal/platform/database/postgres.go`
       **después** de `SprintStory` (apunta a `user_stories`, `users` y `sprints`) y actualizar el
       comentario del orden y de la columna nueva `ever_had_effort` de `UserStory` — depende de T001,
       T002
-- [ ] T007 Extender el vaciado del ayudante de pruebas en
+- [X] T007 Extender el vaciado del ayudante de pruebas en
       `backend/internal/platform/testsupport/database.go` para incluir `effort_entries` en el
       `TRUNCATE ... CASCADE`, manteniendo la verificación de que la base es `smye_test` y el lock de
       la base de test — depende de T006

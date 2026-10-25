@@ -12,19 +12,59 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/poker/domain"
 )
 
-// Sweep ejecuta una pasada del barrido periódico (research.md sección 13): las cancelaciones
-// automáticas, las gracias vencidas, la membresía revocada y los cambios de la historia, en ese
-// orden. Si una desconexión encuentra la sesión cerrada se saltea, salvo que la haya cancelado el
+// Sweep ejecuta una pasada del barrido periódico (research.md sección 13): las sesiones de
+// autenticación revocadas, las cancelaciones automáticas, las gracias vencidas, la membresía revocada
+// y los cambios de la historia, en ese orden. Las sesiones de autenticación van primero para que
+// ninguna publicación de la misma pasada llegue a un canal cuyo token ya se revocó. Si una desconexión encuentra la sesión cerrada se saltea, salvo que la haya cancelado el
 // sistema, en cuyo caso se avisa a los conectados; los demás errores no cortan la pasada y se
 // devuelven juntos al final.
 func (s *SessionService) Sweep(ctx context.Context) error {
 	now := s.now()
 	var errs []error
+	errs = append(errs, s.sweepRevokedAuth(ctx)...)
 	errs = append(errs, s.sweepAutoCancel(ctx, now)...)
 	errs = append(errs, s.sweepExpired(ctx, now)...)
 	errs = append(errs, s.sweepRevoked(ctx, now)...)
 	errs = append(errs, s.sweepStoryChanges(ctx)...)
 	return errors.Join(errs...)
+}
+
+// sweepRevokedAuth cierra los canales abiertos con una sesión de autenticación que el cierre de
+// sesión de la 001 ya revocó, porque el middleware solo valida el token al abrir el canal. Cerrar la
+// suscripción termina el canal sin enviarle nada más; su Leave descuenta la conexión de la presencia
+// y, si era la última de la persona, la gracia la desconecta como a cualquier otra caída (FR-014),
+// así una persona con otro canal abierto con un token vigente sigue conectada.
+func (s *SessionService) sweepRevokedAuth(ctx context.Context) []error {
+	s.connsMu.Lock()
+	conns := make([]*Connection, 0, len(s.conns))
+	authSessionIDs := make([]uuid.UUID, 0, len(s.conns))
+	seen := make(map[uuid.UUID]struct{}, len(s.conns))
+	for conn := range s.conns {
+		conns = append(conns, conn)
+		if _, ok := seen[conn.AuthSessionID]; !ok {
+			seen[conn.AuthSessionID] = struct{}{}
+			authSessionIDs = append(authSessionIDs, conn.AuthSessionID)
+		}
+	}
+	s.connsMu.Unlock()
+	if len(authSessionIDs) == 0 {
+		return nil
+	}
+
+	revokedIDs, err := s.repo.ListRevokedAuthSessions(ctx, authSessionIDs)
+	if err != nil {
+		return []error{err}
+	}
+	revoked := make(map[uuid.UUID]struct{}, len(revokedIDs))
+	for _, id := range revokedIDs {
+		revoked[id] = struct{}{}
+	}
+	for _, conn := range conns {
+		if _, ok := revoked[conn.AuthSessionID]; ok {
+			conn.unsubscribe()
+		}
+	}
+	return nil
 }
 
 // sweepAutoCancel cancela las sesiones abiertas cuya historia se completó, cuyo proyecto se finalizó

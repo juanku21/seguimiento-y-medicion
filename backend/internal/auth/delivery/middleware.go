@@ -87,6 +87,18 @@ func CurrentSessionExpiry(c *gin.Context) (time.Time, bool) {
 	return claims.ExpiresAt, true
 }
 
+// CurrentSessionID devuelve el identificador de la sesión de autenticación que el middleware dejó en
+// el contexto, tomado del SessionID (jti) de los claims, y si estaba presente. Está exportado para
+// que los canales de larga duración de otros módulos se cierren cuando esa sesión se revoca, porque
+// el middleware solo los valida al abrirse.
+func CurrentSessionID(c *gin.Context) (uuid.UUID, bool) {
+	claims, ok := claimsFromContext(c)
+	if !ok {
+		return uuid.UUID{}, false
+	}
+	return claims.SessionID, true
+}
+
 // userIDFromContext es el nombre interno con el que el módulo de autenticación lee al titular de
 // la sesión; delega en CurrentUserID para que haya una sola implementación de la lectura.
 func userIDFromContext(c *gin.Context) (uuid.UUID, bool) {

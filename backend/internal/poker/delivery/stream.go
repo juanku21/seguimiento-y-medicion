@@ -31,7 +31,9 @@ const streamPingInterval = 15 * time.Second
 //	@Description	cambio del título, la descripción o los criterios de la historia (FR-073, FR-074); el
 //	@Description	cliente descarta los de version menor a la que ya tiene. removed, con {} en data, cuando
 //	@Description	quien pide dejó de ser integrante del proyecto; después el servidor cierra el canal
-//	@Description	(FR-019). Un comentario ": ping" cada 15 segundos, sin datos. Cuando la sesión se cierra, el servidor envía el último state y
+//	@Description	(FR-019). Un comentario ": ping" cada 15 segundos, sin datos. El servidor cierra el canal, sin
+//	@Description	enviar más eventos, al vencer el token o en el primer barrido después de que quien pide cierra
+//	@Description	esa sesión de autenticación. Cuando la sesión se cierra, el servidor envía el último state y
 //	@Description	cierra el canal. Si la sesión ya estaba cerrada al pedir el canal, responde 409 con el
 //	@Description	resultado registrado y no se une (FR-018).
 //	@Tags			Planning Poker
@@ -46,8 +48,8 @@ const streamPingInterval = 15 * time.Second
 //	@Failure		500			{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
 //	@Router			/api/v1/estimation-sessions/{sessionId}/events [get]
 func (h *Handler) streamEstimationSession(c *gin.Context) {
-	// RequireEstimationAccess y la sesión de la 001 ya dejaron el acceso, el titular y el vencimiento en el contexto;
-	// su ausencia aquí es un error de composición y responde 500.
+	// RequireEstimationAccess y la sesión de la 001 ya dejaron el acceso, el titular, el vencimiento
+	// y el jti en el contexto; su ausencia aquí es un error de composición y responde 500.
 	access, ok := sessionAccessFromContext(c)
 	if !ok {
 		respondInternalError(c, "streamEstimationSession sin acceso a la sesión en el contexto")
@@ -63,11 +65,16 @@ func (h *Handler) streamEstimationSession(c *gin.Context) {
 		respondInternalError(c, "streamEstimationSession sin vencimiento de sesión en el contexto")
 		return
 	}
+	authSessionID, ok := authdelivery.CurrentSessionID(c)
+	if !ok {
+		respondInternalError(c, "streamEstimationSession sin jti de la sesión de autenticación en el contexto")
+		return
+	}
 
 	// Se une a la persona antes de escribir nada, así una sesión cerrada todavía puede responder 409
 	// con el resultado registrado y una sesión que desapareció, el mismo 404 del middleware.
 	ctx := c.Request.Context()
-	conn, err := h.sessions.Join(ctx, access, userID)
+	conn, err := h.sessions.Join(ctx, access, userID, authSessionID)
 	var closed *domain.SessionClosedError
 	switch {
 	case errors.As(err, &closed):
@@ -95,7 +102,8 @@ func (h *Handler) streamEstimationSession(c *gin.Context) {
 	// petición, el hub cierra el canal o falla una escritura; en todos los casos Leave libera la
 	// conexión una sola vez. Si el hub cerró el canal porque la persona dejó de ser integrante, se
 	// envía removed antes de terminar (FR-019). Un temporizador cierra el canal al vencer el token,
-	// porque el middleware de sesión solo lo validó al abrirse (research.md, punto abierto 5).
+	// porque el middleware de sesión solo lo validó al abrirse (research.md, punto abierto 5); si la
+	// sesión de autenticación se revoca antes, es el barrido el que cierra el canal.
 	ticker := time.NewTicker(streamPingInterval)
 	defer ticker.Stop()
 	expiry := time.NewTimer(time.Until(expiresAt))

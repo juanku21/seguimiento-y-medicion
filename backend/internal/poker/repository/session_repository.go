@@ -907,6 +907,25 @@ func (r *SessionRepository) ListRevokedParticipants(ctx context.Context) ([]doma
 	return refs, nil
 }
 
+// ListRevokedAuthSessions devuelve, de las sesiones de autenticación recibidas, las que el cierre de
+// sesión de la 001 ya revocó (revoked_at no nulo), para que el barrido cierre los canales abiertos
+// con ellas. Lee solo el id de la tabla sessions; sin identificadores no consulta y devuelve la lista
+// vacía.
+func (r *SessionRepository) ListRevokedAuthSessions(ctx context.Context, authSessionIDs []uuid.UUID) ([]uuid.UUID, error) {
+	revoked := []uuid.UUID{}
+	if len(authSessionIDs) == 0 {
+		return revoked, nil
+	}
+	err := r.db.WithContext(ctx).
+		Table("sessions").
+		Where("id IN ? AND revoked_at IS NOT NULL", authSessionIDs).
+		Pluck("id", &revoked).Error
+	if err != nil {
+		return nil, fmt.Errorf("listar las sesiones de autenticación revocadas: %w", err)
+	}
+	return revoked, nil
+}
+
 // FindSnapshot lee la instantánea completa de la sesión, entrada de ViewFor (research.md sección 7),
 // en una transacción de solo lectura REPEATABLE READ para que todas las consultas vean el mismo
 // estado aunque otra acción confirme en el medio. Lee la sesión (si no existe devuelve

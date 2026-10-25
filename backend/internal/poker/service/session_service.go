@@ -20,7 +20,9 @@ import (
 // 13). Guarda en memoria la presencia por (sesión, usuario), el hub de suscripciones y un mutex por
 // sesión que ordena las publicaciones de una misma sesión. El barrido anota además las personas cuya
 // membresía revocó, para que sus canales envíen removed al cerrarse, y el último updated_at visto de
-// la historia de cada sesión abierta, para detectar sus cambios (research.md sección 13).
+// la historia de cada sesión abierta, para detectar sus cambios (research.md sección 13). Lleva
+// también las conexiones abiertas, para que el barrido cierre las de sesiones de autenticación
+// revocadas.
 type SessionService struct {
 	repo     domain.SessionRepository
 	now      func() time.Time
@@ -35,17 +37,21 @@ type SessionService struct {
 
 	storySeenMu sync.Mutex
 	storySeen   map[uuid.UUID]time.Time
+
+	connsMu sync.Mutex
+	conns   map[*Connection]struct{}
 }
 
 // Connection es una conexión abierta de una persona al canal de una sesión: Views entrega las vistas
-// de la sesión para esa persona y se cierra cuando el hub da de baja la suscripción. Se libera con
-// Leave.
+// de la sesión para esa persona y se cierra cuando el hub da de baja la suscripción. AuthSessionID es
+// el jti de la sesión de autenticación con la que se abrió. Se libera con Leave.
 type Connection struct {
-	SessionID   uuid.UUID
-	UserID      uuid.UUID
-	Views       <-chan domain.SessionView
-	unsubscribe func()
-	removed     func() bool
+	SessionID     uuid.UUID
+	UserID        uuid.UUID
+	AuthSessionID uuid.UUID
+	Views         <-chan domain.SessionView
+	unsubscribe   func()
+	removed       func() bool
 }
 
 // Removed informa si el barrido cerró la conexión porque la persona dejó de ser integrante del
@@ -65,6 +71,7 @@ func NewSessionService(repo domain.SessionRepository, now func() time.Time) *Ses
 		locks:     map[uuid.UUID]*sync.Mutex{},
 		revoked:   map[PresenceKey]struct{}{},
 		storySeen: map[uuid.UUID]time.Time{},
+		conns:     map[*Connection]struct{}{},
 	}
 }
 
@@ -92,19 +99,29 @@ func (s *SessionService) Open(ctx context.Context, storyID, openerID uuid.UUID) 
 // conexión en la presencia. Si es una llegada (su primera conexión fuera de la gracia), registra la
 // incorporación con Connect. Siempre publica después, para que la conexión nueva reciba el estado
 // vigente como primera vista (FR-077). Quien llega pasó el control de membresía, así que se borra
-// una revocación anterior. Si algo falla, deshace la suscripción y la conexión contada.
-func (s *SessionService) Join(ctx context.Context, access *domain.SessionAccess, userID uuid.UUID) (*Connection, error) {
+// una revocación anterior. La conexión queda registrada con su sesión de autenticación para el
+// barrido. Si algo falla, deshace la suscripción y la conexión contada.
+func (s *SessionService) Join(
+	ctx context.Context,
+	access *domain.SessionAccess,
+	userID uuid.UUID,
+	authSessionID uuid.UUID,
+) (*Connection, error) {
 	sessionID := access.SessionID
 	key := PresenceKey{SessionID: sessionID, UserID: userID}
 	s.setRevoked(key, false)
 	views, unsubscribe := s.hub.Subscribe(sessionID, userID)
 	conn := &Connection{
-		SessionID:   sessionID,
-		UserID:      userID,
-		Views:       views,
-		unsubscribe: unsubscribe,
-		removed:     func() bool { return s.isRevoked(key) },
+		SessionID:     sessionID,
+		UserID:        userID,
+		AuthSessionID: authSessionID,
+		Views:         views,
+		unsubscribe:   unsubscribe,
+		removed:       func() bool { return s.isRevoked(key) },
 	}
+	s.connsMu.Lock()
+	s.conns[conn] = struct{}{}
+	s.connsMu.Unlock()
 
 	if s.presence.Connect(sessionID, userID) {
 		if err := s.repo.Connect(ctx, sessionID, userID, s.now()); err != nil {
@@ -298,10 +315,13 @@ func (s *SessionService) History(ctx context.Context, storyID uuid.UUID) (*Histo
 	return view, nil
 }
 
-// Leave da de baja la suscripción de la conexión y la descuenta de la presencia; si era la última
-// de la persona, empieza a correr la gracia de FR-014.
+// Leave da de baja la suscripción de la conexión, la quita del registro de conexiones y la descuenta
+// de la presencia; si era la última de la persona, empieza a correr la gracia de FR-014.
 func (s *SessionService) Leave(conn *Connection) {
 	conn.unsubscribe()
+	s.connsMu.Lock()
+	delete(s.conns, conn)
+	s.connsMu.Unlock()
 	s.presence.Release(conn.SessionID, conn.UserID, s.now())
 }
 

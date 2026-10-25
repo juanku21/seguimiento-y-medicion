@@ -169,7 +169,7 @@ func newSprintTestEnv(t *testing.T, overrides ...func(*sprintTestPorts)) sprintT
 	stories := backlogservice.NewStoryService(
 		storyRepository,
 		backlogrepository.NewSprintAssignments(db),
-		backlogrepository.NewEffortRecords(),
+		backlogrepository.NewEffortRecords(db),
 		backlogrepository.NewDefectRecords(),
 		backlogrepository.NewEstimationSessions(db),
 		backlogrepository.NewProjectDirectory(db),
@@ -180,7 +180,7 @@ func newSprintTestEnv(t *testing.T, overrides ...func(*sprintTestPorts)) sprintT
 
 	// Módulo de sprints con el puerto de esfuerzo y el reloj por defecto o los que pida la prueba.
 	ports := sprintTestPorts{
-		effort: repository.NewSprintEffort(),
+		effort: repository.NewSprintEffort(db),
 		now:    func() time.Time { return sprintFixedNow },
 		db:     db,
 	}

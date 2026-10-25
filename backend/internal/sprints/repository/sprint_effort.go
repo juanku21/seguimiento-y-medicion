@@ -1,29 +1,36 @@
 // Package repository persiste las entidades del módulo de sprints con GORM e implementa el puerto
-// hacia la feature que todavía no existe.
+// de esfuerzo que lee los registros de la feature 006.
 package repository
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
-// SprintEffort implementa domain.SprintEffort mientras la feature specs/006-effort-tracking no
-// exista (research.md sección 16). Cuando esa feature llegue, reemplaza el cuerpo de este archivo con
-// la lectura real del esfuerzo registrado en el sprint, sin tocar sprints/service. Además, su tabla de
-// registros de esfuerzo tendrá una clave foránea hacia sprints.id con RESTRICT: si un registro llega
-// entre esta verificación y el borrado, el repositorio debe traducir gorm.ErrForeignKeyViolated a
-// domain.ErrSprintHasEffort, para responder el mismo 409.
-type SprintEffort struct{}
-
-// NewSprintEffort crea el puerto de esfuerzo de los sprints. No recibe dependencias porque hoy no
-// consulta ninguna tabla.
-func NewSprintEffort() *SprintEffort {
-	return &SprintEffort{}
+// SprintEffort implementa domain.SprintEffort con un EXISTS sobre effort_entries.sprint_id, sin tocar
+// sprints/service (research.md sección 16). La clave foránea de effort_entries hacia sprints.id es el
+// respaldo: si un registro se ancla entre esta verificación y el borrado, SprintRepository.Delete
+// traduce gorm.ErrForeignKeyViolated a domain.ErrSprintHasEffort para responder el mismo 409.
+type SprintEffort struct {
+	db *gorm.DB
 }
 
-// HasEffort informa que el sprint no tiene esfuerzo registrado. No es un dato inventado: en el estado
-// actual del producto no existe el registro de esfuerzo.
-func (e *SprintEffort) HasEffort(_ context.Context, _ uuid.UUID) (bool, error) {
-	return false, nil
+// NewSprintEffort crea el puerto de esfuerzo de los sprints sobre la conexión recibida.
+func NewSprintEffort(db *gorm.DB) *SprintEffort {
+	return &SprintEffort{db: db}
+}
+
+// HasEffort informa si existe al menos un registro de esfuerzo anclado al sprint.
+func (e *SprintEffort) HasEffort(ctx context.Context, sprintID uuid.UUID) (bool, error) {
+	var exists bool
+	err := e.db.WithContext(ctx).
+		Raw("SELECT EXISTS (SELECT 1 FROM effort_entries WHERE sprint_id = ?)", sprintID).
+		Scan(&exists).Error
+	if err != nil {
+		return false, fmt.Errorf("leer si el sprint tiene esfuerzo: %w", err)
+	}
+	return exists, nil
 }

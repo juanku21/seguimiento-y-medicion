@@ -169,11 +169,11 @@ con `availableHours: 4.00`.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T008 [P] [US1] Pruebas unitarias **obligatorias** de `EFFORT_GRACE_PERIOD_HOURS` en
+- [X] T008 [P] [US1] Pruebas unitarias **obligatorias** de `EFFORT_GRACE_PERIOD_HOURS` en
       `backend/internal/platform/config/config_test.go`, cubriendo RC-11: ausente o vacía → 48 horas;
       `48` → 48; `1` → 1; `0`, `-1`, `48h`, `1.5` y `abc` → error que impide el arranque y nombra la
       variable, acumulado con los demás problemas como `APP_TIMEZONE` — depende de T007
-- [ ] T009 [P] [US1] Pruebas unitarias **obligatorias** de la validación del alta en
+- [X] T009 [P] [US1] Pruebas unitarias **obligatorias** de la validación del alta en
       `backend/internal/effort/delivery/validation_test.go`, cubriendo RN-02, RN-03 y SC-006:
       `ParseHours(json.RawMessage)` con `0.25` → 25, `6.5` → 650, `6.50` → 650, `24` → 2400, y rechazos
       `0`, `-1`, `24.25`, `25` (mensaje de rango "Las horas deben ser mayores que 0 y como máximo
@@ -184,24 +184,24 @@ con `availableHours: 4.00`.
       acentos aceptada y recortada, de **301** rechazada ("La actividad admite como máximo 300
       caracteres."); `entryDate` ausente, `2026-02-30` y `24/10/2026` rechazadas con el mensaje de
       formato `AAAA-MM-DD`; varios campos inválidos devueltos **todos a la vez** — depende de T007
-- [ ] T010 [P] [US1] Pruebas unitarias **obligatorias** del tipo de 2 decimales en
+- [X] T010 [P] [US1] Pruebas unitarias **obligatorias** del tipo de 2 decimales en
       `backend/internal/effort/delivery/dto_test.go`, cubriendo SC-015 y SC-022: 650 → `6.50`, 2000
       → `20.00`, −2000 → `-20.00`, 25 → `0.25`, 0 → `0.00`, −5 → `-0.05`, 1310 → `13.10`; un
       puntero nulo se serializa `null`; el resultado es un número JSON válido (se vuelve a decodificar
       con `json.Unmarshal`) — depende de T007
-- [ ] T011 [P] [US1] Pruebas unitarias **obligatorias** de
+- [X] T011 [P] [US1] Pruebas unitarias **obligatorias** de
       `ValidateEntryDate(date, projectStart, today time.Time) error` en
       `backend/internal/effort/domain/entry_date_test.go`, cubriendo RN-05 y SC-007: hoy → ok;
       mañana → `ErrEntryDateInFuture`; día de inicio → ok; día anterior al inicio →
       `EntryDateBeforeProjectStartError` con `MinDate` igual al inicio; proyecto con inicio futuro →
       toda fecha rechazada (pasado por inicio, futuro por hoy) — depende de T007
-- [ ] T012 [P] [US1] Pruebas unitarias **obligatorias** de
+- [X] T012 [P] [US1] Pruebas unitarias **obligatorias** de
       `CheckDailyCap(alreadyLogged, requested int) error` en
       `backend/internal/effort/domain/daily_cap_test.go`, cubriendo RN-04: 0 + 2400 → ok; 2000 + 400
       → ok; 2000 + 500 → `DailyCapExceededError{AvailableHundredths: 400}`; 2400 + 25 →
       `AvailableHundredths: 0`; un `alreadyLogged` mayor que 2400 nunca da disponible negativo —
       depende de T007
-- [ ] T013 [P] [US1] Pruebas unitarias **obligatorias** de
+- [X] T013 [P] [US1] Pruebas unitarias **obligatorias** de
       `ResolveAnchor(open *OpenCommitment, lastClosed *ClosedCommitment, now time.Time, grace time.Duration) (*uuid.UUID, error)`
       en `backend/internal/effort/domain/anchor_test.go` con la tabla completa de data-model.md
       sección 6.1, cubriendo RN-07, RN-24 y RN-25: con `open` → su sprint, aunque haya `lastClosed`
@@ -210,12 +210,12 @@ con `availableHours: 4.00`.
       `not_completed` → `nil` sin error; sin compromisos → `nil` sin error. Fronteras con cierre
       viernes 18:00 y 48 h: domingo 17:59 en plazo, domingo **18:00** vencido, 18:01 vencido —
       depende de T007
-- [ ] T014 [P] [US1] Pruebas unitarias **obligatorias** de
+- [X] T014 [P] [US1] Pruebas unitarias **obligatorias** de
       `GraceOpen(closedAt, now time.Time, grace time.Duration) bool` en
       `backend/internal/effort/domain/grace_test.go`, cubriendo RN-23: justo después del cierre →
       `true`; `closedAt + grace − 1ns` → `true`; `closedAt + grace` → `false` ("el plazo se cuenta
       cumplido al alcanzarse"); después → `false` — depende de T007
-- [ ] T015 [US1] Pruebas de integración de la historia en
+- [X] T015 [US1] Pruebas de integración de la historia en
       `backend/internal/effort/delivery/handler_test.go`, creando en
       `backend/internal/effort/delivery/testenv_test.go` el ayudante `newEffortTestEnv` (router como
       `cmd/app` con las rutas de la 001 a la 004 y las de esfuerzo, reloj falso avanzable compartido
@@ -227,8 +227,8 @@ con `availableHours: 4.00`.
       `TestUS1_HistoriaSoloEnBacklog` (`sprint: null`), `TestUS1_SprintPlanificado`,
       `TestUS1_HistoriaCompletadaEnSprintActivo`, `TestUS1_SegundoRegistroDelDia` (dos filas, 5 h de
       la persona en la fecha), `TestUS1_HistoriaSinEstimar` (con subtests `pending`, `in_progress` y
-      `completed` para RN-13), `TestUS1_CompletadaDentroDelPlazo` (cierre viernes 18:00, alta lunes
-      9:00 → sprint Cerrado), `TestUS1_DevueltaAlBacklogDentroDelPlazo` (con un subtest en el que la
+      `completed` para RN-13), `TestUS1_CompletadaDentroDelPlazo` (cierre viernes 18:00, alta domingo
+      10:00 → sprint Cerrado), `TestUS1_DevueltaAlBacklogDentroDelPlazo` (con un subtest en el que la
       historia no se completa en el sprint A, se recompromete en B, B se cierra dentro del plazo de A
       y el alta queda anclada a B, el de `closed_at` más reciente; FR-014), `TestUS1_LimiteDelPlazo`
       (subtests 17:59 aceptado y 18:01 rechazado), `TestUS1_VeinticuatroHorasExactas`,
@@ -246,13 +246,13 @@ con `availableHours: 4.00`.
       el cuerpo de la 003) y `TestUS1_AutorAjenoIgnorado` (`userId` de otra persona en el cuerpo →
       registro a nombre de la sesión). En cada rechazo se verifica que la cantidad de filas de
       `effort_entries` no cambió — depende de T007
-- [ ] T016 [US1] Prueba de concurrencia `TestEffortDailyCap_Concurrency` en
+- [X] T016 [US1] Prueba de concurrencia `TestEffortDailyCap_Concurrency` en
       `backend/internal/effort/delivery/effort_concurrency_test.go`, **sin** etiqueta `006/USn`: la
       misma cuenta envía a la vez **10** altas de 3 h para la misma fecha, repartidas en dos
       proyectos; exactamente 8 reciben `201` y 2 `409 daily_cap_exceeded`, ninguna `500`, y la suma
       de la fecha en la base es 24,00 (SC-005). Repetida varias veces para que el intercalado sea
       real — depende de T015
-- [ ] T017 [P] [US1] Pruebas de integración de los puertos reemplazados, contra `smye_test`: en
+- [X] T017 [P] [US1] Pruebas de integración de los puertos reemplazados, contra `smye_test`: en
       `backend/internal/backlog/repository/effort_records_test.go`, `HasEffort` es `false` sin
       registros, `true` después de insertar un registro con `ever_had_effort = true`, y **sigue**
       `true` después de borrar todas las filas de `effort_entries` (RN-22); en
@@ -261,7 +261,7 @@ con `availableHours: 4.00`.
       un sprint `planned` con un registro anclado insertado directamente (simula la carrera de
       research.md sección 10) devuelve `ErrSprintHasEffort` y no `500`. Además, que el `DELETE` de una
       historia, de un sprint y de un usuario con registros falla en la base (RN-21) — depende de T007
-- [ ] T018 [P] [US1] Pruebas de frontend en `frontend/src/features/effort/validation.test.ts`
+- [X] T018 [P] [US1] Pruebas de frontend en `frontend/src/features/effort/validation.test.ts`
       (horas, actividad y fecha con las mismas reglas de forma que el backend),
       `frontend/src/utils/effort-format.test.ts` (`6.5` → `6,5 h`, `0.25` → `0,25 h`, `20` → `+20,00 %`,
       `-20` → `−20,00 %`, `null` → `No calculable`) y
@@ -273,7 +273,7 @@ con `availableHours: 4.00`.
 
 ### Implementación de la Historia 1
 
-- [ ] T019 [US1] Implementar `EFFORT_GRACE_PERIOD_HOURS` en
+- [X] T019 [US1] Implementar `EFFORT_GRACE_PERIOD_HOURS` en
       `backend/internal/platform/config/config.go` (campo `EffortGracePeriod time.Duration`, defecto
       48 h si falta o está vacía, entero `≥ 1` o error acumulado) y agregar a `backend/.env.example`
       la línea `EFFORT_GRACE_PERIOD_HOURS=48` con un comentario en español: "Plazo de gracia, en
@@ -283,22 +283,22 @@ con `availableHours: 4.00`.
       `.env.example` (Principio VI); y agregar en `README.md` de la raíz, en la sección de variables
       de entorno del backend, la fila de `EFFORT_GRACE_PERIOD_HOURS` con su defecto y su significado
       (Principio VIII: los pasos para ejecutar cambian en este mismo cambio) — depende de T008
-- [ ] T020 [P] [US1] Implementar el tipo de 2 decimales en
+- [X] T020 [P] [US1] Implementar el tipo de 2 decimales en
       `backend/internal/effort/delivery/dto.go` (por ejemplo `hundredths int` con `MarshalJSON` que
       escribe `%d.%02d` con signo) — depende de T010
-- [ ] T021 [P] [US1] Implementar `ValidateEntryDate` en
+- [X] T021 [P] [US1] Implementar `ValidateEntryDate` en
       `backend/internal/effort/domain/entry_date.go` — depende de T011
-- [ ] T022 [P] [US1] Implementar `CheckDailyCap` en `backend/internal/effort/domain/daily_cap.go` —
+- [X] T022 [P] [US1] Implementar `CheckDailyCap` en `backend/internal/effort/domain/daily_cap.go` —
       depende de T012
-- [ ] T023 [US1] Implementar `ResolveAnchor` en `backend/internal/effort/domain/anchor.go`,
+- [X] T023 [US1] Implementar `ResolveAnchor` en `backend/internal/effort/domain/anchor.go`,
       usando `GraceOpen` para la vigencia — depende de T013, T024
-- [ ] T024 [P] [US1] Implementar `GraceOpen` en `backend/internal/effort/domain/grace.go` — depende
+- [X] T024 [P] [US1] Implementar `GraceOpen` en `backend/internal/effort/domain/grace.go` — depende
       de T014
-- [ ] T025 [US1] Implementar en `backend/internal/effort/delivery/validation.go` `ParseHours`, la
+- [X] T025 [US1] Implementar en `backend/internal/effort/delivery/validation.go` `ParseHours`, la
       validación de actividad (recorte, 1 a 300 runas) y de `entryDate` (`AAAA-MM-DD`, fecha real, a
       medianoche UTC) y `ValidateEntryInput`, con los mensajes como constantes nombradas en un único
       lugar y todos los campos inválidos a la vez (Principio VII) — depende de T009
-- [ ] T026 [US1] Implementar `Create` en `backend/internal/effort/repository/effort_repository.go`
+- [X] T026 [US1] Implementar `Create` en `backend/internal/effort/repository/effort_repository.go`
       con el orden de bloqueos de research.md sección 10, en una transacción: (1) historia unida a su
       proyecto con `clause.Locking{Strength: "SHARE", Table: clause.Table{Name: "projects"}}`,
       `finished` → `ErrEffortReadOnly` **antes** de evaluar el plazo; (2) `ValidateEntryDate` con
@@ -309,19 +309,19 @@ con `availableHours: 4.00`.
       inserción; (6) `UpdateColumn("ever_had_effort", true)` con `WHERE ever_had_effort = false`.
       Devuelve el `EntryView` con autor (`users.id` y `users.full_name`, **nunca** `password_hash`),
       historia y sprint — depende de T005, T015, T021, T022, T023
-- [ ] T027 [US1] Implementar en `backend/internal/effort/service/effort_service.go` el constructor
+- [X] T027 [US1] Implementar en `backend/internal/effort/service/effort_service.go` el constructor
       `NewEffortService(repo EffortRepository, location *time.Location, grace time.Duration, now func() time.Time)`,
       con la firma definitiva para que no cambie en las historias siguientes, y `Create(ctx, access,
       actorID, input)`, que toma el autor **siempre** del titular de la sesión (FR-002) y el instante
       del reloj una sola vez — depende de T026
-- [ ] T028 [US1] Declarar en `backend/internal/effort/delivery/dto.go` los esquemas de
+- [X] T028 [US1] Declarar en `backend/internal/effort/delivery/dto.go` los esquemas de
       contracts/openapi.yaml `EffortEntryInput` (`entryDate`, `activity`, `hours` como
       `json.RawMessage` con `swaggertype:"number"`, para rechazar un número entre comillas; **sin**
       campo de autor), `EffortEntry` (con `definitive`), `UserRef`,
       `StoryRef`, `SprintRef` y `EffortConflictResponse` (`code`, `error`, `availableHours`),
       reutilizando `ErrorResponse`, `FieldError` y `ValidationErrorResponse` de la 001. `sprint` y
       `availableHours` se serializan `null` cuando no aplican — depende de T020, T027
-- [ ] T029 [US1] Implementar el manejador `createEffortEntry` en
+- [X] T029 [US1] Implementar el manejador `createEffortEntry` en
       `backend/internal/effort/delivery/handler.go` con anotaciones `swag` en español, y la
       traducción de errores: `ErrEntryDateInFuture` y `EntryDateBeforeProjectStartError` → `400` con
       `field: entryDate` ("No se registran horas en una fecha futura." y "La fecha no puede ser
@@ -330,14 +330,14 @@ con `availableHours: 4.00`.
       daily_cap_exceeded` con "Superarías las 24 horas registradas para ese día. Te quedan N horas
       disponibles." y `availableHours`; cualquier otro → `500` genérico registrado con `slog` —
       depende de T025, T028
-- [ ] T030 [US1] Crear en `backend/internal/effort/delivery/routes.go`
+- [X] T030 [US1] Crear en `backend/internal/effort/delivery/routes.go`
       `RegisterStoryRoutes(router, requireSession, requireStoryAccess, handler)` con
       `POST /api/v1/stories/:storyId/effort-entries`, sin importar `backlog/delivery`; y componer el
       módulo en `backend/cmd/app/main.go`: repositorio, servicio con `cfg.Location`,
       `cfg.EffortGracePeriod` y `time.Now`, `RequireStoryAccess` de la 003 sobre la misma instancia
       del repositorio de historias, más el `@description` general de la API para que mencione el
       registro de esfuerzo — depende de T019, T029
-- [ ] T031 [US1] Reemplazar los puertos de la 003 y la 004: en
+- [X] T031 [US1] Reemplazar los puertos de la 003 y la 004: en
       `backend/internal/backlog/repository/effort_records.go`, `NewEffortRecords(db *gorm.DB)` y
       `HasEffort` que lee `user_stories.ever_had_effort`; en
       `backend/internal/sprints/repository/sprint_effort.go`, `NewSprintEffort(db *gorm.DB)` y
@@ -353,11 +353,11 @@ con `availableHours: 4.00`.
       `DELETE /api/v1/stories/{id}` sigue respondiendo `409` con el motivo `effort` (RC-05, RN-22).
       Es una prueba de integración de los puertos: se escribe primero y falla con los puertos
       provisorios — depende de T017, T030
-- [ ] T032 [P] [US1] Declarar los tipos de petición y respuesta en `frontend/src/types/effort.ts`
+- [X] T032 [P] [US1] Declarar los tipos de petición y respuesta en `frontend/src/types/effort.ts`
       (sin `any`; "no calculable" como `number | null`), implementar
       `frontend/src/utils/effort-format.ts` y `frontend/src/features/effort/validation.ts` — depende
       de T018
-- [ ] T033 [US1] Implementar `createEffortEntry` en `frontend/src/features/effort/api.ts`,
+- [X] T033 [US1] Implementar `createEffortEntry` en `frontend/src/features/effort/api.ts`,
       `EffortEntryForm` en `frontend/src/features/effort/components/effort-entry-form.tsx` (fecha
       precargada con hoy, actividad, horas con paso 0,25; tres pasos: escribir la actividad, escribir
       las horas, confirmar) y una primera versión de

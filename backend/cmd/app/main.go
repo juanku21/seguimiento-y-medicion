@@ -5,7 +5,8 @@
 //	@version					1.0.0
 //	@description				API de Software Metrics & Estimation: autenticación y cuentas de usuario, gestión de
 //	@description				proyectos y de sus integrantes, Product Backlog de cada proyecto, planificación de sus
-//	@description				sprints y estimación de historias con Planning Poker.
+//	@description				sprints, estimación de historias con Planning Poker y registro del esfuerzo trabajado
+//	@description				sobre cada historia.
 //	@description				Las únicas operaciones públicas son el registro y el inicio de sesión; las demás exigen
 //	@description				la cabecera `Authorization: Bearer <token>`.
 //	@BasePath					/
@@ -41,6 +42,9 @@ import (
 	backlogdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/delivery"
 	backlogrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/repository"
 	backlogservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/service"
+	effortdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/delivery"
+	effortrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/repository"
+	effortservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/service"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/config"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/database"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/httpserver"
@@ -132,9 +136,10 @@ func run() error {
 	projectGroup, _ := projectsdelivery.RegisterRoutes(router, handler.RequireSession, projectsdelivery.NewHandler(projects, members, status), projectMembers, projectRepository)
 
 	// El módulo del backlog se compone sobre el repositorio de historias y los cinco puertos hacia
-	// otras features: esfuerzo, defectos y sesiones de estimación, que todavía no existen y
-	// responden sin historial; las asignaciones a sprints, que leen los compromisos de la 004, y el
-	// directorio de proyectos, que lee el estado de la 002. Sus rutas
+	// otras features: defectos y sesiones de estimación, que todavía no existen y responden sin
+	// historial; el esfuerzo, que lee la marca ever_had_effort que deja el alta de la 006; las
+	// asignaciones a sprints, que leen los compromisos de la 004, y el directorio de proyectos, que
+	// lee el estado de la 002. Sus rutas
 	// cuelgan del subgrupo /api/v1/projects/:projectId, que ya exige sesión y membresía, recibido
 	// aquí para que backlog/delivery no importe projects/delivery. Las rutas de ítem van en el grupo
 	// plano /api/v1/stories/:storyId, que exige sesión y RequireStoryAccess sobre la misma instancia
@@ -143,7 +148,7 @@ func run() error {
 	stories := backlogservice.NewStoryService(
 		storyRepository,
 		backlogrepository.NewSprintAssignments(db),
-		backlogrepository.NewEffortRecords(),
+		backlogrepository.NewEffortRecords(db),
 		backlogrepository.NewDefectRecords(),
 		backlogrepository.NewEstimationSessions(db),
 		backlogrepository.NewProjectDirectory(db),
@@ -152,8 +157,8 @@ func run() error {
 	backlogdelivery.RegisterRoutes(projectGroup, backlogHandler)
 	backlogdelivery.RegisterStoryRoutes(router, handler.RequireSession, storyRepository, backlogHandler)
 
-	// El módulo de sprints se compone sobre su repositorio y el puerto de esfuerzo, que todavía no
-	// existe y responde sin esfuerzo, con la zona horaria del sistema y el reloj. Sus rutas de
+	// El módulo de sprints se compone sobre su repositorio y el puerto de esfuerzo, que lee los
+	// registros de la 006 anclados al sprint, con la zona horaria del sistema y el reloj. Sus rutas de
 	// colección cuelgan del subgrupo /api/v1/projects/:projectId, que ya exige sesión y membresía,
 	// recibido aquí para que sprints/delivery no importe projects/delivery. Las rutas de ítem van en el
 	// grupo plano /api/v1/sprints/:sprintId, que exige sesión y RequireSprintAccess sobre la misma
@@ -163,7 +168,7 @@ func run() error {
 	sprintRepository := sprintsrepository.NewSprintRepository(db)
 	sprints := sprintsservice.NewSprintService(
 		sprintRepository,
-		sprintsrepository.NewSprintEffort(),
+		sprintsrepository.NewSprintEffort(db),
 		cfg.Location,
 		time.Now,
 	)
@@ -182,6 +187,18 @@ func run() error {
 	pokerHandler := pokerdelivery.NewHandler(sessions)
 	pokerdelivery.RegisterStoryRoutes(router, handler.RequireSession, backlogdelivery.RequireStoryAccess(storyRepository), pokerHandler)
 	pokerdelivery.RegisterSessionRoutes(router, handler.RequireSession, sessionRepository, pokerHandler)
+
+	// El módulo de esfuerzo se compone sobre su repositorio, con la zona horaria del sistema, el plazo
+	// de gracia configurado y el reloj. Sus rutas cuelgan del grupo plano /api/v1/stories/:storyId con
+	// el RequireStoryAccess de la 003, sobre la misma instancia del repositorio de historias, para que
+	// effort/delivery no importe backlog/delivery.
+	efforts := effortservice.NewEffortService(
+		effortrepository.NewEffortRepository(db),
+		cfg.Location,
+		cfg.EffortGracePeriod,
+		time.Now,
+	)
+	effortdelivery.RegisterStoryRoutes(router, handler.RequireSession, backlogdelivery.RequireStoryAccess(storyRepository), effortdelivery.NewHandler(efforts))
 
 	// Ninguna conexión al canal de eventos sobrevive a un reinicio, así que antes de escuchar se
 	// marcan desconectados los participantes de las sesiones abiertas (research.md sección 9). El

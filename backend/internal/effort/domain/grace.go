@@ -17,3 +17,10 @@ type AnchoredSprint struct {
 	Status   sprintsdomain.SprintStatus
 	ClosedAt *time.Time
 }
+
+// GraceOpen informa si el plazo de gracia de un sprint cerrado en closedAt sigue vigente en now: el
+// plazo está vigente mientras now sea estrictamente anterior a closedAt + grace y se cuenta cumplido
+// al alcanzarse (RN-23, data-model.md sección 6.2).
+func GraceOpen(closedAt, now time.Time, grace time.Duration) bool {
+	return now.Before(closedAt.Add(grace))
+}

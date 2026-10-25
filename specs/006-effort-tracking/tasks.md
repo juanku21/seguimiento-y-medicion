@@ -137,7 +137,7 @@ estructuras y contratos, sin lógica de negocio.
       `EntryAccess`, `EntryView`, `UserRef` (solo `ID` y `FullName`), `StoryRef`, `MemberEffort`,
       `StoryEffort`, `EntryFilter`, `ComparisonRow`, `EntryInput` y `EntryPatch`. Las escrituras
       reciben el instante, la zona y el plazo como parámetros — depende de T001, T003, T004
-- [ ] T006 Agregar `EffortEntry` al `AutoMigrate` de `backend/internal/platform/database/postgres.go`
+- [X] T006 Agregar `EffortEntry` al `AutoMigrate` de `backend/internal/platform/database/postgres.go`
       **después** de `SprintStory` (apunta a `user_stories`, `users` y `sprints`) y actualizar el
       comentario del orden y de la columna nueva `ever_had_effort` de `UserStory` — depende de T001,
       T002

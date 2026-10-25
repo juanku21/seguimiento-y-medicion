@@ -124,7 +124,7 @@ estructuras y contratos, sin lógica de negocio.
       `MinEntryHundredths = 25`, `MaxEntryHundredths = 2400` y `HoursStepHundredths = 25`. Las
       funciones (`ResolveAnchor`, `GraceOpen`, `EnsureEntryWritable`, `CheckDailyCap`) se
       implementan en las historias
-- [ ] T004 [P] Declarar los errores de dominio en `backend/internal/effort/domain/errors.go` con la
+- [X] T004 [P] Declarar los errores de dominio en `backend/internal/effort/domain/errors.go` con la
       tabla de data-model.md sección 7: `ErrEntryNotFound`, `ErrEffortReadOnly`,
       `ErrSprintFinalized`, `ErrEffortFinalized`, `ErrNotEntryAuthor`, `ErrEntryDateInFuture` e
       `ErrInvalidFilter` (con el nombre del parámetro: tipo `InvalidFilterError{Field string}`); y

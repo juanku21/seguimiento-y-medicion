@@ -131,7 +131,9 @@ func (r *SprintRepository) Update(ctx context.Context, sprintID uuid.UUID, input
 // estén, para que la regla sea explícita; borra sus filas de sprint_stories y por último el sprint.
 // status se escribe con UpdateColumn, igual que RemoveStories, para no tocar updated_at, y
 // ever_committed no se toca y sigue en true (US7-7). El esfuerzo registrado lo verifica el servicio
-// con el puerto SprintEffort antes de llamar a esta operación.
+// con el puerto SprintEffort antes de llamar a esta operación; si un registro se ancló después de esa
+// verificación, la clave foránea de effort_entries.sprint_id rechaza el borrado del sprint y la
+// violación se traduce a ErrSprintHasEffort, para responder el mismo 409 (RC-07).
 func (r *SprintRepository) Delete(ctx context.Context, sprintID uuid.UUID) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		sprint, err := lockProjectAndSprint(tx, sprintID)
@@ -158,6 +160,9 @@ func (r *SprintRepository) Delete(ctx context.Context, sprintID uuid.UUID) error
 		err = tx.
 			Where("id = ?", sprintID).
 			Delete(&domain.Sprint{}).Error
+		if errors.Is(err, gorm.ErrForeignKeyViolated) {
+			return domain.ErrSprintHasEffort
+		}
 		if err != nil {
 			return fmt.Errorf("borrar el sprint: %w", err)
 		}

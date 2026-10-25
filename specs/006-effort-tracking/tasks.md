@@ -337,7 +337,7 @@ con `availableHours: 4.00`.
       `cfg.EffortGracePeriod` y `time.Now`, `RequireStoryAccess` de la 003 sobre la misma instancia
       del repositorio de historias, más el `@description` general de la API para que mencione el
       registro de esfuerzo — depende de T019, T029
-- [ ] T031 [US1] Reemplazar los puertos de la 003 y la 004: en
+- [X] T031 [US1] Reemplazar los puertos de la 003 y la 004: en
       `backend/internal/backlog/repository/effort_records.go`, `NewEffortRecords(db *gorm.DB)` y
       `HasEffort` que lee `user_stories.ever_had_effort`; en
       `backend/internal/sprints/repository/sprint_effort.go`, `NewSprintEffort(db *gorm.DB)` y

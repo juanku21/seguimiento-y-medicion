@@ -136,9 +136,10 @@ func run() error {
 	projectGroup, _ := projectsdelivery.RegisterRoutes(router, handler.RequireSession, projectsdelivery.NewHandler(projects, members, status), projectMembers, projectRepository)
 
 	// El módulo del backlog se compone sobre el repositorio de historias y los cinco puertos hacia
-	// otras features: esfuerzo, defectos y sesiones de estimación, que todavía no existen y
-	// responden sin historial; las asignaciones a sprints, que leen los compromisos de la 004, y el
-	// directorio de proyectos, que lee el estado de la 002. Sus rutas
+	// otras features: defectos y sesiones de estimación, que todavía no existen y responden sin
+	// historial; el esfuerzo, que lee la marca ever_had_effort que deja el alta de la 006; las
+	// asignaciones a sprints, que leen los compromisos de la 004, y el directorio de proyectos, que
+	// lee el estado de la 002. Sus rutas
 	// cuelgan del subgrupo /api/v1/projects/:projectId, que ya exige sesión y membresía, recibido
 	// aquí para que backlog/delivery no importe projects/delivery. Las rutas de ítem van en el grupo
 	// plano /api/v1/stories/:storyId, que exige sesión y RequireStoryAccess sobre la misma instancia
@@ -156,8 +157,8 @@ func run() error {
 	backlogdelivery.RegisterRoutes(projectGroup, backlogHandler)
 	backlogdelivery.RegisterStoryRoutes(router, handler.RequireSession, storyRepository, backlogHandler)
 
-	// El módulo de sprints se compone sobre su repositorio y el puerto de esfuerzo, que todavía no
-	// existe y responde sin esfuerzo, con la zona horaria del sistema y el reloj. Sus rutas de
+	// El módulo de sprints se compone sobre su repositorio y el puerto de esfuerzo, que lee los
+	// registros de la 006 anclados al sprint, con la zona horaria del sistema y el reloj. Sus rutas de
 	// colección cuelgan del subgrupo /api/v1/projects/:projectId, que ya exige sesión y membresía,
 	// recibido aquí para que sprints/delivery no importe projects/delivery. Las rutas de ítem van en el
 	// grupo plano /api/v1/sprints/:sprintId, que exige sesión y RequireSprintAccess sobre la misma

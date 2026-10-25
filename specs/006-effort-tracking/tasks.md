@@ -292,7 +292,7 @@ con `availableHours: 4.00`.
       depende de T012
 - [ ] T023 [US1] Implementar `ResolveAnchor` en `backend/internal/effort/domain/anchor.go`,
       usando `GraceOpen` para la vigencia — depende de T013, T024
-- [ ] T024 [P] [US1] Implementar `GraceOpen` en `backend/internal/effort/domain/grace.go` — depende
+- [X] T024 [P] [US1] Implementar `GraceOpen` en `backend/internal/effort/domain/grace.go` — depende
       de T014
 - [ ] T025 [US1] Implementar en `backend/internal/effort/delivery/validation.go` `ParseHours`, la
       validación de actividad (recorte, 1 a 300 runas) y de `entryDate` (`AAAA-MM-DD`, fecha real, a

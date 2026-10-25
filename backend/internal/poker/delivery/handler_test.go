@@ -4230,3 +4230,130 @@ func TestPokerSecreto_TodasLasConsultas(t *testing.T) {
 	requireStoredVoting(t, f.env.db, f.session.ID, "ninguna consulta debería revelar la ronda")
 	requireSingleStoredVote(t, f.env.db, f.session.ID, f.brunoID, secret)
 }
+
+// Prueba de integración del registro de la estimación concurrente con el cierre de la historia o del
+// proyecto (T102; hallazgo de seguridad detectado en 005/US7: registro de la estimación sin releer el
+// estado de la historia bajo bloqueo). Una transacción de prueba bloquea la historia con FOR UPDATE y
+// la completa, o finaliza el proyecto, mientras el registro espera ese bloqueo; al confirmarla, el
+// registro no debe escribir story_points y la sesión debe quedar cancelada por el sistema con el motivo
+// que corresponde (FR-061, data-model.md sección 9). No lleva la etiqueta de un escenario de la spec
+// porque verifica un hallazgo de seguridad y no un escenario Given/When/Then.
+
+// Plazos de la espera del registro bloqueado en la historia y de su respuesta tras confirmar.
+const (
+	pokerLockWaitTimeout  = 5 * time.Second
+	pokerLockWaitInterval = 10 * time.Millisecond
+)
+
+// pokerWaitForStoryLock consulta pg_stat_activity hasta ver, en la base de test, una sentencia sobre
+// user_stories de otra conexión esperando un bloqueo de fila (wait_event_type = 'Lock'). Devuelve
+// falso si no aparece dentro del plazo.
+func pokerWaitForStoryLock(t *testing.T, db *gorm.DB) bool {
+	t.Helper()
+	deadline := time.Now().Add(pokerLockWaitTimeout)
+	for time.Now().Before(deadline) {
+		var waiting int64
+		err := db.Raw(`SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock'
+			AND pid <> pg_backend_pid() AND query ILIKE '%user_stories%'`).Scan(&waiting).Error
+		require.NoError(t, err, "no se pudo consultar pg_stat_activity")
+		if waiting > 0 {
+			return true
+		}
+		time.Sleep(pokerLockWaitInterval)
+	}
+	return false
+}
+
+// pokerStoredStoryPoints lee user_stories.story_points de la historia; nil es "sin estimar".
+func pokerStoredStoryPoints(t *testing.T, db *gorm.DB, storyID uuid.UUID) *int {
+	t.Helper()
+	var points []*int
+	require.NoError(t, db.Table("user_stories").Where("id = ?", storyID).Pluck("story_points", &points).Error,
+		"no se pudieron leer los Story Points de la historia")
+	require.Len(t, points, 1, "la historia %s debería existir", storyID)
+	return points[0]
+}
+
+// Ana, sola en una sesión sobre una historia de 5 Story Points, vota 8 y la ronda se revela. Una
+// transacción de prueba bloquea la historia con FOR UPDATE y, según el caso, la pasa a completed o
+// pasa el proyecto a finished. Ana registra 8 desde una goroutine; con el registro ya esperando el
+// bloqueo de la historia, la transacción se confirma. El registro responde 409 de sesión cerrada con
+// el motivo del sistema, la historia conserva sus 5 Story Points y la sesión queda cancelada sin quien
+// la cerró y con el motivo story_completed o project_finished.
+func TestPokerFinalize_Concurrency(t *testing.T) {
+	// Cada caso declara el cambio que confirma la transacción de prueba, el motivo esperado y el
+	// mensaje del 409 que corresponde a ese motivo.
+	cases := []struct {
+		name    string
+		change  func(tx *gorm.DB, f pokerUS1Fixture, storyID uuid.UUID) error
+		reason  domain.CancelReason
+		message string
+	}{
+		{
+			name: "historia completada",
+			change: func(tx *gorm.DB, _ pokerUS1Fixture, storyID uuid.UUID) error {
+				return tx.Exec("UPDATE user_stories SET status = 'completed' WHERE id = ?", storyID).Error
+			},
+			reason:  domain.CancelReasonStoryCompleted,
+			message: pokerSessionClosedMessage,
+		},
+		{
+			name: "proyecto finalizado",
+			change: func(tx *gorm.DB, f pokerUS1Fixture, _ uuid.UUID) error {
+				return tx.Exec("UPDATE projects SET status = 'finished' WHERE id = ?", f.projectID).Error
+			},
+			reason:  domain.CancelReasonProjectFinished,
+			message: pokerProjectFinishedMessage,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Sesión de Ana sola sobre una historia de 5 Story Points, con la ronda revelada en 8.
+			f := newPokerUS1Fixture(t)
+			storyID := f.env.createStory(t, f.anaToken, f.projectID, pokerStoryInput{
+				Title:  "Exportar el reporte",
+				Points: pokerIntPtr(5),
+			})
+			session, _ := f.newPokerSoloSession(t, storyID)
+			f.env.requireVoted(t, f.anaToken, session.ID, "8")
+
+			// La transacción de prueba bloquea la historia y deja sin confirmar el cambio del caso; si
+			// la prueba termina antes de confirmarla, se revierte y libera al registro.
+			tx := f.env.db.Begin()
+			require.NoError(t, tx.Error, "no se pudo abrir la transacción de prueba")
+			defer tx.Rollback()
+			require.NoError(t, tx.Exec("SELECT id FROM user_stories WHERE id = ? FOR UPDATE", storyID).Error,
+				"no se pudo bloquear la historia")
+			require.NoError(t, tc.change(tx, f, storyID), "no se pudo aplicar el cambio del caso")
+
+			// El registro corre en una goroutine y queda esperando el bloqueo de la historia.
+			payload, err := json.Marshal(map[string]any{"storyPoints": 8})
+			require.NoError(t, err)
+			done := make(chan pokerConcurrentResult, 1)
+			go func() {
+				done <- f.env.pokerSend(http.MethodPost, finalizePath(session.ID), f.anaToken, payload)
+			}()
+			require.True(t, pokerWaitForStoryLock(t, f.env.db),
+				"el registro debería quedar esperando el bloqueo de la historia")
+			require.NoError(t, tx.Commit().Error, "no se pudo confirmar la transacción de prueba")
+
+			// Confirmado el cambio, el registro responde 409 de sesión cerrada con el motivo del sistema.
+			var res pokerConcurrentResult
+			select {
+			case res = <-done:
+			case <-time.After(pokerHTTPTimeout):
+				t.Fatalf("el registro no respondió en %s tras confirmar la transacción", pokerHTTPTimeout)
+			}
+			require.NoError(t, res.err, "el registro no obtuvo respuesta")
+			requireSessionClosedBody(t, res.resp, tc.message, "canceled", nil, pokerReason(tc.reason))
+
+			// La historia conserva sus Story Points y la sesión queda cancelada por el sistema.
+			points := pokerStoredStoryPoints(t, f.env.db, storyID)
+			if assert.NotNil(t, points, "la historia debería conservar sus Story Points") {
+				assert.Equal(t, 5, *points, "user_stories.story_points no debería cambiar")
+			}
+			requireStoredCanceled(t, f.env.db, session.ID, nil, pokerReason(tc.reason), f.env.clock.Now())
+		})
+	}
+}

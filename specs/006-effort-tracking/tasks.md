@@ -116,7 +116,7 @@ estructuras y contratos, sin lógica de negocio.
       `ever_had_effort`), y extender el comentario del modelo: "pasa a true con el primer registro de
       esfuerzo y nunca vuelve a false, aunque se eliminen todos los registros (RC-05, RN-22); solo la
       escribe la feature de esfuerzo", igual que `EverCommitted`
-- [ ] T003 [P] Declarar en `backend/internal/effort/domain/anchor.go` los tipos `OpenCommitment`
+- [X] T003 [P] Declarar en `backend/internal/effort/domain/anchor.go` los tipos `OpenCommitment`
       (`SprintID`) y `ClosedCommitment` (`SprintID`, `ClosedAt time.Time`,
       `Outcome sprintsdomain.StoryOutcome`); en `backend/internal/effort/domain/grace.go` el tipo
       `AnchoredSprint` (`ID`, `Name`, `Status sprintsdomain.SprintStatus`, `ClosedAt *time.Time`); y

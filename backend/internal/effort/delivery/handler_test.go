@@ -617,3 +617,48 @@ func TestUS1_AutorAjenoIgnorado(t *testing.T) {
 	assert.Equal(t, brunoID, f.env.storedEntry(t, entry.ID).UserID, "user_id en la base")
 	assert.Equal(t, int64(0), f.env.userDateHundredths(t, f.ownerID, effortToday), "nada a nombre de la persona indicada")
 }
+
+// Cuerpos exactos de los 409 de eliminación de la 003 y la 004 que deben aparecer cuando los puertos
+// de esfuerzo leen los registros reales (data-model.md sección 7 de cada feature).
+const (
+	effortPortsSprintHasEffortMessage = "El sprint tiene esfuerzo registrado. Primero hay que eliminar esos registros."
+	effortPortsStoryBlockedMessage    = "La historia tiene historial asociado y no se puede eliminar."
+	effortPortsSprintHistoryMessage   = "Estuvo asignada a un sprint."
+	effortPortsEffortMessage          = "Tiene esfuerzo registrado."
+)
+
+// TestEffortPorts_BloqueanEliminaciones verifica de punta a punta los puertos de esfuerzo de la 003
+// y la 004 (T031), sin etiqueta de escenario porque no corresponde a uno de spec.md sino a RC-05,
+// RC-07 y RN-22. Con los endpoints reales, Ana compromete una historia en un sprint Planificado y le
+// registra esfuerzo: eliminar el sprint se rechaza con el 409 de esfuerzo de la 004 y el sprint sigue
+// en la base. Después se borran todos los registros de la historia y eliminarla sigue respondiendo el
+// 409 de la 003, que incluye el motivo effort además de sprint_history, porque la historia estuvo
+// comprometida en el sprint.
+func TestEffortPorts_BloqueanEliminaciones(t *testing.T) {
+	f := newEffortFixture(t)
+	sprintID := f.env.createSprint(t, f.ownerToken, f.projectID, "Sprint 4", "2026-10-26", "2026-11-06")
+	f.env.assignStories(t, f.ownerToken, sprintID, f.storyID)
+	requireEffortCreated(t, f.post(t, effortBody(effortToday, effortActivity, 2)))
+
+	// RC-07: el sprint Planificado con esfuerzo asociado no se elimina y sigue en la base.
+	rec := f.env.do(t, http.MethodDelete, "/api/v1/sprints/"+sprintID.String(), f.ownerToken, nil)
+	assert.Equal(t, http.StatusConflict, rec.Code, "DELETE del sprint; cuerpo: %s", rec.Body.String())
+	assert.JSONEq(t, `{"error":"`+effortPortsSprintHasEffortMessage+`"}`, rec.Body.String())
+	var sprints int64
+	require.NoError(t, f.env.db.Table("sprints").Where("id = ?", sprintID).Count(&sprints).Error)
+	assert.EqualValues(t, 1, sprints, "el sprint con esfuerzo debe seguir en la base")
+
+	// Desviación deliberada: los registros se borran directamente en la base de test porque el
+	// endpoint de eliminación de esfuerzo es de la US3 (T050) y todavía no existe. Cuando exista, este
+	// bloque se reemplaza por el DELETE real de cada registro de la historia.
+	require.NoError(t, f.env.db.Exec("DELETE FROM effort_entries WHERE story_id = ?", f.storyID).Error,
+		"no se pudieron borrar los registros de la historia")
+	require.Zero(t, f.env.storyHundredths(t, f.storyID), "precondición: la historia ya no tiene registros")
+
+	// RC-05 y RN-22: sin registros, la historia sigue sin poder eliminarse por el motivo effort.
+	rec = f.env.do(t, http.MethodDelete, "/api/v1/stories/"+f.storyID.String(), f.ownerToken, nil)
+	assert.Equal(t, http.StatusConflict, rec.Code, "DELETE de la historia; cuerpo: %s", rec.Body.String())
+	assert.JSONEq(t, `{"error":"`+effortPortsStoryBlockedMessage+`","reasons":[`+
+		`{"code":"sprint_history","message":"`+effortPortsSprintHistoryMessage+`"},`+
+		`{"code":"effort","message":"`+effortPortsEffortMessage+`"}]}`, rec.Body.String())
+}

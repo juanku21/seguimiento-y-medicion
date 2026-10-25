@@ -879,7 +879,7 @@ documentación viva, cobertura, vulnerabilidades y verificación de las puertas 
       pantalla de la sala y la sección del detalle de la historia, y el supuesto de una sola
       instancia del backend, manteniendo el criterio de que alguien que no conoce el proyecto pueda
       ejecutarlo siguiendo el documento — depende de T094
-- [ ] T097 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
+- [X] T097 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
 - [ ] T098 [P] Ejecutar los comandos de cobertura de los dos lados —
       `go test ./... -coverprofile=coverage.out` más `go tool cover -func=coverage.out` en

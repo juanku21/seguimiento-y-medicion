@@ -283,7 +283,7 @@ con `availableHours: 4.00`.
       `.env.example` (Principio VI); y agregar en `README.md` de la raíz, en la sección de variables
       de entorno del backend, la fila de `EFFORT_GRACE_PERIOD_HOURS` con su defecto y su significado
       (Principio VIII: los pasos para ejecutar cambian en este mismo cambio) — depende de T008
-- [ ] T020 [P] [US1] Implementar el tipo de 2 decimales en
+- [X] T020 [P] [US1] Implementar el tipo de 2 decimales en
       `backend/internal/effort/delivery/dto.go` (por ejemplo `hundredths int` con `MarshalJSON` que
       escribe `%d.%02d` con signo) — depende de T010
 - [ ] T021 [P] [US1] Implementar `ValidateEntryDate` en

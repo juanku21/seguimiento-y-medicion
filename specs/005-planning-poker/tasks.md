@@ -874,7 +874,7 @@ documentación viva, cobertura, vulnerabilidades y verificación de las puertas 
       `backend/docs/` coincida con [contracts/openapi.yaml](./contracts/openapi.yaml) en las **diez**
       operaciones (el canal como `text/event-stream`), sus códigos de respuesta (todas declaran
       `500`) y sus esquemas; corregir las anotaciones si difieren (Principio VIII) — depende de T094
-- [ ] T096 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona el
+- [X] T096 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona el
       Planning Poker en tiempo real, y se agregan los diez endpoints, el canal de eventos, la
       pantalla de la sala y la sección del detalle de la historia, y el supuesto de una sola
       instancia del backend, manteniendo el criterio de que alguien que no conoce el proyecto pueda

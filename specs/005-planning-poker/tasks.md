@@ -886,7 +886,7 @@ documentación viva, cobertura, vulnerabilidades y verificación de las puertas 
       `backend/`, y `npm run test:coverage` en `frontend/` — y revisar que `internal/poker/`,
       `frontend/src/features/poker/` y `frontend/src/lib/event-stream.ts` estén cubiertos; correr
       además `go test -race ./internal/poker/...` — depende de T094
-- [ ] T099 Verificar la trazabilidad y las puertas de seguridad recorriendo `backend/internal/poker/`
+- [X] T099 Verificar la trazabilidad y las puertas de seguridad recorriendo `backend/internal/poker/`
       y `frontend/src/features/poker/`: que buscar `005/US1` a `005/US8` en el código de pruebas
       devuelva los **79** escenarios; que las **36** reglas RN-01 a RN-36 tengan prueba asociada según
       la tabla de plan.md (SC-020); que los **diez** endpoints tengan su prueba de `401` (SC-017); que

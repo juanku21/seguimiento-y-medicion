@@ -357,7 +357,7 @@ con `availableHours: 4.00`.
       (sin `any`; "no calculable" como `number | null`), implementar
       `frontend/src/utils/effort-format.ts` y `frontend/src/features/effort/validation.ts` — depende
       de T018
-- [ ] T033 [US1] Implementar `createEffortEntry` en `frontend/src/features/effort/api.ts`,
+- [X] T033 [US1] Implementar `createEffortEntry` en `frontend/src/features/effort/api.ts`,
       `EffortEntryForm` en `frontend/src/features/effort/components/effort-entry-form.tsx` (fecha
       precargada con hoy, actividad, horas con paso 0,25; tres pasos: escribir la actividad, escribir
       las horas, confirmar) y una primera versión de

@@ -32,10 +32,14 @@ docker compose --env-file .env -p smye-dev up -d
 docker compose --env-file .env.test -p smye-test up -d
 ```
 
-Comprobación de aislamiento: debe responder `smye_test`.
+Comprobación de aislamiento: la primera consulta debe responder `smye_test` y la segunda, el puerto
+5433 publicado en el anfitrión (el mismo `DB_PORT` de `backend/.env.test`). No se usa
+`inet_server_port()`: `docker exec` conecta por el socket local y devuelve el puerto vacío, y con
+`-h localhost` devolvería 5432, el puerto interno del contenedor.
 
 ```powershell
-docker exec smye-test-postgres-1 psql -U smye -d smye_test -c "SELECT current_database(), inet_server_port();"
+docker exec smye-test-postgres-1 psql -U smye -d smye_test -tA -c "SELECT current_database();"
+docker port smye-test-postgres-1 5432
 ```
 
 `AutoMigrate` crea las cuatro tablas `estimation_*` al arrancar la aplicación o la primera prueba.
@@ -54,30 +58,34 @@ docker exec smye-test-postgres-1 psql -U smye -d smye_test -c "SELECT indexname,
 
 ```powershell
 cd backend
-swag init -g cmd/app/main.go -o docs
+# Swagger sin instalar la CLI (con la CLI instalada: swag init -g cmd/app/main.go -o docs)
+go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g cmd/app/main.go -o docs
 
 # Todas las pruebas contra la base de TEST
-go test ./...
+go test -p 1 ./...
 
 # Solo el módulo de esta feature
-go test ./internal/poker/...
+go test -p 1 ./internal/poker/...
 
 # Trazabilidad del Principio II: los escenarios de una historia
-go test ./internal/poker/... -run TestUS3
+go test -p 1 ./internal/poker/... -run TestUS3
 
 # Concurrencia: una sola sesión abierta, un solo facilitador, voto y revelación (SC-007, SC-012, SC-025)
-go test ./internal/poker/... -run Concurrency -count=5
+go test -p 1 ./internal/poker/... -run Concurrency -count=5
 
 # Escala del tiempo real: 10 sesiones x 10 conexiones (SC-004); se omite con -short
-go test ./internal/poker/... -run Scale
+go test -p 1 ./internal/poker/... -run Scale
 
 # Puerto reemplazado en la 003 (eliminación bloqueada por historial de estimación)
-go test ./internal/backlog/...
+go test -p 1 ./internal/backlog/...
 
 # Cobertura
-go test ./... -coverprofile=coverage.out
+go test -p 1 ./... -coverprofile=coverage.out
 go tool cover -func=coverage.out
 ```
+
+Todos los `go test` llevan `-p 1` porque los paquetes comparten la base `smye_test`: en paralelo se
+quedan esperándose entre sí y fallan al superar la espera máxima (README, paso 9).
 
 Resultado esperado: todo en `ok`. Buscar `005/US` en el código de pruebas debe devolver los 79
 escenarios de la spec.
@@ -106,7 +114,7 @@ govulncheck ./...
 ```powershell
 # Terminal 1 — backend en http://localhost:8080
 cd backend
-swag init -g cmd/app/main.go -o docs
+go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g cmd/app/main.go -o docs
 go run ./cmd/app
 
 # Terminal 2 — frontend en http://localhost:3000
@@ -145,7 +153,9 @@ terminales separadas:
 curl.exe -N -H "Authorization: Bearer $BRUNO" "http://localhost:8080/api/v1/estimation-sessions/$SESSION/events"
 ```
 
-Cada hecho produce una línea `event: state` seguida de `data:` con la sesión completa.
+Cada hecho produce una línea `event: state` seguida de `data:` con la sesión completa. Lo inverso no
+vale: el barrido también republica un `state` con la misma `version` cuando cambia la historia
+(FR-074), sin que haya un hecho nuevo en la sesión.
 
 ---
 
@@ -194,8 +204,10 @@ cubren se nombran `TestUSn_<Escenario>` y llevan el comentario `(005/USn)`.
 2. Ana registra `{"storyPoints":8}`: `200`, `status: finished`; todos los canales reciben el último
    `state` y se cierran. `GET /api/v1/stories/$STORY` (003) muestra 8 Story Points.
 3. Reestimación directa (US5-5): con una sesión nueva abierta, Bruno reestima `$STORY` en 3 con
-   `PUT /api/v1/stories/$STORY/story-points`; ningún canal recibe un hecho; al registrar 8, la
-   historia queda en 8.
+   `PUT /api/v1/stories/$STORY/story-points`; no hay un hecho nuevo en la sesión: la `version` no
+   cambia y la ronda sigue en `voting`. Unos 0,6 segundos después del `PUT`, cada canal puede
+   recibir un `state` con esa misma `version`: es la republicación del barrido por el cambio de la
+   historia (FR-074). Al registrar 8, la historia queda en 8.
 
 ### US6 — Desconexiones y relevo del facilitador
 
@@ -224,10 +236,15 @@ cubren se nombran `TestUSn_<Escenario>` y llevan el comentario `(005/USn)`.
 
 ### Cancelaciones del sistema (FR-061)
 
-- Con una sesión abierta sobre una historia comprometida en el sprint Activo, se la marca
-  `completed` con `PUT /api/v1/stories/{id}/status` (004): en menos de 2 segundos los canales reciben
+- Con una sesión abierta sobre una historia comprometida en el sprint Activo, se la pasa primero a
+  `in_progress` con `PUT /api/v1/stories/{id}/status` (004), porque desde `pending` el paso a
+  `completed` responde `409` "Transición no permitida…"; pasar a `in_progress` no cancela la sesión.
+  Después se la marca `completed` con el mismo endpoint: en menos de 2 segundos los canales reciben
   `status: canceled`, `cancelReason: story_completed`.
-- Con una sesión abierta, Ana finaliza el proyecto (002): `cancelReason: project_finished`.
+- Con una sesión abierta, Ana cierra antes el sprint Activo con
+  `POST /api/v1/sprints/{sprintId}/close` (004), porque con un sprint activo finalizar el proyecto
+  responde `409` "No se puede finalizar el proyecto mientras tenga un sprint activo. Cerralo
+  primero.". Después finaliza el proyecto (002): `cancelReason: project_finished`.
 
 ### Flujo en la interfaz
 

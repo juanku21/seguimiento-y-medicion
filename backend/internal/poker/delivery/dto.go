@@ -56,7 +56,7 @@ type EstimationVote struct {
 	// Autor del voto.
 	User UserRef `json:"user" validate:"required"`
 	// Carta jugada; "?" expresa que la persona no sabe estimar (FR-020, RN-06).
-	Card domain.Card `json:"card" validate:"required" enums:"0,1,2,3,5,8,13,20,40,100,?" example:"5"`
+	Card domain.Card `json:"card" validate:"required" swaggertype:"string" enums:"0,1,2,3,5,8,13,20,40,100,?" example:"5"`
 }
 
 // OutcomeExtreme es el mínimo o el máximo de una ronda divergente, con todos los autores de ese valor
@@ -129,13 +129,13 @@ type EstimationSession struct {
 	// Motivo de la cancelación del sistema, o null (FR-061, FR-063).
 	CancelReason *domain.CancelReason `json:"cancelReason" validate:"required" enums:"inactivity,story_completed,project_finished" extensions:"x-nullable" example:"inactivity"`
 	// Escala de cartas disponible (FR-012).
-	Cards []domain.Card `json:"cards" validate:"required" enums:"0,1,2,3,5,8,13,20,40,100,?" example:"0,1,2,3,5,8,13,20,40,100,?"`
+	Cards []domain.Card `json:"cards" validate:"required" swaggertype:"array,string" enums:"0,1,2,3,5,8,13,20,40,100,?" example:"0,1,2,3,5,8,13,20,40,100,?"`
 	// Participantes de la sesión.
 	Participants []EstimationParticipant `json:"participants" validate:"required"`
 	// Todas las rondas, de la 1 a la vigente (FR-044, FR-078).
 	Rounds []EstimationRound `json:"rounds" validate:"required"`
 	// Carta de quien pide en la ronda vigente, igual en todas sus conexiones, o null (FR-024).
-	MyVote *domain.Card `json:"myVote" validate:"required" enums:"0,1,2,3,5,8,13,20,40,100,?" extensions:"x-nullable" example:"5"`
+	MyVote *domain.Card `json:"myVote" validate:"required" swaggertype:"string" enums:"0,1,2,3,5,8,13,20,40,100,?" extensions:"x-nullable" example:"5"`
 	// Si el facilitador está desconectado, momento a partir del cual otro participante puede tomar el
 	// rol (FR-068); null si está conectado o la sesión está cerrada.
 	FacilitatorAvailableAt *string `json:"facilitatorAvailableAt" validate:"required" format:"date-time" extensions:"x-nullable" example:"2026-10-20T14:32:00Z"`

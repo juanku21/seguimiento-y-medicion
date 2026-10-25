@@ -1,6 +1,6 @@
 # Software Metrics & Estimation
 
-Software Metrics & Estimation es un sistema diseñado para la estimación, seguimiento, medición y control de proyectos de software. La plataforma centraliza la administración del flujo de trabajo a partir del Product Backlog de cada proyecto, la estimación del volumen de tareas en Story Points, el registro del tiempo invertido, la trazabilidad de defectos y el cálculo automático de indicadores de rendimiento y calidad.
+Software Metrics & Estimation es un sistema diseñado para la estimación, seguimiento, medición y control de proyectos de software. La plataforma centraliza la administración del flujo de trabajo a partir del Product Backlog de cada proyecto, la estimación del volumen de tareas en Story Points, que el equipo puede acordar en sesiones de Planning Poker en tiempo real, el registro del tiempo invertido, la trazabilidad de defectos y el cálculo automático de indicadores de rendimiento y calidad.
 
 ---
 
@@ -45,12 +45,13 @@ El sistema ofrece una solución integral para gestionar el ciclo de vida de proy
 
 ## Estado Actual
 
-El sistema se construye por funcionalidades, cada una especificada en su carpeta de [`specs/`](./specs). Hoy están implementadas las cuatro primeras:
+El sistema se construye por funcionalidades, cada una especificada en su carpeta de [`specs/`](./specs). Hoy están implementadas las cinco primeras:
 
 - **Autenticación y cuentas de usuario** ([`specs/001-user-auth`](./specs/001-user-auth)): registro de cuentas, inicio y cierre de sesión con JWT, protección de las funciones del sistema, consulta del propio perfil y registro de eventos de autenticación.
 - **Gestión de proyectos e integrantes** ([`specs/002-project-members`](./specs/002-project-members)): creación y modificación de proyectos con su factor de horas por Story Point, listado de los proyectos propios aislado de los ajenos, alta y baja de integrantes por correo electrónico, consulta del estado del proyecto en una sola pantalla y avance del estado (`planned` → `in_progress` → `finished`) con registro de la fecha de finalización real.
 - **Product Backlog** ([`specs/003-product-backlog`](./specs/003-product-backlog)): registro de historias de usuario con título, descripción, prioridad (Alta, Media o Baja) y criterios de aceptación ordenados; listado del backlog ordenado por prioridad y antigüedad, con filtros por prioridad y estado; estimación en Story Points con la escala 0, 1, 2, 3, 5, 8, 13, 20, 40 y 100 (o "sin estimar"); indicación de si cada historia está lista para planificar; refinamiento y eliminación de las historias que nunca se trabajaron. Cualquier integrante del proyecto puede hacer todas estas acciones; cuando el proyecto está finalizado, su backlog queda de solo lectura. El estado de una historia (Pendiente, En progreso, Completada) se muestra pero no se cambia desde el backlog: lo cambia la gestión de sprints.
 - **Gestión de sprints** ([`specs/004-sprint-management`](./specs/004-sprint-management)): planificación de sprints con nombre, Sprint Goal y fechas de inicio y fin que no se superponen con las de otro sprint del proyecto; compromiso en el sprint de las historias del backlog listas para planificar, y su retiro; inicio del sprint (como máximo uno Activo por proyecto), con los días restantes o vencidos a la vista; registro del avance de cada historia del sprint Activo (Pendiente → En progreso → Completada, con la posibilidad de desmarcarla mientras el sprint siga Activo); cierre del sprint, que devuelve al backlog las historias no completadas y congela una instantánea con los Story Points comprometidos al inicio, planificados al cierre y completados, las historias involucradas con su resultado y el factor de horas por Story Point vigente; historial de sprints cerrados y, en cada historia, los sprints en los que estuvo; y modificación o eliminación de los sprints Planificados que nunca se iniciaron. Los estados del sprint solo avanzan Planificado → Activo → Cerrado, y el cierre es definitivo. Cualquier integrante del proyecto puede operar sus sprints; ninguna acción sobre los sprints cambia el estado del proyecto, y cuando el proyecto está finalizado sus sprints quedan de solo lectura.
+- **Planning Poker en tiempo real** ([`specs/005-planning-poker`](./specs/005-planning-poker)): estimación colaborativa de una historia del backlog, en la que cada integrante del proyecto participa desde su propia sesión y ve los cambios de los demás en menos de 2 segundos, sin recargar la pantalla. Cualquier integrante abre una sesión sobre una historia que no esté Completada (como máximo una sesión abierta por historia) y queda como facilitador; el resto se une desde el detalle de la historia. Cada participante vota en secreto con una carta de la escala (0, 1, 2, 3, 5, 8, 13, 20, 40 o 100) o con "?" para indicar que no sabe, y puede cambiarla pero no retirarla. Los votos se revelan solos cuando votaron todos los participantes conectados, o antes a pedido del facilitador; al revelar se muestran el consenso o la divergencia con el mínimo, el máximo y sus autores. El facilitador inicia rondas nuevas hasta que el equipo acuerda un valor, y al registrarlo la sesión se finaliza y el valor pasa a ser los Story Points de la historia; también puede cancelar la sesión sin registrar nada. Un participante que pierde la conexión deja de figurar como conectado a los 30 segundos, conserva su voto al volver y, si es el facilitador y lleva 5 minutos desconectado, cualquier otro participante conectado puede tomar el rol. El sistema cancela solo las sesiones abiertas cuando su historia pasa a Completada, cuando el proyecto se finaliza o después de 60 minutos sin actividad. Cada historia guarda el historial de sus sesiones con sus rondas y votos, y una historia con historial de estimación ya no se puede eliminar del backlog.
 
 Las funcionalidades descritas en las secciones siguientes son el alcance completo del sistema y se incorporan en las próximas specs.
 
@@ -135,6 +136,10 @@ Los entornos de **desarrollo** y de **test** son disjuntos: cada uno tiene su pr
 | --- | --- | --- | --- | --- |
 | Desarrollo | `smye-dev-postgres-1` | `smye_dev` | 5432 | `backend/postgres/.env`, `backend/.env`, `frontend/.env.local` |
 | Test | `smye-test-postgres-1` | `smye_test` | 5433 | `backend/postgres/.env.test`, `backend/.env.test`, `frontend/.env.test` |
+
+**Tiempo real del Planning Poker.** El backend difunde los cambios de cada sesión de estimación con Server-Sent Events (SSE): el navegador abre un canal `text/event-stream` con `fetch` y lo lee a medida que llegan los eventos, mientras que cada acción (votar, revelar, iniciar una ronda, registrar, cancelar o tomar el rol de facilitador) es un endpoint REST común. No usa WebSockets ni agrega dependencias, servicios o variables de entorno. Un barrido interno del backend corre cada segundo y se encarga de las desconexiones, las cancelaciones automáticas, las bajas de integrantes y los cambios de la historia de las sesiones abiertas.
+
+**Supuesto de una sola instancia del backend.** El registro de las conexiones abiertas a cada sesión vive en la memoria del proceso del backend y no se comparte entre procesos. Por eso el backend debe ejecutarse en **una sola instancia** (un único `go run ./cmd/app` o un único contenedor), que alcanza para el objetivo de 10 sesiones en paralelo con 10 participantes cada una. Con dos o más réplicas detrás de un balanceador, cada una entregaría los cambios solo a los canales abiertos en ella y llevaría su propia cuenta de quién está conectado: participantes de una misma sesión conectados a réplicas distintas no verían en tiempo real los cambios hechos a través de otra réplica, y la presencia, de la que dependen la revelación automática y el relevo del facilitador, dejaría de ser confiable (por ejemplo, el arranque de una réplica marcaría como desconectados a quienes siguen conectados a otra). Escalar a varias instancias exigiría un canal compartido entre procesos y queda fuera del alcance actual. Al arrancar, el backend marca como desconectados a los participantes de las sesiones abiertas, porque ninguna conexión sobrevive a un reinicio; las sesiones siguen abiertas y cada persona se vuelve a unir al reconectar.
 
 ---
 
@@ -240,7 +245,7 @@ Para confirmar que el contenedor de test apunta a la base correcta:
 docker exec smye-test-postgres-1 psql -U smye -d smye_test -c "SELECT current_database();"
 ```
 
-Debe responder `smye_test`. No hace falta crear tablas: el backend crea y migra el esquema automáticamente al conectarse (`AutoMigrate` de GORM), incluidas las tablas `projects` y `project_members` de la gestión de proyectos las tablas `user_stories` y `acceptance_criteria` del Product Backlog, y las tablas `sprints` y `sprint_stories` de la gestión de sprints.
+Debe responder `smye_test`. No hace falta crear tablas: el backend crea y migra el esquema automáticamente al conectarse (`AutoMigrate` de GORM), incluidas las tablas `projects` y `project_members` de la gestión de proyectos, las tablas `user_stories` y `acceptance_criteria` del Product Backlog, las tablas `sprints` y `sprint_stories` de la gestión de sprints, y las tablas `estimation_sessions`, `estimation_rounds`, `estimation_participants` y `estimation_votes` del Planning Poker.
 
 ### 5. Generar la documentación Swagger
 
@@ -295,8 +300,9 @@ El frontend queda en <http://localhost:3000> y lee `frontend/.env.local`. Para u
 | `http://localhost:3000/projects/<projectId>/edit` | Modificación de nombre, descripción, fechas y horas por Story Point; solo el propietario ve el formulario y el resto de los integrantes ve "Solo el propietario del proyecto puede realizar esta acción." (sin sesión redirige a `/login`; un proyecto inexistente o ajeno muestra "El proyecto no existe.") |
 | `http://localhost:3000/projects/<projectId>/backlog` | Backlog del proyecto ordenado por prioridad y antigüedad, con filtros por prioridad y estado, la marca de las historias listas para planificar y el acceso a **Nueva historia** (sin sesión redirige a `/login`) |
 | `http://localhost:3000/projects/<projectId>/backlog/new` | Formulario de alta de una historia: título, descripción, prioridad, Story Points y criterios de aceptación (sin sesión redirige a `/login`) |
-| `http://localhost:3000/projects/<projectId>/backlog/<storyId>` | Detalle de la historia con sus criterios en orden, autor y fechas, y la sección "Sprints en los que estuvo" con el resultado en cada uno; desde ahí se estima en Story Points y se elimina con confirmación (sin sesión redirige a `/login`; una historia inexistente o de un proyecto ajeno muestra "La historia no existe.") |
+| `http://localhost:3000/projects/<projectId>/backlog/<storyId>` | Detalle de la historia con sus criterios en orden, autor y fechas, y la sección "Sprints en los que estuvo" con el resultado en cada uno; desde ahí se estima en Story Points y se elimina con confirmación. La sección "Planning Poker" ofrece **Abrir Planning Poker**, muestra la "Sesión en curso" con su facilitador, su ronda y el enlace **Unirse**, y lista el historial de sesiones cerradas (estado, valor acordado, motivo de una cancelación automática, cantidad de rondas, quién la abrió y cuándo cerró) con el enlace **Ver sesión**, o indica "La historia no tiene sesiones de estimación." (sin sesión redirige a `/login`; una historia inexistente o de un proyecto ajeno muestra "La historia no existe.") |
 | `http://localhost:3000/projects/<projectId>/backlog/<storyId>/edit` | Refinamiento de título, descripción, prioridad y criterios de aceptación, que se pueden agregar, quitar y reordenar (sin sesión redirige a `/login`; una historia inexistente o de un proyecto ajeno muestra "La historia no existe.") |
+| `http://localhost:3000/projects/<projectId>/backlog/<storyId>/poker/<sessionId>` | Sala de Planning Poker. Si la sesión está abierta, muestra en vivo la historia con sus criterios de aceptación, el mazo de cartas para **Tu voto** (la carta propia queda resaltada), la ronda vigente con los votos ocultos hasta la revelación y después el resultado (consenso o divergencia, con el mínimo y el máximo), los participantes con su marca de facilitador, si ya votaron y si están conectados, y para el facilitador las acciones **Revelar**, **Nueva ronda**, **Registrar estimación** y **Cancelar sesión** (con confirmación); mientras el facilitador está desconectado se muestra cuánto falta para que el rol quede disponible y, cumplidos los 5 minutos, aparece **Tomar el rol**. Las rondas anteriores se listan con sus votos y su resultado. Si la sesión está cerrada, muestra su estado (Finalizada o Cancelada), el valor acordado o el motivo de la cancelación automática, y todas sus rondas y votos. Ofrece **Volver a la historia** (sin sesión redirige a `/login`) |
 | `http://localhost:3000/projects/<projectId>/sprints` | Sprints del proyecto con su estado, en dos pestañas: **Todos** y **Cerrados** (`?view=closed`), esta última con el historial de sprints cerrados y sus totales congelados; ofrece el acceso a **Nuevo sprint** y el regreso al proyecto (sin sesión redirige a `/login`) |
 | `http://localhost:3000/projects/<projectId>/sprints/new` | Formulario de creación de un sprint: nombre, Sprint Goal, fecha de inicio y fecha de fin (sin sesión redirige a `/login`) |
 | `http://localhost:3000/projects/<projectId>/sprints/<sprintId>` | Detalle del sprint con su estado, Sprint Goal, fechas y, si está Activo, los días restantes o vencidos; las acciones **Iniciar sprint** y **Cerrar sprint** (con confirmación), **Editar sprint** y **Eliminar sprint** mientras está Planificado, las historias comprometidas con el control de su avance y **Quitar del sprint**, el diálogo **Comprometer historias del backlog** mientras el sprint está abierto y el resultado congelado cuando está cerrado (sin sesión redirige a `/login`; un sprint inexistente, eliminado o de un proyecto ajeno muestra "El sprint no existe.") |
@@ -338,6 +344,17 @@ Recorrido de la gestión de sprints, con un proyecto que todavía no está final
 8. En `/projects/<projectId>/sprints`, la pestaña **Cerrados** muestra el historial de sprints cerrados con sus totales. En el detalle de una historia del backlog, la sección "Sprints en los que estuvo" muestra cada sprint y su resultado.
 9. Si el proyecto pasa a **Finalizado**, los sprints se siguen pudiendo consultar, pero toda modificación se rechaza con "El proyecto está finalizado y sus sprints son de solo lectura.".
 
+Recorrido del Planning Poker, con un proyecto que todavía no está finalizado, una historia de su backlog que no está Completada y tres integrantes (por ejemplo, Ana, Bruno y Carla), cada uno con su sesión iniciada en su propia pestaña o navegador (la sesión de la aplicación se guarda por pestaña, así que cada pestaña nueva pide iniciar sesión):
+
+1. Ana abre el detalle de la historia en `/projects/<projectId>/backlog/<storyId>` y, en la sección "Planning Poker", pulsa **Abrir Planning Poker**. La aplicación la lleva a la sala en `/projects/<projectId>/backlog/<storyId>/poker/<sessionId>`, con la ronda 1 en votación y Ana como facilitadora.
+2. Bruno y Carla abren el mismo detalle, ven "Sesión en curso" y pulsan **Unirse**. Las tres salas muestran a los tres participantes conectados, sin recargar. Si alguien intenta abrir otra sesión sobre la misma historia, ve el rechazo y el enlace **Unirse** a la que ya está abierta.
+3. Cada uno elige una carta en **Tu voto**: la propia queda resaltada y los demás solo ven que ya votó. El voto se puede cambiar por otra carta hasta la revelación, pero no retirar.
+4. Al votar el último participante conectado, la ronda se revela sola y se ven todas las cartas, con el consenso o la divergencia y el mínimo y el máximo. Ana también puede usar **Revelar** antes, si hay al menos un voto.
+5. Si hay divergencia, Ana usa **Nueva ronda** y el equipo vuelve a votar; la ronda anterior queda a la vista con sus votos.
+6. Ana elige el valor acordado en **Registrar estimación** y lo confirma: las tres salas muestran la sesión Finalizada y el detalle de la historia muestra los nuevos Story Points. Con **Cancelar sesión** y su confirmación, la sesión se cierra sin cambiar la historia.
+7. De vuelta en el detalle, la sección "Planning Poker" lista la sesión con su valor y su cantidad de rondas; **Ver sesión** abre su resultado con todas las rondas y los votos. A partir de ahí la historia ya no se puede eliminar del backlog.
+8. Para ver el relevo del facilitador, Ana cierra su pestaña con una sesión abierta: a los 30 segundos figura desconectada en las salas de Bruno y Carla, que ven cuánto falta para que el rol quede disponible, y a los 5 minutos cualquiera de los dos puede usar **Tomar el rol**.
+
 La API expone estos endpoints bajo `/api/v1`; solo el registro y el inicio de sesión son públicos, los demás exigen la cabecera `Authorization: Bearer <token>`. Fuera de `/api/v1`, la documentación Swagger (`/swagger/index.html`) también es pública, como excepción documentada a la regla RN-08 de `specs/001-user-auth/spec.md`:
 
 | Método | Ruta | Descripción |
@@ -370,10 +387,34 @@ La API expone estos endpoints bajo `/api/v1`; solo el registro y el inicio de se
 | `POST` | `/api/v1/sprints/{sprintId}/close` | Cierre del sprint Activo: devuelve al backlog las historias no completadas y congela su instantánea |
 | `PUT` | `/api/v1/stories/{storyId}/status` | Registro del avance de una historia del sprint Activo (`pending`, `in_progress`, `completed`) |
 | `GET` | `/api/v1/stories/{storyId}/sprints` | Sprints en los que estuvo una historia y su resultado en cada uno |
+| `POST` | `/api/v1/stories/{storyId}/estimation-sessions` | Apertura de una sesión de Planning Poker sobre la historia; quien la abre queda como facilitador (cualquier integrante) |
+| `GET` | `/api/v1/stories/{storyId}/estimation-sessions` | Historial de estimación de la historia: sesiones cerradas de la más reciente a la más antigua y, si la hay, la sesión en curso sin votos |
+| `GET` | `/api/v1/estimation-sessions/{sessionId}` | Consulta de una sesión con todas sus rondas; de la ronda en votación solo se ve el voto propio |
+| `GET` | `/api/v1/estimation-sessions/{sessionId}/events` | Canal de eventos en tiempo real (`text/event-stream`); abrirlo une a quien pide como participante |
+| `PUT` | `/api/v1/estimation-sessions/{sessionId}/vote` | Emisión o cambio del voto en la ronda vigente, con una carta de la escala o `"?"` |
+| `POST` | `/api/v1/estimation-sessions/{sessionId}/reveal` | Revelación de la ronda vigente (solo el facilitador) |
+| `POST` | `/api/v1/estimation-sessions/{sessionId}/rounds` | Inicio de una ronda nueva después de revelar la vigente (solo el facilitador) |
+| `POST` | `/api/v1/estimation-sessions/{sessionId}/finalize` | Registro de la estimación acordada, que pasa a ser los Story Points de la historia, y finalización de la sesión (solo el facilitador) |
+| `POST` | `/api/v1/estimation-sessions/{sessionId}/cancel` | Cancelación de la sesión sin registrar estimación (solo el facilitador) |
+| `POST` | `/api/v1/estimation-sessions/{sessionId}/facilitator` | Toma del rol de facilitador cuando el vigente lleva 5 minutos o más desconectado (cualquier participante conectado) |
 
 Un proyecto inexistente y un proyecto del que no se es integrante responden el mismo `404`, para no revelar qué proyectos existen. Las acciones de administración devuelven `403` a un integrante que no es el propietario. Del mismo modo, una historia inexistente y una historia de un proyecto del que no se es integrante responden el mismo `404`, y lo mismo ocurre con un sprint inexistente, eliminado o de un proyecto ajeno. Cuando el proyecto está finalizado, las acciones que modifican el backlog (crear, refinar, estimar y eliminar) y todas las escrituras sobre sus sprints responden `409`. También responden `409` las operaciones de sprints que violan una regla del dominio, por ejemplo un período superpuesto, un segundo sprint Activo o la modificación de un sprint cerrado.
 
-Las guías de validación de punta a punta, con ejemplos de `curl` para cada historia, están en [`specs/001-user-auth/quickstart.md`](./specs/001-user-auth/quickstart.md), [`specs/002-project-members/quickstart.md`](./specs/002-project-members/quickstart.md), [`specs/003-product-backlog/quickstart.md`](./specs/003-product-backlog/quickstart.md) y [`specs/004-sprint-management/quickstart.md`](./specs/004-sprint-management/quickstart.md).
+En el Planning Poker, una sesión inexistente y una sesión de un proyecto del que no se es integrante responden el mismo `404`. Las acciones reservadas al facilitador devuelven `403` a cualquier otro participante, y votar sin estar conectado a la sesión también responde `403`. Responden `409` las acciones sobre una sesión ya Finalizada o Cancelada (con el resultado registrado y, si la canceló el sistema, su motivo: `inactivity`, `story_completed` o `project_finished`), la apertura de una segunda sesión sobre una historia que ya tiene una abierta (con el identificador de esa sesión), la apertura sobre una historia Completada o en un proyecto finalizado, y las acciones que no corresponden al estado de la ronda, como revelar sin votos o iniciar una ronda antes de revelar la vigente. Eliminar del backlog una historia con historial de estimación responde `409` con el motivo `estimation_sessions`.
+
+**Canal de eventos del Planning Poker.** `GET /api/v1/estimation-sessions/{sessionId}/events` responde `text/event-stream` (Server-Sent Events) y queda abierto:
+
+- **Autenticación**: se protege igual que cualquier otro endpoint, con la cabecera `Authorization: Bearer <token>`, y responde `401` sin sesión válida y `404` a quien no es integrante del proyecto. Por eso el frontend lo lee con `fetch` y no con `EventSource`, que no admite cabeceras; el token nunca viaja en la dirección. Si la sesión de estimación ya estaba cerrada, responde `409` con el resultado registrado y no se une.
+- **Unirse**: abrir el canal incorpora a quien pide como participante conectado de la ronda vigente y, si ya había votado en ella, recupera su voto. Varias pestañas de una misma persona cuentan como un único participante, que sigue conectado mientras le quede al menos un canal abierto; cuando se cierra el último, deja de figurar como conectado a los 30 segundos si no vuelve.
+- **Evento `state`**: su `data` es la sesión completa en JSON, vista por quien recibe el evento (nunca incluye votos ajenos antes de la revelación). Es lo primero que llega al abrir el canal y se repite ante cada hecho de la sesión y ante cada cambio del título, la descripción o los criterios de la historia. Cada instantánea lleva `version`, y el cliente descarta las de versión menor a la que ya tiene.
+- **Evento `removed`**: con `data: {}`, cuando quien escucha dejó de ser integrante del proyecto; después el servidor cierra el canal.
+- **Ping**: un comentario `: ping`, sin datos, cada 15 segundos, que mantiene viva la conexión y detecta los cortes.
+- **Cierre**: cuando la sesión se finaliza o se cancela, el servidor envía el último `state` y cierra el canal. También lo cierra al vencer el token con el que se abrió, porque el token solo se valida al abrir el canal; al reconectar con el token vencido, la API responde `401` y la interfaz lleva a `/login`. Un cierre de sesión hecho desde otro dispositivo no corta un canal ya abierto hasta ese vencimiento, aunque las acciones REST sí se rechazan de inmediato.
+- **Reconexión**: si el canal se corta por otro motivo, la sala lo vuelve a abrir sola con una espera de 1, 2 y 5 segundos (tope 5), conservando la última instantánea; se detiene ante `401`, `404` o `409`.
+
+Para observar el canal sin la interfaz alcanza con `curl -N -H "Authorization: Bearer <token>" http://localhost:8080/api/v1/estimation-sessions/<sessionId>/events` (en PowerShell, `curl.exe`); `-N` desactiva el búfer para ver cada evento apenas llega.
+
+Las guías de validación de punta a punta, con ejemplos de `curl` para cada historia, están en [`specs/001-user-auth/quickstart.md`](./specs/001-user-auth/quickstart.md), [`specs/002-project-members/quickstart.md`](./specs/002-project-members/quickstart.md), [`specs/003-product-backlog/quickstart.md`](./specs/003-product-backlog/quickstart.md), [`specs/004-sprint-management/quickstart.md`](./specs/004-sprint-management/quickstart.md) y [`specs/005-planning-poker/quickstart.md`](./specs/005-planning-poker/quickstart.md); esta última incluye además cómo seguir el canal de eventos de varias personas en terminales separadas.
 
 ### 9. Ejecutar las pruebas
 
@@ -386,14 +427,30 @@ cd backend
 go vet ./...
 go test -p 1 ./...
 
-# Solo las pruebas de un módulo (por ejemplo, la gestión de proyectos, el backlog o los sprints)
+# Solo las pruebas de un módulo (por ejemplo, la gestión de proyectos, el backlog, los sprints o el Planning Poker)
 go test -p 1 ./internal/projects/...
 go test -p 1 ./internal/backlog/...
 go test -p 1 ./internal/sprints/...
+go test -p 1 ./internal/poker/...
+
+# Planning Poker: concurrencia repetida cinco veces y escala del canal de eventos
+# (10 sesiones x 10 conexiones; se omite con -short)
+go test -p 1 ./internal/poker/... -run Concurrency -count=5
+go test -p 1 ./internal/poker/... -run Scale
+
+# Detector de carreras sobre el Planning Poker; requiere CGO_ENABLED=1 y un compilador de C (gcc).
+# Lleva -timeout 40m porque, con -race, el paquete delivery tarda unos 11 minutos y supera
+# el límite por defecto de 10 minutos de go test
+CGO_ENABLED=1 go test -p 1 -race -timeout 40m ./internal/poker/...
+
+# La misma corrida sin instalar gcc, en un contenedor efímero oficial con la misma versión de Go
+docker run --rm --network host -v "$(pwd):/src" -w /src -e CGO_ENABLED=1 golang:1.27.3 go test -p 1 -race -timeout 40m ./internal/poker/...
 
 # Solo las pruebas de una historia de usuario (por ejemplo, US1)
 go test -p 1 ./... -run TestUS1
 ```
+
+La variante en contenedor se ejecuta desde `backend/` con la base de test levantada (paso 4). `--network host` hace que el contenedor llegue a la base de test en `localhost:5433` y use `backend/.env.test` tal cual. En Git Bash hay que anteponer `MSYS_NO_PATHCONV=1` al comando, para que no convierta `/src` en una ruta de Windows. En PowerShell se usa `${PWD}` en lugar de `$(pwd)`: `-v "${PWD}:/src"`.
 
 El frontend no necesita servicios levantados: Vitest simula el navegador con jsdom.
 
@@ -407,7 +464,7 @@ npx next typegen && npx tsc --noEmit   # Comprobación de tipos
 
 `next typegen` genera los tipos de las rutas de Next.js (por ejemplo, `LayoutProps`) que `tsc` necesita; sin él, la comprobación de tipos falla en un clon recién hecho. `npm run dev` y `npm run build` también los generan.
 
-Cada escenario de las specs tiene una prueba rastreable: buscar `001/US1` (o `002/US3`, `003/US5`, `004/US7`, etc.) en el código de pruebas muestra cuáles lo cubren. El prefijo es el número de la spec y `USn`, la historia de usuario. Los comandos de cobertura están en [Cobertura de Pruebas](#cobertura-de-pruebas).
+Cada escenario de las specs tiene una prueba rastreable: buscar `001/US1` (o `002/US3`, `003/US5`, `004/US7`, `005/US8`, etc.) en el código de pruebas muestra cuáles lo cubren. El prefijo es el número de la spec y `USn`, la historia de usuario. Los comandos de cobertura están en [Cobertura de Pruebas](#cobertura-de-pruebas).
 
 ### 10. Ejecución con Docker
 
@@ -420,7 +477,7 @@ docker build -t smye-backend .
 docker run --rm --env-file .env -e DB_HOST=host.docker.internal -p 8080:8080 smye-backend
 ```
 
-`--env-file .env` le pasa al contenedor todas las variables de `backend/.env`, incluida `APP_TIMEZONE`. La imagen `alpine` no trae la base de zonas horarias, pero no hace falta instalarla: el binario la incluye (`time/tzdata`). Dentro de un contenedor, `localhost` es el propio contenedor y no la máquina anfitriona, por eso `DB_HOST` se reemplaza por `host.docker.internal`, que apunta al anfitrión. En Linux hay que agregar `--add-host=host.docker.internal:host-gateway` al `docker run`.
+`--env-file .env` le pasa al contenedor todas las variables de `backend/.env`, incluida `APP_TIMEZONE`. La imagen `alpine` no trae la base de zonas horarias, pero no hace falta instalarla: el binario la incluye (`time/tzdata`). Dentro de un contenedor, `localhost` es el propio contenedor y no la máquina anfitriona, por eso `DB_HOST` se reemplaza por `host.docker.internal`, que apunta al anfitrión. En Linux hay que agregar `--add-host=host.docker.internal:host-gateway` al `docker run`. Se ejecuta un único contenedor del backend, por el [supuesto de una sola instancia](#arquitectura-y-stack-tecnológico) del Planning Poker.
 
 **Frontend**, desde `frontend/`:
 
@@ -461,6 +518,10 @@ El backend y el frontend se detienen con `Ctrl+C` en su terminal.
 | `port is already allocated` al levantar PostgreSQL | Otro proceso usa el puerto 5432 o 5433: liberarlo o cambiar `POSTGRES_HOST_PORT` y el `DB_PORT` correspondiente. |
 | Las pruebas fallan con `no se pudo cargar el entorno de test` | Falta `backend/.env.test`. |
 | El frontend no llega a la API (error de red o de CORS) | El backend no está en ejecución, o `NEXT_PUBLIC_API_BASE_URL` del frontend y `CORS_ALLOWED_ORIGIN` del backend no coinciden con las direcciones reales. |
+| En la sala de Planning Poker, alguien no aparece conectado o no ve los cambios de los demás | El backend se está ejecutando en más de una instancia y cada participante quedó conectado a una distinta: ejecutar una sola, por el [supuesto de una sola instancia](#arquitectura-y-stack-tecnológico). Si queda en "Conectando con la sesión…", el backend no está en ejecución o no llega a la API (ver la fila anterior); la sala reintenta sola cada pocos segundos. |
+| La sala de Planning Poker lleva a `/login` en medio de una sesión de estimación | Venció el token: el canal de eventos se cierra al vencer y la reconexión recibe `401`. Iniciar sesión de nuevo y volver a la sala; el voto de la ronda vigente se conserva. |
+| `go test -race` falla con `-race requires cgo` | El detector de carreras necesita `CGO_ENABLED=1` y un compilador de C (`gcc`) en el `PATH`. Sin instalar `gcc`, usar la variante en contenedor del [paso 9](#9-ejecutar-las-pruebas). |
+| `go test -race` termina con `panic: test timed out after 10m0s` | Con `-race`, el paquete delivery del Planning Poker tarda unos 11 minutos y supera el límite por defecto de `go test`: agregar `-timeout 40m`, como en el [paso 9](#9-ejecutar-las-pruebas). |
 
 ---
 
@@ -515,7 +576,7 @@ govulncheck ./...
 go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 ```
 
-El último análisis (2026-10-22) no reporta vulnerabilidades que alcancen al código. Para llegar a ese resultado se subió Go a 1.27.3, que corrige [GO-2026-6809](https://pkg.go.dev/vuln/GO-2026-6809) en `crypto/x509` de la biblioteca estándar. Queda un único aviso a nivel de módulo, justificado a continuación:
+El último análisis (2026-10-24) no reporta vulnerabilidades que alcancen al código. Para llegar a ese resultado se subió Go a 1.27.3, que corrige [GO-2026-6809](https://pkg.go.dev/vuln/GO-2026-6809) en `crypto/x509` de la biblioteca estándar. Queda un único aviso a nivel de módulo, justificado a continuación:
 
 | Aviso | Módulo | Justificación |
 | --- | --- | --- |

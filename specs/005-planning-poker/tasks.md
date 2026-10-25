@@ -846,7 +846,7 @@ documentación viva, cobertura, vulnerabilidades y verificación de las puertas 
 
 **Rama**: `fase/005-polish`
 
-- [ ] T091 Pruebas de integración de caracterización en
+- [X] T091 Pruebas de integración de caracterización en
       `backend/internal/poker/delivery/handler_test.go`, **sin** etiqueta `005/USn`:
       `TestPokerEndpoints_SinSesion`, con un subtest por cada uno de los **diez** endpoints sin
       cabecera y con token adulterado → `401` y ningún cambio (SC-017);
@@ -858,35 +858,35 @@ documentación viva, cobertura, vulnerabilidades y verificación de las puertas 
       que ninguna contiene la carta (SC-005); y una aserción de que ninguna respuesta contiene
       `password_hash` ni `passwordHash` (Principio VI). Prueba de caracterización: las reglas ya
       existen, así que no tiene RED; el commit lo justifica — depende de T090
-- [ ] T092 Prueba de escala `TestPokerStream_Scale` en
+- [X] T092 Prueba de escala `TestPokerStream_Scale` en
       `backend/internal/poker/delivery/poker_scale_test.go`, **sin** etiqueta, omitida con
       `testing.Short()`: 10 sesiones con 10 canales cada una (100 conexiones); un voto por sesión;
       las 100 conexiones reciben la instantánea con la nueva `version` en menos de 2 segundos medidos
       desde la respuesta del voto (SC-004, RC-14). Caracterización, sin RED — depende de T090
-- [ ] T093 Prueba en `backend/internal/poker/delivery/stream_test.go`: con un token que vence en 2
+- [X] T093 Prueba en `backend/internal/poker/delivery/stream_test.go`: con un token que vence en 2
       segundos de reloj real, el canal se cierra al vencer y no vuelve a recibir instantáneas
       (research.md punto abierto 5) — depende de T090
-- [ ] T094 Exportar en `backend/internal/auth/delivery/middleware.go` el accesor
+- [X] T094 Exportar en `backend/internal/auth/delivery/middleware.go` el accesor
       `CurrentSessionExpiry(c *gin.Context) (time.Time, bool)` sobre los claims que ya deja el
       middleware de sesión, y usarlo en `backend/internal/poker/delivery/stream.go` para cerrar el
       canal con un temporizador al vencer el token — depende de T093
-- [ ] T095 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
+- [X] T095 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
       `backend/docs/` coincida con [contracts/openapi.yaml](./contracts/openapi.yaml) en las **diez**
       operaciones (el canal como `text/event-stream`), sus códigos de respuesta (todas declaran
       `500`) y sus esquemas; corregir las anotaciones si difieren (Principio VIII) — depende de T094
-- [ ] T096 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona el
+- [X] T096 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona el
       Planning Poker en tiempo real, y se agregan los diez endpoints, el canal de eventos, la
       pantalla de la sala y la sección del detalle de la historia, y el supuesto de una sola
       instancia del backend, manteniendo el criterio de que alguien que no conoce el proyecto pueda
       ejecutarlo siguiendo el documento — depende de T094
-- [ ] T097 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
+- [X] T097 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
-- [ ] T098 [P] Ejecutar los comandos de cobertura de los dos lados —
+- [X] T098 [P] Ejecutar los comandos de cobertura de los dos lados —
       `go test ./... -coverprofile=coverage.out` más `go tool cover -func=coverage.out` en
       `backend/`, y `npm run test:coverage` en `frontend/` — y revisar que `internal/poker/`,
       `frontend/src/features/poker/` y `frontend/src/lib/event-stream.ts` estén cubiertos; correr
       además `go test -race ./internal/poker/...` — depende de T094
-- [ ] T099 Verificar la trazabilidad y las puertas de seguridad recorriendo `backend/internal/poker/`
+- [X] T099 Verificar la trazabilidad y las puertas de seguridad recorriendo `backend/internal/poker/`
       y `frontend/src/features/poker/`: que buscar `005/US1` a `005/US8` en el código de pruebas
       devuelva los **79** escenarios; que las **36** reglas RN-01 a RN-36 tengan prueba asociada según
       la tabla de plan.md (SC-020); que los **diez** endpoints tengan su prueba de `401` (SC-017); que
@@ -894,7 +894,7 @@ documentación viva, cobertura, vulnerabilidades y verificación de las puertas 
       la API; que esta feature solo escriba `user_stories.story_points` y `updated_at` fuera de sus
       tablas; que no haya dependencias nuevas en `go.mod` ni en `package.json`; y que ninguna
       respuesta incluya `password_hash` — depende de T091, T092
-- [ ] T100 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluido el
+- [X] T100 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluido el
       flujo en la interfaz con tres navegadores, las cancelaciones del sistema, las pruebas de
       concurrencia con `-count=5` y la verificación de que las pruebas corrieron contra `smye_test`
       en el puerto 5433 y no contra desarrollo — depende de T095, T096, T099
@@ -908,6 +908,8 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
 - [ ] T102 Agregar prueba de concurrencia que, con una transacción de prueba que bloquea la historia con FOR UPDATE y la pasa a `completed`, lanza el registro de la estimación en una goroutine, espera a que quede bloqueada en la historia (consultando `pg_stat_activity` con `wait_event_type = 'Lock'`), confirma la transacción y verifica que `user_stories.story_points` no cambió y que la sesión quedó `canceled` con `story_completed`; con una variante en la que el proyecto pasa a `finished` y se espera `project_finished`, en backend/internal/poker/delivery/handler_test.go per hallazgo de seguridad: registro de la estimación sin releer el estado de la historia bajo bloqueo (security) — origen: seguridad, detectado en 005/US7
 - [ ] T103 Hacer que el registro de la estimación lea el estado de la historia y del proyecto con la historia ya bloqueada (FOR UPDATE OF user_stories) y el proyecto con FOR SHARE, y reevaluar con AutoCancelReason antes de escribir story_points, de modo que una historia completada o un proyecto finalizado en paralelo cancelen la sesión en lugar de registrar, en backend/internal/poker/repository/session_repository.go per hallazgo de seguridad: registro de la estimación sin releer el estado de la historia bajo bloqueo (security) — origen: seguridad, detectado en 005/US7
 - [ ] T106 Traducir la violación de la clave foránea de `estimation_sessions.story_id` al borrar una historia en `backend/internal/backlog/repository/story_repository.go` al mismo error de eliminación bloqueada con el motivo `estimation_sessions` que devuelve `backend/internal/backlog/service/story_service.go`, para que una sesión abierta entre `HasSessions` y el borrado responda `409` en lugar de `500`, con una prueba de integración que fuerce esa carrera per plan: ventana de carrera al eliminar una historia, research 15.4 (partial) — origen: converge, detectado en hu/005-us8-consultar-el-historial-de-estimacion
+- [ ] T107 Agregar prueba de integración que abre el canal de eventos con un token vigente, revoca esa sesión de autenticación con POST de cierre de sesión (o fijando `revoked_at` en la base de test), ejecuta una pasada de `Sweep`, provoca un hecho de la sesión y verifica que el canal se cerró y que no recibió ningún `state` posterior a la revocación, mientras el canal de otro participante sigue recibiéndolo, en backend/internal/poker/delivery/stream_test.go per hallazgo de seguridad: canal de eventos abierto después del cierre de la sesión de autenticación (security) — origen: seguridad, detectado en 005/fase Polish
+- [ ] T108 Guardar el jti de la sesión de autenticación en la conexión del canal (exponiendo `SessionID` desde los claims con un accesor junto a `CurrentSessionExpiry` en backend/internal/auth/delivery/middleware.go) y extender el barrido periódico en backend/internal/poker/service/sweeper.go, con la consulta correspondiente en backend/internal/poker/repository/session_repository.go, para cerrar los canales cuya sesión de autenticación tenga `revoked_at` no nulo, del mismo modo que `sweepRevoked` cierra los de membresía revocada, en backend/internal/poker/delivery/stream.go per hallazgo de seguridad: canal de eventos abierto después del cierre de la sesión de autenticación (security) — origen: seguridad, detectado en 005/fase Polish
 
 ---
 

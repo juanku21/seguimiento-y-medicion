@@ -353,7 +353,7 @@ con `availableHours: 4.00`.
       `DELETE /api/v1/stories/{id}` sigue respondiendo `409` con el motivo `effort` (RC-05, RN-22).
       Es una prueba de integración de los puertos: se escribe primero y falla con los puertos
       provisorios — depende de T017, T030
-- [ ] T032 [P] [US1] Declarar los tipos de petición y respuesta en `frontend/src/types/effort.ts`
+- [X] T032 [P] [US1] Declarar los tipos de petición y respuesta en `frontend/src/types/effort.ts`
       (sin `any`; "no calculable" como `number | null`), implementar
       `frontend/src/utils/effort-format.ts` y `frontend/src/features/effort/validation.ts` — depende
       de T018

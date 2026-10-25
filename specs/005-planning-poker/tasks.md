@@ -866,7 +866,7 @@ documentación viva, cobertura, vulnerabilidades y verificación de las puertas 
 - [X] T093 Prueba en `backend/internal/poker/delivery/stream_test.go`: con un token que vence en 2
       segundos de reloj real, el canal se cierra al vencer y no vuelve a recibir instantáneas
       (research.md punto abierto 5) — depende de T090
-- [ ] T094 Exportar en `backend/internal/auth/delivery/middleware.go` el accesor
+- [X] T094 Exportar en `backend/internal/auth/delivery/middleware.go` el accesor
       `CurrentSessionExpiry(c *gin.Context) (time.Time, bool)` sobre los claims que ya deja el
       middleware de sesión, y usarlo en `backend/internal/poker/delivery/stream.go` para cerrar el
       canal con un temporizador al vencer el token — depende de T093

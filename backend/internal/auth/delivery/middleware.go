@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -72,6 +73,18 @@ func CurrentUserID(c *gin.Context) (uuid.UUID, bool) {
 	}
 	id, ok := value.(uuid.UUID)
 	return id, ok
+}
+
+// CurrentSessionExpiry devuelve el vencimiento de la sesión que el middleware dejó en el contexto,
+// tomado del ExpiresAt de los claims, y si estaba presente. Está exportado para que los canales de
+// larga duración de otros módulos se cierren solos al vencer el token, porque el middleware solo
+// los valida al abrirse (research.md de la 005, punto abierto 5).
+func CurrentSessionExpiry(c *gin.Context) (time.Time, bool) {
+	claims, ok := claimsFromContext(c)
+	if !ok {
+		return time.Time{}, false
+	}
+	return claims.ExpiresAt, true
 }
 
 // userIDFromContext es el nombre interno con el que el módulo de autenticación lee al titular de

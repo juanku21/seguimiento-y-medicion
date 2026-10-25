@@ -46,7 +46,7 @@ const streamPingInterval = 15 * time.Second
 //	@Failure		500			{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
 //	@Router			/api/v1/estimation-sessions/{sessionId}/events [get]
 func (h *Handler) streamEstimationSession(c *gin.Context) {
-	// RequireEstimationAccess y la sesión de la 001 ya dejaron el acceso y el titular en el contexto;
+	// RequireEstimationAccess y la sesión de la 001 ya dejaron el acceso, el titular y el vencimiento en el contexto;
 	// su ausencia aquí es un error de composición y responde 500.
 	access, ok := sessionAccessFromContext(c)
 	if !ok {
@@ -56,6 +56,11 @@ func (h *Handler) streamEstimationSession(c *gin.Context) {
 	userID, ok := authdelivery.CurrentUserID(c)
 	if !ok {
 		respondInternalError(c, "streamEstimationSession sin titular de sesión en el contexto")
+		return
+	}
+	expiresAt, ok := authdelivery.CurrentSessionExpiry(c)
+	if !ok {
+		respondInternalError(c, "streamEstimationSession sin vencimiento de sesión en el contexto")
 		return
 	}
 
@@ -89,12 +94,17 @@ func (h *Handler) streamEstimationSession(c *gin.Context) {
 	// Se reenvía cada vista como evento state y un ping cada 15 segundos, hasta que termina la
 	// petición, el hub cierra el canal o falla una escritura; en todos los casos Leave libera la
 	// conexión una sola vez. Si el hub cerró el canal porque la persona dejó de ser integrante, se
-	// envía removed antes de terminar (FR-019).
+	// envía removed antes de terminar (FR-019). Un temporizador cierra el canal al vencer el token,
+	// porque el middleware de sesión solo lo validó al abrirse (research.md, punto abierto 5).
 	ticker := time.NewTicker(streamPingInterval)
 	defer ticker.Stop()
+	expiry := time.NewTimer(time.Until(expiresAt))
+	defer expiry.Stop()
 	for {
 		select {
 		case <-ctx.Done():
+			return
+		case <-expiry.C:
 			return
 		case view, open := <-conn.Views:
 			if !open {

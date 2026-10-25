@@ -130,7 +130,7 @@ estructuras y contratos, sin lógica de negocio.
       `ErrInvalidFilter` (con el nombre del parámetro: tipo `InvalidFilterError{Field string}`); y
       los tipos con datos `DailyCapExceededError{AvailableHundredths int}` y
       `EntryDateBeforeProjectStartError{MinDate time.Time}`
-- [ ] T005 Declarar en `backend/internal/effort/domain/repository.go` la interfaz `EffortRepository`
+- [X] T005 Declarar en `backend/internal/effort/domain/repository.go` la interfaz `EffortRepository`
       con **exactamente** las nueve operaciones de data-model.md sección 9 (`FindAccessible`,
       `Create`, `Update`, `Delete`, `ListForStory`, `ListForProject`, `ValidateFilter`,
       `HasProjectEffort`, `ComparisonRows`) con sus firmas, y los tipos de lectura de la sección 8:

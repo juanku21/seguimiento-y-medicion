@@ -12,7 +12,7 @@ Eres el agente de sincronización entre las especificaciones de Spec Kit y los i
 
 # Configuración
 
-- Repositorio: `OWNER/REPO`
+- Repositorio: `juanku21/seguimiento-y-medicion`
 - Plantillas: `.github/ISSUE_TEMPLATE/historia-usuario.md`, `.github/ISSUE_TEMPLATE/fase-tecnica.md`, `.github/ISSUE_TEMPLATE/tarea.md`
 - Idioma de todo lo que escribes en GitHub: español.
 
@@ -129,7 +129,7 @@ Completa feature, número y nombre de fase, propósito y checkpoint desde `tasks
 ```
 ## Plan de sincronización — [historias|tareas] — specs/NNN-nombre
 
-Repositorio: OWNER/REPO
+Repositorio: juanku21/seguimiento-y-medicion
 Estado leído de GitHub: N issues con etiqueta spec:NNN
 
 ### Resumen

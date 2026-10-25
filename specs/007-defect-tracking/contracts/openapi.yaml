@@ -1,0 +1,862 @@
+# Contrato de la API de Gestión de Defectos (spec 007).
+# Fuente de verdad del diseño: specs/007-defect-tracking/spec.md
+# Este archivo es el contrato acordado en la Fase 1 del plan. La documentación publicada en
+# /swagger/index.html se genera con `swag init` a partir de las anotaciones del código y DEBE
+# coincidir con este contrato (Principio VIII).
+openapi: 3.0.3
+
+info:
+  title: Software Metrics & Estimation — Gestión de Defectos
+  description: |
+    Registro de los defectos encontrados en el producto, su seguimiento por estados hasta
+    resolverlos o descartarlos, la corrección de sus datos y su consulta con filtros, por proyecto y
+    por historia.
+
+    **Todas** las operaciones exigen una sesión válida, sin excepciones (FR-050). La sesión se envía
+    en la cabecera `Authorization: Bearer <token>` emitida por `/api/v1/auth/login` de la spec 001.
+
+    Reglas que gobiernan todas las respuestas:
+
+    - Cualquier **integrante vigente** del proyecto registra, modifica, cambia de estado, reabre y
+      descarta cualquier defecto; no hay propiedad individual (FR-052, RN-01).
+    - Cada escritura queda atribuida **siempre** al titular de la sesión; cualquier dato de autoría
+      enviado se ignora (FR-056).
+    - Ante una solicitud sobre un proyecto, una historia, un sprint o un defecto de un proyecto del
+      que quien pide no es integrante, la respuesta es `404` con **el mismo cuerpo** que ante un
+      identificador inexistente (FR-053, SC-017).
+    - En un proyecto `finished` los defectos son de **solo lectura**: se consultan, y toda escritura
+      se rechaza con `409` (FR-054).
+    - Cada transición se valida contra el estado **vigente** del defecto al aplicarla. De dos
+      acciones simultáneas incompatibles se aplica una sola y la otra se rechaza con `409`
+      indicando el estado actual (FR-018, RN-24).
+    - Los listados devuelven el conjunto completo, **sin paginación**, ordenados por severidad
+      descendente y, a igual severidad, por creación descendente (FR-040, FR-048).
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Entorno de desarrollo local
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Defectos
+    description: Registro, seguimiento, corrección y consulta de defectos
+
+paths:
+  /api/v1/projects/{projectId}/defects:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+
+    post:
+      tags: [Defectos]
+      summary: Registra un defecto en el proyecto
+      description: |
+        Crea un defecto en estado `open`, sin sprint de resolución, atribuido al titular de la
+        sesión (FR-001, FR-011, FR-056).
+
+        - La historia relacionada es obligatoria, del mismo proyecto y en cualquier estado, incluida
+          `completed` (FR-004, FR-005). No hay límite de defectos por historia (FR-015).
+        - El sprint de detección es obligatorio, del mismo proyecto y `active` o `closed`; un sprint
+          `planned` se rechaza con `400` (FR-006, FR-007).
+        - Una historia o un sprint inexistente o de otro proyecto responde el mismo `404` que la spec
+          003 o la 004 (FR-053).
+        - Si el proyecto no tiene ningún sprint `active` ni `closed`, se rechaza con `409
+          no_detection_sprint` (FR-010).
+
+        El sprint propuesto por defecto (FR-008, FR-009) lo calcula la interfaz con
+        `GET /api/v1/projects/{projectId}/sprints?status=active&status=closed` de la spec 004.
+      operationId: createDefect
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DefectInput'
+            example:
+              description: El total del reporte no suma los descuentos
+              severity: high
+              storyId: 3f0c8a52-6a0e-4d1b-9a77-2f7e5b1c9d10
+              detectedSprintId: 9b1d4e2a-0c3f-4a8e-b6d5-7e2f1a0c3b44
+      responses:
+        '201':
+          description: Defecto creado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Defect'
+        '400':
+          $ref: '#/components/responses/EntradaInvalida'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/ReferenciaInexistente'
+        '409':
+          $ref: '#/components/responses/ConflictoDeDefecto'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+    get:
+      tags: [Defectos]
+      summary: Lista los defectos del proyecto con filtros
+      description: |
+        Devuelve los defectos del proyecto que cumplen **todos** los filtros indicados (FR-040,
+        FR-041), incluidos los `discarded` cuando no se filtra por estado. Los valores repetidos de
+        un mismo filtro se combinan con "o": `status=open&status=in_progress&status=resolved`
+        excluye los descartados.
+
+        El filtro `sprintId` devuelve los defectos **detectados o resueltos** en ese sprint; cada
+        elemento trae `detectedSprint` y `resolvedSprint`, que permiten distinguirlos (FR-042).
+
+        Una lista vacía no es un error: `emptyReason` es `no_defects` si el proyecto no tiene
+        defectos o `no_matches` si los filtros no encuentran ninguno (FR-045).
+      operationId: listProjectDefects
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Estado del defecto; repetible (FR-040).
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/DefectStatus'
+          style: form
+          explode: true
+        - name: severity
+          in: query
+          required: false
+          description: Severidad del defecto; repetible (FR-040).
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/DefectSeverity'
+          style: form
+          explode: true
+        - name: storyId
+          in: query
+          required: false
+          description: Historia del proyecto (FR-040, FR-047).
+          schema:
+            type: string
+            format: uuid
+        - name: sprintId
+          in: query
+          required: false
+          description: Sprint del proyecto; coincide por detección o por resolución (FR-042, FR-047).
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Defectos del proyecto, posiblemente vacío.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDefects'
+        '400':
+          $ref: '#/components/responses/FiltroInvalido'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/ProyectoInexistente'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/v1/stories/{storyId}/defects:
+    parameters:
+      - $ref: '#/components/parameters/StoryId'
+
+    get:
+      tags: [Defectos]
+      summary: Lista los defectos de una historia
+      description: |
+        Devuelve todos los defectos de la historia, de cualquier estado, con el mismo orden y los
+        mismos datos que el listado del proyecto (FR-043, FR-044, FR-048). Sin defectos,
+        `emptyReason` es `no_defects` y no es un error (FR-045).
+      operationId: listStoryDefects
+      responses:
+        '200':
+          description: Defectos de la historia, posiblemente vacío.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryDefects'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/HistoriaInexistente'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/v1/defects/{defectId}:
+    parameters:
+      - $ref: '#/components/parameters/DefectId'
+
+    get:
+      tags: [Defectos]
+      summary: Consulta el detalle de un defecto
+      description: |
+        Devuelve todos los datos del defecto, su estado y sus dos sprints; `resolvedSprint` es
+        `null` si no está `resolved` (FR-049, US6-6).
+      operationId: getDefect
+      responses:
+        '200':
+          description: Detalle del defecto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Defect'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/DefectoInexistente'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+    patch:
+      tags: [Defectos]
+      summary: Modifica los datos de un defecto
+      description: |
+        Modificación parcial: cada campo es opcional y debe venir al menos uno (FR-033).
+
+        - `description` y `severity` se modifican en `open`, `in_progress` y `resolved` (FR-033,
+          FR-036), con las mismas validaciones que el alta (FR-034).
+        - `storyId` y `detectedSprintId` se corrigen **solo mientras el defecto está `open`**, con las
+          mismas validaciones que el alta; fuera de esa ventana, un valor distinto del vigente se
+          rechaza con `409 links_frozen`. El mismo valor que ya tiene se acepta sin efecto (FR-038).
+        - Un defecto `discarded` no admite ninguna modificación: `409 defect_discarded` (FR-036).
+        - `status` y `resolvedSprintId` se rechazan con `400`: el estado se cambia con
+          `PUT /api/v1/defects/{defectId}/status` (FR-035, US4-15).
+
+        Es atómica: si algún dato es inválido, ningún cambio se aplica (FR-037). Nunca altera el
+        estado, el sprint de resolución ni el autor (FR-035).
+      operationId: updateDefect
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DefectPatch'
+            example:
+              description: El total del reporte no suma los descuentos por volumen
+              severity: critical
+      responses:
+        '200':
+          description: Defecto actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Defect'
+        '400':
+          $ref: '#/components/responses/EntradaInvalida'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/DefectoOReferenciaInexistente'
+        '409':
+          $ref: '#/components/responses/ConflictoDeDefecto'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/v1/defects/{defectId}/status:
+    parameters:
+      - $ref: '#/components/parameters/DefectId'
+
+    put:
+      tags: [Defectos]
+      summary: Cambia el estado de un defecto
+      description: |
+        Aplica una transición de la máquina de estados (FR-018):
+
+        | Origen | Destinos admitidos |
+        | --- | --- |
+        | `open` | `in_progress`, `discarded` |
+        | `in_progress` | `resolved`, `discarded` |
+        | `resolved` | `open` (reapertura) |
+        | `discarded` | ninguno (definitivo) |
+
+        - Resolver exige `resolvedSprintId`: un sprint del proyecto, `active` o `closed`, cuya fecha
+          de inicio no sea anterior a la del sprint de detección; el mismo sprint es válido
+          (FR-023 a FR-026). En cualquier otro destino, `resolvedSprintId` se rechaza.
+        - Reabrir borra el sprint de resolución y conserva el de detección (FR-029), aunque el
+          proyecto no tenga ningún sprint `active` (FR-032).
+        - Descartar conserva el sprint de detección y deja el defecto sin sprint de resolución
+          (FR-039).
+        - Ninguna transición cambia la historia ni el sprint de detección (FR-027, RN-16).
+
+        La transición se valida contra el estado **vigente** al aplicarla; si otra acción lo cambió,
+        se rechaza con `409 invalid_transition` y el estado actual (FR-018, RN-24).
+      operationId: changeDefectStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DefectStatusChange'
+            examples:
+              enProgreso:
+                summary: Pasar a En progreso (US2-1)
+                value:
+                  status: in_progress
+              resolver:
+                summary: Resolver en el sprint activo (US2-1)
+                value:
+                  status: resolved
+                  resolvedSprintId: 9b1d4e2a-0c3f-4a8e-b6d5-7e2f1a0c3b44
+              reabrir:
+                summary: Reabrir un Resuelto (US5-1)
+                value:
+                  status: open
+              descartar:
+                summary: Descartar un duplicado (US6-1)
+                value:
+                  status: discarded
+      responses:
+        '200':
+          description: Defecto con su nuevo estado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Defect'
+        '400':
+          $ref: '#/components/responses/EntradaInvalida'
+        '401':
+          $ref: '#/components/responses/SesionInvalida'
+        '404':
+          $ref: '#/components/responses/DefectoOReferenciaInexistente'
+        '409':
+          $ref: '#/components/responses/ConflictoDeDefecto'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Token emitido por `/api/v1/auth/login` de la spec 001, enviado como
+        `Authorization: Bearer <token>`.
+
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      description: Identificador del proyecto de la spec 002.
+      schema:
+        type: string
+        format: uuid
+    StoryId:
+      name: storyId
+      in: path
+      required: true
+      description: Identificador de la historia de la spec 003.
+      schema:
+        type: string
+        format: uuid
+    DefectId:
+      name: defectId
+      in: path
+      required: true
+      description: Identificador propio, estable, inmutable y no secuencial del defecto (FR-012).
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    SesionInvalida:
+      description: |
+        Se requiere iniciar sesión. Misma respuesta para sesión ausente, vencida, cerrada por su
+        titular o adulterada, definida por la spec 001 (FR-050). La acción no se ejecuta.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Se requiere iniciar sesión.
+
+    ProyectoInexistente:
+      description: |
+        El proyecto no existe, **o** existe y quien pide no es integrante. Mismo cuerpo de la spec
+        002 (FR-053, SC-017).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: El proyecto no existe.
+
+    HistoriaInexistente:
+      description: |
+        La historia no existe, **o** pertenece a un proyecto del que quien pide no es integrante.
+        Mismo cuerpo de la spec 003 (FR-053, SC-017).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: La historia no existe.
+
+    DefectoInexistente:
+      description: |
+        El defecto no existe, **o** pertenece a un proyecto del que quien pide no es integrante
+        vigente —incluida la persona que lo registró y fue quitada del proyecto—. Todas las
+        situaciones devuelven exactamente el mismo cuerpo (FR-053, FR-055).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: El defecto no existe.
+
+    ReferenciaInexistente:
+      description: |
+        El proyecto de la ruta no existe o es ajeno (cuerpo de la spec 002), **o** la historia o el
+        sprint indicados en el cuerpo no existen o son de otro proyecto (cuerpos de la spec 003 y de
+        la 004). Ninguna respuesta revela datos del otro proyecto (FR-053, US1-13).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            proyecto:
+              summary: Quien pide no es integrante (US1-15)
+              value:
+                error: El proyecto no existe.
+            historia:
+              summary: Historia de otro proyecto (US1-13)
+              value:
+                error: La historia no existe.
+            sprint:
+              summary: Sprint de otro proyecto (US1-13)
+              value:
+                error: El sprint no existe.
+
+    DefectoOReferenciaInexistente:
+      description: |
+        El defecto de la ruta no existe o es ajeno, **o** la historia o el sprint indicados en el
+        cuerpo no existen o son de otro proyecto (cuerpos de la spec 003 y de la 004; FR-053,
+        US2-12, US4-11, US4-13).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            defecto:
+              summary: Defecto inexistente o ajeno
+              value:
+                error: El defecto no existe.
+            historia:
+              summary: Revinculación a una historia de otro proyecto (US4-11)
+              value:
+                error: La historia no existe.
+            sprint:
+              summary: Sprint de resolución de otro proyecto (US2-12)
+              value:
+                error: El sprint no existe.
+
+    ConflictoDeDefecto:
+      description: |
+        La escritura no se admite por el estado del proyecto o del defecto. El campo `code`
+        distingue el motivo:
+
+        - `read_only`: proyecto `finished` (FR-054).
+        - `no_detection_sprint`: el proyecto no tiene ningún sprint `active` ni `closed` (FR-010).
+        - `invalid_transition`: la transición no está admitida desde el estado **vigente**, incluido
+          el caso en que otra acción lo cambió antes (FR-018 a FR-020, FR-030, FR-039).
+        - `defect_discarded`: modificación de un defecto `discarded` (FR-036).
+        - `links_frozen`: corrección de la historia o del sprint de detección de un defecto que no
+          está `open` (FR-038).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefectConflictResponse'
+          examples:
+            soloLectura:
+              summary: Proyecto finalizado (US1-14, US2-13)
+              value:
+                code: read_only
+                error: El proyecto está finalizado y sus defectos son de solo lectura.
+                currentStatus: null
+                allowedStatuses: []
+            sinSprintIniciado:
+              summary: Proyecto sin sprints iniciados (US1-16)
+              value:
+                code: no_detection_sprint
+                error: Todavía no hay ningún sprint Activo ni Cerrado que pueda ser sprint de detección.
+                currentStatus: null
+                allowedStatuses: []
+            saltoAResuelto:
+              summary: De Abierto a Resuelto (US2-10)
+              value:
+                code: invalid_transition
+                error: Un defecto Abierto primero debe pasar a En progreso.
+                currentStatus: open
+                allowedStatuses: [in_progress, discarded]
+            concurrente:
+              summary: Descarte rechazado porque otro integrante ya lo resolvió (SC-019)
+              value:
+                code: invalid_transition
+                error: Solo se descarta un defecto Abierto o En progreso; para descartarlo, primero reabrilo.
+                currentStatus: resolved
+                allowedStatuses: [open]
+            descartado:
+              summary: Modificación de un Descartado (US4-14)
+              value:
+                code: defect_discarded
+                error: El defecto está Descartado y es de solo lectura.
+                currentStatus: discarded
+                allowedStatuses: []
+            vinculosCongelados:
+              summary: Corrección del sprint de detección En progreso (US4-12)
+              value:
+                code: links_frozen
+                error: La historia relacionada y el sprint de detección solo se corrigen mientras el defecto está Abierto.
+                currentStatus: in_progress
+                allowedStatuses: [resolved, discarded]
+
+    EntradaInvalida:
+      description: |
+        Entrada inválida. Indica qué campo corregir y por qué, y no crea ni modifica nada (FR-016,
+        FR-037). Incluye el sprint `planned`, el sprint de resolución ausente o anterior al de
+        detección, y el intento de cambiar el estado desde la modificación.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+          examples:
+            descripcion:
+              summary: Descripción de solo espacios (US1-9)
+              value:
+                error: Hay campos inválidos en la solicitud.
+                fields:
+                  - field: description
+                    message: La descripción es obligatoria.
+            severidad:
+              summary: Severidad inexistente (US1-10)
+              value:
+                error: Hay campos inválidos en la solicitud.
+                fields:
+                  - field: severity
+                    message: La severidad debe ser Crítica, Alta, Media o Baja.
+            sprintPlanificado:
+              summary: Sprint de detección Planificado (US1-12)
+              value:
+                error: Hay campos inválidos en la solicitud.
+                fields:
+                  - field: detectedSprintId
+                    message: Un defecto solo se detecta en un sprint Activo o Cerrado.
+            resolucionSinSprint:
+              summary: Resolver sin sprint de resolución (US2-7)
+              value:
+                error: Hay campos inválidos en la solicitud.
+                fields:
+                  - field: resolvedSprintId
+                    message: El sprint de resolución es obligatorio para resolver.
+            resolucionAnterior:
+              summary: Sprint de resolución anterior al de detección (US2-8)
+              value:
+                error: Hay campos inválidos en la solicitud.
+                fields:
+                  - field: resolvedSprintId
+                    message: El sprint de resolución no puede empezar antes que el de detección.
+            estadoDesdeModificacion:
+              summary: Estado en el PATCH (US4-15)
+              value:
+                error: Hay campos inválidos en la solicitud.
+                fields:
+                  - field: status
+                    message: El estado y el sprint de resolución se cambian con las acciones de estado del defecto.
+
+    FiltroInvalido:
+      description: |
+        Un filtro tiene un valor que no existe, o indica una historia o un sprint que no pertenece al
+        proyecto. El mensaje es el mismo para "no existe" y "es de otro proyecto" (FR-046, FR-047).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+          examples:
+            estado:
+              summary: Estado inexistente (US3-11)
+              value:
+                error: Hay campos inválidos en la solicitud.
+                fields:
+                  - field: status
+                    message: El estado debe ser Abierto, En progreso, Resuelto o Descartado.
+            sprintAjeno:
+              summary: Sprint de otro proyecto (US3-10)
+              value:
+                error: Hay campos inválidos en la solicitud.
+                fields:
+                  - field: sprintId
+                    message: El filtro no corresponde al proyecto.
+
+    ErrorInterno:
+      description: |
+        Error interno inesperado. La respuesta no expone ningún detalle de la causa (Principio VII).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Ocurrió un error inesperado. Intentá de nuevo más tarde.
+
+  schemas:
+    DefectSeverity:
+      type: string
+      description: Severidad; `critical` (Crítica), `high` (Alta), `medium` (Media) o `low` (Baja).
+      enum: [critical, high, medium, low]
+      example: high
+
+    DefectStatus:
+      type: string
+      description: |
+        Estado; `open` (Abierto), `in_progress` (En progreso), `resolved` (Resuelto) o `discarded`
+        (Descartado, definitivo).
+      enum: [open, in_progress, resolved, discarded]
+      example: open
+
+    SprintStatus:
+      type: string
+      description: Estado del sprint de la spec 004; `planned`, `active` o `closed`.
+      enum: [planned, active, closed]
+      example: active
+
+    DefectInput:
+      type: object
+      description: Cuerpo del alta. Cualquier otro campo, incluido uno de autoría, se ignora (FR-056).
+      required: [description, severity, storyId, detectedSprintId]
+      properties:
+        description:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Texto libre de 1 a 2000 caracteres tras recortar los espacios extremos (FR-002).
+        severity:
+          $ref: '#/components/schemas/DefectSeverity'
+        storyId:
+          type: string
+          format: uuid
+          description: Historia del mismo proyecto, en cualquier estado (FR-004, FR-005).
+        detectedSprintId:
+          type: string
+          format: uuid
+          description: Sprint del mismo proyecto, `active` o `closed` (FR-006, FR-007).
+
+    DefectPatch:
+      type: object
+      description: |
+        Modificación parcial; al menos un campo. `status`, `resolvedSprintId`, `projectId` y los
+        campos de autoría se **rechazan** con `400` (FR-035).
+      minProperties: 1
+      properties:
+        description:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        severity:
+          $ref: '#/components/schemas/DefectSeverity'
+        storyId:
+          type: string
+          format: uuid
+          description: Solo con el defecto `open` si cambia (FR-038).
+        detectedSprintId:
+          type: string
+          format: uuid
+          description: Solo con el defecto `open` si cambia (FR-038).
+
+    DefectStatusChange:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: '#/components/schemas/DefectStatus'
+        resolvedSprintId:
+          type: string
+          format: uuid
+          description: Obligatorio si `status` es `resolved`; prohibido en cualquier otro destino (FR-023).
+
+    UserRef:
+      type: object
+      required: [id, fullName]
+      properties:
+        id:
+          type: string
+          format: uuid
+        fullName:
+          type: string
+          description: Se muestra aunque la persona ya no sea integrante (FR-055).
+          example: Ana Pérez
+
+    StoryRef:
+      type: object
+      required: [id, title]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          example: Reporte de ventas mensual
+
+    SprintRef:
+      type: object
+      required: [id, name, status, startDate]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Sprint 2
+        status:
+          $ref: '#/components/schemas/SprintStatus'
+        startDate:
+          type: string
+          format: date
+          description: Fecha de inicio prevista; ordena detección y resolución (RC-07).
+          example: '2026-10-12'
+
+    Defect:
+      type: object
+      required:
+        - id
+        - projectId
+        - description
+        - severity
+        - status
+        - story
+        - detectedSprint
+        - resolvedSprint
+        - createdBy
+        - updatedBy
+        - statusChangedAt
+        - statusChangedBy
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        description:
+          type: string
+        severity:
+          $ref: '#/components/schemas/DefectSeverity'
+        status:
+          $ref: '#/components/schemas/DefectStatus'
+        story:
+          $ref: '#/components/schemas/StoryRef'
+        detectedSprint:
+          $ref: '#/components/schemas/SprintRef'
+        resolvedSprint:
+          allOf:
+            - $ref: '#/components/schemas/SprintRef'
+          nullable: true
+          description: Sprint de la última resolución; `null` si el defecto no está `resolved` (FR-031, RN-23).
+        createdBy:
+          $ref: '#/components/schemas/UserRef'
+        updatedBy:
+          $ref: '#/components/schemas/UserRef'
+        statusChangedAt:
+          type: string
+          format: date-time
+          description: Momento del último cambio de estado; en un defecto recién creado, el de su creación (FR-022).
+        statusChangedBy:
+          $ref: '#/components/schemas/UserRef'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ProjectDefects:
+      type: object
+      required: [defects, emptyReason]
+      properties:
+        defects:
+          type: array
+          description: Ordenados por severidad descendente y, a igual severidad, por creación descendente (FR-048).
+          items:
+            $ref: '#/components/schemas/Defect'
+        emptyReason:
+          type: string
+          nullable: true
+          enum: [no_defects, no_matches, null]
+          description: |
+            `no_defects` si el proyecto no tiene defectos; `no_matches` si los filtros no encuentran
+            ninguno; `null` si la lista tiene elementos (FR-045).
+
+    StoryDefects:
+      type: object
+      required: [defects, emptyReason]
+      properties:
+        defects:
+          type: array
+          items:
+            $ref: '#/components/schemas/Defect'
+        emptyReason:
+          type: string
+          nullable: true
+          enum: [no_defects, null]
+          description: '`no_defects` si la historia no tiene defectos; `null` si la lista tiene elementos.'
+
+    DefectConflictResponse:
+      type: object
+      required: [code, error, currentStatus, allowedStatuses]
+      properties:
+        code:
+          type: string
+          enum: [read_only, no_detection_sprint, invalid_transition, defect_discarded, links_frozen]
+        error:
+          type: string
+          description: Mensaje en español dirigido a la persona.
+        currentStatus:
+          allOf:
+            - $ref: '#/components/schemas/DefectStatus'
+          nullable: true
+          description: Estado vigente del defecto; `null` con `read_only` y `no_detection_sprint`.
+        allowedStatuses:
+          type: array
+          description: Destinos admitidos desde `currentStatus`; vacío si no aplica o si está `discarded`.
+          items:
+            $ref: '#/components/schemas/DefectStatus'
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Mensaje en español dirigido a la persona.
+
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+          example: description
+        message:
+          type: string
+          example: La descripción es obligatoria.
+
+    ValidationErrorResponse:
+      type: object
+      required: [error, fields]
+      properties:
+        error:
+          type: string
+          example: Hay campos inválidos en la solicitud.
+        fields:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/FieldError'

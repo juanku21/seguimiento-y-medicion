@@ -330,7 +330,7 @@ con `availableHours: 4.00`.
       daily_cap_exceeded` con "Superarías las 24 horas registradas para ese día. Te quedan N horas
       disponibles." y `availableHours`; cualquier otro → `500` genérico registrado con `slog` —
       depende de T025, T028
-- [ ] T030 [US1] Crear en `backend/internal/effort/delivery/routes.go`
+- [X] T030 [US1] Crear en `backend/internal/effort/delivery/routes.go`
       `RegisterStoryRoutes(router, requireSession, requireStoryAccess, handler)` con
       `POST /api/v1/stories/:storyId/effort-entries`, sin importar `backlog/delivery`; y componer el
       módulo en `backend/cmd/app/main.go`: repositorio, servicio con `cfg.Location`,

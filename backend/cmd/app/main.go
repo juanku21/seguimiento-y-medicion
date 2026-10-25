@@ -5,7 +5,8 @@
 //	@version					1.0.0
 //	@description				API de Software Metrics & Estimation: autenticación y cuentas de usuario, gestión de
 //	@description				proyectos y de sus integrantes, Product Backlog de cada proyecto, planificación de sus
-//	@description				sprints y estimación de historias con Planning Poker.
+//	@description				sprints, estimación de historias con Planning Poker y registro del esfuerzo trabajado
+//	@description				sobre cada historia.
 //	@description				Las únicas operaciones públicas son el registro y el inicio de sesión; las demás exigen
 //	@description				la cabecera `Authorization: Bearer <token>`.
 //	@BasePath					/
@@ -41,6 +42,9 @@ import (
 	backlogdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/delivery"
 	backlogrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/repository"
 	backlogservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/service"
+	effortdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/delivery"
+	effortrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/repository"
+	effortservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/service"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/config"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/database"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/httpserver"
@@ -182,6 +186,18 @@ func run() error {
 	pokerHandler := pokerdelivery.NewHandler(sessions)
 	pokerdelivery.RegisterStoryRoutes(router, handler.RequireSession, backlogdelivery.RequireStoryAccess(storyRepository), pokerHandler)
 	pokerdelivery.RegisterSessionRoutes(router, handler.RequireSession, sessionRepository, pokerHandler)
+
+	// El módulo de esfuerzo se compone sobre su repositorio, con la zona horaria del sistema, el plazo
+	// de gracia configurado y el reloj. Sus rutas cuelgan del grupo plano /api/v1/stories/:storyId con
+	// el RequireStoryAccess de la 003, sobre la misma instancia del repositorio de historias, para que
+	// effort/delivery no importe backlog/delivery.
+	efforts := effortservice.NewEffortService(
+		effortrepository.NewEffortRepository(db),
+		cfg.Location,
+		cfg.EffortGracePeriod,
+		time.Now,
+	)
+	effortdelivery.RegisterStoryRoutes(router, handler.RequireSession, backlogdelivery.RequireStoryAccess(storyRepository), effortdelivery.NewHandler(efforts))
 
 	// Ninguna conexión al canal de eventos sobrevive a un reinicio, así que antes de escuchar se
 	// marcan desconectados los participantes de las sesiones abiertas (research.md sección 9). El

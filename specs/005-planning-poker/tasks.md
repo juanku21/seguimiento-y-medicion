@@ -894,7 +894,7 @@ documentación viva, cobertura, vulnerabilidades y verificación de las puertas 
       la API; que esta feature solo escriba `user_stories.story_points` y `updated_at` fuera de sus
       tablas; que no haya dependencias nuevas en `go.mod` ni en `package.json`; y que ninguna
       respuesta incluya `password_hash` — depende de T091, T092
-- [ ] T100 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluido el
+- [X] T100 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluido el
       flujo en la interfaz con tres navegadores, las cancelaciones del sistema, las pruebas de
       concurrencia con `-count=5` y la verificación de que las pruebas corrieron contra `smye_test`
       en el puerto 5433 y no contra desarrollo — depende de T095, T096, T099

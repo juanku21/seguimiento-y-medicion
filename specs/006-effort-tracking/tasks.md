@@ -286,7 +286,7 @@ con `availableHours: 4.00`.
 - [X] T020 [P] [US1] Implementar el tipo de 2 decimales en
       `backend/internal/effort/delivery/dto.go` (por ejemplo `hundredths int` con `MarshalJSON` que
       escribe `%d.%02d` con signo) — depende de T010
-- [ ] T021 [P] [US1] Implementar `ValidateEntryDate` en
+- [X] T021 [P] [US1] Implementar `ValidateEntryDate` en
       `backend/internal/effort/domain/entry_date.go` — depende de T011
 - [ ] T022 [P] [US1] Implementar `CheckDailyCap` en `backend/internal/effort/domain/daily_cap.go` —
       depende de T012

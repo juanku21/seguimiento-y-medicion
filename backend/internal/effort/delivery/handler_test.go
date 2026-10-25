@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	authdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/delivery"
+	"github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/domain"
 )
 
 // Pruebas de integración de punta a punta del registro de esfuerzo: atraviesan el router de Gin
@@ -661,4 +662,322 @@ func TestEffortPorts_BloqueanEliminaciones(t *testing.T) {
 	assert.JSONEq(t, `{"error":"`+effortPortsStoryBlockedMessage+`","reasons":[`+
 		`{"code":"sprint_history","message":"`+effortPortsSprintHistoryMessage+`"},`+
 		`{"code":"effort","message":"`+effortPortsEffortMessage+`"}]}`, rec.Body.String())
+}
+
+// Pruebas de integración de US2 (T034): GET /api/v1/stories/{storyId}/effort con un caso por
+// escenario de spec.md. Los registros se siembran en la base con su fecha, su instante de creación y,
+// cuando hace falta, su identificador, para verificar sin depender del reloj real el orden de FR-035
+// (entry_date DESC, created_at ASC, id ASC) y el del desglose (full_name ASC, user_id ASC). Los
+// proyectos, los integrantes, las historias y los sprints se preparan con los endpoints reales.
+
+// effortMemberResponse refleja MemberEffort del contrato; hours se conserva como texto literal para
+// comprobar los 2 decimales.
+type effortMemberResponse struct {
+	User  effortUserRef   `json:"user"`
+	Hours json.RawMessage `json:"hours"`
+}
+
+// storyEffortResponse refleja StoryEffort del contrato. Raw guarda el cuerpo para distinguir una
+// lista vacía de null.
+type storyEffortResponse struct {
+	StoryID    string                     `json:"storyId"`
+	TotalHours json.RawMessage            `json:"totalHours"`
+	ByMember   []effortMemberResponse     `json:"byMember"`
+	Entries    []effortEntryResponse      `json:"entries"`
+	Raw        map[string]json.RawMessage `json:"-"`
+}
+
+// storyEffortPath es la ruta de la consulta del esfuerzo de una historia según contracts/openapi.yaml.
+func storyEffortPath(storyID string) string {
+	return "/api/v1/stories/" + storyID + "/effort"
+}
+
+// getStoryEffort consulta el esfuerzo de la historia con el token indicado, exige un 200 y devuelve el
+// cuerpo decodificado.
+func (e *effortTestEnv) getStoryEffort(t *testing.T, token string, storyID uuid.UUID) storyEffortResponse {
+	t.Helper()
+	rec := e.do(t, http.MethodGet, storyEffortPath(storyID.String()), token, nil)
+	var body storyEffortResponse
+	effortRequireStatus(t, rec, http.StatusOK, &body)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body.Raw), "el cuerpo del 200 no es un objeto JSON")
+	return body
+}
+
+// effortSeed describe un registro sembrado para US2: el identificador es opcional (uuid.Nil genera
+// uno nuevo) y el instante de creación se fija para controlar el orden.
+type effortSeed struct {
+	id        uuid.UUID
+	userID    uuid.UUID
+	sprintID  *uuid.UUID
+	entryDate string
+	hours     int
+	activity  string
+	createdAt time.Time
+}
+
+// seedStoryEntry inserta en la base el registro descrito sobre la historia y devuelve su
+// identificador. CreatedAt y UpdatedAt se fijan explícitamente, así GORM no los reemplaza.
+func (e *effortTestEnv) seedStoryEntry(t *testing.T, storyID uuid.UUID, seed effortSeed) uuid.UUID {
+	t.Helper()
+	id := seed.id
+	if id == uuid.Nil {
+		id = uuid.New()
+	}
+	activity := seed.activity
+	if activity == "" {
+		activity = "Horas cargadas previamente"
+	}
+	entry := domain.EffortEntry{
+		ID:              id,
+		StoryID:         storyID,
+		UserID:          seed.userID,
+		SprintID:        seed.sprintID,
+		EntryDate:       effortDate(t, seed.entryDate),
+		Activity:        activity,
+		HoursHundredths: seed.hours,
+		CreatedAt:       seed.createdAt,
+		UpdatedAt:       seed.createdAt,
+	}
+	require.NoError(t, e.db.Create(&entry).Error, "no se pudo sembrar el registro de esfuerzo")
+	return id
+}
+
+// effortSeedBase es el instante de creación de referencia de los registros sembrados.
+var effortSeedBase = time.Date(2026, time.October, 21, 9, 0, 0, 0, time.UTC)
+
+// effortEntryIDs devuelve los identificadores de los registros en el orden de la respuesta.
+func effortEntryIDs(entries []effortEntryResponse) []string {
+	ids := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		ids = append(ids, entry.ID)
+	}
+	return ids
+}
+
+// requireStoryNotFoundLike03 exige que la respuesta sea exactamente el 404 de historia inexistente
+// que la 003 da para la misma historia con el mismo token, sin datos de esfuerzo.
+func (e *effortTestEnv) requireStoryNotFoundLike03(t *testing.T, token, storyID string, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	storyNotFound := e.do(t, http.MethodGet, "/api/v1/stories/"+storyID, token, nil)
+	require.Equal(t, http.StatusNotFound, storyNotFound.Code, "precondición: la 003 responde 404")
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+	assert.JSONEq(t, storyNotFound.Body.String(), rec.Body.String(), "el cuerpo debe ser el 404 de la 003")
+	assert.NotContains(t, rec.Body.String(), "totalHours", "el 404 no revela datos de esfuerzo")
+	assert.NotContains(t, rec.Body.String(), "entries", "el 404 no revela registros")
+}
+
+// Escenario: Caso normal — total de 16 horas y desglose de 10 y 6 horas por integrante (006/US2)
+func TestUS2_TotalYDesglose(t *testing.T) {
+	// Bruno Díaz carga 10 horas en tres registros y Ana Pérez 6 en dos. Las fechas, los instantes
+	// de creación y los identificadores se eligen para que cada criterio de orden decida al menos un
+	// par: la fecha descendente, el created_at ascendente a igual fecha y el id ascendente a igual
+	// fecha e instante. Se siembran desordenados para no depender del orden de inserción.
+	t.Run("total, desglose por nombre y registros en orden", func(t *testing.T) {
+		f := newEffortFixture(t)
+		brunoID, brunoToken := f.env.signUp(t, "Bruno Díaz", "bruno@example.com")
+		f.env.addMember(t, f.ownerToken, f.projectID, "bruno@example.com")
+		lowID := uuid.MustParse("00000000-0000-4000-8000-000000000001")
+		highID := uuid.MustParse("ffffffff-ffff-4fff-bfff-ffffffffffff")
+
+		e4 := f.env.seedStoryEntry(t, f.storyID, effortSeed{id: highID, userID: f.ownerID, entryDate: "2026-10-15", hours: 400, createdAt: effortSeedBase})
+		e5 := f.env.seedStoryEntry(t, f.storyID, effortSeed{id: lowID, userID: brunoID, entryDate: "2026-10-15", hours: 300, createdAt: effortSeedBase})
+		e1 := f.env.seedStoryEntry(t, f.storyID, effortSeed{userID: brunoID, entryDate: "2026-10-20", hours: 400, createdAt: effortSeedBase.Add(time.Hour)})
+		e2 := f.env.seedStoryEntry(t, f.storyID, effortSeed{userID: f.ownerID, entryDate: "2026-10-20", hours: 200, createdAt: effortSeedBase})
+		e3 := f.env.seedStoryEntry(t, f.storyID, effortSeed{userID: brunoID, entryDate: "2026-10-21", hours: 300, activity: effortActivity, createdAt: effortSeedBase.Add(2 * time.Hour)})
+
+		body := f.env.getStoryEffort(t, brunoToken, f.storyID)
+
+		// Total y desglose: Ana va primero por nombre aunque tenga menos horas.
+		assert.Equal(t, f.storyID.String(), body.StoryID, "storyId")
+		assert.Equal(t, "16.00", string(body.TotalHours), "totalHours con 2 decimales")
+		require.Len(t, body.ByMember, 2, "una línea por persona")
+		assert.Equal(t, effortUserRef{ID: f.ownerID.String(), FullName: "Ana Pérez"}, body.ByMember[0].User)
+		assert.Equal(t, "6.00", string(body.ByMember[0].Hours))
+		assert.Equal(t, effortUserRef{ID: brunoID.String(), FullName: "Bruno Díaz"}, body.ByMember[1].User)
+		assert.Equal(t, "10.00", string(body.ByMember[1].Hours))
+
+		// Registros en el orden de FR-035.
+		require.Len(t, body.Entries, 5, "cinco registros")
+		assert.Equal(t, []string{e3.String(), e2.String(), e1.String(), e5.String(), e4.String()},
+			effortEntryIDs(body.Entries), "orden entry_date DESC, created_at ASC, id ASC")
+
+		// Cada registro lleva fecha, autor, actividad, horas, historia y sprint (FR-033).
+		first := body.Entries[0]
+		assert.Equal(t, "2026-10-21", first.EntryDate)
+		assert.Equal(t, effortActivity, first.Activity)
+		assert.Equal(t, "3.00", string(first.Hours))
+		assert.Equal(t, effortUserRef{ID: brunoID.String(), FullName: "Bruno Díaz"}, first.Author)
+		assert.Equal(t, effortStoryRef{ID: f.storyID.String(), Title: "Alta de clientes"}, first.Story)
+		assert.Nil(t, first.Sprint, "la historia solo está en el backlog: sin sprint")
+		assert.False(t, first.Definitive)
+		assert.Equal(t, "2026-10-15", body.Entries[4].EntryDate)
+		assert.Equal(t, "4.00", string(body.Entries[4].Hours))
+		assert.Equal(t, "Ana Pérez", body.Entries[4].Author.FullName)
+	})
+
+	// Dos personas con el mismo nombre completo: el desglose desempata por user_id ascendente y
+	// mantiene una línea para cada una.
+	t.Run("desempate del desglose por user_id", func(t *testing.T) {
+		f := newEffortFixture(t)
+		twinID, _ := f.env.signUp(t, "Ana Pérez", "ana.perez@example.com")
+		f.env.addMember(t, f.ownerToken, f.projectID, "ana.perez@example.com")
+		f.env.seedStoryEntry(t, f.storyID, effortSeed{userID: f.ownerID, entryDate: "2026-10-20", hours: 100, createdAt: effortSeedBase})
+		f.env.seedStoryEntry(t, f.storyID, effortSeed{userID: twinID, entryDate: "2026-10-20", hours: 200, createdAt: effortSeedBase})
+		lower, higher := f.ownerID, twinID
+		lowerHours, higherHours := "1.00", "2.00"
+		if higher.String() < lower.String() {
+			lower, higher = higher, lower
+			lowerHours, higherHours = higherHours, lowerHours
+		}
+
+		body := f.env.getStoryEffort(t, f.ownerToken, f.storyID)
+
+		require.Len(t, body.ByMember, 2, "una línea por persona aunque compartan el nombre")
+		assert.Equal(t, lower.String(), body.ByMember[0].User.ID, "primero el user_id menor")
+		assert.Equal(t, lowerHours, string(body.ByMember[0].Hours))
+		assert.Equal(t, higher.String(), body.ByMember[1].User.ID)
+		assert.Equal(t, higherHours, string(body.ByMember[1].Hours))
+		assert.Equal(t, "3.00", string(body.TotalHours))
+	})
+}
+
+// Escenario: Caso alternativo — registros de dos sprints distintos y uno sin sprint (006/US2)
+func TestUS2_RegistrosDeVariosSprints(t *testing.T) {
+	// La historia pasa por el Sprint 3, que se cierra el viernes sin completarla, y queda
+	// comprometida en el Sprint 4 Planificado. Cinco días después del cierre, el plazo de gracia del
+	// Sprint 3 venció: su registro es definitivo y los demás no.
+	f := newEffortFixture(t)
+	sprintA := f.env.activeSprintWith(t, f.ownerToken, f.projectID, f.storyID)
+	f.env.closeSprintAt(t, f.ownerToken, sprintA, f.fridayClose())
+	sprintB := f.env.createSprint(t, f.ownerToken, f.projectID, "Sprint 4", "2026-10-26", "2026-11-06")
+	f.env.assignStories(t, f.ownerToken, sprintB, f.storyID)
+
+	inB := f.env.seedStoryEntry(t, f.storyID, effortSeed{userID: f.ownerID, sprintID: &sprintB, entryDate: "2026-10-23", hours: 175, createdAt: effortSeedBase})
+	inA := f.env.seedStoryEntry(t, f.storyID, effortSeed{userID: f.ownerID, sprintID: &sprintA, entryDate: "2026-10-22", hours: 250, createdAt: effortSeedBase})
+	noSprint := f.env.seedStoryEntry(t, f.storyID, effortSeed{userID: f.ownerID, entryDate: "2026-10-05", hours: 100, createdAt: effortSeedBase})
+	f.env.clock.Set(f.fridayClose().Add(5 * 24 * time.Hour))
+
+	body := f.env.getStoryEffort(t, f.ownerToken, f.storyID)
+
+	// El total incluye los tres registros, también el sin sprint.
+	assert.Equal(t, "5.25", string(body.TotalHours), "el total incluye todos los registros")
+	require.Len(t, body.Entries, 3)
+	assert.Equal(t, []string{inB.String(), inA.String(), noSprint.String()}, effortEntryIDs(body.Entries))
+
+	// Cada registro con su sprint asociado; el sin sprint, con sprint: null.
+	require.NotNil(t, body.Entries[0].Sprint, "registro del Sprint 4")
+	assert.Equal(t, effortSprintRef{ID: sprintB.String(), Name: "Sprint 4", Status: "planned"}, *body.Entries[0].Sprint)
+	assert.False(t, body.Entries[0].Definitive, "sprint Planificado: no definitivo")
+	require.NotNil(t, body.Entries[1].Sprint, "registro del Sprint 3")
+	assert.Equal(t, effortSprintRef{ID: sprintA.String(), Name: "Sprint 3", Status: "closed"}, *body.Entries[1].Sprint)
+	assert.True(t, body.Entries[1].Definitive, "sprint cerrado con el plazo vencido: definitivo")
+	assert.Nil(t, body.Entries[2].Sprint, "registro sin sprint")
+	assert.False(t, body.Entries[2].Definitive, "sin sprint: no definitivo")
+
+	var rawEntries []map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(body.Raw["entries"], &rawEntries))
+	assert.Equal(t, "null", string(rawEntries[2]["sprint"]), "sprint debe serializarse null")
+}
+
+// Escenario: Caso alternativo — registros de una persona quitada del proyecto (006/US2)
+func TestUS2_ExIntegrante(t *testing.T) {
+	// Bruno carga 3 horas y después la propietaria lo quita del proyecto con la 002.
+	f := newEffortFixture(t)
+	brunoID, _ := f.env.signUp(t, "Bruno Díaz", "bruno@example.com")
+	f.env.addMember(t, f.ownerToken, f.projectID, "bruno@example.com")
+	brunoEntry := f.env.seedStoryEntry(t, f.storyID, effortSeed{userID: brunoID, entryDate: "2026-10-20", hours: 300, createdAt: effortSeedBase})
+	f.env.seedStoryEntry(t, f.storyID, effortSeed{userID: f.ownerID, entryDate: "2026-10-21", hours: 200, createdAt: effortSeedBase})
+	effortRequireStatus(t, f.env.do(t, http.MethodDelete,
+		"/api/v1/projects/"+f.projectID.String()+"/members/"+brunoID.String(), f.ownerToken, nil), http.StatusNoContent, nil)
+
+	body := f.env.getStoryEffort(t, f.ownerToken, f.storyID)
+
+	// Sus registros siguen visibles con su nombre y cuentan en el total y en el desglose.
+	assert.Equal(t, "5.00", string(body.TotalHours), "el total incluye las horas del ex integrante")
+	require.Len(t, body.ByMember, 2)
+	assert.Equal(t, effortUserRef{ID: brunoID.String(), FullName: "Bruno Díaz"}, body.ByMember[1].User)
+	assert.Equal(t, "3.00", string(body.ByMember[1].Hours))
+	require.Len(t, body.Entries, 2)
+	assert.Equal(t, brunoEntry.String(), body.Entries[1].ID)
+	assert.Equal(t, effortUserRef{ID: brunoID.String(), FullName: "Bruno Díaz"}, body.Entries[1].Author)
+}
+
+// Escenario: Caso límite — historia sin ningún registro de esfuerzo (006/US2)
+func TestUS2_HistoriaSinRegistros(t *testing.T) {
+	f := newEffortFixture(t)
+
+	body := f.env.getStoryEffort(t, f.ownerToken, f.storyID)
+
+	// Total 0.00 y listas vacías, nunca null: no es un error.
+	assert.Equal(t, f.storyID.String(), body.StoryID)
+	assert.Equal(t, "0.00", string(body.TotalHours), "totalHours")
+	assert.Equal(t, "[]", string(body.Raw["byMember"]), "byMember debe ser [] y no null")
+	assert.Equal(t, "[]", string(body.Raw["entries"]), "entries debe ser [] y no null")
+}
+
+// Escenario: Caso límite — un único registro de 0,25 horas (006/US2)
+func TestUS2_CuartoDeHora(t *testing.T) {
+	f := newEffortFixture(t)
+	f.env.seedStoryEntry(t, f.storyID, effortSeed{userID: f.ownerID, entryDate: "2026-10-20", hours: 25, createdAt: effortSeedBase})
+
+	body := f.env.getStoryEffort(t, f.ownerToken, f.storyID)
+
+	// El cuarto de hora se conserva sin pérdida de precisión en el total, el desglose y el registro.
+	assert.Equal(t, "0.25", string(body.TotalHours), "totalHours")
+	require.Len(t, body.ByMember, 1)
+	assert.Equal(t, "0.25", string(body.ByMember[0].Hours))
+	require.Len(t, body.Entries, 1)
+	assert.Equal(t, "0.25", string(body.Entries[0].Hours))
+}
+
+// Escenario: Caso límite — un único integrante con registros en tres fechas distintas (006/US2)
+func TestUS2_UnaLineaPorPersona(t *testing.T) {
+	f := newEffortFixture(t)
+	f.env.seedStoryEntry(t, f.storyID, effortSeed{userID: f.ownerID, entryDate: "2026-10-14", hours: 100, createdAt: effortSeedBase})
+	f.env.seedStoryEntry(t, f.storyID, effortSeed{userID: f.ownerID, entryDate: "2026-10-21", hours: 250, createdAt: effortSeedBase})
+	f.env.seedStoryEntry(t, f.storyID, effortSeed{userID: f.ownerID, entryDate: "2026-10-17", hours: 325, createdAt: effortSeedBase})
+
+	body := f.env.getStoryEffort(t, f.ownerToken, f.storyID)
+
+	// Una sola línea con la suma de las tres fechas y las tres fechas por separado en la lista.
+	require.Len(t, body.ByMember, 1, "una sola línea para la persona")
+	assert.Equal(t, effortUserRef{ID: f.ownerID.String(), FullName: "Ana Pérez"}, body.ByMember[0].User)
+	assert.Equal(t, "6.75", string(body.ByMember[0].Hours))
+	assert.Equal(t, "6.75", string(body.TotalHours))
+	require.Len(t, body.Entries, 3, "tres registros")
+	dates := []string{body.Entries[0].EntryDate, body.Entries[1].EntryDate, body.Entries[2].EntryDate}
+	assert.Equal(t, []string{"2026-10-21", "2026-10-17", "2026-10-14"}, dates, "fecha descendente")
+}
+
+// Escenario: Caso de error — usuario que no es integrante del proyecto (006/US2)
+func TestUS2_NoIntegrante(t *testing.T) {
+	f := newEffortFixture(t)
+	f.env.seedStoryEntry(t, f.storyID, effortSeed{userID: f.ownerID, entryDate: "2026-10-20", hours: 300, createdAt: effortSeedBase})
+	_, outsiderToken := f.env.signUp(t, "Carlos Gómez", "carlos@example.com")
+
+	rec := f.env.do(t, http.MethodGet, storyEffortPath(f.storyID.String()), outsiderToken, nil)
+
+	// La respuesta es el mismo 404 de historia inexistente de la 003 y no revela ningún dato.
+	f.env.requireStoryNotFoundLike03(t, outsiderToken, f.storyID.String(), rec)
+}
+
+// Escenario: Caso de error — identificador de historia que no existe (006/US2)
+func TestUS2_HistoriaInexistente(t *testing.T) {
+	// Un UUID válido sin historia y un identificador mal formado reciben el mismo 404 de la 003.
+	cases := []struct {
+		name    string
+		storyID string
+	}{
+		{name: "UUID sin historia", storyID: uuid.NewString()},
+		{name: "identificador mal formado", storyID: "no-es-un-uuid"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newEffortFixture(t)
+
+			rec := f.env.do(t, http.MethodGet, storyEffortPath(tc.storyID), f.ownerToken, nil)
+
+			f.env.requireStoryNotFoundLike03(t, f.ownerToken, tc.storyID, rec)
+		})
+	}
 }

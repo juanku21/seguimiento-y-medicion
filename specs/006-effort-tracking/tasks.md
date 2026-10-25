@@ -385,7 +385,7 @@ registros en orden de fecha descendente.
 
 ### Pruebas de la Historia 2 ⚠️
 
-- [ ] T034 [US2] Pruebas de integración en `backend/internal/effort/delivery/handler_test.go`, una por
+- [X] T034 [US2] Pruebas de integración en `backend/internal/effort/delivery/handler_test.go`, una por
       escenario con `// Escenario: <nombre> (006/US2)`: `TestUS2_TotalYDesglose`,
       `TestUS2_RegistrosDeVariosSprints` (dos sprints y uno sin sprint, cada registro con su sprint y
       el total los incluye a todos), `TestUS2_ExIntegrante` (baja con la 002: sus registros siguen,

@@ -314,7 +314,7 @@ con `availableHours: 4.00`.
       con la firma definitiva para que no cambie en las historias siguientes, y `Create(ctx, access,
       actorID, input)`, que toma el autor **siempre** del titular de la sesión (FR-002) y el instante
       del reloj una sola vez — depende de T026
-- [ ] T028 [US1] Declarar en `backend/internal/effort/delivery/dto.go` los esquemas de
+- [X] T028 [US1] Declarar en `backend/internal/effort/delivery/dto.go` los esquemas de
       contracts/openapi.yaml `EffortEntryInput` (`entryDate`, `activity`, `hours` como
       `json.RawMessage` con `swaggertype:"number"`, para rechazar un número entre comillas; **sin**
       campo de autor), `EffortEntry` (con `definitive`), `UserRef`,

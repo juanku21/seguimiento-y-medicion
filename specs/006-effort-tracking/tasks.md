@@ -173,7 +173,7 @@ con `availableHours: 4.00`.
       `backend/internal/platform/config/config_test.go`, cubriendo RC-11: ausente o vacía → 48 horas;
       `48` → 48; `1` → 1; `0`, `-1`, `48h`, `1.5` y `abc` → error que impide el arranque y nombra la
       variable, acumulado con los demás problemas como `APP_TIMEZONE` — depende de T007
-- [ ] T009 [P] [US1] Pruebas unitarias **obligatorias** de la validación del alta en
+- [X] T009 [P] [US1] Pruebas unitarias **obligatorias** de la validación del alta en
       `backend/internal/effort/delivery/validation_test.go`, cubriendo RN-02, RN-03 y SC-006:
       `ParseHours(json.RawMessage)` con `0.25` → 25, `6.5` → 650, `6.50` → 650, `24` → 2400, y rechazos
       `0`, `-1`, `24.25`, `25` (mensaje de rango "Las horas deben ser mayores que 0 y como máximo

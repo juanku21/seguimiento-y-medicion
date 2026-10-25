@@ -261,7 +261,7 @@ con `availableHours: 4.00`.
       un sprint `planned` con un registro anclado insertado directamente (simula la carrera de
       research.md sección 10) devuelve `ErrSprintHasEffort` y no `500`. Además, que el `DELETE` de una
       historia, de un sprint y de un usuario con registros falla en la base (RN-21) — depende de T007
-- [ ] T018 [P] [US1] Pruebas de frontend en `frontend/src/features/effort/validation.test.ts`
+- [X] T018 [P] [US1] Pruebas de frontend en `frontend/src/features/effort/validation.test.ts`
       (horas, actividad y fecha con las mismas reglas de forma que el backend),
       `frontend/src/utils/effort-format.test.ts` (`6.5` → `6,5 h`, `0.25` → `0,25 h`, `20` → `+20,00 %`,
       `-20` → `−20,00 %`, `null` → `No calculable`) y

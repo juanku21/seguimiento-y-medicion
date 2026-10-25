@@ -184,7 +184,7 @@ con `availableHours: 4.00`.
       acentos aceptada y recortada, de **301** rechazada ("La actividad admite como máximo 300
       caracteres."); `entryDate` ausente, `2026-02-30` y `24/10/2026` rechazadas con el mensaje de
       formato `AAAA-MM-DD`; varios campos inválidos devueltos **todos a la vez** — depende de T007
-- [ ] T010 [P] [US1] Pruebas unitarias **obligatorias** del tipo de 2 decimales en
+- [X] T010 [P] [US1] Pruebas unitarias **obligatorias** del tipo de 2 decimales en
       `backend/internal/effort/delivery/dto_test.go`, cubriendo SC-015 y SC-022: 650 → `6.50`, 2000
       → `20.00`, −2000 → `-20.00`, 25 → `0.25`, 0 → `0.00`, −5 → `-0.05`, 1310 → `13.10`; un
       puntero nulo se serializa `null`; el resultado es un número JSON válido (se vuelve a decodificar

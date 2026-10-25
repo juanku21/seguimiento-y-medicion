@@ -148,11 +148,11 @@ las validaciones de horas, fecha y actividad aplicadas.
    esfuerzo sobre ella, **entonces** el registro se acepta, porque registrar horas no exige que la
    historia esté estimada.
 7. *(Caso alternativo)* **Dado** una historia Completada dentro de un sprint que se cerró el viernes
-   a las 18:00, con un plazo de gracia de 48 horas, **cuando** un integrante registra el lunes a las
-   9:00 las horas que trabajó el viernes, **entonces** el registro se acepta y queda asociado a ese
+   a las 18:00, con un plazo de gracia de 48 horas, **cuando** un integrante registra el domingo a las
+   10:00 las horas que trabajó el viernes, **entonces** el registro se acepta y queda asociado a ese
    sprint Cerrado, porque el plazo de gracia todavía está vigente.
 8. *(Caso alternativo)* **Dado** una historia del mismo sprint que no se completó y por eso volvió al
-   backlog al cerrarse, **cuando** un integrante registra el lunes a las 9:00 las horas que trabajó
+   backlog al cerrarse, **cuando** un integrante registra el domingo a las 10:00 las horas que trabajó
    el viernes, **entonces** el registro se acepta y también queda asociado a ese sprint Cerrado,
    porque la historia le pertenecía al momento del cierre y el plazo de gracia sigue vigente.
 9. *(Caso límite)* **Dado** el mismo sprint cerrado el viernes a las 18:00, **cuando** un integrante
@@ -974,9 +974,9 @@ combinación.
   (FR-016, FR-021, RN-23). Admitir el alta pero no la corrección dejaría al integrante atrapado con
   un registro equivocado e inmutable desde el momento en que lo crea, así que durante el plazo el
   esfuerzo del sprint se comporta como el de un sprint abierto y recién al vencer queda congelado.
-- **El plazo por defecto es de 48 horas**: cubre el caso que motivó la regla, que es cargar el lunes
-  el trabajo del viernes, sin dejar el sprint abierto tanto tiempo como para que sus métricas dejen
-  de ser utilizables. Es configurable justamente porque el valor correcto depende del ritmo de cada
+- **El plazo por defecto es de 48 horas**: cubre el caso que motivó la regla, que es cargar durante
+  el fin de semana el trabajo del viernes, sin dejar el sprint abierto tanto tiempo como para que sus
+  métricas dejen de ser utilizables. Es configurable justamente porque el valor correcto depende del ritmo de cada
   equipo.
 - **El plazo de gracia alcanza también a las historias devueltas al backlog**: decisión confirmada
   el 2026-10-02 (FR-014, FR-016, RN-24). Dentro del plazo, el esfuerzo tardío se reancla al sprint

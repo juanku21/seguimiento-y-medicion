@@ -215,7 +215,7 @@ con `availableHours: 4.00`.
       `backend/internal/effort/domain/grace_test.go`, cubriendo RN-23: justo después del cierre →
       `true`; `closedAt + grace − 1ns` → `true`; `closedAt + grace` → `false` ("el plazo se cuenta
       cumplido al alcanzarse"); después → `false` — depende de T007
-- [ ] T015 [US1] Pruebas de integración de la historia en
+- [X] T015 [US1] Pruebas de integración de la historia en
       `backend/internal/effort/delivery/handler_test.go`, creando en
       `backend/internal/effort/delivery/testenv_test.go` el ayudante `newEffortTestEnv` (router como
       `cmd/app` con las rutas de la 001 a la 004 y las de esfuerzo, reloj falso avanzable compartido
@@ -227,8 +227,8 @@ con `availableHours: 4.00`.
       `TestUS1_HistoriaSoloEnBacklog` (`sprint: null`), `TestUS1_SprintPlanificado`,
       `TestUS1_HistoriaCompletadaEnSprintActivo`, `TestUS1_SegundoRegistroDelDia` (dos filas, 5 h de
       la persona en la fecha), `TestUS1_HistoriaSinEstimar` (con subtests `pending`, `in_progress` y
-      `completed` para RN-13), `TestUS1_CompletadaDentroDelPlazo` (cierre viernes 18:00, alta lunes
-      9:00 → sprint Cerrado), `TestUS1_DevueltaAlBacklogDentroDelPlazo` (con un subtest en el que la
+      `completed` para RN-13), `TestUS1_CompletadaDentroDelPlazo` (cierre viernes 18:00, alta domingo
+      10:00 → sprint Cerrado), `TestUS1_DevueltaAlBacklogDentroDelPlazo` (con un subtest en el que la
       historia no se completa en el sprint A, se recompromete en B, B se cierra dentro del plazo de A
       y el alta queda anclada a B, el de `closed_at` más reciente; FR-014), `TestUS1_LimiteDelPlazo`
       (subtests 17:59 aceptado y 18:01 rechazado), `TestUS1_VeinticuatroHorasExactas`,

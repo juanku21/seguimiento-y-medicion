@@ -210,7 +210,7 @@ con `availableHours: 4.00`.
       `not_completed` → `nil` sin error; sin compromisos → `nil` sin error. Fronteras con cierre
       viernes 18:00 y 48 h: domingo 17:59 en plazo, domingo **18:00** vencido, 18:01 vencido —
       depende de T007
-- [ ] T014 [P] [US1] Pruebas unitarias **obligatorias** de
+- [X] T014 [P] [US1] Pruebas unitarias **obligatorias** de
       `GraceOpen(closedAt, now time.Time, grace time.Duration) bool` en
       `backend/internal/effort/domain/grace_test.go`, cubriendo RN-23: justo después del cierre →
       `true`; `closedAt + grace − 1ns` → `true`; `closedAt + grace` → `false` ("el plazo se cuenta

@@ -438,12 +438,19 @@ go test -p 1 ./internal/poker/...
 go test -p 1 ./internal/poker/... -run Concurrency -count=5
 go test -p 1 ./internal/poker/... -run Scale
 
-# Detector de carreras sobre el Planning Poker; requiere CGO_ENABLED=1 y un compilador de C (gcc)
-CGO_ENABLED=1 go test -p 1 -race ./internal/poker/...
+# Detector de carreras sobre el Planning Poker; requiere CGO_ENABLED=1 y un compilador de C (gcc).
+# Lleva -timeout 40m porque, con -race, el paquete delivery tarda unos 11 minutos y supera
+# el límite por defecto de 10 minutos de go test
+CGO_ENABLED=1 go test -p 1 -race -timeout 40m ./internal/poker/...
+
+# La misma corrida sin instalar gcc, en un contenedor efímero oficial con la misma versión de Go
+docker run --rm --network host -v "$(pwd):/src" -w /src -e CGO_ENABLED=1 golang:1.27.3 go test -p 1 -race -timeout 40m ./internal/poker/...
 
 # Solo las pruebas de una historia de usuario (por ejemplo, US1)
 go test -p 1 ./... -run TestUS1
 ```
+
+La variante en contenedor se ejecuta desde `backend/` con la base de test levantada (paso 4). `--network host` hace que el contenedor llegue a la base de test en `localhost:5433` y use `backend/.env.test` tal cual. En Git Bash hay que anteponer `MSYS_NO_PATHCONV=1` al comando, para que no convierta `/src` en una ruta de Windows. En PowerShell se usa `${PWD}` en lugar de `$(pwd)`: `-v "${PWD}:/src"`.
 
 El frontend no necesita servicios levantados: Vitest simula el navegador con jsdom.
 
@@ -513,7 +520,8 @@ El backend y el frontend se detienen con `Ctrl+C` en su terminal.
 | El frontend no llega a la API (error de red o de CORS) | El backend no está en ejecución, o `NEXT_PUBLIC_API_BASE_URL` del frontend y `CORS_ALLOWED_ORIGIN` del backend no coinciden con las direcciones reales. |
 | En la sala de Planning Poker, alguien no aparece conectado o no ve los cambios de los demás | El backend se está ejecutando en más de una instancia y cada participante quedó conectado a una distinta: ejecutar una sola, por el [supuesto de una sola instancia](#arquitectura-y-stack-tecnológico). Si queda en "Conectando con la sesión…", el backend no está en ejecución o no llega a la API (ver la fila anterior); la sala reintenta sola cada pocos segundos. |
 | La sala de Planning Poker lleva a `/login` en medio de una sesión de estimación | Venció el token: el canal de eventos se cierra al vencer y la reconexión recibe `401`. Iniciar sesión de nuevo y volver a la sala; el voto de la ronda vigente se conserva. |
-| `go test -race` falla con `-race requires cgo` | El detector de carreras necesita `CGO_ENABLED=1` y un compilador de C (`gcc`) en el `PATH`; sin ellos, correr las pruebas sin `-race`. |
+| `go test -race` falla con `-race requires cgo` | El detector de carreras necesita `CGO_ENABLED=1` y un compilador de C (`gcc`) en el `PATH`. Sin instalar `gcc`, usar la variante en contenedor del [paso 9](#9-ejecutar-las-pruebas). |
+| `go test -race` termina con `panic: test timed out after 10m0s` | Con `-race`, el paquete delivery del Planning Poker tarda unos 11 minutos y supera el límite por defecto de `go test`: agregar `-timeout 40m`, como en el [paso 9](#9-ejecutar-las-pruebas). |
 
 ---
 

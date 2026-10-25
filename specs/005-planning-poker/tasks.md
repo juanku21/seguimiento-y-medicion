@@ -881,7 +881,7 @@ documentación viva, cobertura, vulnerabilidades y verificación de las puertas 
       ejecutarlo siguiendo el documento — depende de T094
 - [X] T097 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
-- [ ] T098 [P] Ejecutar los comandos de cobertura de los dos lados —
+- [X] T098 [P] Ejecutar los comandos de cobertura de los dos lados —
       `go test ./... -coverprofile=coverage.out` más `go tool cover -func=coverage.out` en
       `backend/`, y `npm run test:coverage` en `frontend/` — y revisar que `internal/poker/`,
       `frontend/src/features/poker/` y `frontend/src/lib/event-stream.ts` estén cubiertos; correr

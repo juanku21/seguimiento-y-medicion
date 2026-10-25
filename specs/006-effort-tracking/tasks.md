@@ -246,7 +246,7 @@ con `availableHours: 4.00`.
       el cuerpo de la 003) y `TestUS1_AutorAjenoIgnorado` (`userId` de otra persona en el cuerpo →
       registro a nombre de la sesión). En cada rechazo se verifica que la cantidad de filas de
       `effort_entries` no cambió — depende de T007
-- [ ] T016 [US1] Prueba de concurrencia `TestEffortDailyCap_Concurrency` en
+- [X] T016 [US1] Prueba de concurrencia `TestEffortDailyCap_Concurrency` en
       `backend/internal/effort/delivery/effort_concurrency_test.go`, **sin** etiqueta `006/USn`: la
       misma cuenta envía a la vez **10** altas de 3 h para la misma fecha, repartidas en dos
       proyectos; exactamente 8 reciben `201` y 2 `409 daily_cap_exceeded`, ninguna `500`, y la suma

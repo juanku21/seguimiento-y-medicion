@@ -870,7 +870,7 @@ documentación viva, cobertura, vulnerabilidades y verificación de las puertas 
       `CurrentSessionExpiry(c *gin.Context) (time.Time, bool)` sobre los claims que ya deja el
       middleware de sesión, y usarlo en `backend/internal/poker/delivery/stream.go` para cerrar el
       canal con un temporizador al vencer el token — depende de T093
-- [ ] T095 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
+- [X] T095 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
       `backend/docs/` coincida con [contracts/openapi.yaml](./contracts/openapi.yaml) en las **diez**
       operaciones (el canal como `text/event-stream`), sus códigos de respuesta (todas declaran
       `500`) y sus esquemas; corregir las anotaciones si difieren (Principio VIII) — depende de T094

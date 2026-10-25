@@ -309,7 +309,7 @@ con `availableHours: 4.00`.
       inserción; (6) `UpdateColumn("ever_had_effort", true)` con `WHERE ever_had_effort = false`.
       Devuelve el `EntryView` con autor (`users.id` y `users.full_name`, **nunca** `password_hash`),
       historia y sprint — depende de T005, T015, T021, T022, T023
-- [ ] T027 [US1] Implementar en `backend/internal/effort/service/effort_service.go` el constructor
+- [X] T027 [US1] Implementar en `backend/internal/effort/service/effort_service.go` el constructor
       `NewEffortService(repo EffortRepository, location *time.Location, grace time.Duration, now func() time.Time)`,
       con la firma definitiva para que no cambie en las historias siguientes, y `Create(ctx, access,
       actorID, input)`, que toma el autor **siempre** del titular de la sesión (FR-002) y el instante

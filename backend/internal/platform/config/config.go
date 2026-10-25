@@ -27,6 +27,9 @@ type Config struct {
 	// Location es la zona horaria única del sistema, cargada desde APP_TIMEZONE (research.md
 	// sección 4).
 	Location *time.Location
+	// EffortGracePeriod es el plazo de gracia para registrar y corregir esfuerzo después de cerrar
+	// un sprint, cargado desde EFFORT_GRACE_PERIOD_HOURS (RC-11).
+	EffortGracePeriod time.Duration
 }
 
 // Load lee cada variable del entorno del proceso y devuelve un error que enumera todas las que

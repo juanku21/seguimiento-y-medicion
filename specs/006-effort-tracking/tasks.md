@@ -169,7 +169,7 @@ con `availableHours: 4.00`.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T008 [P] [US1] Pruebas unitarias **obligatorias** de `EFFORT_GRACE_PERIOD_HOURS` en
+- [X] T008 [P] [US1] Pruebas unitarias **obligatorias** de `EFFORT_GRACE_PERIOD_HOURS` en
       `backend/internal/platform/config/config_test.go`, cubriendo RC-11: ausente o vacía → 48 horas;
       `48` → 48; `1` → 1; `0`, `-1`, `48h`, `1.5` y `abc` → error que impide el arranque y nombra la
       variable, acumulado con los demás problemas como `APP_TIMEZONE` — depende de T007

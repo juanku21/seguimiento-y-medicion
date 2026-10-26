@@ -454,7 +454,7 @@ sprint; desde otro integrante, `403`; `DELETE` del autor devuelve `204` y el tot
       **aunque valgan `null`** → `FieldError` en ese campo con "La historia, el integrante y el sprint
       de un registro no se modifican; para mover horas, eliminá el registro y creá uno nuevo." —
       depende de T039
-- [ ] T043 [P] [US3] Pruebas del middleware `RequireEffortEntryAccess` en
+- [X] T043 [P] [US3] Pruebas del middleware `RequireEffortEntryAccess` en
       `backend/internal/effort/delivery/middleware_test.go`, cubriendo FR-059: sin titular → `401`
       con el cuerpo de la 001; identificador mal formado, registro inexistente, registro de un
       proyecto ajeno y registro propio de una persona quitada del proyecto → `404` con **el mismo

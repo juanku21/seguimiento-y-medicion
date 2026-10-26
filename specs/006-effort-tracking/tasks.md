@@ -496,7 +496,7 @@ sprint; desde otro integrante, `403`; `DELETE` del autor devuelve `204` y el tot
       sobre `GraceOpen` — depende de T040
 - [X] T048 [P] [US3] Implementar `EnsureAuthor` en `backend/internal/effort/domain/author.go` —
       depende de T041
-- [ ] T049 [US3] Implementar `ValidateEntryPatch` en `backend/internal/effort/delivery/validation.go`
+- [X] T049 [US3] Implementar `ValidateEntryPatch` en `backend/internal/effort/delivery/validation.go`
       con el DTO `EffortEntryPatch` en `backend/internal/effort/delivery/dto.go`: cada campo como
       `json.RawMessage` para distinguir ausente de `null`, y `StoryID`, `UserID` y `SprintID`
       decodificados **solo para rechazarlos** con `swaggerignore:"true"` (patrón de `StoryPatch` de la

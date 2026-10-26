@@ -36,11 +36,15 @@ const (
 	msgPatchImmutable   = "La historia, el integrante y el sprint de un registro no se modifican; para mover horas, eliminá el registro y creá uno nuevo."
 )
 
-// Errores de ParseHours, cuyo texto es el mensaje que se informa en el campo hours.
+// Errores de ParseHours, parseEntryDate y normalizeActivity, cuyo texto es el mensaje que se
+// informa en el campo correspondiente.
 var (
-	errHoursRange    = errors.New(msgHoursRange)
-	errHoursMultiple = errors.New(msgHoursMultiple)
-	errHoursNumber   = errors.New(msgHoursNumber)
+	errHoursRange       = errors.New(msgHoursRange)
+	errHoursMultiple    = errors.New(msgHoursMultiple)
+	errHoursNumber      = errors.New(msgHoursNumber)
+	errEntryDateInvalid = errors.New(msgEntryDateInvalid)
+	errActivityRequired = errors.New(msgActivityRequired)
+	errActivityTooLong  = errors.New(msgActivityTooLong)
 )
 
 // ParseHours valida las horas sobre su texto literal y las devuelve en centésimas de hora (RN-03),
@@ -91,20 +95,14 @@ func ValidateEntryInput(req EffortEntryInput) (domain.EntryInput, []authdelivery
 		fields = append(fields, authdelivery.FieldError{Field: field, Message: message})
 	}
 
-	// Fecha de calendario obligatoria con el formato AAAA-MM-DD y existente; time.Parse sin zona la
-	// devuelve a medianoche UTC. El texto no se recorta, de modo que una fecha con espacios se rechaza.
-	entryDate, err := time.Parse(entryDateLayout, req.EntryDate)
+	// Fecha de calendario y actividad, con las reglas compartidas con la modificación (RN-02).
+	entryDate, err := parseEntryDate(req.EntryDate)
 	if err != nil {
-		addField("entryDate", msgEntryDateInvalid)
+		addField("entryDate", err.Error())
 	}
-
-	// Actividad obligatoria, recortada y de 1 a 300 runas (RN-02).
-	activity := strings.TrimSpace(req.Activity)
-	switch {
-	case activity == "":
-		addField("activity", msgActivityRequired)
-	case utf8.RuneCountInString(activity) > maxActivityLength:
-		addField("activity", msgActivityTooLong)
+	activity, err := normalizeActivity(req.Activity)
+	if err != nil {
+		addField("activity", err.Error())
 	}
 
 	// Horas sobre su texto literal, con el mensaje que indique ParseHours (RN-03).
@@ -138,10 +136,9 @@ func ValidateEntryPatch(req EffortEntryPatch) (domain.EntryPatch, []authdelivery
 
 	// Fecha presente: texto con el formato AAAA-MM-DD y existente; null u otro tipo JSON se rechaza.
 	if req.EntryDate != nil {
-		raw := decodePatchString(req.EntryDate)
-		entryDate, err := time.Parse(entryDateLayout, raw)
+		entryDate, err := parseEntryDate(decodePatchString(req.EntryDate))
 		if err != nil {
-			addField("entryDate", msgEntryDateInvalid)
+			addField("entryDate", err.Error())
 		} else {
 			patch.EntryDate = &entryDate
 		}
@@ -149,14 +146,10 @@ func ValidateEntryPatch(req EffortEntryPatch) (domain.EntryPatch, []authdelivery
 
 	// Actividad presente: recortada y de 1 a 300 runas; null u otro tipo JSON cuenta como vacía (RN-02).
 	if req.Activity != nil {
-		raw := decodePatchString(req.Activity)
-		activity := strings.TrimSpace(raw)
-		switch {
-		case activity == "":
-			addField("activity", msgActivityRequired)
-		case utf8.RuneCountInString(activity) > maxActivityLength:
-			addField("activity", msgActivityTooLong)
-		default:
+		activity, err := normalizeActivity(decodePatchString(req.Activity))
+		if err != nil {
+			addField("activity", err.Error())
+		} else {
 			patch.Activity = &activity
 		}
 	}
@@ -195,6 +188,29 @@ func ValidateEntryPatch(req EffortEntryPatch) (domain.EntryPatch, []authdelivery
 		return domain.EntryPatch{}, []authdelivery.FieldError{{Field: "body", Message: msgPatchEmpty}}
 	}
 	return patch, nil
+}
+
+// parseEntryDate valida una fecha de calendario con el formato AAAA-MM-DD y existente; time.Parse
+// sin zona la devuelve a medianoche UTC. El texto no se recorta, de modo que una fecha con espacios
+// se rechaza.
+func parseEntryDate(text string) (time.Time, error) {
+	entryDate, err := time.Parse(entryDateLayout, text)
+	if err != nil {
+		return time.Time{}, errEntryDateInvalid
+	}
+	return entryDate, nil
+}
+
+// normalizeActivity recorta la actividad y exige que tenga de 1 a 300 runas (RN-02).
+func normalizeActivity(text string) (string, error) {
+	activity := strings.TrimSpace(text)
+	switch {
+	case activity == "":
+		return "", errActivityRequired
+	case utf8.RuneCountInString(activity) > maxActivityLength:
+		return "", errActivityTooLong
+	}
+	return activity, nil
 }
 
 // decodePatchString decodifica un campo presente de la modificación como texto. El null y cualquier

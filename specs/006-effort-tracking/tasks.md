@@ -645,7 +645,7 @@ reales, diferencia absoluta y porcentual, con "no calculable" donde corresponde.
 
 ### Implementación de la Historia 5
 
-- [ ] T066 [P] [US5] Implementar `Compare` y `RoundPercentHundredths` en
+- [X] T066 [P] [US5] Implementar `Compare` y `RoundPercentHundredths` en
       `backend/internal/effort/domain/comparison.go` con aritmética entera (cociente y resto), y un
       comentario que indique que la 008 debe reutilizar `RoundPercentHundredths` (RC-13) — depende de
       T063

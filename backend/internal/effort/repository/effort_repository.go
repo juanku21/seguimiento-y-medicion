@@ -19,8 +19,8 @@ import (
 )
 
 // EffortRepository implementa domain.EffortRepository con GORM sobre la tabla effort_entries. Por
-// ahora están implementados Create y ListForStory; el resto de las operaciones corresponde a tareas
-// posteriores.
+// ahora están implementados FindAccessible, Create, Update, Delete y ListForStory; el resto de las
+// operaciones corresponde a tareas posteriores.
 type EffortRepository struct {
 	db *gorm.DB
 }
@@ -30,10 +30,48 @@ func NewEffortRepository(db *gorm.DB) *EffortRepository {
 	return &EffortRepository{db: db}
 }
 
-// FindAccessible resuelve el acceso a un registro para RequireEffortEntryAccess. Firma mínima de
-// T015: la implementación corresponde a T050.
+// entryAccessRow es la fila que lee FindAccessible: los identificadores del registro, de su historia,
+// del proyecto de la historia y del autor, y el estado del proyecto con el alias project_status.
+type entryAccessRow struct {
+	EntryID       uuid.UUID
+	StoryID       uuid.UUID
+	ProjectID     uuid.UUID
+	AuthorID      uuid.UUID
+	ProjectStatus projectsdomain.ProjectStatus
+}
+
+// FindAccessible resuelve el acceso a un registro para RequireEffortEntryAccess con una sola consulta
+// (research.md sección 3): une effort_entries con su historia, con la membresía vigente del usuario
+// en project_members y con projects. Si no hay fila, el registro no existe o el usuario no es
+// integrante vigente del proyecto, y ambos casos se reportan igual con ErrEntryNotFound, nunca
+// gorm.ErrRecordNotFound ni (nil, nil). La autoría no se decide acá: AuthorID viaja en el resultado
+// y la evalúa la escritura (FR-022).
 func (r *EffortRepository) FindAccessible(ctx context.Context, entryID, userID uuid.UUID) (*domain.EntryAccess, error) {
-	return nil, errors.New("not implemented")
+	var row entryAccessRow
+	err := r.db.WithContext(ctx).
+		Table("effort_entries").
+		Select(`effort_entries.id AS entry_id, effort_entries.story_id AS story_id,
+			user_stories.project_id AS project_id, effort_entries.user_id AS author_id,
+			projects.status AS project_status`).
+		Joins("JOIN user_stories ON user_stories.id = effort_entries.story_id").
+		Joins(`JOIN project_members ON project_members.project_id = user_stories.project_id
+			AND project_members.user_id = ?`, userID).
+		Joins("JOIN projects ON projects.id = user_stories.project_id").
+		Where("effort_entries.id = ?", entryID).
+		Take(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, domain.ErrEntryNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("resolver el acceso al registro de esfuerzo: %w", err)
+	}
+	return &domain.EntryAccess{
+		EntryID:         row.EntryID,
+		StoryID:         row.StoryID,
+		ProjectID:       row.ProjectID,
+		AuthorID:        row.AuthorID,
+		ProjectFinished: row.ProjectStatus == projectsdomain.ProjectStatusFinished,
+	}, nil
 }
 
 // Create registra el alta de un registro de esfuerzo en una transacción, con el orden de bloqueos de
@@ -258,16 +296,156 @@ func loggedHundredths(tx *gorm.DB, userID uuid.UUID, date time.Time) (int, error
 	return total, nil
 }
 
-// Update modifica un registro propio en una transacción. Firma mínima de T015: la implementación
-// corresponde a T050.
+// Update modifica un registro propio en una transacción, con el orden de bloqueos de research.md
+// sección 10: (1) bloquea con FOR SHARE el proyecto del registro y rechaza el proyecto Finalizado con
+// ErrEffortReadOnly (FR-027); (2) exige que actorID sea el autor (FR-022); (3) bloquea con FOR UPDATE
+// el registro releído con su sprint y rechaza el que ya es definitivo (FR-020); (4) valida la fecha
+// resultante contra hoy en la zona recibida y el inicio del proyecto (RN-05); (5) bloquea con FOR NO
+// KEY UPDATE la fila del autor en users y aplica el tope diario sobre la fecha resultante sin contar
+// las horas vigentes del propio registro (FR-024), y (6) escribe solo la fecha, la actividad, las
+// horas y updated_at: story_id, user_id y sprint_id nunca cambian (FR-023). Devuelve el registro
+// actualizado con su autor, su historia y su sprint.
 func (r *EffortRepository) Update(ctx context.Context, entryID, actorID uuid.UUID, patch domain.EntryPatch, now time.Time, location *time.Location, grace time.Duration) (*domain.EntryView, error) {
-	return nil, errors.New("not implemented")
+	var view *domain.EntryView
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		project, err := lockEntryProject(tx, entryID, actorID)
+		if err != nil {
+			return err
+		}
+		row, err := lockWritableEntry(tx, entryID, now, grace)
+		if err != nil {
+			return err
+		}
+
+		// Aplica el parche sobre una copia del registro releído y valida la fecha resultante.
+		entry := row.EffortEntry
+		if patch.EntryDate != nil {
+			entry.EntryDate = *patch.EntryDate
+		}
+		if patch.Activity != nil {
+			entry.Activity = *patch.Activity
+		}
+		if patch.HoursHundredths != nil {
+			entry.HoursHundredths = *patch.HoursHundredths
+		}
+		if err := domain.ValidateEntryDate(entry.EntryDate, project.ProjectStartDate, calendarToday(now, location)); err != nil {
+			return err
+		}
+
+		// Con el autor bloqueado, descuenta de la suma de la fecha resultante las horas vigentes del
+		// propio registro, que solo están incluidas si la fecha no cambió, y aplica el tope.
+		if _, err := lockAuthor(tx, actorID); err != nil {
+			return err
+		}
+		logged, err := loggedHundredths(tx, actorID, entry.EntryDate)
+		if err != nil {
+			return err
+		}
+		if row.EntryDate.Equal(entry.EntryDate) {
+			logged -= row.HoursHundredths
+		}
+		if err := domain.CheckDailyCap(logged, entry.HoursHundredths); err != nil {
+			return err
+		}
+
+		err = tx.
+			Model(&entry).
+			Select("entry_date", "activity", "hours_hundredths", "updated_at").
+			Updates(&entry).Error
+		if err != nil {
+			return fmt.Errorf("actualizar el registro de esfuerzo: %w", err)
+		}
+
+		row.EffortEntry = entry
+		updated := row.view()
+		view = &updated
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return view, nil
 }
 
-// Delete elimina un registro propio en una transacción. Firma mínima de T015: la implementación
-// corresponde a T050.
+// Delete elimina un registro propio en una transacción, con el orden de bloqueos de research.md
+// sección 10: proyecto FOR SHARE (Finalizado → ErrEffortReadOnly, FR-027), autoría
+// (ErrNotEntryAuthor, FR-022) y registro FOR UPDATE releído con su sprint (ErrEffortFinalized,
+// FR-020). No toma el bloqueo del autor, porque eliminar solo libera capacidad del tope diario, y no
+// toca ever_had_effort: la historia sigue sin poder eliminarse aunque se quede sin registros (RC-05).
 func (r *EffortRepository) Delete(ctx context.Context, entryID, actorID uuid.UUID, now time.Time, grace time.Duration) error {
-	return errors.New("not implemented")
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if _, err := lockEntryProject(tx, entryID, actorID); err != nil {
+			return err
+		}
+		if _, err := lockWritableEntry(tx, entryID, now, grace); err != nil {
+			return err
+		}
+		if err := tx.Where("id = ?", entryID).Delete(&domain.EffortEntry{}).Error; err != nil {
+			return fmt.Errorf("eliminar el registro de esfuerzo: %w", err)
+		}
+		return nil
+	})
+}
+
+// entryProjectRow es la fila que lee lockEntryProject: el autor del registro y, por el JOIN a
+// projects, el estado y la fecha de inicio del proyecto de su historia.
+type entryProjectRow struct {
+	AuthorID         uuid.UUID
+	ProjectStatus    projectsdomain.ProjectStatus
+	ProjectStartDate time.Time
+}
+
+// lockEntryProject lee, dentro de la transacción recibida, el registro unido a su historia y al
+// proyecto con un bloqueo FOR SHARE solo sobre la fila de projects, para que el proyecto no pase a
+// Finalizado hasta que termine la transacción. Aplica en este orden la regla de solo lectura
+// (ErrEffortReadOnly) y la de autoría (ErrNotEntryAuthor); el autor se lee sin bloquear el registro
+// porque user_id es inmutable. Si no hay fila, devuelve ErrEntryNotFound.
+func lockEntryProject(tx *gorm.DB, entryID, actorID uuid.UUID) (*entryProjectRow, error) {
+	var row entryProjectRow
+	err := tx.
+		Table("effort_entries").
+		Select(`effort_entries.user_id AS author_id, projects.status AS project_status,
+			projects.start_date AS project_start_date`).
+		Joins("JOIN user_stories ON user_stories.id = effort_entries.story_id").
+		Joins("JOIN projects ON projects.id = user_stories.project_id").
+		Where("effort_entries.id = ?", entryID).
+		Clauses(clause.Locking{Strength: "SHARE", Table: clause.Table{Name: "projects"}}).
+		Take(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, domain.ErrEntryNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("bloquear el proyecto del registro de esfuerzo: %w", err)
+	}
+	if row.ProjectStatus == projectsdomain.ProjectStatusFinished {
+		return nil, domain.ErrEffortReadOnly
+	}
+	if err := domain.EnsureAuthor(row.AuthorID, actorID); err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
+// lockWritableEntry relee el registro con un bloqueo FOR UPDATE solo sobre su fila de
+// effort_entries, junto con su autor, su historia y el estado y el cierre de su sprint, y verifica
+// con EnsureEntryWritable que todavía se pueda modificar o eliminar en now (FR-020, FR-021). Si el
+// registro ya no existe, devuelve ErrEntryNotFound.
+func lockWritableEntry(tx *gorm.DB, entryID uuid.UUID, now time.Time, grace time.Duration) (*entryRow, error) {
+	var row entryRow
+	err := entryViews(tx).
+		Where("effort_entries.id = ?", entryID).
+		Clauses(clause.Locking{Strength: "UPDATE", Table: clause.Table{Name: "effort_entries"}}).
+		Take(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, domain.ErrEntryNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("bloquear el registro de esfuerzo: %w", err)
+	}
+	if err := domain.EnsureEntryWritable(row.view().Sprint, now, grace); err != nil {
+		return nil, err
+	}
+	return &row, nil
 }
 
 // entryRow es la fila plana que leen las consultas de listado: el registro, el nombre completo de su
@@ -300,14 +478,11 @@ func (row entryRow) view() domain.EntryView {
 	return view
 }
 
-// ListForStory devuelve los registros de una historia en una sola consulta (research.md sección
-// 11): effort_entries unido a users (solo id y nombre completo, nunca password_hash), a user_stories
-// para el título y con LEFT JOIN a sprints para el nombre, el estado y el cierre del sprint asociado.
-// El orden es el de FR-035: fecha descendente, creación ascendente e id ascendente como desempate.
-// Una historia sin registros devuelve una lista vacía, nunca nil.
-func (r *EffortRepository) ListForStory(ctx context.Context, storyID uuid.UUID) ([]domain.EntryView, error) {
-	rows := []entryRow{}
-	err := r.db.WithContext(ctx).
+// entryViews arma sobre db la consulta base de las filas entryRow: effort_entries unido a users (solo
+// id y nombre completo, nunca password_hash), a user_stories para el título y con LEFT JOIN a sprints
+// para el nombre, el estado y el cierre del sprint asociado.
+func entryViews(db *gorm.DB) *gorm.DB {
+	return db.
 		Table("effort_entries").
 		Select(`effort_entries.id, effort_entries.story_id, effort_entries.user_id,
 			effort_entries.sprint_id, effort_entries.entry_date, effort_entries.activity,
@@ -317,7 +492,17 @@ func (r *EffortRepository) ListForStory(ctx context.Context, storyID uuid.UUID) 
 			sprints.closed_at AS sprint_closed_at`).
 		Joins("JOIN users ON users.id = effort_entries.user_id").
 		Joins("JOIN user_stories ON user_stories.id = effort_entries.story_id").
-		Joins("LEFT JOIN sprints ON sprints.id = effort_entries.sprint_id").
+		Joins("LEFT JOIN sprints ON sprints.id = effort_entries.sprint_id")
+}
+
+// ListForStory devuelve los registros de una historia en una sola consulta (research.md sección
+// 11): effort_entries unido a users (solo id y nombre completo, nunca password_hash), a user_stories
+// para el título y con LEFT JOIN a sprints para el nombre, el estado y el cierre del sprint asociado.
+// El orden es el de FR-035: fecha descendente, creación ascendente e id ascendente como desempate.
+// Una historia sin registros devuelve una lista vacía, nunca nil.
+func (r *EffortRepository) ListForStory(ctx context.Context, storyID uuid.UUID) ([]domain.EntryView, error) {
+	rows := []entryRow{}
+	err := entryViews(r.db.WithContext(ctx)).
 		Where("effort_entries.story_id = ?", storyID).
 		Order("effort_entries.entry_date DESC, effort_entries.created_at ASC, effort_entries.id ASC").
 		Find(&rows).Error

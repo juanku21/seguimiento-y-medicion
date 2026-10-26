@@ -501,7 +501,7 @@ sprint; desde otro integrante, `403`; `DELETE` del autor devuelve `204` y el tot
       `json.RawMessage` para distinguir ausente de `null`, y `StoryID`, `UserID` y `SprintID`
       decodificados **solo para rechazarlos** con `swaggerignore:"true"` (patrón de `StoryPatch` de la
       003) — depende de T042
-- [ ] T050 [US3] Implementar en `backend/internal/effort/repository/effort_repository.go`
+- [X] T050 [US3] Implementar en `backend/internal/effort/repository/effort_repository.go`
       `FindAccessible` (una consulta `effort_entries → user_stories → project_members` con la
       membresía vigente del titular y el estado del proyecto; sin fila → `ErrEntryNotFound`),
       `Update` y `Delete` en transacción con el orden de research.md sección 10: proyecto

@@ -593,7 +593,7 @@ sprint y su total; `?from=2026-10-10&to=2026-10-09` devuelve `400` en `to`.
       `backend/internal/effort/delivery/routes.go` `RegisterProjectRoutes(projectGroup, handler)` con
       `GET /effort-entries` sobre el subgrupo de la 002, registrado en `backend/cmd/app/main.go` —
       depende de T058, T060
-- [ ] T062 [US4] Implementar `listProjectEffort` en `frontend/src/features/effort/api.ts`,
+- [X] T062 [US4] Implementar `listProjectEffort` en `frontend/src/features/effort/api.ts`,
       `EffortFilters` en `frontend/src/features/effort/components/effort-filters.tsx`,
       `ProjectEffortView` en `frontend/src/features/effort/components/project-effort-view.tsx`, la
       página `frontend/src/app/projects/[projectId]/effort/page.tsx` y el enlace **Esfuerzo** en

@@ -14,6 +14,7 @@ func RegisterStoryRoutes(router *gin.Engine, requireSession, requireStoryAccess 
 	storyGroup := router.Group("/api/v1/stories/:storyId", requireSession, requireStoryAccess)
 	storyGroup.POST("/effort-entries", handler.createEffortEntry)
 	storyGroup.GET("/effort", handler.getStoryEffort)
+	storyGroup.GET("/effort-comparison", handler.getStoryEffortComparison)
 }
 
 // RegisterEntryRoutes registra la modificación y la eliminación de un registro de esfuerzo en el
@@ -26,10 +27,12 @@ func RegisterEntryRoutes(router *gin.Engine, requireSession gin.HandlerFunc, ent
 	entryGroup.DELETE("", handler.deleteEffortEntry)
 }
 
-// RegisterProjectRoutes registra la consulta del esfuerzo del proyecto, GET /effort-entries, sobre el
-// subgrupo /api/v1/projects/:projectId de la 002, recibido desde cmd/app para no importar ese
-// paquete. El subgrupo ya exige sesión y membresía vigente, así que quien no es integrante recibe el
-// 404 indistinguible de la 002 antes de llegar al manejador.
+// RegisterProjectRoutes registra la consulta del esfuerzo del proyecto, GET /effort-entries, y la
+// comparación entre lo estimado y lo real, GET /effort-comparison, sobre el subgrupo
+// /api/v1/projects/:projectId de la 002, recibido desde cmd/app para no importar ese paquete. El
+// subgrupo ya exige sesión y membresía vigente, así que quien no es integrante recibe el 404
+// indistinguible de la 002 antes de llegar al manejador.
 func RegisterProjectRoutes(projectGroup *gin.RouterGroup, handler *Handler) {
 	projectGroup.GET("/effort-entries", handler.listProjectEffort)
+	projectGroup.GET("/effort-comparison", handler.getProjectEffortComparison)
 }

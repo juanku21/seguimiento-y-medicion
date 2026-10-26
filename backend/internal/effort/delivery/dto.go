@@ -235,3 +235,71 @@ func newProjectEffort(view service.ProjectEffortView) ProjectEffort {
 	}
 	return response
 }
+
+// EffortComparisonRow es la comparación entre el esfuerzo estimado y el real de una historia tal como
+// la devuelve la API (contracts/openapi.yaml). Los siete campos están siempre presentes: un valor "no
+// calculable" se serializa null y nunca 0.00 (FR-046 a FR-051, FR-055).
+type EffortComparisonRow struct {
+	// Identificador de la historia.
+	StoryID string `json:"storyId" validate:"required" format:"uuid" example:"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"`
+	// Título de la historia.
+	Title string `json:"title" validate:"required" example:"Alta de clientes"`
+	// Story Points de la historia; null significa "sin estimar" y 0 es una estimación válida.
+	StoryPoints *int `json:"storyPoints" validate:"required" extensions:"x-nullable" example:"5"`
+	// Story Points × factor vigente del proyecto, con 2 decimales; null si la historia no está estimada.
+	EstimatedHours *Hundredths `json:"estimatedHours" validate:"required" swaggertype:"number" extensions:"x-nullable" example:"30.00"`
+	// Suma de las horas registradas sobre la historia, con 2 decimales; 0.00 sin registros.
+	ActualHours Hundredths `json:"actualHours" validate:"required" swaggertype:"number" example:"36.00"`
+	// Real − estimada, con 2 decimales y signo; null si la historia no está estimada.
+	DeviationHours *Hundredths `json:"deviationHours" validate:"required" swaggertype:"number" extensions:"x-nullable" example:"6.00"`
+	// (Real − estimada) / estimada × 100, con 2 decimales y signo, redondeado mitad lejos de cero
+	// solo al final; null si la estimada es nula o 0 (FR-049, RN-26).
+	DeviationPercent *Hundredths `json:"deviationPercent" validate:"required" swaggertype:"number" extensions:"x-nullable" example:"20.00"`
+}
+
+// ProjectEffortComparison es la comparación de todas las historias del proyecto tal como la devuelve
+// la API (contracts/openapi.yaml). Stories se serializa [] y nunca null.
+type ProjectEffortComparison struct {
+	// Factor de horas por Story Point vigente del proyecto, con 2 decimales (FR-054).
+	HoursPerStoryPoint Hundredths `json:"hoursPerStoryPoint" validate:"required" swaggertype:"number" example:"6.00"`
+	// Todas las historias del proyecto, de cualquier estado, en el orden del backlog de la 003 (FR-052).
+	Stories []EffortComparisonRow `json:"stories" validate:"required"`
+}
+
+// newEffortComparisonRow arma la fila de la comparación a partir del resultado del servicio. Cada
+// valor en centésimas que el dominio deja nil queda nil, y se serializa null.
+func newEffortComparisonRow(row service.StoryComparisonRow) EffortComparisonRow {
+	comparison := row.Comparison
+	return EffortComparisonRow{
+		StoryID:          row.StoryID.String(),
+		Title:            row.Title,
+		StoryPoints:      comparison.StoryPoints,
+		EstimatedHours:   optionalHundredths(comparison.EstimatedHundredths),
+		ActualHours:      Hundredths(comparison.ActualHundredths),
+		DeviationHours:   optionalHundredths(comparison.DeviationHundredths),
+		DeviationPercent: optionalHundredths(comparison.DeviationPercentHundredths),
+	}
+}
+
+// newProjectEffortComparison arma la comparación del proyecto a partir del resultado del servicio. La
+// lista se crea no nil para que un proyecto sin historias responda [].
+func newProjectEffortComparison(view service.ProjectComparisonView) ProjectEffortComparison {
+	stories := make([]EffortComparisonRow, 0, len(view.Stories))
+	for _, row := range view.Stories {
+		stories = append(stories, newEffortComparisonRow(row))
+	}
+	return ProjectEffortComparison{
+		HoursPerStoryPoint: Hundredths(view.FactorHundredths),
+		Stories:            stories,
+	}
+}
+
+// optionalHundredths convierte un valor opcional en centésimas del dominio al tipo de la API,
+// conservando nil como "no calculable".
+func optionalHundredths(value *int) *Hundredths {
+	if value == nil {
+		return nil
+	}
+	hundredths := Hundredths(*value)
+	return &hundredths
+}

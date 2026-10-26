@@ -656,7 +656,7 @@ reales, diferencia absoluta y porcentual, con "no calculable" donde corresponde.
       `created_at`, `id`) — depende de T064
 - [X] T068 [US5] Implementar `StoryComparison` y `ProjectComparison` en
       `backend/internal/effort/service/effort_service.go` sobre `Compare` — depende de T066, T067
-- [ ] T069 [US5] Declarar `EffortComparisonRow` y `ProjectEffortComparison` en
+- [X] T069 [US5] Declarar `EffortComparisonRow` y `ProjectEffortComparison` en
       `backend/internal/effort/delivery/dto.go`, implementar los manejadores
       `getStoryEffortComparison` y `getProjectEffortComparison` con anotaciones `swag` en
       `backend/internal/effort/delivery/handler.go`, y registrar

@@ -20,7 +20,7 @@ import (
 // Los de la fecha, del proyecto de solo lectura, del sprint definitivo y del tope diario los fija
 // data-model.md sección 7; el del tope lleva las horas disponibles y nunca nombra proyectos. Los del
 // cuerpo mal formado, del 400 y del 500 son los mismos que usan la 001 a la 005, y el 500 no expone
-// detalles internos.
+// detalles internos. El de la historia inexistente es el mismo 404 de la 003.
 const (
 	msgInvalidFields        = "Hay campos inválidos en la solicitud."
 	msgInvalidBody          = "El cuerpo de la solicitud debe ser un JSON válido."
@@ -32,6 +32,7 @@ const (
 	msgNotEntryAuthor       = "Solo quien registró este esfuerzo puede modificarlo o eliminarlo."
 	msgEffortFinalized      = "Este esfuerzo pertenece a un sprint cerrado y ya es definitivo."
 	msgInternalError        = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
+	msgStoryNotFound        = "La historia no existe."
 )
 
 // Códigos del 409 del registro de esfuerzo (contracts/openapi.yaml, EffortConflictResponse).
@@ -161,6 +162,51 @@ func (h *Handler) getStoryEffort(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, newStoryEffort(access.StoryID, *effort))
+}
+
+// getStoryEffortComparison godoc
+//
+//	@Summary		Compara el esfuerzo estimado con el real de una historia
+//	@Description	Devuelve los Story Points, las horas estimadas (Story Points × factor vigente del
+//	@Description	proyecto), las horas reales, la diferencia absoluta (real − estimada) y la diferencia
+//	@Description	porcentual, con signo: positivo significa que se trabajó más de lo estimado (FR-046 a
+//	@Description	FR-049, FR-053, FR-054). Sin Story Points, la estimada y ambas diferencias son null;
+//	@Description	con 0 Story Points, la estimada es 0.00, la diferencia es igual a la real y el
+//	@Description	porcentaje es null (FR-050, FR-051, FR-055). El porcentaje se redondea a 2 decimales
+//	@Description	solo al final, mitad lejos de cero (RN-26). Cualquier integrante del proyecto puede
+//	@Description	consultarla.
+//	@Tags			Esfuerzo
+//	@ID				getStoryEffortComparison
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			storyId	path		string					true	"Identificador de la historia"	format(uuid)
+//	@Success		200		{object}	EffortComparisonRow		"Comparación de la historia."
+//	@Failure		401		{object}	delivery.ErrorResponse	"Se requiere iniciar sesión."
+//	@Failure		404		{object}	delivery.ErrorResponse	"La historia no existe o pertenece a un proyecto del que quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo."
+//	@Failure		500		{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/stories/{storyId}/effort-comparison [get]
+func (h *Handler) getStoryEffortComparison(c *gin.Context) {
+	// RequireStoryAccess de la 003 ya respondió 404 a la historia inexistente o ajena; si falta el
+	// acceso, la ruta se registró fuera de ese middleware: es un error de composición y responde 500.
+	access, ok := storyAccessFromContext(c)
+	if !ok {
+		respondInternalError(c, "getStoryEffortComparison sin acceso a la historia en el contexto")
+		return
+	}
+
+	// Se compara lo estimado con lo real. La historia eliminada después del middleware responde el
+	// mismo 404 de la 003; cualquier otra falla, 500 sin exponer la causa.
+	row, err := h.efforts.StoryComparison(c.Request.Context(), access)
+	switch {
+	case errors.Is(err, backlogdomain.ErrStoryNotFound):
+		c.JSON(http.StatusNotFound, authdelivery.ErrorResponse{Error: msgStoryNotFound})
+		return
+	case err != nil:
+		respondInternalError(c, "no se pudo comparar el esfuerzo de la historia", "error", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, newEffortComparisonRow(*row))
 }
 
 // updateEffortEntry godoc
@@ -334,6 +380,46 @@ func (h *Handler) listProjectEffort(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, newProjectEffort(*view))
+}
+
+// getProjectEffortComparison godoc
+//
+//	@Summary		Compara el esfuerzo estimado con el real de todas las historias del proyecto
+//	@Description	Devuelve el factor de horas por Story Point vigente y una fila por cada historia del
+//	@Description	proyecto, de cualquier estado, incluidas las que no tienen registros (horas reales
+//	@Description	0.00; FR-052), en el mismo orden que el listado del backlog de la spec 003. Las horas
+//	@Description	estimadas se calculan con el factor vigente en cada consulta (FR-054). Cada fila sigue
+//	@Description	las reglas de "no calculable" de EffortComparisonRow: un proyecto con todas sus
+//	@Description	historias sin estimar responde las filas con null, no un error. Cualquier integrante
+//	@Description	del proyecto puede consultarla.
+//	@Tags			Esfuerzo
+//	@ID				getProjectEffortComparison
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			projectId	path		string						true	"Identificador del proyecto"	format(uuid)
+//	@Success		200			{object}	ProjectEffortComparison		"Comparación por historia."
+//	@Failure		401			{object}	delivery.ErrorResponse		"Se requiere iniciar sesión."
+//	@Failure		404			{object}	delivery.ErrorResponse		"El proyecto no existe o quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo."
+//	@Failure		500			{object}	delivery.ErrorResponse		"Error interno sin detalles expuestos."
+//	@Router			/api/v1/projects/{projectId}/effort-comparison [get]
+func (h *Handler) getProjectEffortComparison(c *gin.Context) {
+	// El subgrupo de la 002 ya respondió 401 y 404; un projectId que no sea UUID solo es posible si
+	// la ruta se registró fuera de ese subgrupo: es un error de composición y responde 500.
+	projectID, err := uuid.Parse(c.Param("projectId"))
+	if err != nil {
+		respondInternalError(c, "getProjectEffortComparison sin un projectId válido en la ruta", "error", err)
+		return
+	}
+
+	// Se compara lo estimado con lo real de todas las historias y cualquier falla responde 500 sin
+	// exponer la causa.
+	view, err := h.efforts.ProjectComparison(c.Request.Context(), projectID)
+	if err != nil {
+		respondInternalError(c, "no se pudo comparar el esfuerzo del proyecto", "error", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, newProjectEffortComparison(*view))
 }
 
 // storyAccessFromContext devuelve el StoryAccess que RequireStoryAccess de la 003 dejó en el contexto

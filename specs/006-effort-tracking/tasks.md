@@ -479,7 +479,7 @@ sprint; desde otro integrante, `403`; `DELETE` del autor devuelve `204` y el tot
       (`409 read_only` en modificar y eliminar) y `TestUS3_ExIntegrante` (baja con la 002: `404` de
       registro inexistente y los registros siguen visibles para los vigentes; tras reincorporarlo
       vuelve a poder modificarlos) — depende de T039
-- [ ] T045 [US3] Agregar a `backend/internal/effort/delivery/effort_concurrency_test.go` la variante
+- [X] T045 [US3] Agregar a `backend/internal/effort/delivery/effort_concurrency_test.go` la variante
       `TestEffortDailyCap_ConcurrencyMixed`, **sin** etiqueta: con 18 h cargadas en la fecha, a la vez
       una modificación de un registro de 2 h a 6 h y tres altas de 2 h; en ningún intercalado la
       fecha supera 24,00 y ninguna respuesta es `500` (FR-024, SC-005) — depende de T044

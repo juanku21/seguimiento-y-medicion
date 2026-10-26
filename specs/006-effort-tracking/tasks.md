@@ -702,7 +702,7 @@ vulnerabilidades y verificación de las puertas de calidad.
       operaciones, sus códigos de respuesta (todas declaran `500`) y sus esquemas, incluidos los
       números de 2 decimales y los `null` de "no calculable"; corregir las anotaciones si difieren
       (Principio VIII) — depende de T071
-- [ ] T073 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona el
+- [X] T073 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona el
       registro de esfuerzo y la comparación entre estimado y real, y se agregan los siete endpoints
       (la variable ya está desde T019), la sección "Esfuerzo" del detalle de la
       historia y la página de esfuerzo del proyecto, manteniendo el criterio de que alguien que no

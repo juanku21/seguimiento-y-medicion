@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,4 +24,10 @@ type AnchoredSprint struct {
 // al alcanzarse (RN-23, data-model.md sección 6.2).
 func GraceOpen(closedAt, now time.Time, grace time.Duration) bool {
 	return now.Before(closedAt.Add(grace))
+}
+
+// EnsureEntryWritable decide si un registro de esfuerzo anclado a sprint todavía se puede modificar o
+// eliminar en now con la tabla de data-model.md sección 6.2 (FR-020, FR-021, RN-09, RN-10).
+func EnsureEntryWritable(sprint *AnchoredSprint, now time.Time, grace time.Duration) error {
+	return errors.New("not implemented")
 }

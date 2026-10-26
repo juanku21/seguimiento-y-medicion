@@ -438,7 +438,7 @@ sprint; desde otro integrante, `403`; `DELETE` del autor devuelve `204` y el tot
 
 ### Pruebas de la Historia 3 ⚠️
 
-- [ ] T040 [P] [US3] Pruebas unitarias **obligatorias** de
+- [X] T040 [P] [US3] Pruebas unitarias **obligatorias** de
       `EnsureEntryWritable(sprint *AnchoredSprint, now time.Time, grace time.Duration) error` en
       `backend/internal/effort/domain/grace_test.go` con la tabla de data-model.md sección 6.2,
       cubriendo RN-09 y RN-10: sin sprint → ok; `planned` y `active` → ok; `closed` hace 10 h con

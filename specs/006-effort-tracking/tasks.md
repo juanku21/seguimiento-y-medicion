@@ -494,7 +494,7 @@ sprint; desde otro integrante, `403`; `DELETE` del autor devuelve `204` y el tot
 
 - [X] T047 [P] [US3] Implementar `EnsureEntryWritable` en `backend/internal/effort/domain/grace.go`
       sobre `GraceOpen` — depende de T040
-- [ ] T048 [P] [US3] Implementar `EnsureAuthor` en `backend/internal/effort/domain/author.go` —
+- [X] T048 [P] [US3] Implementar `EnsureAuthor` en `backend/internal/effort/domain/author.go` —
       depende de T041
 - [ ] T049 [US3] Implementar `ValidateEntryPatch` en `backend/internal/effort/delivery/validation.go`
       con el DTO `EffortEntryPatch` en `backend/internal/effort/delivery/dto.go`: cada campo como

@@ -492,7 +492,7 @@ sprint; desde otro integrante, `403`; `DELETE` del autor devuelve `204` y el tot
 
 ### Implementación de la Historia 3
 
-- [ ] T047 [P] [US3] Implementar `EnsureEntryWritable` en `backend/internal/effort/domain/grace.go`
+- [X] T047 [P] [US3] Implementar `EnsureEntryWritable` en `backend/internal/effort/domain/grace.go`
       sobre `GraceOpen` — depende de T040
 - [ ] T048 [P] [US3] Implementar `EnsureAuthor` en `backend/internal/effort/domain/author.go` —
       depende de T041

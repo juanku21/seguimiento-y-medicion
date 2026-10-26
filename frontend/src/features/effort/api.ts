@@ -7,11 +7,13 @@ import {
   type ApiResult,
 } from "@/lib/api-client";
 import type {
+  EffortComparisonRow,
   EffortEntry,
   EffortEntryInput,
   EffortEntryPatch,
   MemberEffort,
   ProjectEffort,
+  ProjectEffortComparison,
   ProjectEffortFilter,
   StoryEffort,
 } from "@/types/effort";
@@ -163,5 +165,63 @@ export function listProjectEffort(
   return getJson(
     `/api/v1/projects/${encodeURIComponent(projectId)}/effort-entries${search}`,
     isProjectEffort,
+  );
+}
+
+// Reconoce un número o null, la forma de los valores que pueden ser "no calculable".
+function isNumberOrNull(value: unknown): value is number | null {
+  return value === null || typeof value === "number";
+}
+
+// Reconoce una fila de la comparación entre estimado y real (EffortComparisonRow), sin confiar en el
+// cuerpo recibido: las horas reales siempre son un número y el resto admite null (FR-050, FR-051).
+function isEffortComparisonRow(value: unknown): value is EffortComparisonRow {
+  return (
+    isRecord(value) &&
+    typeof value.storyId === "string" &&
+    typeof value.title === "string" &&
+    isNumberOrNull(value.storyPoints) &&
+    isNumberOrNull(value.estimatedHours) &&
+    typeof value.actualHours === "number" &&
+    isNumberOrNull(value.deviationHours) &&
+    isNumberOrNull(value.deviationPercent)
+  );
+}
+
+// Reconoce la comparación del proyecto (ProjectEffortComparison): el factor vigente y una fila por
+// historia con su forma.
+function isProjectEffortComparison(
+  value: unknown,
+): value is ProjectEffortComparison {
+  return (
+    isRecord(value) &&
+    typeof value.hoursPerStoryPoint === "number" &&
+    Array.isArray(value.stories) &&
+    value.stories.every(isEffortComparisonRow)
+  );
+}
+
+// Consulta la comparación entre estimado y real de una historia con
+// GET /api/v1/stories/{storyId}/effort-comparison, usando la sesión de la pestaña (006/US5). El
+// cálculo lo resuelve el backend con el factor vigente (FR-046 a FR-054); el 404 llega con el
+// mensaje del backend y ante un 401 el cliente HTTP descarta la sesión.
+export function getStoryEffortComparison(
+  storyId: string,
+): Promise<ApiResult<EffortComparisonRow>> {
+  return getJson(
+    `/api/v1/stories/${encodeURIComponent(storyId)}/effort-comparison`,
+    isEffortComparisonRow,
+  );
+}
+
+// Consulta la comparación entre estimado y real de todas las historias del proyecto con
+// GET /api/v1/projects/{projectId}/effort-comparison, usando la sesión de la pestaña (006/US5). Las
+// historias llegan en el orden del backlog, incluidas las que no tienen registros (FR-052).
+export function getProjectEffortComparison(
+  projectId: string,
+): Promise<ApiResult<ProjectEffortComparison>> {
+  return getJson(
+    `/api/v1/projects/${encodeURIComponent(projectId)}/effort-comparison`,
+    isProjectEffortComparison,
   );
 }

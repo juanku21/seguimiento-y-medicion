@@ -663,7 +663,7 @@ reales, diferencia absoluta y porcentual, con "no calculable" donde corresponde.
       `GET /api/v1/stories/:storyId/effort-comparison` en `RegisterStoryRoutes` y
       `GET /effort-comparison` en `RegisterProjectRoutes` de
       `backend/internal/effort/delivery/routes.go` — depende de T068
-- [ ] T070 [US5] Implementar `getStoryEffortComparison` y `getProjectEffortComparison` en
+- [X] T070 [US5] Implementar `getStoryEffortComparison` y `getProjectEffortComparison` en
       `frontend/src/features/effort/api.ts`, `EffortComparisonCard` en
       `frontend/src/features/effort/components/effort-comparison-card.tsx` (en `StoryEffortSection`) y
       `EffortComparisonTable` en

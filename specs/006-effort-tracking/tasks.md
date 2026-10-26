@@ -627,7 +627,7 @@ reales, diferencia absoluta y porcentual, con "no calculable" donde corresponde.
       puntos sin registros → −1800 y −10000; factor 610 (6,1); redondeo de 1/3 → 3333, 2/3 → 6667,
       −1/3 → −3333, empate positivo y negativo **mitad lejos de cero**, y 1650/12600 → 1310 (13,10 %
       de 008/US1-1); ningún `float64` en la implementación — depende de T062
-- [ ] T064 [US5] Pruebas de integración en `backend/internal/effort/delivery/handler_test.go`, una por
+- [X] T064 [US5] Pruebas de integración en `backend/internal/effort/delivery/handler_test.go`, una por
       escenario con `// Escenario: <nombre> (006/US5)`: `TestUS5_Exceso`, `TestUS5_Ahorro`,
       `TestUS5_Exacta`, `TestUS5_CambioDeFactor` (factor 6 → 8 con la 002: estimadas recalculadas,
       reales sin cambio), `TestUS5_SinEstimar` (`null` en los tres campos, nunca `0.00`),

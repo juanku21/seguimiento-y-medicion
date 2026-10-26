@@ -1950,3 +1950,384 @@ func TestUS4_NoIntegrante(t *testing.T) {
 		})
 	}
 }
+
+// Pruebas de integración de US5 (T064): GET /api/v1/stories/{storyId}/effort-comparison y GET
+// /api/v1/projects/{projectId}/effort-comparison con un caso por escenario de spec.md. El factor de
+// horas por Story Point se fija y se cambia con el PUT real de la 002, los Story Points con la 003 y
+// solo las horas reales se siembran en la base. Cada valor se compara como texto JSON literal para
+// verificar los 2 decimales y que "no calculable" llegue como null y nunca como 0.00.
+
+// effortComparisonResponse refleja EffortComparisonRow del contrato. Los números se conservan como
+// texto literal y Raw guarda el objeto para distinguir null de un campo ausente.
+type effortComparisonResponse struct {
+	StoryID          string                     `json:"storyId"`
+	Title            string                     `json:"title"`
+	StoryPoints      json.RawMessage            `json:"storyPoints"`
+	EstimatedHours   json.RawMessage            `json:"estimatedHours"`
+	ActualHours      json.RawMessage            `json:"actualHours"`
+	DeviationHours   json.RawMessage            `json:"deviationHours"`
+	DeviationPercent json.RawMessage            `json:"deviationPercent"`
+	Raw              map[string]json.RawMessage `json:"-"`
+}
+
+// projectComparisonResponse refleja ProjectEffortComparison del contrato.
+type projectComparisonResponse struct {
+	HoursPerStoryPoint json.RawMessage            `json:"hoursPerStoryPoint"`
+	Stories            []effortComparisonResponse `json:"stories"`
+	Raw                map[string]json.RawMessage `json:"-"`
+}
+
+// expectedComparison son los valores literales que se esperan en una fila de la comparación; "null"
+// representa "no calculable".
+type expectedComparison struct {
+	storyPoints, estimated, actual, deviation, percent string
+}
+
+// storyComparisonPath es la ruta de la comparación de una historia según contracts/openapi.yaml.
+func storyComparisonPath(storyID string) string {
+	return "/api/v1/stories/" + storyID + "/effort-comparison"
+}
+
+// projectComparisonPath es la ruta de la comparación del proyecto según contracts/openapi.yaml.
+func projectComparisonPath(projectID string) string {
+	return "/api/v1/projects/" + projectID + "/effort-comparison"
+}
+
+// getStoryComparison consulta la comparación de la historia, exige un 200 y devuelve el cuerpo
+// decodificado.
+func (e *effortTestEnv) getStoryComparison(t *testing.T, token string, storyID uuid.UUID) effortComparisonResponse {
+	t.Helper()
+	rec := e.do(t, http.MethodGet, storyComparisonPath(storyID.String()), token, nil)
+	var body effortComparisonResponse
+	effortRequireStatus(t, rec, http.StatusOK, &body)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body.Raw), "el cuerpo del 200 no es un objeto JSON")
+	return body
+}
+
+// getProjectComparison consulta la comparación del proyecto, exige un 200 y devuelve el cuerpo
+// decodificado, con el objeto crudo de cada fila.
+func (e *effortTestEnv) getProjectComparison(t *testing.T, token string, projectID uuid.UUID) projectComparisonResponse {
+	t.Helper()
+	rec := e.do(t, http.MethodGet, projectComparisonPath(projectID.String()), token, nil)
+	var body projectComparisonResponse
+	effortRequireStatus(t, rec, http.StatusOK, &body)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body.Raw), "el cuerpo del 200 no es un objeto JSON")
+	var rawRows []map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(body.Raw["stories"], &rawRows), "stories no es una lista de objetos")
+	for i := range body.Stories {
+		body.Stories[i].Raw = rawRows[i]
+	}
+	return body
+}
+
+// setHoursPerStoryPoint cambia el factor de horas por Story Point del proyecto del "Dado" con el PUT
+// /api/v1/projects/{id} de la 002, conservando el resto de sus datos.
+func (e *effortTestEnv) setHoursPerStoryPoint(t *testing.T, ownerToken string, projectID uuid.UUID, factor any) {
+	t.Helper()
+	effortRequireStatus(t, e.do(t, http.MethodPut, "/api/v1/projects/"+projectID.String(), ownerToken, map[string]any{
+		"name":               "Portal de Clientes",
+		"description":        nil,
+		"startDate":          effortProjectStart,
+		"plannedEndDate":     effortProjectEnd,
+		"hoursPerStoryPoint": factor,
+	}), http.StatusOK, nil)
+}
+
+// createStoryWithPriority crea con la 003 una historia "sin estimar" con la prioridad indicada y
+// devuelve su identificador.
+func (e *effortTestEnv) createStoryWithPriority(t *testing.T, token string, projectID uuid.UUID, title, priority string) uuid.UUID {
+	t.Helper()
+	var created struct {
+		ID string `json:"id"`
+	}
+	effortRequireStatus(t, e.do(t, http.MethodPost, "/api/v1/projects/"+projectID.String()+"/stories", token, map[string]any{
+		"title":              title,
+		"priority":           priority,
+		"storyPoints":        nil,
+		"acceptanceCriteria": []string{effortCriterion},
+	}), http.StatusCreated, &created)
+	return effortParseID(t, created.ID)
+}
+
+// backlogOrder devuelve los identificadores de las historias del proyecto en el orden del listado
+// del backlog de la 003, sin filtros.
+func (e *effortTestEnv) backlogOrder(t *testing.T, token string, projectID uuid.UUID) []string {
+	t.Helper()
+	var list struct {
+		Stories []struct {
+			ID string `json:"id"`
+		} `json:"stories"`
+	}
+	effortRequireStatus(t, e.do(t, http.MethodGet, "/api/v1/projects/"+projectID.String()+"/stories", token, nil),
+		http.StatusOK, &list)
+	ids := make([]string, 0, len(list.Stories))
+	for _, story := range list.Stories {
+		ids = append(ids, story.ID)
+	}
+	return ids
+}
+
+// seedStoryHours siembra las horas reales de Ana sobre la historia, repartidas en registros de a lo
+// sumo 24 horas en días consecutivos desde el 2026-10-05, para respetar el tope diario.
+func (f effortFixture) seedStoryHours(t *testing.T, storyID uuid.UUID, hundredths int) {
+	t.Helper()
+	day := effortDate(t, "2026-10-05")
+	for hundredths > 0 {
+		chunk := min(hundredths, 2400)
+		f.env.seedStoryEntry(t, storyID, effortSeed{userID: f.ownerID, entryDate: day.Format(time.DateOnly), hours: chunk, createdAt: effortSeedBase})
+		hundredths -= chunk
+		day = day.AddDate(0, 0, 1)
+	}
+}
+
+// requireComparison exige que la fila sea la de la historia indicada con los valores literales
+// esperados, y que los cinco valores estén presentes en el objeto aunque sean null.
+func requireComparison(t *testing.T, row effortComparisonResponse, storyID uuid.UUID, title string, want expectedComparison) {
+	t.Helper()
+	assert.Equal(t, storyID.String(), row.StoryID, "storyId")
+	assert.Equal(t, title, row.Title, "title")
+	for _, key := range []string{"storyPoints", "estimatedHours", "actualHours", "deviationHours", "deviationPercent"} {
+		_, present := row.Raw[key]
+		assert.True(t, present, "el campo %s debe estar presente aunque sea null", key)
+	}
+	assert.Equal(t, want.storyPoints, string(row.StoryPoints), "storyPoints")
+	assert.Equal(t, want.estimated, string(row.EstimatedHours), "estimatedHours")
+	assert.Equal(t, want.actual, string(row.ActualHours), "actualHours")
+	assert.Equal(t, want.deviation, string(row.DeviationHours), "deviationHours")
+	assert.Equal(t, want.percent, string(row.DeviationPercent), "deviationPercent")
+}
+
+// comparisonFixture arma el "Dado" común de US5: el proyecto de Ana con factor 6 horas por Story
+// Point (fijado con la 002) y la historia de 5 Story Points del "Dado" de US1, con Bruno Díaz como
+// integrante que consulta.
+type comparisonFixture struct {
+	effortFixture
+	brunoToken string
+}
+
+// newComparisonFixture arma el "Dado" común de US5 con los endpoints reales.
+func newComparisonFixture(t *testing.T) comparisonFixture {
+	t.Helper()
+	f := comparisonFixture{effortFixture: newEffortFixture(t)}
+	f.env.setHoursPerStoryPoint(t, f.ownerToken, f.projectID, 6)
+	_, f.brunoToken = f.env.signUp(t, "Bruno Díaz", "bruno@example.com")
+	f.env.addMember(t, f.ownerToken, f.projectID, "bruno@example.com")
+	return f
+}
+
+// requireStoryAndProjectRow exige la misma fila en la comparación de la historia y en la del
+// proyecto, consultadas por Bruno.
+func (f comparisonFixture) requireStoryAndProjectRow(t *testing.T, storyID uuid.UUID, title string, want expectedComparison) {
+	t.Helper()
+	t.Run("comparación de la historia", func(t *testing.T) {
+		requireComparison(t, f.env.getStoryComparison(t, f.brunoToken, storyID), storyID, title, want)
+	})
+	t.Run("comparación del proyecto", func(t *testing.T) {
+		body := f.env.getProjectComparison(t, f.brunoToken, f.projectID)
+		assert.Equal(t, "6.00", string(body.HoursPerStoryPoint), "factor vigente con 2 decimales")
+		for _, row := range body.Stories {
+			if row.StoryID == storyID.String() {
+				requireComparison(t, row, storyID, title, want)
+				return
+			}
+		}
+		t.Fatalf("la comparación del proyecto no incluye la historia %s", storyID)
+	})
+}
+
+// Escenario: Caso normal — historia de 5 Story Points con 36 horas reales y factor 6 (006/US5)
+func TestUS5_Exceso(t *testing.T) {
+	f := newComparisonFixture(t)
+	f.seedStoryHours(t, f.storyID, 3600)
+
+	// 30 estimadas, 36 reales, +6 horas y +20 %.
+	f.requireStoryAndProjectRow(t, f.storyID, "Alta de clientes",
+		expectedComparison{storyPoints: "5", estimated: "30.00", actual: "36.00", deviation: "6.00", percent: "20.00"})
+}
+
+// Escenario: Caso alternativo — la misma historia con 24 horas reales (006/US5)
+func TestUS5_Ahorro(t *testing.T) {
+	f := newComparisonFixture(t)
+	f.seedStoryHours(t, f.storyID, 2400)
+
+	// El signo negativo distingue el ahorro del exceso.
+	f.requireStoryAndProjectRow(t, f.storyID, "Alta de clientes",
+		expectedComparison{storyPoints: "5", estimated: "30.00", actual: "24.00", deviation: "-6.00", percent: "-20.00"})
+}
+
+// Escenario: Caso alternativo — horas reales que coinciden exactamente con las estimadas (006/US5)
+func TestUS5_Exacta(t *testing.T) {
+	f := newComparisonFixture(t)
+	f.seedStoryHours(t, f.storyID, 3000)
+
+	f.requireStoryAndProjectRow(t, f.storyID, "Alta de clientes",
+		expectedComparison{storyPoints: "5", estimated: "30.00", actual: "30.00", deviation: "0.00", percent: "0.00"})
+}
+
+// Escenario: Caso alternativo — el propietario cambia el factor de 6 a 8 (006/US5)
+func TestUS5_CambioDeFactor(t *testing.T) {
+	// Dos historias con horas reales: la del "Dado" (5 Story Points, 36 horas) y una de 3 Story
+	// Points con 10 horas, cuyo porcentaje con factor 8 es periódico (−14/24).
+	f := newComparisonFixture(t)
+	billingID := f.env.createStory(t, f.ownerToken, f.projectID, "Baja de clientes")
+	f.env.estimateStory(t, f.ownerToken, billingID, 3)
+	f.seedStoryHours(t, f.storyID, 3600)
+	f.seedStoryHours(t, billingID, 1000)
+
+	before := f.env.getProjectComparison(t, f.brunoToken, f.projectID)
+	require.Len(t, before.Stories, 2, "precondición: dos historias")
+	assert.Equal(t, "30.00", string(before.Stories[0].EstimatedHours), "precondición: estimada con factor 6")
+	assert.Equal(t, "18.00", string(before.Stories[1].EstimatedHours), "precondición: estimada con factor 6")
+
+	f.env.setHoursPerStoryPoint(t, f.ownerToken, f.projectID, 8)
+
+	// Las estimadas de todas las historias se recalculan con el factor nuevo; las reales no cambian.
+	after := f.env.getProjectComparison(t, f.brunoToken, f.projectID)
+	assert.Equal(t, "8.00", string(after.HoursPerStoryPoint), "factor vigente")
+	require.Len(t, after.Stories, 2)
+	requireComparison(t, after.Stories[0], f.storyID, "Alta de clientes",
+		expectedComparison{storyPoints: "5", estimated: "40.00", actual: "36.00", deviation: "-4.00", percent: "-10.00"})
+	requireComparison(t, after.Stories[1], billingID, "Baja de clientes",
+		expectedComparison{storyPoints: "3", estimated: "24.00", actual: "10.00", deviation: "-14.00", percent: "-58.33"})
+	requireComparison(t, f.env.getStoryComparison(t, f.brunoToken, f.storyID), f.storyID, "Alta de clientes",
+		expectedComparison{storyPoints: "5", estimated: "40.00", actual: "36.00", deviation: "-4.00", percent: "-10.00"})
+
+	// El cambio de factor no tocó los registros de esfuerzo.
+	assert.Equal(t, int64(3600), f.env.storyHundredths(t, f.storyID), "horas reales de Alta de clientes")
+	assert.Equal(t, int64(1000), f.env.storyHundredths(t, billingID), "horas reales de Baja de clientes")
+}
+
+// Escenario: Caso límite — historia "sin estimar" con 12 horas reales (006/US5)
+func TestUS5_SinEstimar(t *testing.T) {
+	f := newComparisonFixture(t)
+	unestimatedID := f.env.createStory(t, f.ownerToken, f.projectID, "Reporte de ventas")
+	f.seedStoryHours(t, unestimatedID, 1200)
+
+	// Estimada y ambas desviaciones llegan como null, nunca como 0.00.
+	f.requireStoryAndProjectRow(t, unestimatedID, "Reporte de ventas",
+		expectedComparison{storyPoints: "null", estimated: "null", actual: "12.00", deviation: "null", percent: "null"})
+}
+
+// Escenario: Caso límite — historia estimada en 0 Story Points con 4 horas reales (006/US5)
+func TestUS5_CeroPuntos(t *testing.T) {
+	f := newComparisonFixture(t)
+	zeroID := f.env.createStory(t, f.ownerToken, f.projectID, "Ajuste de textos")
+	f.env.estimateStory(t, f.ownerToken, zeroID, 0)
+	f.seedStoryHours(t, zeroID, 400)
+
+	// 0 estimadas, desviación absoluta igual a las reales y porcentual no calculable.
+	f.requireStoryAndProjectRow(t, zeroID, "Ajuste de textos",
+		expectedComparison{storyPoints: "0", estimated: "0.00", actual: "4.00", deviation: "4.00", percent: "null"})
+}
+
+// Escenario: Caso límite — historia de 3 Story Points sin ningún registro de esfuerzo (006/US5)
+func TestUS5_SinRegistros(t *testing.T) {
+	f := newComparisonFixture(t)
+	idleID := f.env.createStory(t, f.ownerToken, f.projectID, "Baja de clientes")
+	f.env.estimateStory(t, f.ownerToken, idleID, 3)
+
+	// 18 estimadas, 0 reales, −18 horas y −100 %.
+	f.requireStoryAndProjectRow(t, idleID, "Baja de clientes",
+		expectedComparison{storyPoints: "3", estimated: "18.00", actual: "0.00", deviation: "-18.00", percent: "-100.00"})
+}
+
+// Escenario: Caso límite — historia estimada en 0 Story Points y sin registros (006/US5)
+func TestUS5_CeroPuntosSinRegistros(t *testing.T) {
+	f := newComparisonFixture(t)
+	zeroID := f.env.createStory(t, f.ownerToken, f.projectID, "Ajuste de textos")
+	f.env.estimateStory(t, f.ownerToken, zeroID, 0)
+
+	f.requireStoryAndProjectRow(t, zeroID, "Ajuste de textos",
+		expectedComparison{storyPoints: "0", estimated: "0.00", actual: "0.00", deviation: "0.00", percent: "null"})
+}
+
+// Escenario: Caso límite — proyecto cuyas historias están todas "sin estimar" (006/US5)
+func TestUS5_TodasSinEstimar(t *testing.T) {
+	// La historia del "Dado" pasa por un sprint Activo, se completa y después vuelve a "sin estimar"
+	// directamente en la base; las otras tres se crean sin estimar con distintas prioridades, de modo
+	// que la lista incluye historias de cualquier estado y el orden del backlog decide por prioridad y
+	// por created_at.
+	f := newComparisonFixture(t)
+	f.env.activeSprintWith(t, f.ownerToken, f.projectID, f.storyID)
+	f.env.completeStory(t, f.ownerToken, f.storyID)
+	f.env.clearStoryPoints(t, f.storyID)
+	lowID := f.env.createStoryWithPriority(t, f.ownerToken, f.projectID, "Exportar clientes", "low")
+	mediumID := f.env.createStoryWithPriority(t, f.ownerToken, f.projectID, "Reporte de ventas", "medium")
+	highID := f.env.createStoryWithPriority(t, f.ownerToken, f.projectID, "Búsqueda de clientes", "high")
+	f.seedStoryHours(t, f.storyID, 500)
+	f.seedStoryHours(t, mediumID, 250)
+
+	wantOrder := []string{f.storyID.String(), highID.String(), mediumID.String(), lowID.String()}
+	require.Equal(t, wantOrder, f.env.backlogOrder(t, f.ownerToken, f.projectID), "precondición: orden del backlog de la 003")
+
+	body := f.env.getProjectComparison(t, f.brunoToken, f.projectID)
+
+	// La lista completa, sin error, en el orden del listado del backlog de la 003.
+	assert.Equal(t, "6.00", string(body.HoursPerStoryPoint), "factor vigente")
+	rowIDs := make([]string, 0, len(body.Stories))
+	for _, row := range body.Stories {
+		rowIDs = append(rowIDs, row.StoryID)
+	}
+	require.Equal(t, wantOrder, rowIDs, "todas las historias, de cualquier estado, en el orden del backlog")
+
+	// Todas las estimadas y desviaciones son null; las reales se informan igual.
+	actual := map[string]string{f.storyID.String(): "5.00", highID.String(): "0.00", mediumID.String(): "2.50", lowID.String(): "0.00"}
+	titles := map[string]string{f.storyID.String(): "Alta de clientes", highID.String(): "Búsqueda de clientes",
+		mediumID.String(): "Reporte de ventas", lowID.String(): "Exportar clientes"}
+	for _, row := range body.Stories {
+		id := effortParseID(t, row.StoryID)
+		requireComparison(t, row, id, titles[row.StoryID],
+			expectedComparison{storyPoints: "null", estimated: "null", actual: actual[row.StoryID], deviation: "null", percent: "null"})
+	}
+}
+
+// Escenario: Caso de error — usuario que no es integrante del proyecto (006/US5)
+func TestUS5_NoIntegrante(t *testing.T) {
+	f := newComparisonFixture(t)
+	f.seedStoryHours(t, f.storyID, 3600)
+	_, outsiderToken := f.env.signUp(t, "Carlos Gómez", "carlos@example.com")
+
+	// La comparación del proyecto responde el mismo 404 de proyecto inexistente de la 002.
+	t.Run("comparación del proyecto", func(t *testing.T) {
+		projectNotFound := f.env.do(t, http.MethodGet, "/api/v1/projects/"+f.projectID.String(), outsiderToken, nil)
+		require.Equal(t, http.StatusNotFound, projectNotFound.Code, "precondición: la 002 responde 404 a quien no es integrante")
+
+		rec := f.env.do(t, http.MethodGet, projectComparisonPath(f.projectID.String()), outsiderToken, nil)
+
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.JSONEq(t, projectNotFound.Body.String(), rec.Body.String(), "el cuerpo debe ser el 404 de la 002")
+		assert.NotContains(t, rec.Body.String(), "stories", "el 404 no revela historias")
+		assert.NotContains(t, rec.Body.String(), "hoursPerStoryPoint", "el 404 no revela el factor")
+	})
+
+	// La comparación de una historia del proyecto responde el 404 de historia inexistente de la 003,
+	// que es el que da RequireStoryAccess a quien no es integrante del proyecto de la historia.
+	t.Run("comparación de la historia", func(t *testing.T) {
+		rec := f.env.do(t, http.MethodGet, storyComparisonPath(f.storyID.String()), outsiderToken, nil)
+
+		f.env.requireStoryNotFoundLike03(t, outsiderToken, f.storyID.String(), rec)
+		assert.NotContains(t, rec.Body.String(), "estimatedHours", "el 404 no revela la comparación")
+	})
+}
+
+// Escenario: Caso de error — identificador de historia que no existe (006/US5)
+func TestUS5_HistoriaInexistente(t *testing.T) {
+	// Un UUID válido sin historia y un identificador mal formado reciben el mismo 404 de la 003.
+	cases := []struct {
+		name    string
+		storyID string
+	}{
+		{name: "UUID sin historia", storyID: uuid.NewString()},
+		{name: "identificador mal formado", storyID: "no-es-un-uuid"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newComparisonFixture(t)
+
+			rec := f.env.do(t, http.MethodGet, storyComparisonPath(tc.storyID), f.ownerToken, nil)
+
+			f.env.requireStoryNotFoundLike03(t, f.ownerToken, tc.storyID, rec)
+			assert.NotContains(t, rec.Body.String(), "estimatedHours", "el 404 no revela la comparación")
+		})
+	}
+}

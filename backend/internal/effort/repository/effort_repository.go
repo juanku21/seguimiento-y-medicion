@@ -19,7 +19,8 @@ import (
 )
 
 // EffortRepository implementa domain.EffortRepository con GORM sobre la tabla effort_entries. Por
-// ahora está implementado Create; el resto de las operaciones corresponde a tareas posteriores.
+// ahora están implementados Create y ListForStory; el resto de las operaciones corresponde a tareas
+// posteriores.
 type EffortRepository struct {
 	db *gorm.DB
 }
@@ -269,10 +270,66 @@ func (r *EffortRepository) Delete(ctx context.Context, entryID, actorID uuid.UUI
 	return errors.New("not implemented")
 }
 
-// ListForStory devuelve los registros de una historia. Firma mínima de T015: la implementación
-// corresponde a T036.
+// entryRow es la fila plana que leen las consultas de listado: el registro, el nombre completo de su
+// autor y el título de su historia, y los datos del sprint asociado, que son NULL cuando el registro
+// no tiene sprint por el LEFT JOIN.
+type entryRow struct {
+	domain.EffortEntry
+	AuthorFullName string
+	StoryTitle     string
+	SprintName     *string
+	SprintStatus   *sprintsdomain.SprintStatus
+	SprintClosedAt *time.Time
+}
+
+// view arma el EntryView de la fila; el sprint queda nil si el registro no tiene sprint.
+func (row entryRow) view() domain.EntryView {
+	view := domain.EntryView{
+		Entry:  row.EffortEntry,
+		Author: domain.UserRef{ID: row.UserID, FullName: row.AuthorFullName},
+		Story:  domain.StoryRef{ID: row.StoryID, Title: row.StoryTitle},
+	}
+	if row.SprintID != nil && row.SprintName != nil && row.SprintStatus != nil {
+		view.Sprint = &domain.AnchoredSprint{
+			ID:       *row.SprintID,
+			Name:     *row.SprintName,
+			Status:   *row.SprintStatus,
+			ClosedAt: row.SprintClosedAt,
+		}
+	}
+	return view
+}
+
+// ListForStory devuelve los registros de una historia en una sola consulta (research.md sección
+// 11): effort_entries unido a users (solo id y nombre completo, nunca password_hash), a user_stories
+// para el título y con LEFT JOIN a sprints para el nombre, el estado y el cierre del sprint asociado.
+// El orden es el de FR-035: fecha descendente, creación ascendente e id ascendente como desempate.
+// Una historia sin registros devuelve una lista vacía, nunca nil.
 func (r *EffortRepository) ListForStory(ctx context.Context, storyID uuid.UUID) ([]domain.EntryView, error) {
-	return nil, errors.New("not implemented")
+	rows := []entryRow{}
+	err := r.db.WithContext(ctx).
+		Table("effort_entries").
+		Select(`effort_entries.id, effort_entries.story_id, effort_entries.user_id,
+			effort_entries.sprint_id, effort_entries.entry_date, effort_entries.activity,
+			effort_entries.hours_hundredths, effort_entries.created_at, effort_entries.updated_at,
+			users.full_name AS author_full_name, user_stories.title AS story_title,
+			sprints.name AS sprint_name, sprints.status AS sprint_status,
+			sprints.closed_at AS sprint_closed_at`).
+		Joins("JOIN users ON users.id = effort_entries.user_id").
+		Joins("JOIN user_stories ON user_stories.id = effort_entries.story_id").
+		Joins("LEFT JOIN sprints ON sprints.id = effort_entries.sprint_id").
+		Where("effort_entries.story_id = ?", storyID).
+		Order("effort_entries.entry_date DESC, effort_entries.created_at ASC, effort_entries.id ASC").
+		Find(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("listar el esfuerzo de la historia: %w", err)
+	}
+
+	views := make([]domain.EntryView, 0, len(rows))
+	for _, row := range rows {
+		views = append(views, row.view())
+	}
+	return views, nil
 }
 
 // ListForProject devuelve los registros de un proyecto según el filtro. Firma mínima de T015: la

@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/google/uuid"
 	authdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/delivery"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/domain"
 )
@@ -27,15 +28,21 @@ const (
 // compartidos con el formulario del frontend (research.md sección 6). Una fecha ausente, mal formada
 // o inexistente, como 2026-02-30, recibe el mismo mensaje.
 const (
-	msgHoursRange       = "Las horas deben ser mayores que 0 y como máximo 24."
-	msgHoursMultiple    = "Las horas se cargan en múltiplos de 0,25 (un cuarto de hora)."
-	msgHoursNumber      = "Las horas son obligatorias y deben ser un número."
-	msgActivityRequired = "La actividad es obligatoria."
-	msgActivityTooLong  = "La actividad admite como máximo 300 caracteres."
-	msgEntryDateInvalid = "La fecha es obligatoria y debe tener el formato AAAA-MM-DD."
-	msgPatchEmpty       = "Hay que indicar al menos un campo a modificar."
-	msgPatchImmutable   = "La historia, el integrante y el sprint de un registro no se modifican; para mover horas, eliminá el registro y creá uno nuevo."
+	msgHoursRange         = "Las horas deben ser mayores que 0 y como máximo 24."
+	msgHoursMultiple      = "Las horas se cargan en múltiplos de 0,25 (un cuarto de hora)."
+	msgHoursNumber        = "Las horas son obligatorias y deben ser un número."
+	msgActivityRequired   = "La actividad es obligatoria."
+	msgActivityTooLong    = "La actividad admite como máximo 300 caracteres."
+	msgEntryDateInvalid   = "La fecha es obligatoria y debe tener el formato AAAA-MM-DD."
+	msgPatchEmpty         = "Hay que indicar al menos un campo a modificar."
+	msgPatchImmutable     = "La historia, el integrante y el sprint de un registro no se modifican; para mover horas, eliminá el registro y creá uno nuevo."
+	msgFilterNotInProject = "El filtro no corresponde al proyecto."
+	msgFilterDateInvalid  = "La fecha debe tener el formato AAAA-MM-DD."
+	msgFilterRangeReverse = "La fecha de fin del rango no puede ser anterior a la de inicio."
 )
+
+// withoutSprintValue es el valor de sprintId que pide los registros sin sprint (FR-039).
+const withoutSprintValue = "none"
 
 // Errores de ParseHours, parseEntryDate y normalizeActivity, cuyo texto es el mensaje que se
 // informa en el campo correspondiente.
@@ -192,10 +199,88 @@ func ValidateEntryPatch(req EffortEntryPatch) (domain.EntryPatch, []authdelivery
 }
 
 // ParseEntryFilter valida los parámetros de query de la consulta de esfuerzo del proyecto y
-// devuelve el EntryFilter o un FieldError por cada filtro inválido (FR-038, FR-043). Firma mínima
-// de T055; la implementación corresponde a T058.
+// devuelve el EntryFilter o un FieldError por cada filtro inválido, todos a la vez (FR-038, FR-043,
+// Principio VII). Un parámetro ausente o vacío no filtra. Los identificadores mal formados reciben el
+// mismo mensaje que un filtro de otro proyecto (FR-044, SC-018); que pertenezcan al proyecto lo
+// valida el repositorio. Las fechas se devuelven a medianoche UTC. Si hay algún filtro inválido, se
+// devuelve un EntryFilter vacío.
 func ParseEntryFilter(query url.Values) (domain.EntryFilter, []authdelivery.FieldError) {
-	return domain.EntryFilter{}, []authdelivery.FieldError{{Field: "query", Message: "not implemented"}}
+	fields := []authdelivery.FieldError{}
+	addField := func(field, message string) {
+		fields = append(fields, authdelivery.FieldError{Field: field, Message: message})
+	}
+	var filter domain.EntryFilter
+
+	// Integrante e historia: UUID bien formado o ausente.
+	userID, ok := parseFilterID(query.Get("userId"))
+	if !ok {
+		addField("userId", msgFilterNotInProject)
+	}
+	filter.UserID = userID
+	storyID, ok := parseFilterID(query.Get("storyId"))
+	if !ok {
+		addField("storyId", msgFilterNotInProject)
+	}
+	filter.StoryID = storyID
+
+	// Sprint: "none" pide los registros sin sprint; cualquier otro valor debe ser un UUID (FR-039).
+	if sprint := query.Get("sprintId"); sprint == withoutSprintValue {
+		filter.WithoutSprint = true
+	} else {
+		sprintID, ok := parseFilterID(sprint)
+		if !ok {
+			addField("sprintId", msgFilterNotInProject)
+		}
+		filter.SprintID = sprintID
+	}
+
+	// Extremos del rango: fechas reales AAAA-MM-DD, ambos opcionales e inclusivos (FR-038).
+	from, ok := parseFilterDate(query.Get("from"))
+	if !ok {
+		addField("from", msgFilterDateInvalid)
+	}
+	filter.From = from
+	to, ok := parseFilterDate(query.Get("to"))
+	if !ok {
+		addField("to", msgFilterDateInvalid)
+	}
+	filter.To = to
+
+	// Rango invertido: el fin no puede ser anterior al inicio (FR-043).
+	if from != nil && to != nil && to.Before(*from) {
+		addField("to", msgFilterRangeReverse)
+	}
+
+	if len(fields) > 0 {
+		return domain.EntryFilter{}, fields
+	}
+	return filter, nil
+}
+
+// parseFilterID convierte un identificador opcional del filtro: el texto vacío no filtra y devuelve
+// nil; un UUID mal formado devuelve false.
+func parseFilterID(text string) (*uuid.UUID, bool) {
+	if text == "" {
+		return nil, true
+	}
+	id, err := uuid.Parse(text)
+	if err != nil {
+		return nil, false
+	}
+	return &id, true
+}
+
+// parseFilterDate convierte un extremo opcional del rango con las reglas de parseEntryDate: el texto
+// vacío no filtra y devuelve nil; una fecha mal formada o inexistente devuelve false.
+func parseFilterDate(text string) (*time.Time, bool) {
+	if text == "" {
+		return nil, true
+	}
+	date, err := parseEntryDate(text)
+	if err != nil {
+		return nil, false
+	}
+	return &date, true
 }
 
 // parseEntryDate valida una fecha de calendario con el formato AAAA-MM-DD y existente; time.Parse

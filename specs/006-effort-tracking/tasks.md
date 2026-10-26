@@ -575,7 +575,7 @@ sprint y su total; `?from=2026-10-10&to=2026-10-09` devuelve `400` en `to`.
 
 ### Implementación de la Historia 4
 
-- [ ] T058 [US4] Implementar `ParseEntryFilter` en `backend/internal/effort/delivery/validation.go`
+- [X] T058 [US4] Implementar `ParseEntryFilter` en `backend/internal/effort/delivery/validation.go`
       sobre los parámetros de query, con las fechas a medianoche UTC — depende de T055
 - [ ] T059 [US4] Implementar en `backend/internal/effort/repository/effort_repository.go`
       `ValidateFilter` (historia y sprint del proyecto; integrante vigente **o** autor de algún

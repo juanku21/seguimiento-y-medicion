@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/domain"
 	sprintsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
@@ -133,4 +135,51 @@ type EffortConflictResponse struct {
 	Error string `json:"error" validate:"required" example:"Superarías las 24 horas registradas para ese día. Te quedan 4 horas disponibles."`
 	// Horas que quedan para la fecha, con 2 decimales; solo con daily_cap_exceeded, si no null.
 	AvailableHours *Hundredths `json:"availableHours" validate:"required" swaggertype:"number" extensions:"x-nullable" example:"4.00"`
+}
+
+// MemberEffort es la línea del desglose por integrante: la persona y la suma de sus horas sobre la
+// historia, incluidas las de quienes ya no integran el proyecto (FR-032).
+type MemberEffort struct {
+	// Persona que registró esfuerzo sobre la historia.
+	User UserRef `json:"user" validate:"required"`
+	// Suma de sus horas con exactamente 2 decimales (SC-015).
+	Hours Hundredths `json:"hours" validate:"required" swaggertype:"number" example:"10.00"`
+}
+
+// StoryEffort es el esfuerzo de una historia tal como lo devuelve la API (contracts/openapi.yaml):
+// el total, el desglose por integrante y los registros. Sin registros, el total es 0.00 y las dos
+// listas se serializan [] y nunca null (FR-034).
+type StoryEffort struct {
+	// Identificador de la historia consultada.
+	StoryID string `json:"storyId" validate:"required" format:"uuid" example:"2b9f1c3e-8d4a-4f5b-9e6c-7a8b9c0d1e2f"`
+	// Total de horas de todos los registros, de cualquier autor, fecha y sprint (FR-031).
+	TotalHours Hundredths `json:"totalHours" validate:"required" swaggertype:"number" example:"16.00"`
+	// Una línea por persona con registros, ordenadas por nombre, incluidas las ex integrantes (FR-032).
+	ByMember []MemberEffort `json:"byMember" validate:"required"`
+	// Registros por fecha descendente y, a igual fecha, por momento de creación (FR-035).
+	Entries []EffortEntry `json:"entries" validate:"required"`
+}
+
+// newStoryEffort arma la respuesta del esfuerzo de una historia a partir del tipo de lectura del
+// dominio. Las listas se crean con su capacidad y no nil, para que una historia sin registros
+// responda [] en lugar de null; la condición de definitivo de cada registro ya viene calculada por el
+// servicio.
+func newStoryEffort(storyID uuid.UUID, effort domain.StoryEffort) StoryEffort {
+	byMember := make([]MemberEffort, 0, len(effort.ByMember))
+	for _, member := range effort.ByMember {
+		byMember = append(byMember, MemberEffort{
+			User:  UserRef{ID: member.UserID.String(), FullName: member.FullName},
+			Hours: Hundredths(member.HoursHundredths),
+		})
+	}
+	entries := make([]EffortEntry, 0, len(effort.Entries))
+	for _, view := range effort.Entries {
+		entries = append(entries, newEffortEntry(view, view.Definitive))
+	}
+	return StoryEffort{
+		StoryID:    storyID.String(),
+		TotalHours: Hundredths(effort.TotalHundredths),
+		ByMember:   byMember,
+		Entries:    entries,
+	}
 }

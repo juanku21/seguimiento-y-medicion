@@ -27,6 +27,9 @@ func RegisterEntryRoutes(router *gin.Engine, requireSession gin.HandlerFunc, ent
 }
 
 // RegisterProjectRoutes registra la consulta del esfuerzo del proyecto, GET /effort-entries, sobre el
-// subgrupo /api/v1/projects/:projectId de la 002, que ya exige sesión y membresía vigente. Firma
-// mínima de T056; la implementación corresponde a T061.
-func RegisterProjectRoutes(projectGroup *gin.RouterGroup, handler *Handler) {}
+// subgrupo /api/v1/projects/:projectId de la 002, recibido desde cmd/app para no importar ese
+// paquete. El subgrupo ya exige sesión y membresía vigente, así que quien no es integrante recibe el
+// 404 indistinguible de la 002 antes de llegar al manejador.
+func RegisterProjectRoutes(projectGroup *gin.RouterGroup, handler *Handler) {
+	projectGroup.GET("/effort-entries", handler.listProjectEffort)
+}

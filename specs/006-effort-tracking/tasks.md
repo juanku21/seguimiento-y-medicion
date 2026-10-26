@@ -587,7 +587,7 @@ sprint y su total; `?from=2026-10-10&to=2026-10-09` devuelve `400` en `to`.
       `backend/internal/effort/service/effort_service.go`: valida el filtro, lista, agrega el total
       en Go, calcula `definitive` y, con la lista vacía, `emptyReason` (`no_effort` si
       `HasProjectEffort` es `false`, si no `no_matches`) — depende de T059
-- [ ] T061 [US4] Declarar `ProjectEffort` en `backend/internal/effort/delivery/dto.go`, implementar el
+- [X] T061 [US4] Declarar `ProjectEffort` en `backend/internal/effort/delivery/dto.go`, implementar el
       manejador `listProjectEffort` con anotaciones `swag` (`InvalidFilterError` → `400` con
       `ValidationErrorResponse`) en `backend/internal/effort/delivery/handler.go`, y en
       `backend/internal/effort/delivery/routes.go` `RegisterProjectRoutes(projectGroup, handler)` con

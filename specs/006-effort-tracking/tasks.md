@@ -729,6 +729,29 @@ vulnerabilidades y verificación de las puertas de calidad.
 
 ---
 
+## Phase 8: Convergence and Security
+
+Propósito: ajustes transversales detectados por /speckit-converge y /revisar-seguridad.
+
+- [ ] T078 Pruebas de `ProjectEffortComparisonSection` en
+      `frontend/src/features/effort/components/project-effort-comparison.test.tsx`, con
+      `describe("006/US5 - Comparar el esfuerzo estimado con el real")` y backend falso: pide
+      `GET /api/v1/projects/{projectId}/effort-comparison` y muestra la tabla; muestra el estado de
+      carga; con todas las historias sin estimar no muestra `role="alert"` (AC9); ante `404` o `500`
+      muestra el mensaje de error sin la tabla (AC10) per Constitución II (partial) — origen:
+      converge, detectado en 006/US5
+- [ ] T079 Pruebas de la comparación en `StoryEffortSection` en
+      `frontend/src/features/effort/components/story-effort-section.test.tsx`, con el `describe` de
+      006/US5: carga la tarjeta junto con el esfuerzo, la recarga después de registrar, corregir y
+      eliminar, y muestra el error si falla la consulta de comparación per FR-053, Constitución II
+      (partial) — origen: converge, detectado en 006/US5
+- [ ] T080 Pruebas unitarias de `formatSignedHours` y `formatStoryPoints` en
+      `frontend/src/utils/effort-format.test.ts`: `+6 h`, `−6 h` con U+2212, `0 h` sin signo,
+      "No calculable" para `null`, "n SP" y "Sin estimar" per Constitución VIII (partial) — origen:
+      converge, detectado en 006/US5
+
+---
+
 ## Dependencias y Orden de Ejecución
 
 ### Dependencias entre fases

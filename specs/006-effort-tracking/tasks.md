@@ -681,7 +681,7 @@ vulnerabilidades y verificación de las puertas de calidad.
 
 **Rama**: `fase/006-polish`
 
-- [ ] T071 Pruebas de integración de caracterización en
+- [X] T071 Pruebas de integración de caracterización en
       `backend/internal/effort/delivery/handler_test.go`, **sin** etiqueta `006/USn`:
       `TestEffortEndpoints_SinSesion`, con un subtest por cada uno de los **siete** endpoints sin
       cabecera y con token adulterado → `401` y ningún cambio (SC-017);

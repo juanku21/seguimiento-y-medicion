@@ -654,7 +654,7 @@ reales, diferencia absoluta y porcentual, con "no calculable" donde corresponde.
       historias del proyecto (o una sola) con `story_points` y la suma de sus horas por `LEFT JOIN`
       agregado (0 sin registros), en el orden del listado del backlog de la 003 (prioridad,
       `created_at`, `id`) — depende de T064
-- [ ] T068 [US5] Implementar `StoryComparison` y `ProjectComparison` en
+- [X] T068 [US5] Implementar `StoryComparison` y `ProjectComparison` en
       `backend/internal/effort/service/effort_service.go` sobre `Compare` — depende de T066, T067
 - [ ] T069 [US5] Declarar `EffortComparisonRow` y `ProjectEffortComparison` en
       `backend/internal/effort/delivery/dto.go`, implementar los manejadores

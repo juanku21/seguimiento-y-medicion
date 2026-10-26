@@ -511,7 +511,7 @@ sprint; desde otro integrante, `403`; `DELETE` del autor devuelve `204` y el tot
       `CheckDailyCap` **excluyendo** las horas vigentes del propio registro sobre la fecha
       resultante. `Update` **nunca** escribe `story_id`, `user_id` ni `sprint_id`; `Delete` no toca
       `ever_had_effort` — depende de T043, T044, T047, T048
-- [ ] T051 [US3] Implementar `RequireEffortEntryAccess` en
+- [X] T051 [US3] Implementar `RequireEffortEntryAccess` en
       `backend/internal/effort/delivery/middleware.go` con una única salida `404` y el mensaje
       `El registro de esfuerzo no existe.` — depende de T050
 - [ ] T052 [US3] Implementar `Update` y `Delete` en `backend/internal/effort/service/effort_service.go`

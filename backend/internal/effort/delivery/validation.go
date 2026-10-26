@@ -121,6 +121,13 @@ func ValidateEntryInput(req EffortEntryInput) (domain.EntryInput, []authdelivery
 	}, nil
 }
 
+// ValidateEntryPatch valida el cuerpo de la modificación parcial de un registro y devuelve los
+// cambios normalizados, o un FieldError por cada campo inválido (RN-12, FR-023). Firma mínima de
+// T042: la implementa T049.
+func ValidateEntryPatch(req EffortEntryPatch) (domain.EntryPatch, []authdelivery.FieldError) {
+	return domain.EntryPatch{}, nil
+}
+
 // isDigits informa si el texto está compuesto únicamente por dígitos ASCII.
 func isDigits(s string) bool {
 	for _, r := range s {

@@ -447,7 +447,7 @@ sprint; desde otro integrante, `403`; `DELETE` del autor devuelve `204` y el tot
 - [X] T041 [P] [US3] Pruebas unitarias **obligatorias** de `EnsureAuthor(authorID, actorID uuid.UUID) error`
       en `backend/internal/effort/domain/author_test.go`, cubriendo RN-11: el autor → ok; otro
       integrante y el propietario del proyecto → `ErrNotEntryAuthor` — depende de T039
-- [ ] T042 [P] [US3] Pruebas unitarias **obligatorias** de `ValidateEntryPatch` en
+- [X] T042 [P] [US3] Pruebas unitarias **obligatorias** de `ValidateEntryPatch` en
       `backend/internal/effort/delivery/validation_test.go`, cubriendo RN-12 y FR-023: cuerpo vacío
       `{}` → error "Hay que indicar al menos un campo a modificar."; solo `hours` → ok; las mismas
       reglas de horas, actividad y fecha que el alta; `storyId`, `userId` y `sprintId` presentes,

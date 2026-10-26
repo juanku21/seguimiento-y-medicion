@@ -516,7 +516,7 @@ sprint; desde otro integrante, `403`; `DELETE` del autor devuelve `204` y el tot
       `El registro de esfuerzo no existe.` — depende de T050
 - [X] T052 [US3] Implementar `Update` y `Delete` en `backend/internal/effort/service/effort_service.go`
       con el actor de la sesión y el instante del reloj — depende de T050
-- [ ] T053 [US3] Implementar los manejadores `updateEffortEntry` y `deleteEffortEntry` con
+- [X] T053 [US3] Implementar los manejadores `updateEffortEntry` y `deleteEffortEntry` con
       anotaciones `swag` en `backend/internal/effort/delivery/handler.go` (`ErrNotEntryAuthor` →
       `403` "Solo quien registró este esfuerzo puede modificarlo o eliminarlo.";
       `ErrEffortFinalized` → `409 effort_finalized` "Este esfuerzo pertenece a un sprint cerrado y ya

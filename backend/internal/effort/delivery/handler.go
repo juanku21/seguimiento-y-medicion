@@ -28,6 +28,8 @@ const (
 	msgEffortReadOnly       = "El proyecto está finalizado y su esfuerzo es de solo lectura."
 	msgSprintFinalized      = "El sprint de la historia ya está cerrado y su esfuerzo es definitivo."
 	msgDailyCapExceeded     = "Superarías las 24 horas registradas para ese día. Te quedan %s horas disponibles."
+	msgNotEntryAuthor       = "Solo quien registró este esfuerzo puede modificarlo o eliminarlo."
+	msgEffortFinalized      = "Este esfuerzo pertenece a un sprint cerrado y ya es definitivo."
 	msgInternalError        = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
 )
 
@@ -160,6 +162,117 @@ func (h *Handler) getStoryEffort(c *gin.Context) {
 	c.JSON(http.StatusOK, newStoryEffort(access.StoryID, *effort))
 }
 
+// updateEffortEntry godoc
+//
+//	@Summary		Corrige un registro propio
+//	@Description	Modifica la fecha, la actividad o las horas de un registro propio (FR-018). Todos los
+//	@Description	campos son opcionales, pero debe venir al menos uno. Se aplican las mismas validaciones
+//	@Description	que en el alta (FR-023); el tope diario se evalúa sobre la fecha resultante excluyendo
+//	@Description	las horas vigentes del propio registro (FR-024). La modificación es atómica (FR-025).
+//	@Description	El autor, la historia y el sprint asociado no cambian: enviar storyId, userId o
+//	@Description	sprintId se rechaza con 400 (FR-019). Se rechaza con 403 si el registro es de otra
+//	@Description	persona, aunque quien lo intente sea el propietario del proyecto (FR-022), y con 409 si
+//	@Description	el proyecto está finished o si el sprint asociado está closed con el plazo de gracia
+//	@Description	vencido (FR-020, FR-027). Una persona quitada del proyecto recibe 404 sobre sus
+//	@Description	registros anteriores (FR-028).
+//	@Tags			Esfuerzo
+//	@ID				updateEffortEntry
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			entryId	path		string								true	"Identificador del registro de esfuerzo"	format(uuid)
+//	@Param			request	body		EffortEntryPatch					true	"Campos a corregir"
+//	@Success		200		{object}	EffortEntry							"Registro actualizado."
+//	@Failure		400		{object}	delivery.ValidationErrorResponse	"Entrada inválida, campo inmutable, cuerpo sin campos editables, fecha futura o anterior al inicio del proyecto. Indica todos los campos a corregir y por qué, y no modifica nada. Si el cuerpo no es un JSON válido o está vacío, la respuesta es ErrorResponse."
+//	@Failure		401		{object}	delivery.ErrorResponse				"Se requiere iniciar sesión."
+//	@Failure		403		{object}	delivery.ErrorResponse				"El registro es de otra persona («Solo quien registró este esfuerzo puede modificarlo o eliminarlo.», FR-022)."
+//	@Failure		404		{object}	delivery.ErrorResponse				"El registro no existe, el identificador está mal formado o pertenece a un proyecto del que quien pide no es integrante; las situaciones devuelven el mismo cuerpo."
+//	@Failure		409		{object}	EffortConflictResponse				"Proyecto finished (read_only), registro de un sprint cerrado con el plazo de gracia vencido (effort_finalized) o tope diario de 24 horas superado (daily_cap_exceeded, con las horas disponibles en availableHours)."
+//	@Failure		500		{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."
+//	@Router			/api/v1/effort-entries/{entryId} [patch]
+func (h *Handler) updateEffortEntry(c *gin.Context) {
+	// La sesión de la 001 y RequireEffortEntryAccess ya respondieron 401 y 404; si falta el titular o
+	// el acceso, la ruta se registró fuera de esos middlewares: es un error de composición y responde
+	// 500.
+	actorID, ok := authdelivery.CurrentUserID(c)
+	if !ok {
+		respondInternalError(c, "updateEffortEntry sin titular de sesión en el contexto")
+		return
+	}
+	access, ok := entryAccessFromContext(c)
+	if !ok || access == nil {
+		respondInternalError(c, "updateEffortEntry sin acceso al registro en el contexto")
+		return
+	}
+
+	// Se decodifica y valida el parche antes de llegar al servicio: un JSON mal formado responde 400
+	// con ErrorResponse y los campos inválidos, 400 con todos a la vez (Principio VII).
+	var req EffortEntryPatch
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, authdelivery.ErrorResponse{Error: msgInvalidBody})
+		return
+	}
+	patch, fields := ValidateEntryPatch(req)
+	if len(fields) > 0 {
+		respondInvalidFields(c, fields)
+		return
+	}
+
+	// Se corrige el registro a nombre del titular de la sesión y se traducen los rechazos de dominio
+	// a la respuesta del contrato. Un registro que admitió la corrección no es definitivo.
+	view, err := h.efforts.Update(c.Request.Context(), access.EntryID, actorID, patch)
+	if err != nil {
+		respondServiceError(c, err, "no se pudo corregir el esfuerzo")
+		return
+	}
+
+	c.JSON(http.StatusOK, newEffortEntry(*view, false))
+}
+
+// deleteEffortEntry godoc
+//
+//	@Summary		Elimina un registro propio
+//	@Description	Elimina definitivamente un registro propio; deja de contar de inmediato en los totales
+//	@Description	de la historia, del sprint, del proyecto y del tope diario de esa fecha (FR-026). La
+//	@Description	historia sigue sin poder eliminarse aunque se borren todos sus registros (RN-22).
+//	@Description	Mismos rechazos que la modificación: 403 por registro ajeno; 409 por proyecto finished
+//	@Description	o sprint closed con el plazo vencido; 404 para quien ya no es integrante.
+//	@Tags			Esfuerzo
+//	@ID				deleteEffortEntry
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			entryId	path	string	true	"Identificador del registro de esfuerzo"	format(uuid)
+//	@Success		204		"Registro eliminado."
+//	@Failure		401		{object}	delivery.ErrorResponse	"Se requiere iniciar sesión."
+//	@Failure		403		{object}	delivery.ErrorResponse	"El registro es de otra persona («Solo quien registró este esfuerzo puede modificarlo o eliminarlo.», FR-022)."
+//	@Failure		404		{object}	delivery.ErrorResponse	"El registro no existe, el identificador está mal formado o pertenece a un proyecto del que quien pide no es integrante; las situaciones devuelven el mismo cuerpo."
+//	@Failure		409		{object}	EffortConflictResponse	"Proyecto finished (read_only) o registro de un sprint cerrado con el plazo de gracia vencido (effort_finalized)."
+//	@Failure		500		{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/effort-entries/{entryId} [delete]
+func (h *Handler) deleteEffortEntry(c *gin.Context) {
+	// La sesión de la 001 y RequireEffortEntryAccess ya respondieron 401 y 404; si falta el titular o
+	// el acceso, es un error de composición y responde 500.
+	actorID, ok := authdelivery.CurrentUserID(c)
+	if !ok {
+		respondInternalError(c, "deleteEffortEntry sin titular de sesión en el contexto")
+		return
+	}
+	access, ok := entryAccessFromContext(c)
+	if !ok || access == nil {
+		respondInternalError(c, "deleteEffortEntry sin acceso al registro en el contexto")
+		return
+	}
+
+	// Se elimina el registro a nombre del titular de la sesión y se traducen los rechazos de dominio
+	// a la respuesta del contrato; el 204 no lleva cuerpo.
+	if err := h.efforts.Delete(c.Request.Context(), access.EntryID, actorID); err != nil {
+		respondServiceError(c, err, "no se pudo eliminar el esfuerzo")
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
 // storyAccessFromContext devuelve el StoryAccess que RequireStoryAccess de la 003 dejó en el contexto
 // de gin, y si estaba presente. Si la clave de la 003 cambiara, el alta respondería 500 y las pruebas
 // de integración lo detectarían.
@@ -173,14 +286,21 @@ func storyAccessFromContext(c *gin.Context) (*backlogdomain.StoryAccess, bool) {
 }
 
 // respondServiceError traduce los errores de dominio del servicio de esfuerzo a la respuesta HTTP del
-// contrato: la fecha futura y la anterior al inicio del proyecto son 400 sobre entryDate; el proyecto
-// finalizado, el sprint definitivo y el tope diario son 409 con su código, y solo el tope informa las
-// horas disponibles. Lo que no es un error de dominio conocido se registra en el log y se responde
-// 500 genérico, sin exponer la causa (Principio VII).
+// contrato: la fecha futura y la anterior al inicio del proyecto son 400 sobre entryDate; el registro
+// ajeno es 403; el registro que desapareció después del middleware es el mismo 404 de este; el
+// proyecto finalizado, el sprint definitivo, el registro definitivo y el tope diario son 409 con su
+// código, y solo el tope informa las horas disponibles. Lo que no es un error de dominio conocido se
+// registra en el log y se responde 500 genérico, sin exponer la causa (Principio VII).
 func respondServiceError(c *gin.Context, err error, logMessage string) {
 	var beforeStart *domain.EntryDateBeforeProjectStartError
 	var dailyCap *domain.DailyCapExceededError
 	switch {
+	case errors.Is(err, domain.ErrNotEntryAuthor):
+		c.JSON(http.StatusForbidden, authdelivery.ErrorResponse{Error: msgNotEntryAuthor})
+	case errors.Is(err, domain.ErrEntryNotFound):
+		c.JSON(http.StatusNotFound, authdelivery.ErrorResponse{Error: msgEntryNotFound})
+	case errors.Is(err, domain.ErrEffortFinalized):
+		c.JSON(http.StatusConflict, EffortConflictResponse{Code: codeEffortFinalized, Error: msgEffortFinalized})
 	case errors.Is(err, domain.ErrEntryDateInFuture):
 		respondInvalidFields(c, []authdelivery.FieldError{{Field: "entryDate", Message: msgEntryDateInFuture}})
 	case errors.As(err, &beforeStart):

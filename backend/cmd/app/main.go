@@ -191,14 +191,19 @@ func run() error {
 	// El módulo de esfuerzo se compone sobre su repositorio, con la zona horaria del sistema, el plazo
 	// de gracia configurado y el reloj. Sus rutas cuelgan del grupo plano /api/v1/stories/:storyId con
 	// el RequireStoryAccess de la 003, sobre la misma instancia del repositorio de historias, para que
-	// effort/delivery no importe backlog/delivery.
+	// effort/delivery no importe backlog/delivery. La corrección y la eliminación de un registro
+	// cuelgan del grupo plano /api/v1/effort-entries/:entryId, con RequireEffortEntryAccess sobre la
+	// misma instancia del repositorio de esfuerzo que usa el servicio.
+	effortRepository := effortrepository.NewEffortRepository(db)
 	efforts := effortservice.NewEffortService(
-		effortrepository.NewEffortRepository(db),
+		effortRepository,
 		cfg.Location,
 		cfg.EffortGracePeriod,
 		time.Now,
 	)
-	effortdelivery.RegisterStoryRoutes(router, handler.RequireSession, backlogdelivery.RequireStoryAccess(storyRepository), effortdelivery.NewHandler(efforts))
+	effortHandler := effortdelivery.NewHandler(efforts)
+	effortdelivery.RegisterStoryRoutes(router, handler.RequireSession, backlogdelivery.RequireStoryAccess(storyRepository), effortHandler)
+	effortdelivery.RegisterEntryRoutes(router, handler.RequireSession, effortRepository, effortHandler)
 
 	// Ninguna conexión al canal de eventos sobrevive a un reinicio, así que antes de escuchar se
 	// marcan desconectados los participantes de las sesiones abiertas (research.md sección 9). El

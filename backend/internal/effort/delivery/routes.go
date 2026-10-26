@@ -18,7 +18,10 @@ func RegisterStoryRoutes(router *gin.Engine, requireSession, requireStoryAccess 
 
 // RegisterEntryRoutes registra la modificación y la eliminación de un registro de esfuerzo en el
 // grupo plano /api/v1/effort-entries/:entryId, con el middleware de sesión y el
-// RequireEffortEntryAccess sobre el repositorio recibido. Firma mínima de T044: la implementación
-// corresponde a T053.
+// RequireEffortEntryAccess sobre el repositorio recibido. El registro inexistente, ajeno o con
+// identificador mal formado recibe el 404 indistinguible del middleware antes de llegar al manejador.
 func RegisterEntryRoutes(router *gin.Engine, requireSession gin.HandlerFunc, entries domain.EffortRepository, handler *Handler) {
+	entryGroup := router.Group("/api/v1/effort-entries/:entryId", requireSession, RequireEffortEntryAccess(entries))
+	entryGroup.PATCH("", handler.updateEffortEntry)
+	entryGroup.DELETE("", handler.deleteEffortEntry)
 }

@@ -52,6 +52,32 @@ func (s *EffortService) Create(ctx context.Context, access *backlogdomain.StoryA
 	return view, nil
 }
 
+// Update corrige un registro propio con el parche ya validado y devuelve el registro actualizado
+// (FR-020 a FR-024). El actor es siempre actorID, el titular de la sesión, y el instante se toma del
+// reloj una sola vez para que la fecha de hoy y la vigencia del plazo de gracia se evalúen sobre el
+// mismo momento. Las reglas que dependen de datos (solo lectura del proyecto, autoría, registro
+// definitivo, fecha y tope diario) las aplica el repositorio dentro de su transacción; sus rechazos
+// se envuelven con %w para que delivery los reconozca con errors.Is y errors.As.
+func (s *EffortService) Update(ctx context.Context, entryID, actorID uuid.UUID, patch domain.EntryPatch) (*domain.EntryView, error) {
+	view, err := s.repo.Update(ctx, entryID, actorID, patch, s.now(), s.location, s.grace)
+	if err != nil {
+		return nil, fmt.Errorf("corregir esfuerzo: %w", err)
+	}
+
+	return view, nil
+}
+
+// Delete elimina un registro propio (FR-020 a FR-022, FR-027) con el actor de la sesión y el instante
+// del reloj. El repositorio aplica la solo lectura del proyecto, la autoría y la condición de
+// definitivo dentro de su transacción; sus rechazos se envuelven con %w.
+func (s *EffortService) Delete(ctx context.Context, entryID, actorID uuid.UUID) error {
+	if err := s.repo.Delete(ctx, entryID, actorID, s.now(), s.grace); err != nil {
+		return fmt.Errorf("eliminar esfuerzo: %w", err)
+	}
+
+	return nil
+}
+
 // StoryEffort devuelve el esfuerzo de una historia: los registros en el orden de FR-035, el total y
 // el desglose por integrante (FR-030 a FR-035). La lista se lee una sola vez y el total y el desglose
 // se agregan en Go sobre ella, para que no puedan ver otra instantánea que la lista (research.md

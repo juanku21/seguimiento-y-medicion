@@ -514,7 +514,7 @@ sprint; desde otro integrante, `403`; `DELETE` del autor devuelve `204` y el tot
 - [X] T051 [US3] Implementar `RequireEffortEntryAccess` en
       `backend/internal/effort/delivery/middleware.go` con una única salida `404` y el mensaje
       `El registro de esfuerzo no existe.` — depende de T050
-- [ ] T052 [US3] Implementar `Update` y `Delete` en `backend/internal/effort/service/effort_service.go`
+- [X] T052 [US3] Implementar `Update` y `Delete` en `backend/internal/effort/service/effort_service.go`
       con el actor de la sesión y el instante del reloj — depende de T050
 - [ ] T053 [US3] Implementar los manejadores `updateEffortEntry` y `deleteEffortEntry` con
       anotaciones `swag` en `backend/internal/effort/delivery/handler.go` (`ErrNotEntryAuthor` →

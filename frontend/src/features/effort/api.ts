@@ -1,12 +1,15 @@
 import {
+  deleteEmpty,
   getJson,
   isRecord,
+  patchAuthorizedJson,
   postAuthorizedJson,
   type ApiResult,
 } from "@/lib/api-client";
 import type {
   EffortEntry,
   EffortEntryInput,
+  EffortEntryPatch,
   MemberEffort,
   StoryEffort,
 } from "@/types/effort";
@@ -95,4 +98,31 @@ export function getStoryEffort(
     `/api/v1/stories/${encodeURIComponent(storyId)}/effort`,
     isStoryEffort,
   );
+}
+
+// Arma la ruta de un registro de esfuerzo codificando el identificador, para que un valor con "/" o
+// "../" no altere la ruta pedida al backend.
+function effortEntryPath(entryId: string): string {
+  return `/api/v1/effort-entries/${encodeURIComponent(entryId)}`;
+}
+
+// Corrige un registro propio con PATCH /api/v1/effort-entries/{entryId}, usando la sesión de la
+// pestaña (006/US3). Solo viajan los campos que cambiaron, con las horas como número; autor,
+// historia y sprint nunca se envían (FR-019). El 403 (registro ajeno), el 404 y los 409 (tope
+// diario, registro definitivo, proyecto de solo lectura) llegan con el mensaje del backend, y ante
+// un 401 el cliente HTTP descarta la sesión.
+export function updateEffortEntry(
+  entryId: string,
+  patch: EffortEntryPatch,
+): Promise<ApiResult<EffortEntry>> {
+  return patchAuthorizedJson(effortEntryPath(entryId), patch, isEffortEntry);
+}
+
+// Elimina un registro propio con DELETE /api/v1/effort-entries/{entryId}, usando la sesión de la
+// pestaña (006/US3). La respuesta exitosa (204) no trae contenido; los rechazos llegan con el
+// mensaje del backend como en la corrección.
+export function deleteEffortEntry(
+  entryId: string,
+): Promise<ApiResult<undefined>> {
+  return deleteEmpty(effortEntryPath(entryId));
 }

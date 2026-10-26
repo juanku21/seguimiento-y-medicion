@@ -12,6 +12,10 @@ export type EffortEntryInput = {
   hours: number;
 };
 
+// Cuerpo de la corrección de un registro (EffortEntryPatch, 006/US3): solo los campos que cambian,
+// al menos uno. Autor, historia y sprint no forman parte de la corrección (FR-019).
+export type EffortEntryPatch = Partial<EffortEntryInput>;
+
 // Identificación mínima de la historia del registro (StoryRef).
 export type StoryRef = {
   id: string;

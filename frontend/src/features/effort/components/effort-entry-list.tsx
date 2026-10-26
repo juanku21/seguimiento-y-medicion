@@ -1,17 +1,35 @@
 import type { ReactNode } from "react";
+import { EffortEntryRow } from "@/features/effort/components/effort-entry-row";
 import type { EffortEntry } from "@/types/effort";
-import { formatHours } from "@/utils/effort-format";
-import { formatDate } from "@/utils/format-date";
 
 // Propiedades de la lista de registros de esfuerzo de una historia, en el orden de la API.
+// currentUserId identifica al titular de la sesión para ofrecer la corrección y la eliminación de
+// sus registros, y onChanged avisa que una de ellas se completó (006/US3).
 export type EffortEntryListProps = {
   entries: EffortEntry[];
+  currentUserId?: string;
+  onChanged?: () => void;
 };
 
+// Indica si quien tiene la sesión puede corregir o eliminar el registro: solo su autor y mientras no
+// sea definitivo (FR-018, FR-020, FR-022). Sin sesión identificada no se ofrece ninguna acción.
+function canModify(entry: EffortEntry, currentUserId?: string): boolean {
+  return (
+    currentUserId !== undefined &&
+    entry.author.id === currentUserId &&
+    !entry.definitive
+  );
+}
+
 // Lista de registros de esfuerzo de una historia (006/US2), en el orden recibido (FR-035). Cada
-// registro muestra fecha, autor, actividad, horas y sprint, o "Sin sprint" si no tiene. Sin
-// registros muestra un aviso informativo, que no es un error (FR-034).
-export function EffortEntryList({ entries }: EffortEntryListProps): ReactNode {
+// registro muestra fecha, autor, actividad, horas y sprint, o "Sin sprint" si no tiene, y los
+// propios no definitivos se pueden corregir o eliminar desde su fila (006/US3). Sin registros
+// muestra un aviso informativo, que no es un error (FR-034).
+export function EffortEntryList({
+  entries,
+  currentUserId,
+  onChanged,
+}: EffortEntryListProps): ReactNode {
   if (entries.length === 0) {
     return (
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -23,22 +41,12 @@ export function EffortEntryList({ entries }: EffortEntryListProps): ReactNode {
   return (
     <ul aria-label="Registros de esfuerzo" className="flex flex-col gap-3">
       {entries.map((entry) => (
-        <li
+        <EffortEntryRow
           key={entry.id}
-          className="flex flex-col gap-1 rounded-md border border-zinc-300 px-4 py-3 text-sm dark:border-zinc-700"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="tabular-nums">{formatDate(entry.entryDate)}</span>
-            <span className="font-medium tabular-nums">
-              {formatHours(entry.hours)}
-            </span>
-          </div>
-          <span className="break-words">{entry.activity}</span>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-zinc-600 dark:text-zinc-400">
-            <span>{entry.author.fullName}</span>
-            <span>{entry.sprint ? entry.sprint.name : "Sin sprint"}</span>
-          </div>
-        </li>
+          entry={entry}
+          canModify={canModify(entry, currentUserId)}
+          onChanged={onChanged}
+        />
       ))}
     </ul>
   );

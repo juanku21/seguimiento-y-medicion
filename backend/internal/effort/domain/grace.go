@@ -24,3 +24,18 @@ type AnchoredSprint struct {
 func GraceOpen(closedAt, now time.Time, grace time.Duration) bool {
 	return now.Before(closedAt.Add(grace))
 }
+
+// EnsureEntryWritable decide si un registro de esfuerzo anclado a sprint todavía se puede modificar o
+// eliminar en now con la tabla de data-model.md sección 6.2 (FR-020, FR-021, RN-09, RN-10). Sin sprint
+// o con un sprint que no está Cerrado el registro es escribible; con un sprint Cerrado lo es solo
+// mientras el plazo de gracia siga vigente. Un sprint Cerrado sin fecha de cierre se trata como
+// definitivo para no abrir una escritura que la regla no puede justificar.
+func EnsureEntryWritable(sprint *AnchoredSprint, now time.Time, grace time.Duration) error {
+	if sprint == nil || sprint.Status != sprintsdomain.SprintStatusClosed {
+		return nil
+	}
+	if sprint.ClosedAt != nil && GraceOpen(*sprint.ClosedAt, now, grace) {
+		return nil
+	}
+	return ErrEffortFinalized
+}

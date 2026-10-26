@@ -28,6 +28,25 @@ type EffortEntryInput struct {
 	Hours json.RawMessage `json:"hours" validate:"required" swaggertype:"number" maximum:"24" multipleOf:"0.25" example:"6.5"`
 }
 
+// EffortEntryPatch es el cuerpo de PATCH /api/v1/effort-entries/{entryId} (contracts/openapi.yaml):
+// modificación parcial que debe incluir al menos uno de los tres campos editables. Cada campo llega
+// como json.RawMessage para distinguir el campo ausente, que queda nil, del null. StoryID, UserID y
+// SprintID no forman parte del contrato: se decodifican solo para rechazarlos (RN-12, FR-019).
+type EffortEntryPatch struct {
+	// Fecha de calendario nueva; no futura ni anterior al inicio del proyecto (FR-006).
+	EntryDate json.RawMessage `json:"entryDate" swaggertype:"string" format:"date" example:"2026-10-23"`
+	// Actividad nueva, de 1 a 300 caracteres tras recortar los espacios extremos (FR-003).
+	Activity json.RawMessage `json:"activity" swaggertype:"string" minLength:"1" maxLength:"300" example:"Implementación y pruebas del formulario de alta"`
+	// Horas nuevas, mayores que 0 y hasta 24, en múltiplos de 0,25 (FR-004).
+	Hours json.RawMessage `json:"hours" swaggertype:"number" maximum:"24" multipleOf:"0.25" example:"6"`
+	// La historia de un registro no se modifica: si llega, se rechaza (RN-12).
+	StoryID json.RawMessage `json:"storyId" swaggerignore:"true"`
+	// El integrante de un registro no se modifica: si llega, se rechaza (RN-12).
+	UserID json.RawMessage `json:"userId" swaggerignore:"true"`
+	// El sprint de un registro no se modifica: si llega, se rechaza (RN-12).
+	SprintID json.RawMessage `json:"sprintId" swaggerignore:"true"`
+}
+
 // Hundredths es una magnitud en centésimas (de hora o de punto porcentual) que la API serializa como
 // número JSON con exactamente 2 decimales (research.md sección 5; SC-015 y SC-022). Un *Hundredths
 // nulo representa "no calculable" y se serializa null.

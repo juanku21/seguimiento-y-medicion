@@ -981,3 +981,527 @@ func TestUS2_HistoriaInexistente(t *testing.T) {
 		})
 	}
 }
+
+// Pruebas de integración de US3 (T044): PATCH y DELETE /api/v1/effort-entries/{entryId} con un caso
+// por escenario de spec.md. El registro propio del "Dado" se crea con el alta real de US1, de modo que
+// su sprint asociado es el que fija el anclaje real; solo las horas ya cargadas del mismo día se
+// siembran en la base. En cada rechazo se verifica que el registro quedó exactamente como estaba o
+// que sigue existiendo.
+
+// Textos exactos que fijan el contrato y data-model.md sección 7 para el registro ajeno y el
+// esfuerzo definitivo.
+const (
+	effortMsgNotAuthor       = "Solo quien registró este esfuerzo puede modificarlo o eliminarlo."
+	effortMsgEffortFinalized = "Este esfuerzo pertenece a un sprint cerrado y ya es definitivo."
+)
+
+// effortEntryPath es la ruta de un registro de esfuerzo según contracts/openapi.yaml.
+func effortEntryPath(entryID string) string {
+	return "/api/v1/effort-entries/" + entryID
+}
+
+// patchEffort envía PATCH /api/v1/effort-entries/{entryId} con el cuerpo recibido.
+func (e *effortTestEnv) patchEffort(t *testing.T, token, entryID string, body map[string]any) *httptest.ResponseRecorder {
+	t.Helper()
+	return e.do(t, http.MethodPatch, effortEntryPath(entryID), token, body)
+}
+
+// deleteEffort envía DELETE /api/v1/effort-entries/{entryId}.
+func (e *effortTestEnv) deleteEffort(t *testing.T, token, entryID string) *httptest.ResponseRecorder {
+	t.Helper()
+	return e.do(t, http.MethodDelete, effortEntryPath(entryID), token, nil)
+}
+
+// requireEffortUpdated exige un 200 cuyo cuerpo sea el registro actualizado y lo devuelve
+// decodificado.
+func requireEffortUpdated(t *testing.T, rec *httptest.ResponseRecorder) effortEntryResponse {
+	t.Helper()
+	var entry effortEntryResponse
+	effortRequireStatus(t, rec, http.StatusOK, &entry)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &entry.Raw), "el cuerpo del 200 no es un objeto JSON")
+	return entry
+}
+
+// requireEffortDeleted exige un 204 sin cuerpo.
+func requireEffortDeleted(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	require.Equal(t, http.StatusNoContent, rec.Code, "cuerpo: %s", rec.Body.String())
+	assert.Empty(t, rec.Body.String(), "el 204 no lleva cuerpo")
+}
+
+// requireNotEntryAuthor exige el 403 de registro ajeno con el cuerpo exacto del contrato.
+func requireNotEntryAuthor(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	require.Equal(t, http.StatusForbidden, rec.Code, "cuerpo: %s", rec.Body.String())
+	assert.JSONEq(t, `{"error":"`+effortMsgNotAuthor+`"}`, rec.Body.String())
+}
+
+// requireEntryNotFound exige el 404 de registro inexistente con el cuerpo exacto del contrato.
+func requireEntryNotFound(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	require.Equal(t, http.StatusNotFound, rec.Code, "cuerpo: %s", rec.Body.String())
+	assert.JSONEq(t, entryNotFoundBody, rec.Body.String())
+}
+
+// requireEntryUnchanged verifica en la base que el registro conserva exactamente los valores previos,
+// incluido el instante de su última modificación (FR-025).
+func (e *effortTestEnv) requireEntryUnchanged(t *testing.T, before domain.EffortEntry) {
+	t.Helper()
+	after := e.storedEntry(t, before.ID.String())
+	assert.Equal(t, before.StoryID, after.StoryID, "story_id no debe cambiar")
+	assert.Equal(t, before.UserID, after.UserID, "user_id no debe cambiar")
+	assert.Equal(t, before.SprintID, after.SprintID, "sprint_id no debe cambiar")
+	assert.True(t, before.EntryDate.Equal(after.EntryDate), "entry_date: antes %s, después %s", before.EntryDate, after.EntryDate)
+	assert.Equal(t, before.Activity, after.Activity, "activity no debe cambiar")
+	assert.Equal(t, before.HoursHundredths, after.HoursHundredths, "hours_hundredths no debe cambiar")
+	assert.True(t, before.UpdatedAt.Equal(after.UpdatedAt), "updated_at no debe cambiar")
+}
+
+// entryExists informa si el registro con el identificador indicado sigue en la base.
+func (e *effortTestEnv) entryExists(t *testing.T, id string) bool {
+	t.Helper()
+	var count int64
+	require.NoError(t, e.db.Model(&domain.EffortEntry{}).Where("id = ?", id).Count(&count).Error,
+		"no se pudo buscar el registro %s", id)
+	return count > 0
+}
+
+// sprintHundredths devuelve la suma de centésimas de hora asociadas al sprint, leída en la base.
+func (e *effortTestEnv) sprintHundredths(t *testing.T, sprintID uuid.UUID) int64 {
+	t.Helper()
+	var total int64
+	require.NoError(t, e.db.Model(&domain.EffortEntry{}).
+		Select("COALESCE(SUM(hours_hundredths), 0)").
+		Where("sprint_id = ?", sprintID).
+		Scan(&total).Error, "no se pudo sumar el esfuerzo del sprint")
+	return total
+}
+
+// ownEntry crea con el alta real de US1 un registro de Ana de las horas indicadas sobre la historia
+// del "Dado", con fecha de hoy, y lo devuelve.
+func (f effortFixture) ownEntry(t *testing.T, hours any) effortEntryResponse {
+	t.Helper()
+	return requireEffortCreated(t, f.post(t, effortBody(effortToday, effortActivity, hours)))
+}
+
+// entryInClosedSprint compromete la historia del "Dado" en un sprint Activo, crea con el alta real
+// un registro de 4 horas de quien tenga el token, completa la historia y cierra el sprint el viernes a
+// las 18:00. Devuelve el registro, asociado a ese sprint, y el sprint.
+func (f effortFixture) entryInClosedSprint(t *testing.T, token string) (effortEntryResponse, uuid.UUID) {
+	t.Helper()
+	sprintID := f.env.activeSprintWith(t, f.ownerToken, f.projectID, f.storyID)
+	entry := requireEffortCreated(t, f.env.postEffort(t, token, f.storyID, effortBody(effortToday, effortActivity, 4)))
+	f.env.completeStory(t, f.ownerToken, f.storyID)
+	f.env.closeSprintAt(t, f.ownerToken, sprintID, f.fridayClose())
+	return entry, sprintID
+}
+
+// Escenario: Caso normal — corrección de 4 a 6 horas con cambio de actividad (006/US3)
+func TestUS3_CorreccionDeHoras(t *testing.T) {
+	f := newEffortFixture(t)
+	sprintID := f.env.activeSprintWith(t, f.ownerToken, f.projectID, f.storyID)
+	created := f.ownEntry(t, 4)
+	require.Equal(t, int64(400), f.env.storyHundredths(t, f.storyID), "precondición: 4 horas en la historia")
+
+	updated := requireEffortUpdated(t, f.env.patchEffort(t, f.ownerToken, created.ID,
+		map[string]any{"hours": 6, "activity": "Implementación y pruebas del formulario de alta"}))
+
+	// El registro queda actualizado y conserva su autor, su historia, su fecha y su sprint.
+	assert.Equal(t, created.ID, updated.ID, "mismo registro")
+	assert.Equal(t, "6.00", string(updated.Hours), "horas con 2 decimales")
+	assert.Equal(t, "Implementación y pruebas del formulario de alta", updated.Activity)
+	assert.Equal(t, effortToday, updated.EntryDate, "la fecha no cambia")
+	assert.Equal(t, effortUserRef{ID: f.ownerID.String(), FullName: "Ana Pérez"}, updated.Author, "autor")
+	assert.Equal(t, f.storyID.String(), updated.Story.ID, "historia")
+	assert.False(t, updated.Definitive)
+	f.requireAnchoredTo(t, updated, sprintID, "active")
+
+	// En la base: el total de la historia sube 2 horas y el autor y la historia no cambian.
+	stored := f.env.storedEntry(t, created.ID)
+	assert.Equal(t, 600, stored.HoursHundredths, "hours_hundredths en la base")
+	assert.Equal(t, "Implementación y pruebas del formulario de alta", stored.Activity, "activity en la base")
+	assert.Equal(t, f.ownerID, stored.UserID, "user_id en la base")
+	assert.Equal(t, f.storyID, stored.StoryID, "story_id en la base")
+	assert.Equal(t, int64(600), f.env.storyHundredths(t, f.storyID), "el total de la historia sube 2 horas")
+}
+
+// Escenario: Caso normal — eliminación de un registro de un sprint Activo (006/US3)
+func TestUS3_Eliminacion(t *testing.T) {
+	// Además del registro a eliminar, la historia tiene otro de 2 horas del mismo sprint y la misma
+	// fecha, para comprobar que los tres totales bajan exactamente lo que valía el eliminado.
+	f := newEffortFixture(t)
+	sprintID := f.env.activeSprintWith(t, f.ownerToken, f.projectID, f.storyID)
+	created := f.ownEntry(t, 4)
+	other := f.env.seedStoryEntry(t, f.storyID, effortSeed{userID: f.ownerID, sprintID: &sprintID, entryDate: effortToday, hours: 200, createdAt: effortSeedBase})
+
+	requireEffortDeleted(t, f.env.deleteEffort(t, f.ownerToken, created.ID))
+
+	// El registro deja de existir y deja de contar en la historia, en el sprint y en el día.
+	assert.False(t, f.env.entryExists(t, created.ID), "el registro debe dejar de existir")
+	assert.Equal(t, int64(200), f.env.storyHundredths(t, f.storyID), "total de la historia")
+	assert.Equal(t, int64(200), f.env.sprintHundredths(t, sprintID), "total del sprint")
+	assert.Equal(t, int64(200), f.env.userDateHundredths(t, f.ownerID, effortToday), "total del día")
+	body := f.env.getStoryEffort(t, f.ownerToken, f.storyID)
+	assert.Equal(t, []string{other.String()}, effortEntryIDs(body.Entries), "la consulta ya no lo lista")
+	assert.Equal(t, "2.00", string(body.TotalHours))
+}
+
+// Escenario: Caso alternativo — cambio a otra fecha válida (006/US3)
+func TestUS3_CambioDeFecha(t *testing.T) {
+	// Ana tiene 22 horas el 2026-10-20 y un registro de 4 horas de hoy en el sprint Activo.
+	f := newEffortFixture(t)
+	sprintID := f.env.activeSprintWith(t, f.ownerToken, f.projectID, f.storyID)
+	created := f.ownEntry(t, 4)
+	f.env.seedEffortEntry(t, f.storyID, f.ownerID, "2026-10-20", 2200, nil)
+	before := f.env.storedEntry(t, created.ID)
+
+	// El tope se verifica sobre la fecha nueva: llevarlo al 2026-10-20 sumaría 26 horas.
+	body := requireEffortConflict(t, f.env.patchEffort(t, f.ownerToken, created.ID,
+		map[string]any{"entryDate": "2026-10-20"}), "daily_cap_exceeded")
+	assert.Equal(t, "2.00", string(body.AvailableHours), "horas disponibles en la fecha nueva")
+	f.env.requireEntryUnchanged(t, before)
+
+	// A una fecha sin horas el cambio se acepta y el sprint asociado no cambia.
+	updated := requireEffortUpdated(t, f.env.patchEffort(t, f.ownerToken, created.ID,
+		map[string]any{"entryDate": "2026-10-19"}))
+
+	assert.Equal(t, "2026-10-19", updated.EntryDate)
+	assert.Equal(t, "4.00", string(updated.Hours), "las horas no cambian")
+	f.requireAnchoredTo(t, updated, sprintID, "active")
+	assert.Equal(t, int64(0), f.env.userDateHundredths(t, f.ownerID, effortToday), "la fecha vieja queda sin esas horas")
+	assert.Equal(t, int64(400), f.env.userDateHundredths(t, f.ownerID, "2026-10-19"), "la fecha nueva suma las horas")
+}
+
+// Escenario: Caso alternativo — registro de un sprint Planificado que ahora está Activo (006/US3)
+func TestUS3_SprintPlanificadoAhoraActivo(t *testing.T) {
+	f := newEffortFixture(t)
+	sprintID := f.env.createSprint(t, f.ownerToken, f.projectID, "Sprint 3", "2026-10-12", "2026-10-23")
+	f.env.assignStories(t, f.ownerToken, sprintID, f.storyID)
+	created := f.ownEntry(t, 2)
+	f.requireAnchoredTo(t, created, sprintID, "planned")
+	f.env.startSprint(t, f.ownerToken, sprintID)
+
+	updated := requireEffortUpdated(t, f.env.patchEffort(t, f.ownerToken, created.ID, map[string]any{"hours": 3}))
+
+	// El registro sigue asociado al mismo sprint, que ahora se informa Activo.
+	assert.Equal(t, "3.00", string(updated.Hours))
+	f.requireAnchoredTo(t, updated, sprintID, "active")
+}
+
+// Escenario: Caso alternativo — historia quitada del sprint y devuelta al backlog (006/US3)
+func TestUS3_HistoriaQuitadaDelSprint(t *testing.T) {
+	// La historia se compromete en un sprint Planificado, recibe el registro y se quita del sprint
+	// con la 004, con lo que vuelve al backlog.
+	f := newEffortFixture(t)
+	sprintID := f.env.createSprint(t, f.ownerToken, f.projectID, "Sprint 4", "2026-10-26", "2026-11-06")
+	f.env.assignStories(t, f.ownerToken, sprintID, f.storyID)
+	created := f.ownEntry(t, 2)
+	effortRequireStatus(t, f.env.do(t, http.MethodDelete,
+		"/api/v1/sprints/"+sprintID.String()+"/stories?storyId="+f.storyID.String(), f.ownerToken, nil), http.StatusOK, nil)
+
+	updated := requireEffortUpdated(t, f.env.patchEffort(t, f.ownerToken, created.ID,
+		map[string]any{"activity": "Revisión del formulario con el equipo"}))
+
+	// El registro conserva el sprint al que se asoció al crearse.
+	assert.Equal(t, "Revisión del formulario con el equipo", updated.Activity)
+	f.requireAnchoredTo(t, updated, sprintID, "planned")
+}
+
+// Escenario: Caso límite — reducción de 6 a 4 horas en un día con 24 horas registradas (006/US3)
+func TestUS3_ReduccionEnDiaCompleto(t *testing.T) {
+	f := newEffortFixture(t)
+	f.env.seedEffortEntry(t, f.storyID, f.ownerID, effortToday, 1800, nil)
+	created := f.ownEntry(t, 6)
+	require.Equal(t, int64(2400), f.env.userDateHundredths(t, f.ownerID, effortToday), "precondición: día completo")
+
+	updated := requireEffortUpdated(t, f.env.patchEffort(t, f.ownerToken, created.ID, map[string]any{"hours": 4}))
+
+	assert.Equal(t, "4.00", string(updated.Hours))
+	assert.Equal(t, int64(2200), f.env.userDateHundredths(t, f.ownerID, effortToday), "el día queda con 22 horas")
+}
+
+// Escenario: Caso límite — aumento de 6 a 8 horas que llevaría el día a 26 (006/US3)
+func TestUS3_AumentoQueSuperaElTope(t *testing.T) {
+	f := newEffortFixture(t)
+	f.env.seedEffortEntry(t, f.storyID, f.ownerID, effortToday, 1800, nil)
+	created := f.ownEntry(t, 6)
+	before := f.env.storedEntry(t, created.ID)
+
+	body := requireEffortConflict(t, f.env.patchEffort(t, f.ownerToken, created.ID, map[string]any{"hours": 8}), "daily_cap_exceeded")
+
+	// Las horas disponibles excluyen las del propio registro: 24 − 18 = 6 (FR-024).
+	assert.Equal(t, "6.00", string(body.AvailableHours), "availableHours")
+	f.env.requireEntryUnchanged(t, before)
+	assert.Equal(t, 600, f.env.storedEntry(t, created.ID).HoursHundredths, "el registro queda en 6 horas")
+	assert.Equal(t, int64(2400), f.env.userDateHundredths(t, f.ownerID, effortToday), "el día sigue en 24 horas")
+}
+
+// Escenario: Caso límite — eliminación del único registro de la historia (006/US3)
+func TestUS3_EliminacionDelUnicoRegistro(t *testing.T) {
+	f := newEffortFixture(t)
+	created := f.ownEntry(t, 3)
+
+	requireEffortDeleted(t, f.env.deleteEffort(t, f.ownerToken, created.ID))
+
+	// La historia vuelve a 0 horas y sin desglose, sin que sea un error.
+	body := f.env.getStoryEffort(t, f.ownerToken, f.storyID)
+	assert.Equal(t, "0.00", string(body.TotalHours), "totalHours")
+	assert.Equal(t, "[]", string(body.Raw["byMember"]), "byMember debe ser []")
+	assert.Equal(t, "[]", string(body.Raw["entries"]), "entries debe ser []")
+
+	// RN-22: la historia sigue sin poder eliminarse con la 003 porque tuvo esfuerzo registrado.
+	rec := f.env.do(t, http.MethodDelete, "/api/v1/stories/"+f.storyID.String(), f.ownerToken, nil)
+	assert.Equal(t, http.StatusConflict, rec.Code, "DELETE de la historia; cuerpo: %s", rec.Body.String())
+	assert.JSONEq(t, `{"error":"`+effortPortsStoryBlockedMessage+`","reasons":[`+
+		`{"code":"effort","message":"`+effortPortsEffortMessage+`"}]}`, rec.Body.String())
+}
+
+// Escenario: Caso límite — sprint cerrado hace 10 horas con un plazo de gracia de 48 (006/US3)
+func TestUS3_DentroDelPlazo(t *testing.T) {
+	// Corregir: el sábado a las 04:00, 10 horas después del cierre, la modificación se acepta.
+	t.Run("corregir", func(t *testing.T) {
+		f := newEffortFixture(t)
+		created, sprintID := f.entryInClosedSprint(t, f.ownerToken)
+		f.env.clock.Set(f.fridayClose().Add(10 * time.Hour))
+
+		updated := requireEffortUpdated(t, f.env.patchEffort(t, f.ownerToken, created.ID, map[string]any{"hours": 5}))
+
+		assert.Equal(t, "5.00", string(updated.Hours))
+		assert.False(t, updated.Definitive, "dentro del plazo no es definitivo")
+		f.requireAnchoredTo(t, updated, sprintID, "closed")
+	})
+
+	// Eliminar: en el mismo instante la eliminación se acepta.
+	t.Run("eliminar", func(t *testing.T) {
+		f := newEffortFixture(t)
+		created, sprintID := f.entryInClosedSprint(t, f.ownerToken)
+		f.env.clock.Set(f.fridayClose().Add(10 * time.Hour))
+
+		requireEffortDeleted(t, f.env.deleteEffort(t, f.ownerToken, created.ID))
+
+		assert.False(t, f.env.entryExists(t, created.ID), "el registro debe dejar de existir")
+		assert.Equal(t, int64(0), f.env.sprintHundredths(t, sprintID), "el sprint queda sin esas horas")
+	})
+}
+
+// Escenario: Caso límite — sprint cerrado hace exactamente 48 horas (006/US3)
+func TestUS3_PlazoCumplido(t *testing.T) {
+	f := newEffortFixture(t)
+	created, _ := f.entryInClosedSprint(t, f.ownerToken)
+	f.env.clock.Set(f.fridayClose().Add(effortDefaultGrace))
+	before := f.env.storedEntry(t, created.ID)
+
+	body := requireEffortConflict(t, f.env.patchEffort(t, f.ownerToken, created.ID, map[string]any{"hours": 5}), "effort_finalized")
+
+	// El plazo se cuenta cumplido al alcanzarse.
+	assert.Equal(t, effortMsgEffortFinalized, body.Error)
+	assert.Equal(t, "null", string(body.AvailableHours), "availableHours es null fuera del tope diario")
+	f.env.requireEntryUnchanged(t, before)
+}
+
+// Escenario: Caso de error — registro de otro integrante (006/US3)
+func TestUS3_RegistroAjeno(t *testing.T) {
+	// En todas las variantes el sprint se cerró hace 10 horas: el plazo de gracia sigue vigente, así
+	// que el único motivo del rechazo es la autoría. Bruno intenta sobre el registro de Ana y Ana,
+	// propietaria del proyecto, sobre el de Bruno.
+	cases := []struct {
+		name          string
+		actorIsMember bool
+		deleteEntry   bool
+	}{
+		{name: "otro integrante modifica", actorIsMember: true},
+		{name: "otro integrante elimina", actorIsMember: true, deleteEntry: true},
+		{name: "propietario modifica"},
+		{name: "propietario elimina", deleteEntry: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newEffortFixture(t)
+			_, brunoToken := f.env.signUp(t, "Bruno Díaz", "bruno@example.com")
+			f.env.addMember(t, f.ownerToken, f.projectID, "bruno@example.com")
+			authorToken, actorToken := f.ownerToken, brunoToken
+			if !tc.actorIsMember {
+				authorToken, actorToken = brunoToken, f.ownerToken
+			}
+			created, _ := f.entryInClosedSprint(t, authorToken)
+			f.env.clock.Set(f.fridayClose().Add(10 * time.Hour))
+			before := f.env.storedEntry(t, created.ID)
+
+			var rec *httptest.ResponseRecorder
+			if tc.deleteEntry {
+				rec = f.env.deleteEffort(t, actorToken, created.ID)
+			} else {
+				rec = f.env.patchEffort(t, actorToken, created.ID, map[string]any{"hours": 1})
+			}
+
+			// Se rechaza por falta de permiso y el registro no se toca.
+			requireNotEntryAuthor(t, rec)
+			f.env.requireEntryUnchanged(t, before)
+		})
+	}
+}
+
+// Escenario: Caso de error — modificación de un registro de un sprint con el plazo vencido (006/US3)
+func TestUS3_ModificacionDefinitiva(t *testing.T) {
+	f := newEffortFixture(t)
+	created, _ := f.entryInClosedSprint(t, f.ownerToken)
+	f.env.clock.Set(f.fridayClose().Add(5 * 24 * time.Hour))
+	before := f.env.storedEntry(t, created.ID)
+
+	body := requireEffortConflict(t, f.env.patchEffort(t, f.ownerToken, created.ID, map[string]any{"hours": 5}), "effort_finalized")
+
+	assert.Equal(t, effortMsgEffortFinalized, body.Error)
+	f.env.requireEntryUnchanged(t, before)
+}
+
+// Escenario: Caso de error — eliminación de un registro de un sprint con el plazo vencido (006/US3)
+func TestUS3_EliminacionDefinitiva(t *testing.T) {
+	f := newEffortFixture(t)
+	created, sprintID := f.entryInClosedSprint(t, f.ownerToken)
+	f.env.clock.Set(f.fridayClose().Add(5 * 24 * time.Hour))
+	before := f.env.storedEntry(t, created.ID)
+
+	body := requireEffortConflict(t, f.env.deleteEffort(t, f.ownerToken, created.ID), "effort_finalized")
+
+	// El registro se conserva y sigue contando en el sprint.
+	assert.Equal(t, effortMsgEffortFinalized, body.Error)
+	f.env.requireEntryUnchanged(t, before)
+	assert.Equal(t, int64(400), f.env.sprintHundredths(t, sprintID), "el sprint conserva sus horas")
+}
+
+// Escenario: Caso de error — registro sin sprint de una historia que nunca entró a un sprint (006/US3)
+func TestUS3_RegistroSinSprint(t *testing.T) {
+	// Modificar: la inmutabilidad depende del sprint asociado y este registro no tiene ninguno.
+	t.Run("modificar", func(t *testing.T) {
+		f := newEffortFixture(t)
+		created := f.ownEntry(t, 2)
+		f.requireWithoutSprint(t, created)
+
+		updated := requireEffortUpdated(t, f.env.patchEffort(t, f.ownerToken, created.ID, map[string]any{"hours": 2.5}))
+
+		assert.Equal(t, "2.50", string(updated.Hours))
+		f.requireWithoutSprint(t, updated)
+	})
+
+	// Eliminar: por el mismo motivo, la eliminación se acepta.
+	t.Run("eliminar", func(t *testing.T) {
+		f := newEffortFixture(t)
+		created := f.ownEntry(t, 2)
+
+		requireEffortDeleted(t, f.env.deleteEffort(t, f.ownerToken, created.ID))
+
+		assert.False(t, f.env.entryExists(t, created.ID), "el registro debe dejar de existir")
+	})
+}
+
+// Escenario: Caso de error — modificación con horas, actividad o fecha inválidas (006/US3)
+func TestUS3_DatosInvalidos(t *testing.T) {
+	// Cada variante envía un único campo inválido y espera el 400 con su motivo; el registro queda
+	// exactamente como estaba (FR-023, FR-025). Hoy es 2026-10-21 y el proyecto empezó el 2026-10-01.
+	cases := []struct {
+		name    string
+		body    map[string]any
+		field   string
+		message string
+	}{
+		{name: "0 horas", body: map[string]any{"hours": 0}, field: "hours", message: validationMsgHoursRange},
+		{name: "25 horas", body: map[string]any{"hours": 25}, field: "hours", message: validationMsgHoursRange},
+		{name: "1,1 horas", body: map[string]any{"hours": 1.1}, field: "hours", message: validationMsgHoursMultiple},
+		{name: "actividad vacía", body: map[string]any{"activity": "   "}, field: "activity", message: validationMsgActivityEmpty},
+		{name: "fecha futura", body: map[string]any{"entryDate": "2026-10-22"}, field: "entryDate", message: effortMsgDateInFuture},
+		{name: "fecha anterior al inicio", body: map[string]any{"entryDate": "2026-09-30"}, field: "entryDate", message: effortMsgDateBeforeStart},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newEffortFixture(t)
+			created := f.ownEntry(t, 4)
+			before := f.env.storedEntry(t, created.ID)
+
+			rec := f.env.patchEffort(t, f.ownerToken, created.ID, tc.body)
+
+			requireEffortFieldRejected(t, rec, tc.field, tc.message)
+			f.env.requireEntryUnchanged(t, before)
+		})
+	}
+}
+
+// Escenario: Caso de error — intento de cambiar la historia o el integrante del registro (006/US3)
+func TestUS3_CamposInmutables(t *testing.T) {
+	// Cada variante acompaña el campo inmutable con un cambio válido de horas, para comprobar que no
+	// se aplica ningún cambio parcial.
+	for _, field := range []string{"storyId", "userId"} {
+		t.Run(field, func(t *testing.T) {
+			f := newEffortFixture(t)
+			brunoID, _ := f.env.signUp(t, "Bruno Díaz", "bruno@example.com")
+			f.env.addMember(t, f.ownerToken, f.projectID, "bruno@example.com")
+			otherStory := f.env.createReadyStory(t, f.ownerToken, f.projectID, "Baja de clientes")
+			created := f.ownEntry(t, 4)
+			before := f.env.storedEntry(t, created.ID)
+			values := map[string]string{"storyId": otherStory.String(), "userId": brunoID.String()}
+
+			rec := f.env.patchEffort(t, f.ownerToken, created.ID, map[string]any{field: values[field], "hours": 5})
+
+			requireEffortFieldRejected(t, rec, field, validationMsgPatchImmutable)
+			f.env.requireEntryUnchanged(t, before)
+		})
+	}
+}
+
+// Escenario: Caso de error — proyecto Finalizado (006/US3)
+func TestUS3_ProyectoFinalizado(t *testing.T) {
+	// El registro no tiene sprint, de modo que el único motivo del rechazo es el proyecto de solo
+	// lectura (FR-027).
+	cases := []struct {
+		name        string
+		deleteEntry bool
+	}{
+		{name: "modificar"},
+		{name: "eliminar", deleteEntry: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newEffortFixture(t)
+			created := f.ownEntry(t, 4)
+			f.env.setProjectStatus(t, f.ownerToken, f.projectID, "finished")
+			before := f.env.storedEntry(t, created.ID)
+
+			var rec *httptest.ResponseRecorder
+			if tc.deleteEntry {
+				rec = f.env.deleteEffort(t, f.ownerToken, created.ID)
+			} else {
+				rec = f.env.patchEffort(t, f.ownerToken, created.ID, map[string]any{"hours": 5})
+			}
+
+			body := requireEffortConflict(t, rec, "read_only")
+			assert.Equal(t, effortMsgReadOnly, body.Error)
+			assert.Equal(t, "null", string(body.AvailableHours), "availableHours es null fuera del tope diario")
+			f.env.requireEntryUnchanged(t, before)
+		})
+	}
+}
+
+// Escenario: Caso de error — persona quitada del proyecto (006/US3)
+func TestUS3_ExIntegrante(t *testing.T) {
+	// Bruno carga un registro y la propietaria lo quita del proyecto con la 002.
+	f := newEffortFixture(t)
+	brunoID, brunoToken := f.env.signUp(t, "Bruno Díaz", "bruno@example.com")
+	f.env.addMember(t, f.ownerToken, f.projectID, "bruno@example.com")
+	created := requireEffortCreated(t, f.env.postEffort(t, brunoToken, f.storyID, effortBody(effortToday, effortActivity, 3)))
+	effortRequireStatus(t, f.env.do(t, http.MethodDelete,
+		"/api/v1/projects/"+f.projectID.String()+"/members/"+brunoID.String(), f.ownerToken, nil), http.StatusNoContent, nil)
+	before := f.env.storedEntry(t, created.ID)
+
+	// Modificar y eliminar responden el 404 de registro inexistente y el registro no se toca.
+	requireEntryNotFound(t, f.env.patchEffort(t, brunoToken, created.ID, map[string]any{"hours": 5}))
+	requireEntryNotFound(t, f.env.deleteEffort(t, brunoToken, created.ID))
+	f.env.requireEntryUnchanged(t, before)
+
+	// El registro sigue visible para los integrantes vigentes.
+	body := f.env.getStoryEffort(t, f.ownerToken, f.storyID)
+	assert.Equal(t, []string{created.ID}, effortEntryIDs(body.Entries), "el registro sigue visible")
+
+	// Reincorporado con la 002, Bruno vuelve a poder modificarlo.
+	f.env.addMember(t, f.ownerToken, f.projectID, "bruno@example.com")
+	updated := requireEffortUpdated(t, f.env.patchEffort(t, brunoToken, created.ID, map[string]any{"hours": 5}))
+	assert.Equal(t, "5.00", string(updated.Hours))
+}

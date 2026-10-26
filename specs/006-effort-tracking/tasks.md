@@ -438,29 +438,29 @@ sprint; desde otro integrante, `403`; `DELETE` del autor devuelve `204` y el tot
 
 ### Pruebas de la Historia 3 ⚠️
 
-- [ ] T040 [P] [US3] Pruebas unitarias **obligatorias** de
+- [X] T040 [P] [US3] Pruebas unitarias **obligatorias** de
       `EnsureEntryWritable(sprint *AnchoredSprint, now time.Time, grace time.Duration) error` en
       `backend/internal/effort/domain/grace_test.go` con la tabla de data-model.md sección 6.2,
       cubriendo RN-09 y RN-10: sin sprint → ok; `planned` y `active` → ok; `closed` hace 10 h con
       48 h → ok; `closed` hace exactamente 48 h → `ErrEffortFinalized`; `closed` hace cinco días →
       `ErrEffortFinalized` — depende de T039
-- [ ] T041 [P] [US3] Pruebas unitarias **obligatorias** de `EnsureAuthor(authorID, actorID uuid.UUID) error`
+- [X] T041 [P] [US3] Pruebas unitarias **obligatorias** de `EnsureAuthor(authorID, actorID uuid.UUID) error`
       en `backend/internal/effort/domain/author_test.go`, cubriendo RN-11: el autor → ok; otro
       integrante y el propietario del proyecto → `ErrNotEntryAuthor` — depende de T039
-- [ ] T042 [P] [US3] Pruebas unitarias **obligatorias** de `ValidateEntryPatch` en
+- [X] T042 [P] [US3] Pruebas unitarias **obligatorias** de `ValidateEntryPatch` en
       `backend/internal/effort/delivery/validation_test.go`, cubriendo RN-12 y FR-023: cuerpo vacío
       `{}` → error "Hay que indicar al menos un campo a modificar."; solo `hours` → ok; las mismas
       reglas de horas, actividad y fecha que el alta; `storyId`, `userId` y `sprintId` presentes,
       **aunque valgan `null`** → `FieldError` en ese campo con "La historia, el integrante y el sprint
       de un registro no se modifican; para mover horas, eliminá el registro y creá uno nuevo." —
       depende de T039
-- [ ] T043 [P] [US3] Pruebas del middleware `RequireEffortEntryAccess` en
+- [X] T043 [P] [US3] Pruebas del middleware `RequireEffortEntryAccess` en
       `backend/internal/effort/delivery/middleware_test.go`, cubriendo FR-059: sin titular → `401`
       con el cuerpo de la 001; identificador mal formado, registro inexistente, registro de un
       proyecto ajeno y registro propio de una persona quitada del proyecto → `404` con **el mismo
       cuerpo byte a byte** (`{"error":"El registro de esfuerzo no existe."}`); integrante → sigue la
       cadena con el `EntryAccess` en el contexto, sea o no el autor — depende de T039
-- [ ] T044 [US3] Pruebas de integración en `backend/internal/effort/delivery/handler_test.go`, una por
+- [X] T044 [US3] Pruebas de integración en `backend/internal/effort/delivery/handler_test.go`, una por
       escenario con `// Escenario: <nombre> (006/US3)`: `TestUS3_CorreccionDeHoras` (total +2, autor,
       historia y sprint sin cambio), `TestUS3_Eliminacion` (`204`; sale del total de la historia, del
       sprint y del día), `TestUS3_CambioDeFecha` (tope verificado sobre la fecha nueva, sprint sin
@@ -479,11 +479,11 @@ sprint; desde otro integrante, `403`; `DELETE` del autor devuelve `204` y el tot
       (`409 read_only` en modificar y eliminar) y `TestUS3_ExIntegrante` (baja con la 002: `404` de
       registro inexistente y los registros siguen visibles para los vigentes; tras reincorporarlo
       vuelve a poder modificarlos) — depende de T039
-- [ ] T045 [US3] Agregar a `backend/internal/effort/delivery/effort_concurrency_test.go` la variante
+- [X] T045 [US3] Agregar a `backend/internal/effort/delivery/effort_concurrency_test.go` la variante
       `TestEffortDailyCap_ConcurrencyMixed`, **sin** etiqueta: con 18 h cargadas en la fecha, a la vez
       una modificación de un registro de 2 h a 6 h y tres altas de 2 h; en ningún intercalado la
       fecha supera 24,00 y ninguna respuesta es `500` (FR-024, SC-005) — depende de T044
-- [ ] T046 [P] [US3] Pruebas de frontend en
+- [X] T046 [P] [US3] Pruebas de frontend en
       `frontend/src/features/effort/components/effort-entry-list.test.tsx`, con
       `describe("006/US3 - Corregir o eliminar un registro propio")`: los botones **Editar** y
       **Eliminar** aparecen solo en los registros propios con `definitive: false`; la edición en línea
@@ -492,16 +492,16 @@ sprint; desde otro integrante, `403`; `DELETE` del autor devuelve `204` y el tot
 
 ### Implementación de la Historia 3
 
-- [ ] T047 [P] [US3] Implementar `EnsureEntryWritable` en `backend/internal/effort/domain/grace.go`
+- [X] T047 [P] [US3] Implementar `EnsureEntryWritable` en `backend/internal/effort/domain/grace.go`
       sobre `GraceOpen` — depende de T040
-- [ ] T048 [P] [US3] Implementar `EnsureAuthor` en `backend/internal/effort/domain/author.go` —
+- [X] T048 [P] [US3] Implementar `EnsureAuthor` en `backend/internal/effort/domain/author.go` —
       depende de T041
-- [ ] T049 [US3] Implementar `ValidateEntryPatch` en `backend/internal/effort/delivery/validation.go`
+- [X] T049 [US3] Implementar `ValidateEntryPatch` en `backend/internal/effort/delivery/validation.go`
       con el DTO `EffortEntryPatch` en `backend/internal/effort/delivery/dto.go`: cada campo como
       `json.RawMessage` para distinguir ausente de `null`, y `StoryID`, `UserID` y `SprintID`
       decodificados **solo para rechazarlos** con `swaggerignore:"true"` (patrón de `StoryPatch` de la
       003) — depende de T042
-- [ ] T050 [US3] Implementar en `backend/internal/effort/repository/effort_repository.go`
+- [X] T050 [US3] Implementar en `backend/internal/effort/repository/effort_repository.go`
       `FindAccessible` (una consulta `effort_entries → user_stories → project_members` con la
       membresía vigente del titular y el estado del proyecto; sin fila → `ErrEntryNotFound`),
       `Update` y `Delete` en transacción con el orden de research.md sección 10: proyecto
@@ -511,12 +511,12 @@ sprint; desde otro integrante, `403`; `DELETE` del autor devuelve `204` y el tot
       `CheckDailyCap` **excluyendo** las horas vigentes del propio registro sobre la fecha
       resultante. `Update` **nunca** escribe `story_id`, `user_id` ni `sprint_id`; `Delete` no toca
       `ever_had_effort` — depende de T043, T044, T047, T048
-- [ ] T051 [US3] Implementar `RequireEffortEntryAccess` en
+- [X] T051 [US3] Implementar `RequireEffortEntryAccess` en
       `backend/internal/effort/delivery/middleware.go` con una única salida `404` y el mensaje
       `El registro de esfuerzo no existe.` — depende de T050
-- [ ] T052 [US3] Implementar `Update` y `Delete` en `backend/internal/effort/service/effort_service.go`
+- [X] T052 [US3] Implementar `Update` y `Delete` en `backend/internal/effort/service/effort_service.go`
       con el actor de la sesión y el instante del reloj — depende de T050
-- [ ] T053 [US3] Implementar los manejadores `updateEffortEntry` y `deleteEffortEntry` con
+- [X] T053 [US3] Implementar los manejadores `updateEffortEntry` y `deleteEffortEntry` con
       anotaciones `swag` en `backend/internal/effort/delivery/handler.go` (`ErrNotEntryAuthor` →
       `403` "Solo quien registró este esfuerzo puede modificarlo o eliminarlo.";
       `ErrEffortFinalized` → `409 effort_finalized` "Este esfuerzo pertenece a un sprint cerrado y ya
@@ -524,7 +524,7 @@ sprint; desde otro integrante, `403`; `DELETE` del autor devuelve `204` y el tot
       `RegisterEntryRoutes(router, requireSession, repo, handler)` con el grupo plano
       `/api/v1/effort-entries/:entryId` y `PATCH` y `DELETE`; registrarlo en
       `backend/cmd/app/main.go` sobre la misma instancia del repositorio — depende de T049, T051, T052
-- [ ] T054 [US3] Implementar `updateEffortEntry` y `deleteEffortEntry` en
+- [X] T054 [US3] Implementar `updateEffortEntry` y `deleteEffortEntry` en
       `frontend/src/features/effort/api.ts` y `EffortEntryRow` en
       `frontend/src/features/effort/components/effort-entry-row.tsx` (edición en línea de fecha,
       actividad y horas; eliminación con confirmación), usado por `EffortEntryList` — depende de T046,

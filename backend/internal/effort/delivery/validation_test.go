@@ -271,3 +271,178 @@ func TestValidateEntryInput_TodosLosCamposALaVez(t *testing.T) {
 		t.Errorf("con campos inválidos la entrada normalizada debería quedar vacía, fue %+v", got)
 	}
 }
+
+// Pruebas unitarias obligatorias de la validación de la modificación parcial de un registro (T042;
+// RN-12, FR-023; research.md sección 6). Igual que las del alta, no llevan la etiqueta de un
+// escenario: los nombres TestUS3_* son de las pruebas de integración de handler_test.go (T044).
+
+// Mensajes propios de la modificación, tal como los fija tasks.md (T042).
+const (
+	validationMsgPatchEmpty     = "Hay que indicar al menos un campo a modificar."
+	validationMsgPatchImmutable = "La historia, el integrante y el sprint de un registro no se modifican; para mover horas, eliminá el registro y creá uno nuevo."
+)
+
+// validationDecodeEntryPatch decodifica el cuerpo JSON de la modificación como lo haría el
+// manejador, de modo que un campo con null llegue presente, y falla la prueba si el JSON no es válido.
+func validationDecodeEntryPatch(t *testing.T, body string) EffortEntryPatch {
+	t.Helper()
+	var req EffortEntryPatch
+	if err := json.Unmarshal([]byte(body), &req); err != nil {
+		t.Fatalf("el cuerpo de prueba debe ser JSON válido: %v", err)
+	}
+	return req
+}
+
+// validationRequirePatchRejected exige que la modificación se rechace con exactamente el campo
+// indicado y el mensaje esperado, y que no devuelva ningún cambio (FR-025).
+func validationRequirePatchRejected(t *testing.T, body, field, message string) {
+	t.Helper()
+	got, fields := ValidateEntryPatch(validationDecodeEntryPatch(t, body))
+	validationRequireOnlyField(t, fields, field, message)
+	if got != (domain.EntryPatch{}) {
+		t.Errorf("una modificación rechazada no debería devolver cambios, devolvió %+v", got)
+	}
+}
+
+// Un cuerpo vacío no modifica nada y se rechaza pidiendo al menos un campo (006/US3, FR-023;
+// contracts/openapi.yaml, minProperties: 1).
+func TestValidateEntryPatch_CuerpoVacio(t *testing.T) {
+	got, fields := ValidateEntryPatch(validationDecodeEntryPatch(t, `{}`))
+	if len(fields) != 1 {
+		t.Fatalf("se esperaba un único error, se obtuvieron %v", fields)
+	}
+	if fields[0].Message != validationMsgPatchEmpty {
+		t.Errorf("mensaje %q, se esperaba %q", fields[0].Message, validationMsgPatchEmpty)
+	}
+	if got != (domain.EntryPatch{}) {
+		t.Errorf("un cuerpo vacío no debería devolver cambios, devolvió %+v", got)
+	}
+}
+
+// Caso normal: una modificación con solo las horas es válida, las devuelve en centésimas y deja sin
+// cambio la fecha y la actividad (006/US3, RN-03, FR-023).
+func TestValidateEntryPatch_SoloHoras(t *testing.T) {
+	got, fields := ValidateEntryPatch(validationDecodeEntryPatch(t, `{"hours": 6}`))
+	if len(fields) != 0 {
+		t.Fatalf("la modificación debería ser válida, se obtuvieron %v", fields)
+	}
+	if got.HoursHundredths == nil || *got.HoursHundredths != 600 {
+		t.Errorf("las horas deberían quedar en 600 centésimas, quedaron en %v", got.HoursHundredths)
+	}
+	if got.EntryDate != nil || got.Activity != nil {
+		t.Errorf("la fecha y la actividad no deberían cambiar, se obtuvo %+v", got)
+	}
+}
+
+// Una modificación con los tres campos editables se normaliza igual que el alta: la actividad
+// recortada, la fecha a medianoche UTC y las horas en centésimas (006/US3, RN-02, RN-03, FR-023).
+func TestValidateEntryPatch_TodosLosCamposEditables(t *testing.T) {
+	body := `{"entryDate": "2026-10-23", "activity": "  Pruebas del formulario  ", "hours": 2.75}`
+	got, fields := ValidateEntryPatch(validationDecodeEntryPatch(t, body))
+	if len(fields) != 0 {
+		t.Fatalf("la modificación debería ser válida, se obtuvieron %v", fields)
+	}
+	wantDate := time.Date(2026, time.October, 23, 0, 0, 0, 0, time.UTC)
+	if got.EntryDate == nil || !got.EntryDate.Equal(wantDate) || got.EntryDate.Location() != time.UTC {
+		t.Errorf("la fecha debería ser %v, fue %v", wantDate, got.EntryDate)
+	}
+	if got.Activity == nil || *got.Activity != "Pruebas del formulario" {
+		t.Errorf("la actividad debería devolverse recortada, fue %v", got.Activity)
+	}
+	if got.HoursHundredths == nil || *got.HoursHundredths != 275 {
+		t.Errorf("las horas deberían quedar en 275 centésimas, quedaron en %v", got.HoursHundredths)
+	}
+}
+
+// Las horas presentes se validan con las mismas reglas que el alta: 0, 25, 1,1, un número entre
+// comillas y null se rechazan en hours con el mensaje de ParseHours (006/US3, RN-03, FR-023).
+func TestValidateEntryPatch_HorasInvalidas(t *testing.T) {
+	cases := []struct {
+		name    string
+		body    string
+		message string
+	}{
+		{"cero", `{"hours": 0}`, validationMsgHoursRange},
+		{"mayor que 24", `{"hours": 25}`, validationMsgHoursRange},
+		{"no múltiplo", `{"hours": 1.1}`, validationMsgHoursMultiple},
+		{"entre comillas", `{"hours": "6"}`, validationMsgHoursNumber},
+		{"null", `{"hours": null}`, validationMsgHoursNumber},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			validationRequirePatchRejected(t, tc.body, "hours", tc.message)
+		})
+	}
+}
+
+// La actividad presente se valida con las mismas reglas que el alta: vacía, solo espacios o null se
+// rechaza como obligatoria, y con 301 caracteres se rechaza indicando el máximo (006/US3, RN-02,
+// FR-023).
+func TestValidateEntryPatch_ActividadInvalida(t *testing.T) {
+	cases := []struct {
+		name    string
+		body    string
+		message string
+	}{
+		{"vacía", `{"activity": ""}`, validationMsgActivityEmpty},
+		{"solo espacios", `{"activity": "   "}`, validationMsgActivityEmpty},
+		{"null", `{"activity": null}`, validationMsgActivityEmpty},
+		{"301 caracteres", `{"activity": "` + strings.Repeat("á", 301) + `"}`, validationMsgActivityLong},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			validationRequirePatchRejected(t, tc.body, "activity", tc.message)
+		})
+	}
+}
+
+// La fecha presente se valida con las mismas reglas que el alta: vacía, inexistente, con otro
+// formato o null se rechaza en entryDate indicando el formato (006/US3, FR-006, FR-023).
+func TestValidateEntryPatch_FechaInvalida(t *testing.T) {
+	cases := map[string]string{
+		"vacía":        `{"entryDate": ""}`,
+		"inexistente":  `{"entryDate": "2026-02-30"}`,
+		"otro formato": `{"entryDate": "24/10/2026"}`,
+		"null":         `{"entryDate": null}`,
+	}
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			validationRequirePatchRejected(t, body, "entryDate", "AAAA-MM-DD")
+		})
+	}
+}
+
+// La historia, el integrante y el sprint de un registro son inmutables: si el cuerpo los incluye se
+// rechazan en su propio campo, aunque valgan null, lleguen junto a un cambio válido de horas o sean
+// el único campo del cuerpo (006/US3, RN-12, FR-019).
+func TestValidateEntryPatch_CamposInmutables(t *testing.T) {
+	for _, field := range []string{"storyId", "userId", "sprintId"} {
+		t.Run(field+" con valor", func(t *testing.T) {
+			body := `{"hours": 6, "` + field + `": "3f1a9c64-7b2e-4d58-9a10-5c8e2f6b1d04"}`
+			validationRequirePatchRejected(t, body, field, validationMsgPatchImmutable)
+		})
+		t.Run(field+" en null", func(t *testing.T) {
+			body := `{"hours": 6, "` + field + `": null}`
+			validationRequirePatchRejected(t, body, field, validationMsgPatchImmutable)
+		})
+		t.Run(field+" como único campo", func(t *testing.T) {
+			body := `{"` + field + `": null}`
+			validationRequirePatchRejected(t, body, field, validationMsgPatchImmutable)
+		})
+	}
+}
+
+// Varios campos inválidos se devuelven todos a la vez, uno por campo, incluidos los inmutables, y no
+// se devuelve ningún cambio (006/US3, Principio VII, FR-025).
+func TestValidateEntryPatch_TodosLosCamposALaVez(t *testing.T) {
+	body := `{"entryDate": "24/10/2026", "activity": " ", "hours": 0, "storyId": null, "userId": null, "sprintId": null}`
+	got, fields := ValidateEntryPatch(validationDecodeEntryPatch(t, body))
+	names := validationFieldNames(fields)
+	want := []string{"activity", "entryDate", "hours", "sprintId", "storyId", "userId"}
+	if strings.Join(names, ",") != strings.Join(want, ",") {
+		t.Fatalf("los campos rechazados deberían ser %v, fueron %v", want, names)
+	}
+	if got != (domain.EntryPatch{}) {
+		t.Errorf("con campos inválidos no debería devolver cambios, devolvió %+v", got)
+	}
+}

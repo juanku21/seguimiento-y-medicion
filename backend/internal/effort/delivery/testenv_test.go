@@ -195,9 +195,13 @@ func newEffortRouter(db *gorm.DB, cfg config.Config, clock *effortClock, locatio
 
 	// Módulo de esfuerzo con el reloj falso, la zona inyectada y el plazo de gracia: el alta cuelga
 	// de la historia con el RequireStoryAccess de la 003, sobre la misma instancia del repositorio de
-	// historias.
-	efforts := service.NewEffortService(repository.NewEffortRepository(db), location, grace, clock.Now)
-	RegisterStoryRoutes(router, authHandler.RequireSession, backlogdelivery.RequireStoryAccess(storyRepository), NewHandler(efforts))
+	// historias. La modificación y la eliminación cuelgan del registro con RequireEffortEntryAccess,
+	// sobre la misma instancia del repositorio de esfuerzo que usa el servicio (US3, T044).
+	effortRepository := repository.NewEffortRepository(db)
+	efforts := service.NewEffortService(effortRepository, location, grace, clock.Now)
+	effortHandler := NewHandler(efforts)
+	RegisterStoryRoutes(router, authHandler.RequireSession, backlogdelivery.RequireStoryAccess(storyRepository), effortHandler)
+	RegisterEntryRoutes(router, authHandler.RequireSession, effortRepository, effortHandler)
 	return router
 }
 

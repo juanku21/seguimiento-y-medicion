@@ -202,3 +202,61 @@ func aggregateByMember(entries []domain.EntryView) (int, []domain.MemberEffort) 
 	})
 	return total, byMember
 }
+
+// StoryComparisonRow es la comparación entre el esfuerzo estimado y el real de una historia, con su
+// identificador y su título para que delivery arme la fila del contrato (EffortComparisonRow).
+type StoryComparisonRow struct {
+	StoryID    uuid.UUID
+	Title      string
+	Comparison domain.Comparison
+}
+
+// ProjectComparisonView es la comparación de todas las historias del proyecto: el factor de horas por
+// Story Point vigente en centésimas y una fila por historia en el orden del backlog de la 003, nunca
+// nil (FR-052 a FR-054).
+type ProjectComparisonView struct {
+	FactorHundredths int
+	Stories          []StoryComparisonRow
+}
+
+// StoryComparison compara lo estimado con lo real de la historia del acceso, con el factor vigente
+// del proyecto (FR-046 a FR-051, FR-054). RequireStoryAccess ya verificó que la historia existe y que
+// quien pide integra su proyecto; si aun así la consulta no trae la fila, porque la historia se
+// eliminó entretanto, se devuelve ErrStoryNotFound de la 003 envuelto con %w.
+func (s *EffortService) StoryComparison(ctx context.Context, access *backlogdomain.StoryAccess) (*StoryComparisonRow, error) {
+	factor, rows, err := s.repo.ComparisonRows(ctx, access.ProjectID, &access.StoryID)
+	if err != nil {
+		return nil, fmt.Errorf("comparar el esfuerzo de la historia: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("comparar el esfuerzo de la historia: %w", backlogdomain.ErrStoryNotFound)
+	}
+
+	row := compareRow(rows[0], factor)
+	return &row, nil
+}
+
+// ProjectComparison compara lo estimado con lo real de todas las historias del proyecto, de cualquier
+// estado, con el factor vigente y en el orden en que las devuelve el repositorio (FR-052 a FR-054).
+// Un proyecto sin historias devuelve una lista vacía, nunca nil.
+func (s *EffortService) ProjectComparison(ctx context.Context, projectID uuid.UUID) (*ProjectComparisonView, error) {
+	factor, rows, err := s.repo.ComparisonRows(ctx, projectID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("comparar el esfuerzo del proyecto: %w", err)
+	}
+
+	stories := make([]StoryComparisonRow, 0, len(rows))
+	for _, row := range rows {
+		stories = append(stories, compareRow(row, factor))
+	}
+	return &ProjectComparisonView{FactorHundredths: factor, Stories: stories}, nil
+}
+
+// compareRow aplica Compare del dominio a una fila del repositorio con el factor vigente.
+func compareRow(row domain.ComparisonRow, factorHundredths int) StoryComparisonRow {
+	return StoryComparisonRow{
+		StoryID:    row.StoryID,
+		Title:      row.Title,
+		Comparison: domain.Compare(row.StoryPoints, factorHundredths, row.ActualHundredths),
+	}
+}

@@ -3,13 +3,21 @@
 import { useEffect, useId, useState } from "react";
 import { Alert } from "@/components/alert";
 import { getOwnProfile } from "@/features/auth/api";
-import { getStoryEffort } from "@/features/effort/api";
+import {
+  getStoryEffort,
+  getStoryEffortComparison,
+} from "@/features/effort/api";
 import { EffortBreakdown } from "@/features/effort/components/effort-breakdown";
+import { EffortComparisonCard } from "@/features/effort/components/effort-comparison-card";
 import { EffortEntryForm } from "@/features/effort/components/effort-entry-form";
 import { EffortEntryList } from "@/features/effort/components/effort-entry-list";
 import { useAuthorizedQuery } from "@/hooks/use-authorized-query";
 import { useRequireSession } from "@/hooks/use-session";
-import type { EffortEntry, StoryEffort } from "@/types/effort";
+import type {
+  EffortComparisonRow,
+  EffortEntry,
+  StoryEffort,
+} from "@/types/effort";
 import { formatHours } from "@/utils/effort-format";
 import { formatDate } from "@/utils/format-date";
 
@@ -18,18 +26,19 @@ export type StoryEffortSectionProps = {
   storyId: string;
 };
 
-// Estado de la consulta del esfuerzo: todavía sin respuesta, el esfuerzo recibido o el mensaje de
-// error.
+// Estado de la consulta del esfuerzo: todavía sin respuesta, el esfuerzo y la comparación
+// recibidos, o el mensaje de error.
 type EffortState =
   | { status: "loading" }
-  | { status: "loaded"; effort: StoryEffort }
+  | { status: "loaded"; effort: StoryEffort; comparison: EffortComparisonRow }
   | { status: "error"; message: string };
 
 // Sección "Esfuerzo" del detalle de una historia, todo en una sola pantalla (SC-002): ofrece el
 // formulario de registro (006/US1), confirma el último registro dado de alta y muestra el total, el
-// desglose por persona y la lista de registros (006/US2), que se vuelven a pedir después de cada
-// alta, corrección o eliminación para reflejarla. Identifica a quien tiene la sesión para ofrecer
-// la corrección y la eliminación de sus registros (006/US3).
+// desglose por persona y la lista de registros (006/US2) y la comparación entre estimado y real
+// (006/US5), que se vuelven a pedir después de cada alta, corrección o eliminación para reflejarla.
+// Identifica a quien tiene la sesión para ofrecer la corrección y la eliminación de sus registros
+// (006/US3).
 export function StoryEffortSection({ storyId }: StoryEffortSectionProps) {
   const headingId = useId();
   const token = useRequireSession();
@@ -40,23 +49,33 @@ export function StoryEffortSection({ storyId }: StoryEffortSectionProps) {
   const currentUserId =
     profile.status === "loaded" ? profile.data.id : undefined;
 
-  // Pide el esfuerzo con un token vigente, al cambiar la historia y después de cada alta, corrección
-  // o eliminación (reloadCount). Mientras llega una recarga se sigue mostrando el esfuerzo anterior, y la bandera
-  // descarta la respuesta si el componente se desmontó o el pedido quedó viejo.
+  // Pide el esfuerzo y la comparación con un token vigente, al cambiar la historia y después de cada
+  // alta, corrección o eliminación (reloadCount), porque las horas reales cambian con ellas. Mientras
+  // llega una recarga se sigue mostrando lo anterior; si alguna consulta falla se muestra su
+  // mensaje, y la bandera descarta la respuesta si el componente se desmontó o el pedido quedó viejo.
   useEffect(() => {
     if (token === null) {
       return;
     }
     let isCurrent = true;
-    getStoryEffort(storyId).then((result) => {
+    Promise.all([
+      getStoryEffort(storyId),
+      getStoryEffortComparison(storyId),
+    ]).then(([effort, comparison]) => {
       if (!isCurrent) {
         return;
       }
-      setState(
-        result.ok
-          ? { status: "loaded", effort: result.data }
-          : { status: "error", message: result.error.message },
-      );
+      if (!effort.ok) {
+        setState({ status: "error", message: effort.error.message });
+      } else if (!comparison.ok) {
+        setState({ status: "error", message: comparison.error.message });
+      } else {
+        setState({
+          status: "loaded",
+          effort: effort.data,
+          comparison: comparison.data,
+        });
+      }
     });
     return () => {
       isCurrent = false;
@@ -91,6 +110,7 @@ export function StoryEffortSection({ storyId }: StoryEffortSectionProps) {
             totalHours={state.effort.totalHours}
             byMember={state.effort.byMember}
           />
+          <EffortComparisonCard comparison={state.comparison} />
           <EffortEntryList
             entries={state.effort.entries}
             currentUserId={currentUserId}

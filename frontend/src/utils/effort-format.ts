@@ -24,3 +24,26 @@ export function formatPercent(percent: number | null): string {
   }
   return `${sign}${magnitude} %`;
 }
+
+// Muestra una diferencia de horas con el mismo criterio de signo que formatPercent: "+" si es
+// positiva, el signo menos tipográfico (U+2212) si es negativa y sin signo en 0, o "No calculable"
+// si llega en null.
+export function formatSignedHours(hours: number | null): string {
+  if (hours === null) {
+    return notCalculable;
+  }
+  let sign = "";
+  if (hours !== 0) {
+    sign = hours > 0 ? "+" : "−";
+  }
+  return `${sign}${formatHours(Math.abs(hours))}`;
+}
+
+// Muestra los Story Points como "<n> SP", o "Sin estimar" si llegan en null, de modo que una
+// historia de 0 Story Points se distingue de una sin estimar (FR-055).
+export function formatStoryPoints(storyPoints: number | null): string {
+  if (storyPoints === null) {
+    return "Sin estimar";
+  }
+  return `${storyPoints} SP`;
+}

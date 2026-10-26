@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SessionGuard } from "@/features/auth/components/session-guard";
+import { ProjectEffortComparisonSection } from "@/features/effort/components/project-effort-comparison";
 import { ProjectEffortView } from "@/features/effort/components/project-effort-view";
 
 // Título propio de la pantalla del esfuerzo del proyecto.
@@ -8,10 +9,11 @@ export const metadata: Metadata = {
   title: "Esfuerzo | Software Metrics & Estimation",
 };
 
-// Pantalla protegida del esfuerzo del proyecto (006/US4). Es un Server Component que solo toma el
-// identificador del proyecto de la ruta y encuadra la vista: la guardia de sesión corre en el
-// cliente, porque el token vive en sessionStorage, y muestra el regreso al proyecto y los filtros
-// con la lista y el total únicamente cuando hay una sesión vigente.
+// Pantalla protegida del esfuerzo del proyecto (006/US4 y 006/US5). Es un Server Component que solo
+// toma el identificador del proyecto de la ruta y encuadra la vista: la guardia de sesión corre en
+// el cliente, porque el token vive en sessionStorage, y muestra el regreso al proyecto, los filtros
+// con la lista y el total, y la comparación entre estimado y real únicamente cuando hay una sesión
+// vigente.
 export default async function ProjectEffortPage({
   params,
 }: {
@@ -31,6 +33,7 @@ export default async function ProjectEffortPage({
             Volver al proyecto
           </Link>
           <ProjectEffortView projectId={projectId} />
+          <ProjectEffortComparisonSection projectId={projectId} />
         </div>
       </SessionGuard>
     </main>

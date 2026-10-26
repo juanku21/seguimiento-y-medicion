@@ -18,9 +18,7 @@ import (
 	sprintsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
 
-// EffortRepository implementa domain.EffortRepository con GORM sobre la tabla effort_entries. Por
-// ahora están implementadas todas las operaciones salvo ComparisonRows, que corresponde a una tarea
-// posterior.
+// EffortRepository implementa domain.EffortRepository con GORM sobre la tabla effort_entries.
 type EffortRepository struct {
 	db *gorm.DB
 }
@@ -633,8 +631,47 @@ func (r *EffortRepository) HasProjectEffort(ctx context.Context, projectID uuid.
 	return exists, nil
 }
 
-// ComparisonRows devuelve el factor vigente del proyecto y las filas de la comparación. Firma mínima
-// de T015: la implementación corresponde a T067.
+// ComparisonRows devuelve el factor de horas por Story Point vigente del proyecto y las filas de la
+// comparación (FR-046 a FR-053): las historias del proyecto, o solo storyID si no es nil, con sus
+// Story Points y la suma de sus horas reales por LEFT JOIN agregado, 0 si no tienen registros. El
+// orden es el del listado del backlog de la 003: prioridad, created_at e id. El acceso al proyecto y
+// a la historia ya lo resolvieron los middlewares de delivery.
 func (r *EffortRepository) ComparisonRows(ctx context.Context, projectID uuid.UUID, storyID *uuid.UUID) (int, []domain.ComparisonRow, error) {
-	return 0, nil, errors.New("not implemented")
+	db := r.db.WithContext(ctx)
+
+	// El factor se lee siempre de projects, sin copiarlo, para que un cambio de factor recalcule las
+	// estimadas en la consulta siguiente (FR-050).
+	var factorHundredths int
+	err := db.
+		Table("projects").
+		Select("hours_per_story_point_hundredths").
+		Where("id = ?", projectID).
+		Take(&factorHundredths).Error
+	if err != nil {
+		return 0, nil, fmt.Errorf("leer el factor de horas por Story Point del proyecto: %w", err)
+	}
+
+	// Las horas reales se agregan con LEFT JOIN y COALESCE para que la historia sin registros aparezca
+	// con 0 y no desaparezca de la comparación.
+	query := db.
+		Table("user_stories").
+		Select(`user_stories.id AS story_id, user_stories.title AS title,
+			user_stories.story_points AS story_points,
+			COALESCE(SUM(effort_entries.hours_hundredths), 0) AS actual_hundredths`).
+		Joins("LEFT JOIN effort_entries ON effort_entries.story_id = user_stories.id").
+		Where("user_stories.project_id = ?", projectID)
+	if storyID != nil {
+		query = query.Where("user_stories.id = ?", *storyID)
+	}
+
+	rows := []domain.ComparisonRow{}
+	err = query.
+		Group("user_stories.id").
+		Order("CASE user_stories.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, " +
+			"user_stories.created_at ASC, user_stories.id ASC").
+		Scan(&rows).Error
+	if err != nil {
+		return 0, nil, fmt.Errorf("listar las filas de la comparación de esfuerzo: %w", err)
+	}
+	return factorHundredths, rows, nil
 }

@@ -617,7 +617,7 @@ reales, diferencia absoluta y porcentual, con "no calculable" donde corresponde.
 
 ### Pruebas de la Historia 5 ⚠️
 
-- [ ] T063 [P] [US5] Pruebas unitarias **obligatorias** de
+- [X] T063 [P] [US5] Pruebas unitarias **obligatorias** de
       `Compare(storyPoints *int, factorHundredths, actualHundredths int) Comparison` y de
       `RoundPercentHundredths(numerator, denominator int) int` en
       `backend/internal/effort/domain/comparison_test.go`, cubriendo RN-16 a RN-20, RN-26, SC-012 a
@@ -627,7 +627,7 @@ reales, diferencia absoluta y porcentual, con "no calculable" donde corresponde.
       puntos sin registros → −1800 y −10000; factor 610 (6,1); redondeo de 1/3 → 3333, 2/3 → 6667,
       −1/3 → −3333, empate positivo y negativo **mitad lejos de cero**, y 1650/12600 → 1310 (13,10 %
       de 008/US1-1); ningún `float64` en la implementación — depende de T062
-- [ ] T064 [US5] Pruebas de integración en `backend/internal/effort/delivery/handler_test.go`, una por
+- [X] T064 [US5] Pruebas de integración en `backend/internal/effort/delivery/handler_test.go`, una por
       escenario con `// Escenario: <nombre> (006/US5)`: `TestUS5_Exceso`, `TestUS5_Ahorro`,
       `TestUS5_Exacta`, `TestUS5_CambioDeFactor` (factor 6 → 8 con la 002: estimadas recalculadas,
       reales sin cambio), `TestUS5_SinEstimar` (`null` en los tres campos, nunca `0.00`),
@@ -636,7 +636,7 @@ reales, diferencia absoluta y porcentual, con "no calculable" donde corresponde.
       `null`, sin error), `TestUS5_NoIntegrante` (`404` de la 002) y `TestUS5_HistoriaInexistente`.
       La comparación del proyecto incluye todas las historias, de cualquier estado, en el orden del
       backlog de la 003 — depende de T062
-- [ ] T065 [P] [US5] Pruebas de frontend en
+- [X] T065 [P] [US5] Pruebas de frontend en
       `frontend/src/features/effort/components/effort-comparison-table.test.tsx` y
       `frontend/src/features/effort/components/effort-comparison-card.test.tsx`, con
       `describe("006/US5 - Comparar el esfuerzo estimado con el real")`: "No calculable" para `null`,
@@ -645,25 +645,25 @@ reales, diferencia absoluta y porcentual, con "no calculable" donde corresponde.
 
 ### Implementación de la Historia 5
 
-- [ ] T066 [P] [US5] Implementar `Compare` y `RoundPercentHundredths` en
+- [X] T066 [P] [US5] Implementar `Compare` y `RoundPercentHundredths` en
       `backend/internal/effort/domain/comparison.go` con aritmética entera (cociente y resto), y un
       comentario que indique que la 008 debe reutilizar `RoundPercentHundredths` (RC-13) — depende de
       T063
-- [ ] T067 [US5] Implementar `ComparisonRows` en
+- [X] T067 [US5] Implementar `ComparisonRows` en
       `backend/internal/effort/repository/effort_repository.go`: el factor vigente de `projects` y las
       historias del proyecto (o una sola) con `story_points` y la suma de sus horas por `LEFT JOIN`
       agregado (0 sin registros), en el orden del listado del backlog de la 003 (prioridad,
       `created_at`, `id`) — depende de T064
-- [ ] T068 [US5] Implementar `StoryComparison` y `ProjectComparison` en
+- [X] T068 [US5] Implementar `StoryComparison` y `ProjectComparison` en
       `backend/internal/effort/service/effort_service.go` sobre `Compare` — depende de T066, T067
-- [ ] T069 [US5] Declarar `EffortComparisonRow` y `ProjectEffortComparison` en
+- [X] T069 [US5] Declarar `EffortComparisonRow` y `ProjectEffortComparison` en
       `backend/internal/effort/delivery/dto.go`, implementar los manejadores
       `getStoryEffortComparison` y `getProjectEffortComparison` con anotaciones `swag` en
       `backend/internal/effort/delivery/handler.go`, y registrar
       `GET /api/v1/stories/:storyId/effort-comparison` en `RegisterStoryRoutes` y
       `GET /effort-comparison` en `RegisterProjectRoutes` de
       `backend/internal/effort/delivery/routes.go` — depende de T068
-- [ ] T070 [US5] Implementar `getStoryEffortComparison` y `getProjectEffortComparison` en
+- [X] T070 [US5] Implementar `getStoryEffortComparison` y `getProjectEffortComparison` en
       `frontend/src/features/effort/api.ts`, `EffortComparisonCard` en
       `frontend/src/features/effort/components/effort-comparison-card.tsx` (en `StoryEffortSection`) y
       `EffortComparisonTable` en
@@ -726,6 +726,29 @@ vulnerabilidades y verificación de las puertas de calidad.
       validación manual de 16 pasos con `EFFORT_GRACE_PERIOD_HOURS=1`, las pruebas de concurrencia
       con `-count=5` y la verificación de que las pruebas corrieron contra `smye_test` en el puerto
       5433 y no contra desarrollo — depende de T072, T073, T076
+
+---
+
+## Phase 8: Convergence and Security
+
+Propósito: ajustes transversales detectados por /speckit-converge y /revisar-seguridad.
+
+- [ ] T078 Pruebas de `ProjectEffortComparisonSection` en
+      `frontend/src/features/effort/components/project-effort-comparison.test.tsx`, con
+      `describe("006/US5 - Comparar el esfuerzo estimado con el real")` y backend falso: pide
+      `GET /api/v1/projects/{projectId}/effort-comparison` y muestra la tabla; muestra el estado de
+      carga; con todas las historias sin estimar no muestra `role="alert"` (AC9); ante `404` o `500`
+      muestra el mensaje de error sin la tabla (AC10) per Constitución II (partial) — origen:
+      converge, detectado en 006/US5
+- [ ] T079 Pruebas de la comparación en `StoryEffortSection` en
+      `frontend/src/features/effort/components/story-effort-section.test.tsx`, con el `describe` de
+      006/US5: carga la tarjeta junto con el esfuerzo, la recarga después de registrar, corregir y
+      eliminar, y muestra el error si falla la consulta de comparación per FR-053, Constitución II
+      (partial) — origen: converge, detectado en 006/US5
+- [ ] T080 Pruebas unitarias de `formatSignedHours` y `formatStoryPoints` en
+      `frontend/src/utils/effort-format.test.ts`: `+6 h`, `−6 h` con U+2212, `0 h` sin signo,
+      "No calculable" para `null`, "n SP" y "Sin estimar" per Constitución VIII (partial) — origen:
+      converge, detectado en 006/US5
 
 ---
 

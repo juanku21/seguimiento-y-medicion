@@ -483,7 +483,7 @@ sprint; desde otro integrante, `403`; `DELETE` del autor devuelve `204` y el tot
       `TestEffortDailyCap_ConcurrencyMixed`, **sin** etiqueta: con 18 h cargadas en la fecha, a la vez
       una modificación de un registro de 2 h a 6 h y tres altas de 2 h; en ningún intercalado la
       fecha supera 24,00 y ninguna respuesta es `500` (FR-024, SC-005) — depende de T044
-- [ ] T046 [P] [US3] Pruebas de frontend en
+- [X] T046 [P] [US3] Pruebas de frontend en
       `frontend/src/features/effort/components/effort-entry-list.test.tsx`, con
       `describe("006/US3 - Corregir o eliminar un registro propio")`: los botones **Editar** y
       **Eliminar** aparecen solo en los registros propios con `definitive: false`; la edición en línea

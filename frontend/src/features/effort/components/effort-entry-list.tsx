@@ -4,8 +4,12 @@ import { formatHours } from "@/utils/effort-format";
 import { formatDate } from "@/utils/format-date";
 
 // Propiedades de la lista de registros de esfuerzo de una historia, en el orden de la API.
+// currentUserId identifica al titular de la sesión para ofrecer la corrección y la eliminación de
+// sus registros, y onChanged avisa que una de ellas se completó (006/US3).
 export type EffortEntryListProps = {
   entries: EffortEntry[];
+  currentUserId?: string;
+  onChanged?: () => void;
 };
 
 // Lista de registros de esfuerzo de una historia (006/US2), en el orden recibido (FR-035). Cada

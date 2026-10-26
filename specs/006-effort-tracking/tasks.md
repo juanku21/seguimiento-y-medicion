@@ -460,7 +460,7 @@ sprint; desde otro integrante, `403`; `DELETE` del autor devuelve `204` y el tot
       proyecto ajeno y registro propio de una persona quitada del proyecto → `404` con **el mismo
       cuerpo byte a byte** (`{"error":"El registro de esfuerzo no existe."}`); integrante → sigue la
       cadena con el `EntryAccess` en el contexto, sea o no el autor — depende de T039
-- [ ] T044 [US3] Pruebas de integración en `backend/internal/effort/delivery/handler_test.go`, una por
+- [X] T044 [US3] Pruebas de integración en `backend/internal/effort/delivery/handler_test.go`, una por
       escenario con `// Escenario: <nombre> (006/US3)`: `TestUS3_CorreccionDeHoras` (total +2, autor,
       historia y sprint sin cambio), `TestUS3_Eliminacion` (`204`; sale del total de la historia, del
       sprint y del día), `TestUS3_CambioDeFecha` (tope verificado sobre la fecha nueva, sprint sin

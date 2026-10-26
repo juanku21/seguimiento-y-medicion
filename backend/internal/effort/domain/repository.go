@@ -38,12 +38,15 @@ type StoryRef struct {
 // EntryView es el tipo de lectura de un registro de esfuerzo en las listas y en la respuesta de las
 // escrituras (data-model.md sección 8). No es un modelo persistido: lleva el registro, su autor, su
 // historia y su sprint asociado, que es nil si el registro no tiene sprint. Entry.Story, Entry.User
-// y Entry.Sprint nunca se precargan: esos datos viajan en Story, Author y Sprint.
+// y Entry.Sprint nunca se precargan: esos datos viajan en Story, Author y Sprint. Definitive no se
+// persiste ni lo lee el repositorio: lo deriva el servicio con su reloj y el plazo de gracia
+// (FR-020).
 type EntryView struct {
-	Entry  EffortEntry
-	Author UserRef
-	Story  StoryRef
-	Sprint *AnchoredSprint
+	Entry      EffortEntry
+	Author     UserRef
+	Story      StoryRef
+	Sprint     *AnchoredSprint
+	Definitive bool
 }
 
 // MemberEffort son las horas que un integrante registró sobre una historia, sumadas en centésimas

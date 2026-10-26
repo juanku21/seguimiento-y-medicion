@@ -1,5 +1,15 @@
-import { isRecord, postAuthorizedJson, type ApiResult } from "@/lib/api-client";
-import type { EffortEntry, EffortEntryInput } from "@/types/effort";
+import {
+  getJson,
+  isRecord,
+  postAuthorizedJson,
+  type ApiResult,
+} from "@/lib/api-client";
+import type {
+  EffortEntry,
+  EffortEntryInput,
+  MemberEffort,
+  StoryEffort,
+} from "@/types/effort";
 
 // Reconoce el registro de esfuerzo (EffortEntry) que devuelve el alta exitosa (201), sin confiar en
 // el cuerpo recibido. El sprint puede llegar en null cuando la historia no está en ninguno.
@@ -46,5 +56,43 @@ export function createEffortEntry(
     storyEffortEntriesPath(storyId),
     body,
     isEffortEntry,
+  );
+}
+
+// Reconoce una línea del desglose por persona (MemberEffort) con su nombre y sus horas.
+function isMemberEffort(value: unknown): value is MemberEffort {
+  return (
+    isRecord(value) &&
+    isRecord(value.user) &&
+    typeof value.user.id === "string" &&
+    typeof value.user.fullName === "string" &&
+    typeof value.hours === "number"
+  );
+}
+
+// Reconoce el esfuerzo de una historia (StoryEffort) que devuelve la consulta exitosa (200), sin
+// confiar en el cuerpo recibido: total numérico y listas cuyos elementos cumplen su forma.
+function isStoryEffort(value: unknown): value is StoryEffort {
+  return (
+    isRecord(value) &&
+    typeof value.storyId === "string" &&
+    typeof value.totalHours === "number" &&
+    Array.isArray(value.byMember) &&
+    value.byMember.every(isMemberEffort) &&
+    Array.isArray(value.entries) &&
+    value.entries.every(isEffortEntry)
+  );
+}
+
+// Consulta el esfuerzo de una historia con GET /api/v1/stories/{storyId}/effort, usando la sesión de
+// la pestaña (006/US2): total, desglose por persona y registros ya ordenados por el backend
+// (FR-030 a FR-035). Una historia sin registros llega con total 0 y listas vacías; el 404 llega con
+// el mensaje del backend y ante un 401 el cliente HTTP descarta la sesión.
+export function getStoryEffort(
+  storyId: string,
+): Promise<ApiResult<StoryEffort>> {
+  return getJson(
+    `/api/v1/stories/${encodeURIComponent(storyId)}/effort`,
+    isStoryEffort,
   );
 }

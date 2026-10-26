@@ -11,4 +11,5 @@ import (
 func RegisterStoryRoutes(router *gin.Engine, requireSession, requireStoryAccess gin.HandlerFunc, handler *Handler) {
 	storyGroup := router.Group("/api/v1/stories/:storyId", requireSession, requireStoryAccess)
 	storyGroup.POST("/effort-entries", handler.createEffortEntry)
+	storyGroup.GET("/effort", handler.getStoryEffort)
 }

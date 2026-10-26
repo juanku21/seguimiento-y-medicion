@@ -51,3 +51,19 @@ export type EffortConflictResponse = {
   error: string;
   availableHours: number | null;
 };
+
+// Horas de una persona sobre la historia (MemberEffort, FR-032): una línea por persona con
+// registros, incluidas las que ya no son integrantes.
+export type MemberEffort = {
+  user: UserRef;
+  hours: number;
+};
+
+// Esfuerzo de una historia (StoryEffort, 006/US2): total, desglose por persona y registros en fecha
+// descendente (FR-035). Sin registros, las listas llegan vacías y el total en 0.
+export type StoryEffort = {
+  storyId: string;
+  totalHours: number;
+  byMember: MemberEffort[];
+  entries: EffortEntry[];
+};

@@ -121,6 +121,45 @@ func (h *Handler) createEffortEntry(c *gin.Context) {
 	c.JSON(http.StatusCreated, newEffortEntry(*view, false))
 }
 
+// getStoryEffort godoc
+//
+//	@Summary		Consulta el esfuerzo de una historia
+//	@Description	Devuelve el total de horas reales de la historia, el desglose por integrante y la
+//	@Description	lista de registros (FR-030 a FR-033). El total incluye todos los registros, de
+//	@Description	cualquier autor, fecha y sprint, incluidos los sin sprint (FR-031). Las personas que
+//	@Description	ya no son integrantes aparecen con su nombre (FR-032). La lista se ordena por fecha
+//	@Description	descendente y, a igual fecha, por momento de creación (FR-035); el desglose, por
+//	@Description	nombre. Una historia sin registros devuelve total 0.00 y listas vacías, no un error
+//	@Description	(FR-034). Cualquier integrante del proyecto puede consultarlo.
+//	@Tags			Esfuerzo
+//	@ID				getStoryEffort
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			storyId	path		string					true	"Identificador de la historia"	format(uuid)
+//	@Success		200		{object}	StoryEffort				"Esfuerzo de la historia, posiblemente vacío."
+//	@Failure		401		{object}	delivery.ErrorResponse	"Se requiere iniciar sesión."
+//	@Failure		404		{object}	delivery.ErrorResponse	"La historia no existe o pertenece a un proyecto del que quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo."
+//	@Failure		500		{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/stories/{storyId}/effort [get]
+func (h *Handler) getStoryEffort(c *gin.Context) {
+	// RequireStoryAccess de la 003 ya respondió 404 a la historia inexistente o ajena; si falta el
+	// acceso, la ruta se registró fuera de ese middleware: es un error de composición y responde 500.
+	access, ok := storyAccessFromContext(c)
+	if !ok {
+		respondInternalError(c, "getStoryEffort sin acceso a la historia en el contexto")
+		return
+	}
+
+	// Se consulta el esfuerzo de la historia y cualquier falla responde 500 sin exponer la causa.
+	effort, err := h.efforts.StoryEffort(c.Request.Context(), access.StoryID)
+	if err != nil {
+		respondInternalError(c, "no se pudo consultar el esfuerzo de la historia", "error", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, newStoryEffort(access.StoryID, *effort))
+}
+
 // storyAccessFromContext devuelve el StoryAccess que RequireStoryAccess de la 003 dejó en el contexto
 // de gin, y si estaba presente. Si la clave de la 003 cambiara, el alta respondería 500 y las pruebas
 // de integración lo detectarían.

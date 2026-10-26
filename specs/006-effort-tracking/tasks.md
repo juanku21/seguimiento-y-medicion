@@ -385,7 +385,7 @@ registros en orden de fecha descendente.
 
 ### Pruebas de la Historia 2 ⚠️
 
-- [ ] T034 [US2] Pruebas de integración en `backend/internal/effort/delivery/handler_test.go`, una por
+- [X] T034 [US2] Pruebas de integración en `backend/internal/effort/delivery/handler_test.go`, una por
       escenario con `// Escenario: <nombre> (006/US2)`: `TestUS2_TotalYDesglose`,
       `TestUS2_RegistrosDeVariosSprints` (dos sprints y uno sin sprint, cada registro con su sprint y
       el total los incluye a todos), `TestUS2_ExIntegrante` (baja con la 002: sus registros siguen,
@@ -394,7 +394,7 @@ registros en orden de fecha descendente.
       (tres fechas → una línea en el desglose y tres registros), `TestUS2_NoIntegrante` (`404`, ningún
       dato) y `TestUS2_HistoriaInexistente`. Orden verificado: `entry_date DESC, created_at ASC, id
       ASC`; desglose por `full_name ASC, user_id ASC` — depende de T033
-- [ ] T035 [P] [US2] Pruebas de frontend en
+- [X] T035 [P] [US2] Pruebas de frontend en
       `frontend/src/features/effort/components/effort-breakdown.test.tsx` y
       `frontend/src/features/effort/components/effort-entry-list.test.tsx`, con
       `describe("006/US2 - Consultar el esfuerzo de una historia")`: total y una línea por persona;
@@ -403,20 +403,20 @@ registros en orden de fecha descendente.
 
 ### Implementación de la Historia 2
 
-- [ ] T036 [US2] Implementar `ListForStory` en
+- [X] T036 [US2] Implementar `ListForStory` en
       `backend/internal/effort/repository/effort_repository.go`: una consulta de `effort_entries`
       unida a `users` (solo `id` y `full_name`) y con `LEFT JOIN` a `sprints` (`id`, `name`, `status`,
       `closed_at`), en el orden de FR-035 — depende de T034
-- [ ] T037 [US2] Implementar `StoryEffort(ctx, storyID)` en
+- [X] T037 [US2] Implementar `StoryEffort(ctx, storyID)` en
       `backend/internal/effort/service/effort_service.go`: total y desglose agregados en Go sobre la
       lista ya leída (research.md sección 11), y `definitive` de cada registro como "sprint `closed` y
       `!GraceOpen`" con el reloj del servicio — depende de T036
-- [ ] T038 [US2] Declarar `StoryEffort` y `MemberEffort` en `backend/internal/effort/delivery/dto.go`,
+- [X] T038 [US2] Declarar `StoryEffort` y `MemberEffort` en `backend/internal/effort/delivery/dto.go`,
       implementar el manejador `getStoryEffort` con anotaciones `swag` en
       `backend/internal/effort/delivery/handler.go` y registrar
       `GET /api/v1/stories/:storyId/effort` en `RegisterStoryRoutes` de
       `backend/internal/effort/delivery/routes.go`. Listas vacías como `[]` — depende de T037
-- [ ] T039 [US2] Implementar `getStoryEffort` en `frontend/src/features/effort/api.ts`,
+- [X] T039 [US2] Implementar `getStoryEffort` en `frontend/src/features/effort/api.ts`,
       `EffortBreakdown` en `frontend/src/features/effort/components/effort-breakdown.tsx`,
       `EffortEntryList` en `frontend/src/features/effort/components/effort-entry-list.tsx`, y
       completar `StoryEffortSection` para mostrar total, desglose y lista y recargarlos después de

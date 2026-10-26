@@ -577,7 +577,7 @@ sprint y su total; `?from=2026-10-10&to=2026-10-09` devuelve `400` en `to`.
 
 - [X] T058 [US4] Implementar `ParseEntryFilter` en `backend/internal/effort/delivery/validation.go`
       sobre los parámetros de query, con las fechas a medianoche UTC — depende de T055
-- [ ] T059 [US4] Implementar en `backend/internal/effort/repository/effort_repository.go`
+- [X] T059 [US4] Implementar en `backend/internal/effort/repository/effort_repository.go`
       `ValidateFilter` (historia y sprint del proyecto; integrante vigente **o** autor de algún
       registro del proyecto; cualquier otro → `InvalidFilterError{Field}` sin distinguir inexistente
       de ajeno), `ListForProject` (filtros conjuntivos sobre `effort_entries` unido a `user_stories`

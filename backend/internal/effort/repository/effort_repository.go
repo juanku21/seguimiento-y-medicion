@@ -19,8 +19,8 @@ import (
 )
 
 // EffortRepository implementa domain.EffortRepository con GORM sobre la tabla effort_entries. Por
-// ahora están implementados FindAccessible, Create, Update, Delete y ListForStory; el resto de las
-// operaciones corresponde a tareas posteriores.
+// ahora están implementadas todas las operaciones salvo ComparisonRows, que corresponde a una tarea
+// posterior.
 type EffortRepository struct {
 	db *gorm.DB
 }
@@ -517,22 +517,120 @@ func (r *EffortRepository) ListForStory(ctx context.Context, storyID uuid.UUID) 
 	return views, nil
 }
 
-// ListForProject devuelve los registros de un proyecto según el filtro. Firma mínima de T015: la
-// implementación corresponde a T059.
+// ListForProject devuelve los registros de un proyecto según el filtro en una sola consulta
+// (research.md sección 11): la misma base que ListForStory, acotada por user_stories.project_id, con
+// los filtros conjuntivos (FR-037). El sprint se filtra sobre effort_entries.sprint_id, el sprint
+// asociado al registro y no el actual de la historia (FR-039), y WithoutSprint pide sprint_id IS NULL.
+// Los extremos del rango de fechas son inclusivos (FR-038). El orden es el de FR-045, igual al de la
+// historia. Sin coincidencias devuelve una lista vacía, nunca nil. El filtro llega ya verificado por
+// ValidateFilter.
 func (r *EffortRepository) ListForProject(ctx context.Context, projectID uuid.UUID, filter domain.EntryFilter) ([]domain.EntryView, error) {
-	return nil, errors.New("not implemented")
+	query := entryViews(r.db.WithContext(ctx)).
+		Where("user_stories.project_id = ?", projectID)
+
+	// Agrega solo las condiciones de los filtros presentes; GORM las combina con AND.
+	if filter.UserID != nil {
+		query = query.Where("effort_entries.user_id = ?", *filter.UserID)
+	}
+	if filter.StoryID != nil {
+		query = query.Where("effort_entries.story_id = ?", *filter.StoryID)
+	}
+	switch {
+	case filter.WithoutSprint:
+		query = query.Where("effort_entries.sprint_id IS NULL")
+	case filter.SprintID != nil:
+		query = query.Where("effort_entries.sprint_id = ?", *filter.SprintID)
+	}
+	if filter.From != nil {
+		query = query.Where("effort_entries.entry_date >= ?", *filter.From)
+	}
+	if filter.To != nil {
+		query = query.Where("effort_entries.entry_date <= ?", *filter.To)
+	}
+
+	rows := []entryRow{}
+	err := query.
+		Order("effort_entries.entry_date DESC, effort_entries.created_at ASC, effort_entries.id ASC").
+		Find(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("listar el esfuerzo del proyecto: %w", err)
+	}
+
+	views := make([]domain.EntryView, 0, len(rows))
+	for _, row := range rows {
+		views = append(views, row.view())
+	}
+	return views, nil
 }
 
-// ValidateFilter verifica el filtro contra el proyecto. Firma mínima de T015: la implementación
-// corresponde a T059.
+// ValidateFilter verifica que los filtros por integrante, historia y sprint correspondan al proyecto
+// (FR-044), en el orden userId, storyId, sprintId, y devuelve InvalidFilterError con el primer
+// parámetro que no corresponde. El integrante es válido si es integrante vigente o si es autor de
+// algún registro del proyecto, aunque ya no lo integre (FR-040); la historia y el sprint, si son del
+// proyecto. Un identificador inexistente y uno de otro proyecto dan el mismo error, sin distinguirse.
+// El valor "sin sprint" y las fechas no se verifican acá.
 func (r *EffortRepository) ValidateFilter(ctx context.Context, projectID uuid.UUID, filter domain.EntryFilter) error {
-	return errors.New("not implemented")
+	db := r.db.WithContext(ctx)
+
+	if filter.UserID != nil {
+		query := db.
+			Table("users").
+			Where("users.id = ?", *filter.UserID).
+			Where(`EXISTS (SELECT 1 FROM project_members
+					WHERE project_members.project_id = ? AND project_members.user_id = users.id)
+				OR EXISTS (SELECT 1 FROM effort_entries
+					JOIN user_stories ON user_stories.id = effort_entries.story_id
+					WHERE user_stories.project_id = ? AND effort_entries.user_id = users.id)`,
+				projectID, projectID)
+		if err := requireFilterMatch(query, "userId"); err != nil {
+			return err
+		}
+	}
+	if filter.StoryID != nil {
+		query := db.
+			Table("user_stories").
+			Where("id = ? AND project_id = ?", *filter.StoryID, projectID)
+		if err := requireFilterMatch(query, "storyId"); err != nil {
+			return err
+		}
+	}
+	if filter.SprintID != nil && !filter.WithoutSprint {
+		query := db.
+			Table("sprints").
+			Where("id = ? AND project_id = ?", *filter.SprintID, projectID)
+		if err := requireFilterMatch(query, "sprintId"); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-// HasProjectEffort informa si el proyecto tiene algún registro de esfuerzo. Firma mínima de T015:
-// la implementación corresponde a T059.
+// requireFilterMatch cuenta las filas de la consulta recibida y devuelve InvalidFilterError con el
+// parámetro field si no hay ninguna.
+func requireFilterMatch(query *gorm.DB, field string) error {
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		return fmt.Errorf("verificar el filtro %s: %w", field, err)
+	}
+	if count == 0 {
+		return &domain.InvalidFilterError{Field: field}
+	}
+	return nil
+}
+
+// HasProjectEffort informa si el proyecto tiene al menos un registro de esfuerzo, sin filtros, para
+// distinguir el proyecto sin esfuerzo (no_effort) de los filtros sin resultados (no_matches).
 func (r *EffortRepository) HasProjectEffort(ctx context.Context, projectID uuid.UUID) (bool, error) {
-	return false, errors.New("not implemented")
+	var exists bool
+	err := r.db.WithContext(ctx).
+		Raw(`SELECT EXISTS (SELECT 1 FROM effort_entries
+			JOIN user_stories ON user_stories.id = effort_entries.story_id
+			WHERE user_stories.project_id = ?)`, projectID).
+		Scan(&exists).Error
+	if err != nil {
+		return false, fmt.Errorf("verificar si el proyecto tiene esfuerzo: %w", err)
+	}
+	return exists, nil
 }
 
 // ComparisonRows devuelve el factor vigente del proyecto y las filas de la comparación. Firma mínima

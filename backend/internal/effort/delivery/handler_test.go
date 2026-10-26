@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -1504,4 +1505,448 @@ func TestUS3_ExIntegrante(t *testing.T) {
 	f.env.addMember(t, f.ownerToken, f.projectID, "bruno@example.com")
 	updated := requireEffortUpdated(t, f.env.patchEffort(t, brunoToken, created.ID, map[string]any{"hours": 5}))
 	assert.Equal(t, "5.00", string(updated.Hours))
+}
+
+// Pruebas de integración de US4 (T056): GET /api/v1/projects/{projectId}/effort-entries con un caso
+// por escenario de spec.md y, en TestUS4_RangoEHistoria, las combinaciones de dos o más filtros que
+// exige SC-019. El "Dado" de proyectos, integrantes, historias y sprints se prepara con los endpoints
+// reales de la 002, la 003 y la 004; los registros se siembran en la base con su sprint asociado,
+// su fecha y su instante de creación fijados, para que cada filtro tenga un subconjunto esperado
+// exacto y para anclar registros a un sprint en el que la historia ya no está.
+
+// Textos exactos que fijan el contrato y data-model.md sección 7 para los filtros rechazados.
+const (
+	effortMsgInvalidFilter = "El filtro no corresponde al proyecto."
+	effortMsgInvertedRange = "La fecha de fin del rango no puede ser anterior a la de inicio."
+)
+
+// projectEffortResponse refleja ProjectEffort del contrato. TotalHours y EmptyReason se conservan
+// como texto literal para comprobar los 2 decimales y el null, y Raw guarda el cuerpo para
+// distinguir una lista vacía de null.
+type projectEffortResponse struct {
+	TotalHours  json.RawMessage            `json:"totalHours"`
+	Entries     []effortEntryResponse      `json:"entries"`
+	EmptyReason json.RawMessage            `json:"emptyReason"`
+	Raw         map[string]json.RawMessage `json:"-"`
+}
+
+// projectEffortPath arma la ruta de la consulta del esfuerzo del proyecto con los filtros indicados
+// como parámetros de query.
+func projectEffortPath(projectID string, filters url.Values) string {
+	path := "/api/v1/projects/" + projectID + "/effort-entries"
+	if len(filters) > 0 {
+		path += "?" + filters.Encode()
+	}
+	return path
+}
+
+// getProjectEffort consulta el esfuerzo del proyecto con el token y los filtros indicados, exige un
+// 200 y devuelve el cuerpo decodificado.
+func (e *effortTestEnv) getProjectEffort(t *testing.T, token string, projectID uuid.UUID, filters url.Values) projectEffortResponse {
+	t.Helper()
+	rec := e.do(t, http.MethodGet, projectEffortPath(projectID.String(), filters), token, nil)
+	var body projectEffortResponse
+	effortRequireStatus(t, rec, http.StatusOK, &body)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body.Raw), "el cuerpo del 200 no es un objeto JSON")
+	return body
+}
+
+// projectEffortFixture es el "Dado" común de US4: el proyecto "Portal de Clientes" de Ana Pérez, con
+// Bruno Díaz y Carla Ruiz como integrantes, tres historias y dos sprints. Alta de clientes y Baja de
+// clientes pasaron por el Sprint 3, que se cerró el viernes sin completarlas; Alta de clientes quedó
+// comprometida en el Sprint 4 Planificado y Reporte de ventas nunca entró a un sprint. Los seis
+// registros, en el orden de FR-045, son:
+//
+//	anaB   Ana   Alta de clientes   Sprint 4   2026-10-23  1.75 (creado primero)
+//	carlaB Carla Alta de clientes   Sprint 4   2026-10-23  2.00 (creado una hora después)
+//	carlaA Carla Baja de clientes   Sprint 3   2026-10-20  4.00
+//	brunoA Bruno Alta de clientes   Sprint 3   2026-10-15  2.50
+//	anaA   Ana   Alta de clientes   Sprint 3   2026-10-13  3.00
+//	brunoN Bruno Reporte de ventas  sin sprint 2026-10-05  1.00
+//
+// El total general es 14.25 horas.
+type projectEffortFixture struct {
+	effortFixture
+	brunoID, carlaID                           uuid.UUID
+	brunoToken                                 string
+	billingStoryID, reportStoryID              uuid.UUID
+	sprintA, sprintB                           uuid.UUID
+	anaB, carlaB, carlaA, brunoA, anaA, brunoN string
+}
+
+// newProjectEffortFixture arma el "Dado" común de US4 con los endpoints reales y siembra los seis
+// registros desordenados, para no depender del orden de inserción.
+func newProjectEffortFixture(t *testing.T) projectEffortFixture {
+	t.Helper()
+	f := projectEffortFixture{effortFixture: newEffortFixture(t)}
+	env := f.env
+	f.brunoID, f.brunoToken = env.signUp(t, "Bruno Díaz", "bruno@example.com")
+	env.addMember(t, f.ownerToken, f.projectID, "bruno@example.com")
+	f.carlaID, _ = env.signUp(t, "Carla Ruiz", "carla@example.com")
+	env.addMember(t, f.ownerToken, f.projectID, "carla@example.com")
+	f.billingStoryID = env.createReadyStory(t, f.ownerToken, f.projectID, "Baja de clientes")
+	f.reportStoryID = env.createStory(t, f.ownerToken, f.projectID, "Reporte de ventas")
+
+	// Sprint 3 con las dos historias estimadas, cerrado sin completarlas; Alta de clientes pasa al
+	// Sprint 4 Planificado, de modo que hoy está en otro sprint que el de sus registros del Sprint 3.
+	f.sprintA = env.activeSprintWith(t, f.ownerToken, f.projectID, f.storyID, f.billingStoryID)
+	env.closeSprintAt(t, f.ownerToken, f.sprintA, f.fridayClose())
+	f.sprintB = env.createSprint(t, f.ownerToken, f.projectID, "Sprint 4", "2026-10-26", "2026-11-06")
+	env.assignStories(t, f.ownerToken, f.sprintB, f.storyID)
+
+	// Registros de los tres integrantes en los dos sprints y uno sin sprint.
+	f.brunoN = env.seedStoryEntry(t, f.reportStoryID, effortSeed{userID: f.brunoID, entryDate: "2026-10-05", hours: 100, createdAt: effortSeedBase}).String()
+	f.carlaB = env.seedStoryEntry(t, f.storyID, effortSeed{userID: f.carlaID, sprintID: &f.sprintB, entryDate: "2026-10-23", hours: 200, createdAt: effortSeedBase.Add(time.Hour)}).String()
+	f.anaA = env.seedStoryEntry(t, f.storyID, effortSeed{userID: f.ownerID, sprintID: &f.sprintA, entryDate: "2026-10-13", hours: 300, createdAt: effortSeedBase}).String()
+	f.carlaA = env.seedStoryEntry(t, f.billingStoryID, effortSeed{userID: f.carlaID, sprintID: &f.sprintA, entryDate: "2026-10-20", hours: 400, createdAt: effortSeedBase}).String()
+	f.anaB = env.seedStoryEntry(t, f.storyID, effortSeed{userID: f.ownerID, sprintID: &f.sprintB, entryDate: "2026-10-23", hours: 175, activity: effortActivity, createdAt: effortSeedBase}).String()
+	f.brunoA = env.seedStoryEntry(t, f.storyID, effortSeed{userID: f.brunoID, sprintID: &f.sprintA, entryDate: "2026-10-15", hours: 250, createdAt: effortSeedBase}).String()
+	return f
+}
+
+// get consulta como Ana el esfuerzo del proyecto del "Dado" con los filtros indicados.
+func (f projectEffortFixture) get(t *testing.T, filters url.Values) projectEffortResponse {
+	t.Helper()
+	return f.env.getProjectEffort(t, f.ownerToken, f.projectID, filters)
+}
+
+// requireProjectEffort exige que la respuesta tenga exactamente los registros indicados, en ese
+// orden, con el total indicado y emptyReason null.
+func requireProjectEffort(t *testing.T, body projectEffortResponse, total string, ids ...string) {
+	t.Helper()
+	assert.Equal(t, ids, effortEntryIDs(body.Entries), "registros filtrados y su orden")
+	assert.Equal(t, total, string(body.TotalHours), "totalHours del conjunto filtrado")
+	assert.Equal(t, "null", string(body.Raw["emptyReason"]), "emptyReason debe ser null con la lista no vacía")
+}
+
+// requireEmptyProjectEffort exige una lista vacía, serializada [] y no null, con total 0.00 y el
+// motivo indicado.
+func requireEmptyProjectEffort(t *testing.T, body projectEffortResponse, reason string) {
+	t.Helper()
+	assert.Equal(t, "[]", string(body.Raw["entries"]), "entries debe ser [] y no null")
+	assert.Equal(t, "0.00", string(body.TotalHours), "totalHours")
+	assert.Equal(t, `"`+reason+`"`, string(body.EmptyReason), "emptyReason")
+}
+
+// requireFilterRejected exige un 400 de entrada inválida que informe solo el filtro indicado con el
+// mensaje indicado y devuelve el cuerpo crudo.
+func requireFilterRejected(t *testing.T, rec *httptest.ResponseRecorder, field, message string) string {
+	t.Helper()
+	var body effortValidationResponse
+	effortRequireStatus(t, rec, http.StatusBadRequest, &body)
+	assert.Equal(t, effortInvalidFieldsError, body.Error)
+	assert.Equal(t, []authdelivery.FieldError{{Field: field, Message: message}}, body.Fields, "campos del 400")
+	return rec.Body.String()
+}
+
+// Escenario: Caso normal — consulta sin filtros de un proyecto con registros de tres integrantes en dos sprints (006/US4)
+func TestUS4_SinFiltros(t *testing.T) {
+	f := newProjectEffortFixture(t)
+
+	body := f.env.getProjectEffort(t, f.brunoToken, f.projectID, nil)
+
+	// Todos los registros en el orden de FR-045 y el total general.
+	requireProjectEffort(t, body, "14.25", f.anaB, f.carlaB, f.carlaA, f.brunoA, f.anaA, f.brunoN)
+
+	// Cada registro lleva fecha, autor, historia, actividad, horas y sprint.
+	require.Len(t, body.Entries, 6)
+	first := body.Entries[0]
+	assert.Equal(t, "2026-10-23", first.EntryDate)
+	assert.Equal(t, effortUserRef{ID: f.ownerID.String(), FullName: "Ana Pérez"}, first.Author)
+	assert.Equal(t, effortStoryRef{ID: f.storyID.String(), Title: "Alta de clientes"}, first.Story)
+	assert.Equal(t, effortActivity, first.Activity)
+	assert.Equal(t, "1.75", string(first.Hours))
+	require.NotNil(t, first.Sprint, "registro del Sprint 4")
+	assert.Equal(t, effortSprintRef{ID: f.sprintB.String(), Name: "Sprint 4", Status: "planned"}, *first.Sprint)
+
+	carla := body.Entries[2]
+	assert.Equal(t, "2026-10-20", carla.EntryDate)
+	assert.Equal(t, effortUserRef{ID: f.carlaID.String(), FullName: "Carla Ruiz"}, carla.Author)
+	assert.Equal(t, effortStoryRef{ID: f.billingStoryID.String(), Title: "Baja de clientes"}, carla.Story)
+	assert.Equal(t, "4.00", string(carla.Hours))
+	require.NotNil(t, carla.Sprint, "registro del Sprint 3")
+	assert.Equal(t, effortSprintRef{ID: f.sprintA.String(), Name: "Sprint 3", Status: "closed"}, *carla.Sprint)
+
+	last := body.Entries[5]
+	assert.Equal(t, effortUserRef{ID: f.brunoID.String(), FullName: "Bruno Díaz"}, last.Author)
+	assert.Equal(t, effortStoryRef{ID: f.reportStoryID.String(), Title: "Reporte de ventas"}, last.Story)
+	assert.Nil(t, last.Sprint, "registro sin sprint")
+
+	var rawEntries []map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(body.Raw["entries"], &rawEntries))
+	assert.Equal(t, "null", string(rawEntries[5]["sprint"]), "sprint debe serializarse null")
+}
+
+// Escenario: Caso alternativo — filtro por un integrante concreto (006/US4)
+func TestUS4_FiltroPorIntegrante(t *testing.T) {
+	f := newProjectEffortFixture(t)
+
+	// Cada integrante ve solo sus registros, de cualquier historia y sprint, y su total.
+	cases := []struct {
+		name  string
+		user  uuid.UUID
+		total string
+		ids   []string
+	}{
+		{name: "Ana", user: f.ownerID, total: "4.75", ids: []string{f.anaB, f.anaA}},
+		{name: "Bruno", user: f.brunoID, total: "3.50", ids: []string{f.brunoA, f.brunoN}},
+		{name: "Carla", user: f.carlaID, total: "6.00", ids: []string{f.carlaB, f.carlaA}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			body := f.get(t, url.Values{"userId": {tc.user.String()}})
+
+			requireProjectEffort(t, body, tc.total, tc.ids...)
+		})
+	}
+}
+
+// Escenario: Caso alternativo — filtro por un sprint concreto, sin importar en qué sprint esté hoy la historia (006/US4)
+func TestUS4_FiltroPorSprint(t *testing.T) {
+	f := newProjectEffortFixture(t)
+
+	// Alta de clientes está hoy en el Sprint 4: sus registros del Sprint 3 siguen saliendo con el
+	// Sprint 3 y no con el 4.
+	t.Run("sprint cerrado del que la historia ya salió", func(t *testing.T) {
+		body := f.get(t, url.Values{"sprintId": {f.sprintA.String()}})
+
+		requireProjectEffort(t, body, "9.50", f.carlaA, f.brunoA, f.anaA)
+		for _, entry := range body.Entries {
+			require.NotNil(t, entry.Sprint, "registro %s", entry.ID)
+			assert.Equal(t, f.sprintA.String(), entry.Sprint.ID, "sprint asociado del registro %s", entry.ID)
+		}
+	})
+
+	t.Run("sprint en el que la historia está hoy", func(t *testing.T) {
+		body := f.get(t, url.Values{"sprintId": {f.sprintB.String()}})
+
+		requireProjectEffort(t, body, "3.75", f.anaB, f.carlaB)
+	})
+}
+
+// Escenario: Caso alternativo — filtro por un rango de fechas y por una historia a la vez (006/US4)
+func TestUS4_RangoEHistoria(t *testing.T) {
+	f := newProjectEffortFixture(t)
+
+	// El primer caso es el escenario; los demás son las combinaciones de dos o más filtros de
+	// SC-019. En todos, un registro aparece solo si cumple todos los filtros (FR-037).
+	cases := []struct {
+		name    string
+		filters url.Values
+		total   string
+		ids     []string
+	}{
+		{
+			name:    "rango e historia",
+			filters: url.Values{"from": {"2026-10-14"}, "to": {"2026-10-23"}, "storyId": {f.storyID.String()}},
+			total:   "6.25",
+			ids:     []string{f.anaB, f.carlaB, f.brunoA},
+		},
+		{
+			name:    "integrante y sprint",
+			filters: url.Values{"userId": {f.ownerID.String()}, "sprintId": {f.sprintA.String()}},
+			total:   "3.00",
+			ids:     []string{f.anaA},
+		},
+		{
+			name:    "integrante, sprint e historia",
+			filters: url.Values{"userId": {f.carlaID.String()}, "sprintId": {f.sprintB.String()}, "storyId": {f.storyID.String()}},
+			total:   "2.00",
+			ids:     []string{f.carlaB},
+		},
+		{
+			name:    "sin sprint, integrante y fecha final",
+			filters: url.Values{"sprintId": {"none"}, "userId": {f.brunoID.String()}, "to": {"2026-10-10"}},
+			total:   "1.00",
+			ids:     []string{f.brunoN},
+		},
+		{
+			name:    "historia, sprint y fecha inicial",
+			filters: url.Values{"storyId": {f.storyID.String()}, "sprintId": {f.sprintA.String()}, "from": {"2026-10-14"}},
+			total:   "2.50",
+			ids:     []string{f.brunoA},
+		},
+		{
+			name: "los cinco filtros",
+			filters: url.Values{
+				"userId":   {f.ownerID.String()},
+				"storyId":  {f.storyID.String()},
+				"sprintId": {f.sprintB.String()},
+				"from":     {"2026-10-01"},
+				"to":       {"2026-10-23"},
+			},
+			total: "1.75",
+			ids:   []string{f.anaB},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			body := f.get(t, tc.filters)
+
+			requireProjectEffort(t, body, tc.total, tc.ids...)
+		})
+	}
+}
+
+// Escenario: Caso alternativo — filtro "sin sprint" (006/US4)
+func TestUS4_SinSprint(t *testing.T) {
+	f := newProjectEffortFixture(t)
+
+	body := f.get(t, url.Values{"sprintId": {"none"}})
+
+	// Solo el registro cargado cuando la historia estaba únicamente en el backlog.
+	requireProjectEffort(t, body, "1.00", f.brunoN)
+	require.Len(t, body.Entries, 1)
+	assert.Nil(t, body.Entries[0].Sprint, "el registro no tiene sprint")
+}
+
+// Escenario: Caso límite — rango de fechas cuyo inicio y cuyo fin son el mismo día (006/US4)
+func TestUS4_RangoDeUnDia(t *testing.T) {
+	f := newProjectEffortFixture(t)
+
+	// Los extremos se incluyen: aparecen los registros de ese día y ninguno de los días vecinos.
+	cases := []struct {
+		name  string
+		day   string
+		total string
+		ids   []string
+	}{
+		{name: "día con dos registros", day: "2026-10-23", total: "3.75", ids: []string{f.anaB, f.carlaB}},
+		{name: "día con un registro", day: "2026-10-15", total: "2.50", ids: []string{f.brunoA}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			body := f.get(t, url.Values{"from": {tc.day}, "to": {tc.day}})
+
+			requireProjectEffort(t, body, tc.total, tc.ids...)
+		})
+	}
+}
+
+// Escenario: Caso límite — combinación de filtros que ninguna fila cumple (006/US4)
+func TestUS4_SinCoincidencias(t *testing.T) {
+	f := newProjectEffortFixture(t)
+
+	// Carla no cargó horas sobre Reporte de ventas: lista vacía, total 0.00 y no_matches, sin error.
+	body := f.get(t, url.Values{"userId": {f.carlaID.String()}, "storyId": {f.reportStoryID.String()}})
+
+	requireEmptyProjectEffort(t, body, "no_matches")
+}
+
+// Escenario: Caso límite — proyecto donde todavía nadie cargó horas (006/US4)
+func TestUS4_ProyectoSinEsfuerzo(t *testing.T) {
+	// Sin registros en el proyecto, el motivo es no_effort con o sin filtros: no hay nada que filtrar.
+	cases := []struct {
+		name    string
+		filters url.Values
+	}{
+		{name: "sin filtros", filters: nil},
+		{name: "con un rango de fechas", filters: url.Values{"from": {"2026-10-01"}, "to": {"2026-10-21"}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newEffortFixture(t)
+
+			body := f.env.getProjectEffort(t, f.ownerToken, f.projectID, tc.filters)
+
+			requireEmptyProjectEffort(t, body, "no_effort")
+		})
+	}
+}
+
+// Escenario: Caso límite — filtro por una persona que fue quitada del proyecto (006/US4)
+func TestUS4_FiltroPorExIntegrante(t *testing.T) {
+	f := newProjectEffortFixture(t)
+	effortRequireStatus(t, f.env.do(t, http.MethodDelete,
+		"/api/v1/projects/"+f.projectID.String()+"/members/"+f.brunoID.String(), f.ownerToken, nil), http.StatusNoContent, nil)
+
+	body := f.get(t, url.Values{"userId": {f.brunoID.String()}})
+
+	// La baja no borra su historial: sus registros siguen apareciendo con su nombre.
+	requireProjectEffort(t, body, "3.50", f.brunoA, f.brunoN)
+	for _, entry := range body.Entries {
+		assert.Equal(t, effortUserRef{ID: f.brunoID.String(), FullName: "Bruno Díaz"}, entry.Author, "autor del registro %s", entry.ID)
+	}
+}
+
+// Escenario: Caso de error — rango de fechas cuyo fin es anterior a su inicio (006/US4)
+func TestUS4_RangoInvertido(t *testing.T) {
+	f := newProjectEffortFixture(t)
+
+	rec := f.env.do(t, http.MethodGet,
+		projectEffortPath(f.projectID.String(), url.Values{"from": {"2026-10-10"}, "to": {"2026-10-09"}}), f.ownerToken, nil)
+
+	// 400 en to con el motivo, sin registros en el cuerpo.
+	body := requireFilterRejected(t, rec, "to", effortMsgInvertedRange)
+	assert.NotContains(t, body, "entries", "el 400 no devuelve registros")
+}
+
+// Escenario: Caso de error — filtro por una historia o un sprint que pertenece a otro proyecto (006/US4)
+func TestUS4_FiltroDeOtroProyecto(t *testing.T) {
+	// Diego Luna es propietario de "Tienda Online", con una historia, un sprint y horas propias; no
+	// integra el proyecto del "Dado".
+	f := newProjectEffortFixture(t)
+	diegoID, diegoToken := f.env.signUp(t, "Diego Luna", "diego@example.com")
+	otherProject := f.env.createProjectInProgress(t, diegoToken, "Tienda Online")
+	otherStory := f.env.createReadyStory(t, diegoToken, otherProject, "Carrito de compras")
+	otherSprint := f.env.createSprint(t, diegoToken, otherProject, "Sprint Tienda", "2026-10-26", "2026-11-06")
+	f.env.seedStoryEntry(t, otherStory, effortSeed{userID: diegoID, entryDate: "2026-10-20", hours: 500, createdAt: effortSeedBase})
+
+	// Cada filtro ajeno recibe exactamente el mismo 400 que un UUID inexistente y que un valor mal
+	// formado en el mismo parámetro, y el cuerpo no menciona nada del otro proyecto.
+	cases := []struct {
+		name  string
+		field string
+		value string
+	}{
+		{name: "historia de otro proyecto", field: "storyId", value: otherStory.String()},
+		{name: "sprint de otro proyecto", field: "sprintId", value: otherSprint.String()},
+		{name: "integrante ajeno con horas en otro proyecto", field: "userId", value: diegoID.String()},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			foreign := f.env.do(t, http.MethodGet,
+				projectEffortPath(f.projectID.String(), url.Values{tc.field: {tc.value}}), f.ownerToken, nil)
+			missing := f.env.do(t, http.MethodGet,
+				projectEffortPath(f.projectID.String(), url.Values{tc.field: {uuid.NewString()}}), f.ownerToken, nil)
+			malformed := f.env.do(t, http.MethodGet,
+				projectEffortPath(f.projectID.String(), url.Values{tc.field: {"no-es-un-uuid"}}), f.ownerToken, nil)
+
+			foreignBody := requireFilterRejected(t, foreign, tc.field, effortMsgInvalidFilter)
+			missingBody := requireFilterRejected(t, missing, tc.field, effortMsgInvalidFilter)
+			malformedBody := requireFilterRejected(t, malformed, tc.field, effortMsgInvalidFilter)
+			assert.Equal(t, missingBody, foreignBody, "el filtro ajeno debe ser indistinguible del inexistente")
+			assert.Equal(t, missingBody, malformedBody, "el filtro mal formado debe ser indistinguible del inexistente")
+			for _, leak := range []string{"Tienda", "Carrito", "Diego", "5.00", "entries", "totalHours"} {
+				assert.NotContains(t, foreignBody, leak, "el 400 no revela datos del otro proyecto")
+			}
+		})
+	}
+}
+
+// Escenario: Caso de error — usuario que no es integrante del proyecto (006/US4)
+func TestUS4_NoIntegrante(t *testing.T) {
+	f := newProjectEffortFixture(t)
+	_, outsiderToken := f.env.signUp(t, "Carlos Gómez", "carlos@example.com")
+	projectNotFound := f.env.do(t, http.MethodGet, "/api/v1/projects/"+f.projectID.String(), outsiderToken, nil)
+	require.Equal(t, http.StatusNotFound, projectNotFound.Code, "precondición: la 002 responde 404 a quien no es integrante")
+
+	// Con y sin filtros, la respuesta es el mismo 404 de proyecto inexistente de la 002, sin datos.
+	cases := []struct {
+		name    string
+		filters url.Values
+	}{
+		{name: "sin filtros", filters: nil},
+		{name: "con filtro por integrante", filters: url.Values{"userId": {f.ownerID.String()}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := f.env.do(t, http.MethodGet, projectEffortPath(f.projectID.String(), tc.filters), outsiderToken, nil)
+
+			assert.Equal(t, http.StatusNotFound, rec.Code)
+			assert.JSONEq(t, projectNotFound.Body.String(), rec.Body.String(), "el cuerpo debe ser el 404 de la 002")
+			assert.NotContains(t, rec.Body.String(), "totalHours", "el 404 no revela datos de esfuerzo")
+			assert.NotContains(t, rec.Body.String(), "entries", "el 404 no revela registros")
+		})
+	}
 }

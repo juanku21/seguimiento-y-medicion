@@ -25,3 +25,8 @@ func RegisterEntryRoutes(router *gin.Engine, requireSession gin.HandlerFunc, ent
 	entryGroup.PATCH("", handler.updateEffortEntry)
 	entryGroup.DELETE("", handler.deleteEffortEntry)
 }
+
+// RegisterProjectRoutes registra la consulta del esfuerzo del proyecto, GET /effort-entries, sobre el
+// subgrupo /api/v1/projects/:projectId de la 002, que ya exige sesión y membresía vigente. Firma
+// mínima de T056; la implementación corresponde a T061.
+func RegisterProjectRoutes(projectGroup *gin.RouterGroup, handler *Handler) {}

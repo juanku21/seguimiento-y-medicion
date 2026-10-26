@@ -554,7 +554,7 @@ sprint y su total; `?from=2026-10-10&to=2026-10-09` devuelve `400` en `to`.
       `to` con formato inválido → `FieldError`; solo `from`, solo `to`, ambos iguales → ok; `to`
       anterior a `from` → `FieldError` en `to` con "La fecha de fin del rango no puede ser anterior a
       la de inicio." — depende de T054
-- [ ] T056 [US4] Pruebas de integración en `backend/internal/effort/delivery/handler_test.go`, una por
+- [X] T056 [US4] Pruebas de integración en `backend/internal/effort/delivery/handler_test.go`, una por
       escenario con `// Escenario: <nombre> (006/US4)`: `TestUS4_SinFiltros` (todos con fecha,
       autor, historia, actividad, horas y sprint, y el total general), `TestUS4_FiltroPorIntegrante`,
       `TestUS4_FiltroPorSprint` (por el sprint asociado, aunque la historia esté hoy en otro),

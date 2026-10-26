@@ -636,7 +636,7 @@ reales, diferencia absoluta y porcentual, con "no calculable" donde corresponde.
       `null`, sin error), `TestUS5_NoIntegrante` (`404` de la 002) y `TestUS5_HistoriaInexistente`.
       La comparación del proyecto incluye todas las historias, de cualquier estado, en el orden del
       backlog de la 003 — depende de T062
-- [ ] T065 [P] [US5] Pruebas de frontend en
+- [X] T065 [P] [US5] Pruebas de frontend en
       `frontend/src/features/effort/components/effort-comparison-table.test.tsx` y
       `frontend/src/features/effort/components/effort-comparison-card.test.tsx`, con
       `describe("006/US5 - Comparar el esfuerzo estimado con el real")`: "No calculable" para `null`,

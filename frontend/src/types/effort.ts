@@ -94,3 +94,24 @@ export type ProjectEffort = {
   entries: EffortEntry[];
   emptyReason: ProjectEffortEmptyReason | null;
 };
+
+// Comparación entre estimado y real de una historia (EffortComparisonRow, 006/US5). storyPoints
+// llega en null si la historia está "sin estimar" y 0 es una estimación válida (FR-055). Las horas
+// estimadas, la diferencia y el porcentaje llegan en null cuando son "no calculable" (FR-050,
+// FR-051); la diferencia es real menos estimada, positiva cuando se trabajó de más (FR-048).
+export type EffortComparisonRow = {
+  storyId: string;
+  title: string;
+  storyPoints: number | null;
+  estimatedHours: number | null;
+  actualHours: number;
+  deviationHours: number | null;
+  deviationPercent: number | null;
+};
+
+// Comparación de todas las historias del proyecto (ProjectEffortComparison, 006/US5), con el factor
+// vigente y las historias en el orden del backlog de la spec 003.
+export type ProjectEffortComparison = {
+  hoursPerStoryPoint: number;
+  stories: EffortComparisonRow[];
+};

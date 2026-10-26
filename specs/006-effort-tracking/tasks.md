@@ -403,7 +403,7 @@ registros en orden de fecha descendente.
 
 ### Implementación de la Historia 2
 
-- [ ] T036 [US2] Implementar `ListForStory` en
+- [X] T036 [US2] Implementar `ListForStory` en
       `backend/internal/effort/repository/effort_repository.go`: una consulta de `effort_entries`
       unida a `users` (solo `id` y `full_name`) y con `LEFT JOIN` a `sprints` (`id`, `name`, `status`,
       `closed_at`), en el orden de FR-035 — depende de T034

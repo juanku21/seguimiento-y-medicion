@@ -2,10 +2,13 @@ package delivery
 
 import (
 	"encoding/json"
+	"net/url"
 	"sort"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 
 	authdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/delivery"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/domain"
@@ -444,5 +447,174 @@ func TestValidateEntryPatch_TodosLosCamposALaVez(t *testing.T) {
 	}
 	if got != (domain.EntryPatch{}) {
 		t.Errorf("con campos inválidos no debería devolver cambios, devolvió %+v", got)
+	}
+}
+
+// Pruebas unitarias obligatorias de la validación de los filtros de la consulta de esfuerzo del
+// proyecto (T055; FR-038, FR-043; research.md, filtros de la consulta del proyecto). Como las
+// anteriores, no llevan la etiqueta TestUS4_*, reservada a las pruebas de integración de
+// handler_test.go (T056).
+
+// Mensajes que la validación de filtros debe devolver, tal como los fija tasks.md (T055).
+const (
+	validationMsgFilterNotInProject = "El filtro no corresponde al proyecto."
+	validationMsgFilterRangeReverse = "La fecha de fin del rango no puede ser anterior a la de inicio."
+)
+
+// validationFilterDate arma la medianoche UTC de una fecha de calendario, que es como
+// ParseEntryFilter debe devolver los extremos del rango.
+func validationFilterDate(year int, month time.Month, day int) time.Time {
+	return time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
+}
+
+// validationRequireSameDate exige que el extremo del rango esté presente y sea exactamente la fecha
+// esperada a medianoche UTC.
+func validationRequireSameDate(t *testing.T, name string, got *time.Time, want time.Time) {
+	t.Helper()
+	if got == nil {
+		t.Fatalf("%s debería ser %v, fue nil", name, want)
+	}
+	if !got.Equal(want) || got.Location() != time.UTC {
+		t.Errorf("%s debería ser %v (medianoche UTC), fue %v", name, want, *got)
+	}
+}
+
+// Sin parámetros, el filtro queda vacío: sin integrante, historia, sprint ni rango (006/US4, FR-036).
+func TestParseEntryFilter_SinParametros(t *testing.T) {
+	got, fields := ParseEntryFilter(url.Values{})
+	if len(fields) != 0 {
+		t.Fatalf("sin parámetros no debería rechazar ningún filtro, rechazó %v", fields)
+	}
+	if got != (domain.EntryFilter{}) {
+		t.Errorf("sin parámetros el filtro debería quedar vacío, fue %+v", got)
+	}
+}
+
+// Los identificadores bien formados se devuelven como UUID en su campo del filtro (006/US4, FR-036).
+func TestParseEntryFilter_IdentificadoresValidos(t *testing.T) {
+	userID, storyID, sprintID := uuid.New(), uuid.New(), uuid.New()
+	query := url.Values{
+		"userId":   {userID.String()},
+		"storyId":  {storyID.String()},
+		"sprintId": {sprintID.String()},
+	}
+	got, fields := ParseEntryFilter(query)
+	if len(fields) != 0 {
+		t.Fatalf("con identificadores válidos no debería rechazar ningún filtro, rechazó %v", fields)
+	}
+	if got.UserID == nil || *got.UserID != userID {
+		t.Errorf("UserID debería ser %v, fue %v", userID, got.UserID)
+	}
+	if got.StoryID == nil || *got.StoryID != storyID {
+		t.Errorf("StoryID debería ser %v, fue %v", storyID, got.StoryID)
+	}
+	if got.SprintID == nil || *got.SprintID != sprintID {
+		t.Errorf("SprintID debería ser %v, fue %v", sprintID, got.SprintID)
+	}
+	if got.WithoutSprint {
+		t.Errorf("con un sprint concreto WithoutSprint debería ser false")
+	}
+}
+
+// Un identificador mal formado en userId, storyId o sprintId se rechaza en su campo con el mismo
+// mensaje que un filtro de otro proyecto, sin distinguir el motivo (006/US4, FR-044, SC-018).
+func TestParseEntryFilter_IdentificadorMalFormado(t *testing.T) {
+	for _, field := range []string{"userId", "storyId", "sprintId"} {
+		for _, value := range []string{"abc", "123", "3f1a9c64-7b2e-4d58-9a10"} {
+			t.Run(field+"="+value, func(t *testing.T) {
+				got, fields := ParseEntryFilter(url.Values{field: {value}})
+				validationRequireOnlyField(t, fields, field, validationMsgFilterNotInProject)
+				if got != (domain.EntryFilter{}) {
+					t.Errorf("con un filtro inválido no debería devolver filtro, devolvió %+v", got)
+				}
+			})
+		}
+	}
+}
+
+// sprintId=none pide los registros sin sprint: WithoutSprint en true y ningún sprint concreto
+// (006/US4, FR-039).
+func TestParseEntryFilter_SinSprint(t *testing.T) {
+	got, fields := ParseEntryFilter(url.Values{"sprintId": {"none"}})
+	if len(fields) != 0 {
+		t.Fatalf("sprintId=none no debería rechazarse, se rechazó %v", fields)
+	}
+	if !got.WithoutSprint {
+		t.Errorf("sprintId=none debería marcar WithoutSprint")
+	}
+	if got.SprintID != nil {
+		t.Errorf("sprintId=none no debería fijar un sprint concreto, fijó %v", *got.SprintID)
+	}
+}
+
+// Una fecha de from o de to que no tiene el formato AAAA-MM-DD o que no existe se rechaza en su
+// campo indicando el motivo (006/US4, FR-038).
+func TestParseEntryFilter_FechaConFormatoInvalido(t *testing.T) {
+	for _, field := range []string{"from", "to"} {
+		for _, value := range []string{"10/10/2026", "2026-10-1", "2026-02-30", "hoy", " 2026-10-10"} {
+			t.Run(field+"="+value, func(t *testing.T) {
+				got, fields := ParseEntryFilter(url.Values{field: {value}})
+				if len(fields) != 1 || fields[0].Field != field {
+					t.Fatalf("se esperaba un único campo inválido (%s), se obtuvieron %v", field, fields)
+				}
+				if strings.TrimSpace(fields[0].Message) == "" {
+					t.Errorf("el rechazo de %s debería indicar el motivo", field)
+				}
+				if got != (domain.EntryFilter{}) {
+					t.Errorf("con un filtro inválido no debería devolver filtro, devolvió %+v", got)
+				}
+			})
+		}
+	}
+}
+
+// El rango admite solo el extremo inicial, solo el final o ambos, y un rango de un único día es
+// válido porque los extremos se incluyen; las fechas se devuelven a medianoche UTC (006/US4, FR-038).
+func TestParseEntryFilter_RangosValidos(t *testing.T) {
+	t.Run("solo from", func(t *testing.T) {
+		got, fields := ParseEntryFilter(url.Values{"from": {"2026-10-09"}})
+		if len(fields) != 0 {
+			t.Fatalf("solo from no debería rechazarse, se rechazó %v", fields)
+		}
+		validationRequireSameDate(t, "From", got.From, validationFilterDate(2026, time.October, 9))
+		if got.To != nil {
+			t.Errorf("sin to, To debería ser nil, fue %v", *got.To)
+		}
+	})
+	t.Run("solo to", func(t *testing.T) {
+		got, fields := ParseEntryFilter(url.Values{"to": {"2026-10-10"}})
+		if len(fields) != 0 {
+			t.Fatalf("solo to no debería rechazarse, se rechazó %v", fields)
+		}
+		validationRequireSameDate(t, "To", got.To, validationFilterDate(2026, time.October, 10))
+		if got.From != nil {
+			t.Errorf("sin from, From debería ser nil, fue %v", *got.From)
+		}
+	})
+	t.Run("ambos iguales", func(t *testing.T) {
+		got, fields := ParseEntryFilter(url.Values{"from": {"2026-10-10"}, "to": {"2026-10-10"}})
+		if len(fields) != 0 {
+			t.Fatalf("un rango de un día no debería rechazarse, se rechazó %v", fields)
+		}
+		day := validationFilterDate(2026, time.October, 10)
+		validationRequireSameDate(t, "From", got.From, day)
+		validationRequireSameDate(t, "To", got.To, day)
+	})
+	t.Run("from anterior a to", func(t *testing.T) {
+		got, fields := ParseEntryFilter(url.Values{"from": {"2026-10-01"}, "to": {"2026-10-31"}})
+		if len(fields) != 0 {
+			t.Fatalf("un rango ordenado no debería rechazarse, se rechazó %v", fields)
+		}
+		validationRequireSameDate(t, "From", got.From, validationFilterDate(2026, time.October, 1))
+		validationRequireSameDate(t, "To", got.To, validationFilterDate(2026, time.October, 31))
+	})
+}
+
+// Un rango cuyo fin es anterior a su inicio se rechaza en to indicando el motivo (006/US4, FR-043).
+func TestParseEntryFilter_RangoInvertido(t *testing.T) {
+	got, fields := ParseEntryFilter(url.Values{"from": {"2026-10-10"}, "to": {"2026-10-09"}})
+	validationRequireOnlyField(t, fields, "to", validationMsgFilterRangeReverse)
+	if got != (domain.EntryFilter{}) {
+		t.Errorf("con un rango invertido no debería devolver filtro, devolvió %+v", got)
 	}
 }

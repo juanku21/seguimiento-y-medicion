@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	authdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/delivery"
 	backlogdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/domain"
@@ -271,6 +272,68 @@ func (h *Handler) deleteEffortEntry(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+// listProjectEffort godoc
+//
+//	@Summary		Lista el esfuerzo del proyecto con filtros
+//	@Description	Devuelve los registros del proyecto que cumplen todos los filtros indicados y el total
+//	@Description	de horas del conjunto (FR-036, FR-037, FR-041). Orden: fecha descendente y, a igual
+//	@Description	fecha, por momento de creación (FR-045). Sin paginación. El filtro por sprint opera
+//	@Description	sobre el sprint asociado al registro, no sobre el sprint en el que esté hoy la
+//	@Description	historia, y admite none para los registros sin sprint (FR-039). El filtro por
+//	@Description	integrante admite a personas que ya no son integrantes, si dejaron registros en el
+//	@Description	proyecto (FR-040). El rango de fechas es inclusivo en ambos extremos (FR-038). Un
+//	@Description	filtro mal formado, inexistente o de otro proyecto se rechaza con 400 y el mismo
+//	@Description	mensaje, sin revelar datos del otro proyecto (FR-044). Sin coincidencias, la respuesta
+//	@Description	es una lista vacía con total 0.00 y el motivo en emptyReason, no un error (FR-042).
+//	@Tags			Esfuerzo
+//	@ID				listProjectEffort
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			projectId	path		string								true	"Identificador del proyecto"	format(uuid)
+//	@Param			userId		query		string								false	"Autor de los registros: integrante vigente o persona con registros en el proyecto"	format(uuid)
+//	@Param			storyId		query		string								false	"Historia del proyecto"	format(uuid)
+//	@Param			sprintId	query		string								false	"Sprint del proyecto asociado a los registros, o none para los registros sin sprint"
+//	@Param			from		query		string								false	"Fecha mínima, inclusiva (AAAA-MM-DD)"	format(date)
+//	@Param			to			query		string								false	"Fecha máxima, inclusiva (AAAA-MM-DD); no puede ser anterior a from (FR-043)"	format(date)
+//	@Success		200			{object}	ProjectEffort						"Registros filtrados con su total, posiblemente vacíos."
+//	@Failure		400			{object}	delivery.ValidationErrorResponse	"Algún filtro es inválido: fecha mal formada, rango invertido o filtro mal formado, inexistente o de otro proyecto («El filtro no corresponde al proyecto.»)."
+//	@Failure		401			{object}	delivery.ErrorResponse				"Se requiere iniciar sesión."
+//	@Failure		404			{object}	delivery.ErrorResponse				"El proyecto no existe o quien pide no es integrante; las dos situaciones devuelven el mismo cuerpo."
+//	@Failure		500			{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."
+//	@Router			/api/v1/projects/{projectId}/effort-entries [get]
+func (h *Handler) listProjectEffort(c *gin.Context) {
+	// El subgrupo de la 002 ya respondió 401 y 404; un projectId que no sea UUID solo es posible si
+	// la ruta se registró fuera de ese subgrupo: es un error de composición y responde 500.
+	projectID, err := uuid.Parse(c.Param("projectId"))
+	if err != nil {
+		respondInternalError(c, "listProjectEffort sin un projectId válido en la ruta", "error", err)
+		return
+	}
+
+	// Se validan los filtros antes de llegar al servicio: los mal formados responden 400 con todos los
+	// campos a la vez (Principio VII).
+	filter, fields := ParseEntryFilter(c.Request.URL.Query())
+	if len(fields) > 0 {
+		respondInvalidFields(c, fields)
+		return
+	}
+
+	// Se consulta el esfuerzo filtrado. Un filtro inexistente o de otro proyecto responde el mismo 400
+	// que uno mal formado, con solo el campo rechazado y sin datos del otro proyecto (FR-044).
+	view, err := h.efforts.ProjectEffort(c.Request.Context(), projectID, filter)
+	if err != nil {
+		var invalidFilter *domain.InvalidFilterError
+		if errors.As(err, &invalidFilter) {
+			respondInvalidFields(c, []authdelivery.FieldError{{Field: invalidFilter.Field, Message: msgFilterNotInProject}})
+			return
+		}
+		respondInternalError(c, "no se pudo consultar el esfuerzo del proyecto", "error", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, newProjectEffort(*view))
 }
 
 // storyAccessFromContext devuelve el StoryAccess que RequireStoryAccess de la 003 dejó en el contexto

@@ -193,7 +193,8 @@ func run() error {
 	// el RequireStoryAccess de la 003, sobre la misma instancia del repositorio de historias, para que
 	// effort/delivery no importe backlog/delivery. La corrección y la eliminación de un registro
 	// cuelgan del grupo plano /api/v1/effort-entries/:entryId, con RequireEffortEntryAccess sobre la
-	// misma instancia del repositorio de esfuerzo que usa el servicio.
+	// misma instancia del repositorio de esfuerzo que usa el servicio. La consulta del esfuerzo del
+	// proyecto cuelga del subgrupo /:projectId de la 002, que ya exige sesión y membresía vigente.
 	effortRepository := effortrepository.NewEffortRepository(db)
 	efforts := effortservice.NewEffortService(
 		effortRepository,
@@ -204,6 +205,7 @@ func run() error {
 	effortHandler := effortdelivery.NewHandler(efforts)
 	effortdelivery.RegisterStoryRoutes(router, handler.RequireSession, backlogdelivery.RequireStoryAccess(storyRepository), effortHandler)
 	effortdelivery.RegisterEntryRoutes(router, handler.RequireSession, effortRepository, effortHandler)
+	effortdelivery.RegisterProjectRoutes(projectGroup, effortHandler)
 
 	// Ninguna conexión al canal de eventos sobrevive a un reinicio, así que antes de escuchar se
 	// marcan desconectados los participantes de las sesiones abiertas (research.md sección 9). El

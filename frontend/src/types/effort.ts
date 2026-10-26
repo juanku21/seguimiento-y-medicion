@@ -71,3 +71,26 @@ export type StoryEffort = {
   byMember: MemberEffort[];
   entries: EffortEntry[];
 };
+
+// Filtros del esfuerzo del proyecto (006/US4), como los elige la interfaz: cada uno vale "" cuando
+// no se filtra por él. sprintId admite "none" para los registros sin sprint (FR-039) y las fechas
+// van en AAAA-MM-DD, inclusivas (FR-038).
+export type ProjectEffortFilter = {
+  userId: string;
+  storyId: string;
+  sprintId: string;
+  from: string;
+  to: string;
+};
+
+// Motivo de la lista vacía del proyecto: sin ningún registro (US4-8) o con registros que no cumplen
+// los filtros (US4-7).
+export type ProjectEffortEmptyReason = "no_effort" | "no_matches";
+
+// Esfuerzo del proyecto filtrado (ProjectEffort, 006/US4): registros en fecha descendente (FR-045),
+// total del conjunto y motivo del vacío, que llega en null si hay registros.
+export type ProjectEffort = {
+  totalHours: number;
+  entries: EffortEntry[];
+  emptyReason: ProjectEffortEmptyReason | null;
+};

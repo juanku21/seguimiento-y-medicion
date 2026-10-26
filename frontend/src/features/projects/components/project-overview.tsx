@@ -31,10 +31,11 @@ export function isViewerOwner(project: ProjectDetail): boolean {
 }
 
 // Vista del proyecto en una sola pantalla (002/US4, SC-003): pide el estado una sola vez y reparte
-// la respuesta entre la tarjeta de estado, los enlaces al backlog (003) y a los sprints (004), las acciones de cambio de estado (002/US6) y la lista de
-// integrantes, que para el propietario ya incluye el formulario de alta (002/US3). El 404 llega con el mensaje del backend, que no revela
-// si el proyecto existe (FR-049); ante un 401 el cliente HTTP borra el token y la guardia lleva a
-// /login (FR-016).
+// la respuesta entre la tarjeta de estado, los enlaces al backlog (003), a los sprints (004) y al
+// esfuerzo (006), las acciones de cambio de estado (002/US6) y la lista de integrantes, que para el
+// propietario ya incluye el formulario de alta (002/US3). El 404 llega con el mensaje del backend,
+// que no revela si el proyecto existe (FR-049); ante un 401 el cliente HTTP borra el token y la
+// guardia lleva a /login (FR-016).
 export function ProjectOverview({ projectId }: ProjectOverviewProps) {
   const token = useRequireSession();
   const [state, setState] = useState<OverviewState>({ status: "loading" });
@@ -75,8 +76,8 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
   // Estado y equipo del proyecto, ambos a partir de la misma respuesta. Solo el propietario ve
   // las acciones de administración, y ninguna se ofrece si el proyecto es de solo lectura: en ese
   // caso la tarjeta muestra la fecha de finalización real (FR-018, US4-2). El proyecto que devuelve
-  // un cambio de estado reemplaza al vigente (002/US6). Los enlaces al backlog (003) y a los
-  // sprints (004) se ofrecen a todo integrante, propietario o no.
+  // un cambio de estado reemplaza al vigente (002/US6). Los enlaces al backlog (003), a los
+  // sprints (004) y al esfuerzo (006) se ofrecen a todo integrante, propietario o no.
   const { project } = state;
   const viewerIsOwner = isViewerOwner(project);
   return (
@@ -94,6 +95,12 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
           className="text-sm font-medium underline underline-offset-4"
         >
           Ver sprints
+        </Link>
+        <Link
+          href={`/projects/${project.id}/effort`}
+          className="text-sm font-medium underline underline-offset-4"
+        >
+          Esfuerzo
         </Link>
       </nav>
       {viewerIsOwner && !project.readOnly && (

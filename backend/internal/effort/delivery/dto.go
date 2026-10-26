@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/domain"
+	"github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/service"
 	sprintsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
 
@@ -201,4 +202,36 @@ func newStoryEffort(storyID uuid.UUID, effort domain.StoryEffort) StoryEffort {
 		ByMember:   byMember,
 		Entries:    entries,
 	}
+}
+
+// ProjectEffort es la consulta del esfuerzo del proyecto tal como la devuelve la API
+// (contracts/openapi.yaml): los registros que cumplen todos los filtros y su total. Entries se
+// serializa [] y nunca null; EmptyReason es nil, y se serializa null, cuando la lista no está vacía.
+type ProjectEffort struct {
+	// Total de horas de los registros filtrados, con exactamente 2 decimales (FR-041).
+	TotalHours Hundredths `json:"totalHours" validate:"required" swaggertype:"number" example:"14.25"`
+	// Registros por fecha descendente y, a igual fecha, por momento de creación (FR-045).
+	Entries []EffortEntry `json:"entries" validate:"required"`
+	// no_effort si el proyecto no tiene ningún registro; no_matches si los tiene pero ninguno cumple
+	// los filtros; null si la lista no está vacía (FR-042).
+	EmptyReason *string `json:"emptyReason" validate:"required" enums:"no_effort,no_matches" extensions:"x-nullable" example:"no_matches"`
+}
+
+// newProjectEffort arma la respuesta de la consulta del esfuerzo del proyecto a partir del resultado
+// del servicio, reutilizando el mapeo de cada registro. La lista se crea no nil para que una consulta
+// vacía responda []; la condición de definitivo ya viene calculada por el servicio.
+func newProjectEffort(view service.ProjectEffortView) ProjectEffort {
+	entries := make([]EffortEntry, 0, len(view.Entries))
+	for _, entry := range view.Entries {
+		entries = append(entries, newEffortEntry(entry, entry.Definitive))
+	}
+	response := ProjectEffort{
+		TotalHours: Hundredths(view.TotalHundredths),
+		Entries:    entries,
+	}
+	if view.EmptyReason != nil {
+		reason := string(*view.EmptyReason)
+		response.EmptyReason = &reason
+	}
+	return response
 }

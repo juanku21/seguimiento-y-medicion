@@ -11,6 +11,8 @@ import type {
   EffortEntryInput,
   EffortEntryPatch,
   MemberEffort,
+  ProjectEffort,
+  ProjectEffortFilter,
   StoryEffort,
 } from "@/types/effort";
 
@@ -125,4 +127,41 @@ export function deleteEffortEntry(
   entryId: string,
 ): Promise<ApiResult<undefined>> {
   return deleteEmpty(effortEntryPath(entryId));
+}
+
+// Reconoce el esfuerzo del proyecto filtrado (ProjectEffort) que devuelve la consulta exitosa (200),
+// sin confiar en el cuerpo recibido: registros con su forma, total numérico y motivo del vacío.
+function isProjectEffort(value: unknown): value is ProjectEffort {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.entries) &&
+    value.entries.every(isEffortEntry) &&
+    typeof value.totalHours === "number" &&
+    (value.emptyReason === null ||
+      value.emptyReason === "no_effort" ||
+      value.emptyReason === "no_matches")
+  );
+}
+
+// Consulta el esfuerzo del proyecto con GET /api/v1/projects/{projectId}/effort-entries, usando la
+// sesión de la pestaña (006/US4). Cada filtro elegido viaja como parámetro y los que valen "" no
+// viajan; sin filtros no se envía consulta. El filtrado, el orden, el total y el motivo del vacío
+// los resuelve el backend (FR-036 a FR-045): un filtro inválido llega como 400 con el detalle por
+// campo y ante un 401 el cliente HTTP descarta la sesión.
+export function listProjectEffort(
+  projectId: string,
+  filter: ProjectEffortFilter,
+): Promise<ApiResult<ProjectEffort>> {
+  const query = new URLSearchParams();
+  (["userId", "storyId", "sprintId", "from", "to"] as const).forEach((key) => {
+    if (filter[key] !== "") {
+      query.append(key, filter[key]);
+    }
+  });
+  const encoded = query.toString();
+  const search = encoded === "" ? "" : `?${encoded}`;
+  return getJson(
+    `/api/v1/projects/${encodeURIComponent(projectId)}/effort-entries${search}`,
+    isProjectEffort,
+  );
 }

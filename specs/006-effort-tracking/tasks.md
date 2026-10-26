@@ -547,14 +547,14 @@ sprint y su total; `?from=2026-10-10&to=2026-10-09` devuelve `400` en `to`.
 
 ### Pruebas de la Historia 4 ⚠️
 
-- [ ] T055 [P] [US4] Pruebas unitarias **obligatorias** de `ParseEntryFilter` en
+- [X] T055 [P] [US4] Pruebas unitarias **obligatorias** de `ParseEntryFilter` en
       `backend/internal/effort/delivery/validation_test.go`, cubriendo FR-038 y FR-043: sin
       parámetros → filtro vacío; `userId`, `storyId` y `sprintId` mal formados → `FieldError` en cada
       uno con "El filtro no corresponde al proyecto."; `sprintId=none` → `WithoutSprint`; `from` y
       `to` con formato inválido → `FieldError`; solo `from`, solo `to`, ambos iguales → ok; `to`
       anterior a `from` → `FieldError` en `to` con "La fecha de fin del rango no puede ser anterior a
       la de inicio." — depende de T054
-- [ ] T056 [US4] Pruebas de integración en `backend/internal/effort/delivery/handler_test.go`, una por
+- [X] T056 [US4] Pruebas de integración en `backend/internal/effort/delivery/handler_test.go`, una por
       escenario con `// Escenario: <nombre> (006/US4)`: `TestUS4_SinFiltros` (todos con fecha,
       autor, historia, actividad, horas y sprint, y el total general), `TestUS4_FiltroPorIntegrante`,
       `TestUS4_FiltroPorSprint` (por el sprint asociado, aunque la historia esté hoy en otro),
@@ -565,7 +565,7 @@ sprint y su total; `?from=2026-10-10&to=2026-10-09` devuelve `400` en `to`.
       proyecto, e integrante ajeno: `400` con el **mismo** cuerpo que un UUID inexistente, sin datos
       del otro proyecto) y `TestUS4_NoIntegrante` (`404` de la 002). Además, subtests con al menos
       tres combinaciones de dos o más filtros (SC-019) — depende de T054
-- [ ] T057 [P] [US4] Pruebas de frontend en
+- [X] T057 [P] [US4] Pruebas de frontend en
       `frontend/src/features/effort/components/effort-filters.test.tsx` y
       `frontend/src/features/effort/components/project-effort-view.test.tsx`, con
       `describe("006/US4 - Consultar el esfuerzo del proyecto con filtros")`: los filtros arman la
@@ -575,25 +575,25 @@ sprint y su total; `?from=2026-10-10&to=2026-10-09` devuelve `400` en `to`.
 
 ### Implementación de la Historia 4
 
-- [ ] T058 [US4] Implementar `ParseEntryFilter` en `backend/internal/effort/delivery/validation.go`
+- [X] T058 [US4] Implementar `ParseEntryFilter` en `backend/internal/effort/delivery/validation.go`
       sobre los parámetros de query, con las fechas a medianoche UTC — depende de T055
-- [ ] T059 [US4] Implementar en `backend/internal/effort/repository/effort_repository.go`
+- [X] T059 [US4] Implementar en `backend/internal/effort/repository/effort_repository.go`
       `ValidateFilter` (historia y sprint del proyecto; integrante vigente **o** autor de algún
       registro del proyecto; cualquier otro → `InvalidFilterError{Field}` sin distinguir inexistente
       de ajeno), `ListForProject` (filtros conjuntivos sobre `effort_entries` unido a `user_stories`
       por `project_id`, a `users` y a `sprints`; `sprint_id IS NULL` para `none`; extremos del rango
       inclusivos; orden de FR-045) y `HasProjectEffort` — depende de T056
-- [ ] T060 [US4] Implementar `ProjectEffort(ctx, projectID, filter)` en
+- [X] T060 [US4] Implementar `ProjectEffort(ctx, projectID, filter)` en
       `backend/internal/effort/service/effort_service.go`: valida el filtro, lista, agrega el total
       en Go, calcula `definitive` y, con la lista vacía, `emptyReason` (`no_effort` si
       `HasProjectEffort` es `false`, si no `no_matches`) — depende de T059
-- [ ] T061 [US4] Declarar `ProjectEffort` en `backend/internal/effort/delivery/dto.go`, implementar el
+- [X] T061 [US4] Declarar `ProjectEffort` en `backend/internal/effort/delivery/dto.go`, implementar el
       manejador `listProjectEffort` con anotaciones `swag` (`InvalidFilterError` → `400` con
       `ValidationErrorResponse`) en `backend/internal/effort/delivery/handler.go`, y en
       `backend/internal/effort/delivery/routes.go` `RegisterProjectRoutes(projectGroup, handler)` con
       `GET /effort-entries` sobre el subgrupo de la 002, registrado en `backend/cmd/app/main.go` —
       depende de T058, T060
-- [ ] T062 [US4] Implementar `listProjectEffort` en `frontend/src/features/effort/api.ts`,
+- [X] T062 [US4] Implementar `listProjectEffort` en `frontend/src/features/effort/api.ts`,
       `EffortFilters` en `frontend/src/features/effort/components/effort-filters.tsx`,
       `ProjectEffortView` en `frontend/src/features/effort/components/project-effort-view.tsx`, la
       página `frontend/src/app/projects/[projectId]/effort/page.tsx` y el enlace **Esfuerzo** en

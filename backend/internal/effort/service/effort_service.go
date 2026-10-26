@@ -89,13 +89,80 @@ func (s *EffortService) StoryEffort(ctx context.Context, storyID uuid.UUID) (*do
 		return nil, fmt.Errorf("consultar el esfuerzo de la historia: %w", err)
 	}
 
+	s.markDefinitive(entries)
+	total, byMember := aggregateByMember(entries)
+	return &domain.StoryEffort{TotalHundredths: total, ByMember: byMember, Entries: entries}, nil
+}
+
+// EmptyReason explica por qué la consulta de esfuerzo del proyecto vino vacía, para que la pantalla
+// distinga el proyecto sin esfuerzo de los filtros sin coincidencias (US4-7, US4-8). Viaja como texto
+// en el campo emptyReason del contrato; su ausencia (nil) significa que hay resultados.
+type EmptyReason string
+
+// Motivos posibles de una consulta vacía: el proyecto no tiene ningún registro, aunque se haya
+// filtrado, o los tiene pero ninguno cumple los filtros.
+const (
+	EmptyReasonNoEffort  EmptyReason = "no_effort"
+	EmptyReasonNoMatches EmptyReason = "no_matches"
+)
+
+// ProjectEffortView es el resultado de la consulta de esfuerzo del proyecto: el total en centésimas
+// de hora, los registros en el orden de FR-045, nunca nil, y el motivo del vacío, nil cuando hay
+// resultados.
+type ProjectEffortView struct {
+	TotalHundredths int
+	Entries         []domain.EntryView
+	EmptyReason     *EmptyReason
+}
+
+// ProjectEffort devuelve el esfuerzo del proyecto según los filtros combinables, con el total de lo
+// filtrado (FR-036 a FR-045). Primero verifica que los filtros correspondan al proyecto (FR-044): el
+// rechazo se envuelve con %w para que delivery lo reconozca con errors.As. La lista se lee una sola
+// vez y el total se agrega en Go sobre ella (research.md sección 11). Solo con la lista vacía se
+// consulta la existencia de esfuerzo para elegir el motivo: un proyecto sin registros es no_effort
+// aunque haya filtros.
+func (s *EffortService) ProjectEffort(ctx context.Context, projectID uuid.UUID, filter domain.EntryFilter) (*ProjectEffortView, error) {
+	if err := s.repo.ValidateFilter(ctx, projectID, filter); err != nil {
+		return nil, fmt.Errorf("validar el filtro del esfuerzo del proyecto: %w", err)
+	}
+
+	entries, err := s.repo.ListForProject(ctx, projectID, filter)
+	if err != nil {
+		return nil, fmt.Errorf("consultar el esfuerzo del proyecto: %w", err)
+	}
+	if len(entries) > 0 {
+		s.markDefinitive(entries)
+		return &ProjectEffortView{TotalHundredths: sumHundredths(entries), Entries: entries}, nil
+	}
+
+	// Resultado vacío: se consulta si el proyecto tiene algún registro para elegir el motivo.
+	hasEffort, err := s.repo.HasProjectEffort(ctx, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("verificar si el proyecto tiene esfuerzo: %w", err)
+	}
+	reason := EmptyReasonNoEffort
+	if hasEffort {
+		reason = EmptyReasonNoMatches
+	}
+	return &ProjectEffortView{Entries: []domain.EntryView{}, EmptyReason: &reason}, nil
+}
+
+// markDefinitive completa la condición de definitivo de cada registro. El instante se toma del reloj
+// una sola vez para que todos los registros la evalúen sobre el mismo momento.
+func (s *EffortService) markDefinitive(entries []domain.EntryView) {
 	now := s.now()
 	for i := range entries {
 		entries[i].Definitive = isDefinitive(entries[i].Sprint, now, s.grace)
 	}
+}
 
-	total, byMember := aggregateByMember(entries)
-	return &domain.StoryEffort{TotalHundredths: total, ByMember: byMember, Entries: entries}, nil
+// sumHundredths suma las centésimas de hora de los registros; sin registros devuelve cero.
+func sumHundredths(entries []domain.EntryView) int {
+	total := 0
+	for _, entry := range entries {
+		total += entry.Entry.HoursHundredths
+	}
+	return total
 }
 
 // isDefinitive informa si un registro ya no se modifica ni se elimina: su sprint asociado está

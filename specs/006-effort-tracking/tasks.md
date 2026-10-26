@@ -583,7 +583,7 @@ sprint y su total; `?from=2026-10-10&to=2026-10-09` devuelve `400` en `to`.
       de ajeno), `ListForProject` (filtros conjuntivos sobre `effort_entries` unido a `user_stories`
       por `project_id`, a `users` y a `sprints`; `sprint_id IS NULL` para `none`; extremos del rango
       inclusivos; orden de FR-045) y `HasProjectEffort` — depende de T056
-- [ ] T060 [US4] Implementar `ProjectEffort(ctx, projectID, filter)` en
+- [X] T060 [US4] Implementar `ProjectEffort(ctx, projectID, filter)` en
       `backend/internal/effort/service/effort_service.go`: valida el filtro, lista, agrega el total
       en Go, calcula `definitive` y, con la lista vacía, `emptyReason` (`no_effort` si
       `HasProjectEffort` es `false`, si no `no_matches`) — depende de T059

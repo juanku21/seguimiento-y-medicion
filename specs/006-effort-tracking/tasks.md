@@ -411,7 +411,7 @@ registros en orden de fecha descendente.
       `backend/internal/effort/service/effort_service.go`: total y desglose agregados en Go sobre la
       lista ya leída (research.md sección 11), y `definitive` de cada registro como "sprint `closed` y
       `!GraceOpen`" con el reloj del servicio — depende de T036
-- [ ] T038 [US2] Declarar `StoryEffort` y `MemberEffort` en `backend/internal/effort/delivery/dto.go`,
+- [X] T038 [US2] Declarar `StoryEffort` y `MemberEffort` en `backend/internal/effort/delivery/dto.go`,
       implementar el manejador `getStoryEffort` con anotaciones `swag` en
       `backend/internal/effort/delivery/handler.go` y registrar
       `GET /api/v1/stories/:storyId/effort` en `RegisterStoryRoutes` de

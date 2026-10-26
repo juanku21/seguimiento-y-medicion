@@ -649,7 +649,7 @@ reales, diferencia absoluta y porcentual, con "no calculable" donde corresponde.
       `backend/internal/effort/domain/comparison.go` con aritmética entera (cociente y resto), y un
       comentario que indique que la 008 debe reutilizar `RoundPercentHundredths` (RC-13) — depende de
       T063
-- [ ] T067 [US5] Implementar `ComparisonRows` en
+- [X] T067 [US5] Implementar `ComparisonRows` en
       `backend/internal/effort/repository/effort_repository.go`: el factor vigente de `projects` y las
       historias del proyecto (o una sola) con `story_points` y la suma de sus horas por `LEFT JOIN`
       agregado (0 sin registros), en el orden del listado del backlog de la 003 (prioridad,

@@ -617,7 +617,7 @@ reales, diferencia absoluta y porcentual, con "no calculable" donde corresponde.
 
 ### Pruebas de la Historia 5 ⚠️
 
-- [ ] T063 [P] [US5] Pruebas unitarias **obligatorias** de
+- [X] T063 [P] [US5] Pruebas unitarias **obligatorias** de
       `Compare(storyPoints *int, factorHundredths, actualHundredths int) Comparison` y de
       `RoundPercentHundredths(numerator, denominator int) int` en
       `backend/internal/effort/domain/comparison_test.go`, cubriendo RN-16 a RN-20, RN-26, SC-012 a

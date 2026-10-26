@@ -1,7 +1,28 @@
-// Reglas de forma del alta de esfuerzo, coherentes con backend/internal/effort/delivery/validation.go.
-// Cada función devuelve el mensaje de error en español o null si el valor es válido. Las reglas que
-// dependen de datos (fecha futura o anterior al inicio del proyecto, tope diario) las decide el
-// backend.
+// Reglas de forma del alta y la corrección de esfuerzo, coherentes con
+// backend/internal/effort/delivery/validation.go. Cada función devuelve el mensaje de error en
+// español o null si el valor es válido. Las reglas que dependen de datos (fecha futura o anterior al
+// inicio del proyecto, tope diario) las decide el backend.
+import type { FieldError } from "@/types/auth";
+
+// Valores de los campos de esfuerzo tal como se escriben, compartidos por el formulario de alta y la
+// edición en línea: las horas quedan como el texto del campo numérico hasta validarlas.
+export type EffortFormValues = {
+  entryDate: string;
+  activity: string;
+  hours: string;
+};
+
+export type EffortFieldName = keyof EffortFormValues;
+export type EffortFieldErrors = Partial<Record<EffortFieldName, string>>;
+
+const effortFieldNames: readonly EffortFieldName[] = [
+  "entryDate",
+  "activity",
+  "hours",
+];
+
+// Indicación de la escala de horas, visible desde el inicio en el alta y en la edición (RN-02).
+export const EFFORT_HOURS_HINT = "Entre 0,25 y 24, en múltiplos de 0,25.";
 
 // Límites de forma y mensajes, idénticos a los del backend (research.md sección 6).
 const maxActivityLength = 300;
@@ -61,4 +82,38 @@ export function validateEffortHours(value: string): string | null {
     return msgHoursRange;
   }
   return hundredths % hoursStepHundredths !== 0 ? msgHoursMultiple : null;
+}
+
+// Aplica las reglas de forma a los tres campos y devuelve solo los que tienen error.
+export function validateEffortFields(
+  values: EffortFormValues,
+): EffortFieldErrors {
+  const errors: EffortFieldErrors = {};
+  const checks: [EffortFieldName, string | null][] = [
+    ["entryDate", validateEffortEntryDate(values.entryDate)],
+    ["activity", validateEffortActivity(values.activity)],
+    ["hours", validateEffortHours(values.hours)],
+  ];
+  for (const [field, message] of checks) {
+    if (message) {
+      errors[field] = message;
+    }
+  }
+  return errors;
+}
+
+// Indica si un nombre de campo informado por el backend corresponde a un campo de esfuerzo.
+function isEffortFieldName(value: string): value is EffortFieldName {
+  return effortFieldNames.some((name) => name === value);
+}
+
+// Ubica junto a cada campo el detalle de un 400 del backend, descartando los que no son de esfuerzo.
+export function toEffortFieldErrors(fields: FieldError[]): EffortFieldErrors {
+  const errors: EffortFieldErrors = {};
+  for (const { field, message } of fields) {
+    if (isEffortFieldName(field)) {
+      errors[field] = message;
+    }
+  }
+  return errors;
 }

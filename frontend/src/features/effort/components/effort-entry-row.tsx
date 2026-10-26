@@ -5,33 +5,19 @@ import { Alert } from "@/components/alert";
 import { Input } from "@/components/input";
 import { deleteEffortEntry, updateEffortEntry } from "@/features/effort/api";
 import {
-  validateEffortActivity,
-  validateEffortEntryDate,
-  validateEffortHours,
+  EFFORT_HOURS_HINT,
+  toEffortFieldErrors,
+  validateEffortFields,
+  type EffortFieldErrors,
+  type EffortFieldName,
+  type EffortFormValues,
 } from "@/features/effort/validation";
-import type { FieldError } from "@/types/auth";
 import type { EffortEntry, EffortEntryPatch } from "@/types/effort";
 import { formatHours } from "@/utils/effort-format";
 import { formatDate } from "@/utils/format-date";
 
-// Valores de la edición en línea tal como se escriben: las horas quedan como el texto del campo
-// numérico hasta validarlas.
-type EditValues = {
-  entryDate: string;
-  activity: string;
-  hours: string;
-};
-
-type FieldName = keyof EditValues;
-type FieldErrors = Partial<Record<FieldName, string>>;
-
 // Modo de la fila: solo lectura, edición en línea o confirmación de la eliminación.
 type RowMode = "view" | "edit" | "confirm";
-
-const FIELD_NAMES: readonly FieldName[] = ["entryDate", "activity", "hours"];
-
-// Indicación de la escala de horas, la misma del formulario de alta (RN-02).
-const HOURS_HINT = "Entre 0,25 y 24, en múltiplos de 0,25.";
 
 // Clases de los botones de la fila: el secundario para editar y cancelar, el principal para guardar
 // y el de peligro para eliminar.
@@ -51,7 +37,7 @@ export type EffortEntryRowProps = {
 };
 
 // Toma los valores del registro como punto de partida de la edición en línea.
-function valuesOf(entry: EffortEntry): EditValues {
+function valuesOf(entry: EffortEntry): EffortFormValues {
   return {
     entryDate: entry.entryDate,
     activity: entry.activity,
@@ -59,44 +45,10 @@ function valuesOf(entry: EffortEntry): EditValues {
   };
 }
 
-// Indica si un nombre de campo informado por el backend corresponde a un campo de la edición.
-function isFieldName(value: string): value is FieldName {
-  return FIELD_NAMES.some((name) => name === value);
-}
-
-// Aplica las reglas de forma a los tres campos y devuelve solo los que tienen error. La fecha futura
-// o anterior al inicio del proyecto y el tope diario los decide el backend.
-function validateValues(values: EditValues): FieldErrors {
-  const errors: FieldErrors = {};
-  const checks: [FieldName, string | null][] = [
-    ["entryDate", validateEffortEntryDate(values.entryDate)],
-    ["activity", validateEffortActivity(values.activity)],
-    ["hours", validateEffortHours(values.hours)],
-  ];
-  for (const [field, message] of checks) {
-    if (message) {
-      errors[field] = message;
-    }
-  }
-  return errors;
-}
-
-// Ubica junto a cada campo el detalle de un 400 del backend, descartando los que no son de la
-// edición.
-function toFieldErrors(fields: FieldError[]): FieldErrors {
-  const errors: FieldErrors = {};
-  for (const { field, message } of fields) {
-    if (isFieldName(field)) {
-      errors[field] = message;
-    }
-  }
-  return errors;
-}
-
 // Arma la corrección con solo los campos que difieren del registro, con las horas como número.
 function changedFields(
   entry: EffortEntry,
-  values: EditValues,
+  values: EffortFormValues,
 ): EffortEntryPatch {
   const patch: EffortEntryPatch = {};
   if (values.entryDate !== entry.entryDate) {
@@ -123,8 +75,8 @@ export function EffortEntryRow({
   onChanged,
 }: EffortEntryRowProps) {
   const [mode, setMode] = useState<RowMode>("view");
-  const [values, setValues] = useState<EditValues>(() => valuesOf(entry));
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [values, setValues] = useState<EffortFormValues>(() => valuesOf(entry));
+  const [fieldErrors, setFieldErrors] = useState<EffortFieldErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submittingRef = useRef(false);
@@ -142,7 +94,7 @@ export function EffortEntryRow({
   }
 
   // Actualiza un campo de la edición a partir de lo que se escribió o eligió.
-  function updateField(field: FieldName, value: string) {
+  function updateField(field: EffortFieldName, value: string) {
     setValues((current) => ({ ...current, [field]: value }));
   }
 
@@ -154,7 +106,7 @@ export function EffortEntryRow({
       return;
     }
 
-    const errors = validateValues(values);
+    const errors = validateEffortFields(values);
     setFieldErrors(errors);
     setError(null);
     if (Object.keys(errors).length > 0) {
@@ -177,7 +129,7 @@ export function EffortEntryRow({
       onChanged?.();
       return;
     }
-    setFieldErrors(toFieldErrors(result.error.fields));
+    setFieldErrors(toEffortFieldErrors(result.error.fields));
     setError(result.error.message);
   }
 
@@ -231,7 +183,7 @@ export function EffortEntryRow({
             step={0.25}
             value={values.hours}
             onChange={(event) => updateField("hours", event.target.value)}
-            hint={HOURS_HINT}
+            hint={EFFORT_HOURS_HINT}
             error={fieldErrors.hours}
           />
           <div className="flex flex-wrap gap-2">

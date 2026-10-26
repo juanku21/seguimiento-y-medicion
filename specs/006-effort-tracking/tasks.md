@@ -524,7 +524,7 @@ sprint; desde otro integrante, `403`; `DELETE` del autor devuelve `204` y el tot
       `RegisterEntryRoutes(router, requireSession, repo, handler)` con el grupo plano
       `/api/v1/effort-entries/:entryId` y `PATCH` y `DELETE`; registrarlo en
       `backend/cmd/app/main.go` sobre la misma instancia del repositorio — depende de T049, T051, T052
-- [ ] T054 [US3] Implementar `updateEffortEntry` y `deleteEffortEntry` en
+- [X] T054 [US3] Implementar `updateEffortEntry` y `deleteEffortEntry` en
       `frontend/src/features/effort/api.ts` y `EffortEntryRow` en
       `frontend/src/features/effort/components/effort-entry-row.tsx` (edición en línea de fecha,
       actividad y horas; eliminación con confirmación), usado por `EffortEntryList` — depende de T046,

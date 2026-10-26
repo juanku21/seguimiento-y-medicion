@@ -6,28 +6,14 @@ import { Button } from "@/components/button";
 import { Input } from "@/components/input";
 import { createEffortEntry } from "@/features/effort/api";
 import {
-  validateEffortActivity,
-  validateEffortEntryDate,
-  validateEffortHours,
+  EFFORT_HOURS_HINT,
+  toEffortFieldErrors,
+  validateEffortFields,
+  type EffortFieldErrors,
+  type EffortFieldName,
+  type EffortFormValues,
 } from "@/features/effort/validation";
-import type { FieldError } from "@/types/auth";
-import type { EffortEntry, EffortEntryInput } from "@/types/effort";
-
-// Valores del formulario tal como se escriben: las horas quedan como el texto del campo numérico
-// hasta validarlas.
-type FormValues = {
-  entryDate: string;
-  activity: string;
-  hours: string;
-};
-
-type FieldName = keyof EffortEntryInput;
-type FieldErrors = Partial<Record<FieldName, string>>;
-
-const FIELD_NAMES: readonly FieldName[] = ["entryDate", "activity", "hours"];
-
-// Indicación de la escala de horas, visible desde el inicio (RN-02).
-const HOURS_HINT = "Entre 0,25 y 24, en múltiplos de 0,25.";
+import type { EffortEntry } from "@/types/effort";
 
 // Propiedades del formulario: la historia sobre la que se registra y el aviso del alta exitosa.
 export type EffortEntryFormProps = {
@@ -44,58 +30,24 @@ function todayLocal(): string {
   return `${now.getFullYear()}-${month}-${day}`;
 }
 
-// Indica si un nombre de campo informado por el backend corresponde a un campo del formulario.
-function isFieldName(value: string): value is FieldName {
-  return FIELD_NAMES.some((name) => name === value);
-}
-
-// Aplica las reglas de forma del formulario y devuelve solo los campos que tienen error. La fecha
-// futura o anterior al inicio del proyecto y el tope diario los decide el backend.
-function validateFields(values: FormValues): FieldErrors {
-  const errors: FieldErrors = {};
-  const checks: [FieldName, string | null][] = [
-    ["entryDate", validateEffortEntryDate(values.entryDate)],
-    ["activity", validateEffortActivity(values.activity)],
-    ["hours", validateEffortHours(values.hours)],
-  ];
-  for (const [field, message] of checks) {
-    if (message) {
-      errors[field] = message;
-    }
-  }
-  return errors;
-}
-
-// Ubica junto a cada campo el detalle de un 400 del backend, descartando los que no son del
-// formulario.
-function toFieldErrors(fields: FieldError[]): FieldErrors {
-  const errors: FieldErrors = {};
-  for (const { field, message } of fields) {
-    if (isFieldName(field)) {
-      errors[field] = message;
-    }
-  }
-  return errors;
-}
-
 // Formulario de registro de esfuerzo sobre una historia (006/US1). Precarga la fecha de hoy, de modo
 // que el registro lleva tres pasos: escribir la actividad, escribir las horas y confirmar (SC-001).
 // Valida la forma antes de enviar, envía solo fecha, actividad y horas como número (el autor lo toma
 // el backend de la sesión, FR-002) y avisa el alta con el registro devuelto. Los rechazos del backend
 // se muestran junto al campo (400) o como mensaje general (404 y 409, con el mensaje recibido).
 export function EffortEntryForm({ storyId, onCreated }: EffortEntryFormProps) {
-  const [values, setValues] = useState<FormValues>(() => ({
+  const [values, setValues] = useState<EffortFormValues>(() => ({
     entryDate: todayLocal(),
     activity: "",
     hours: "",
   }));
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [fieldErrors, setFieldErrors] = useState<EffortFieldErrors>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submittingRef = useRef(false);
 
   // Actualiza un campo del formulario a partir de lo que se escribió o eligió.
-  function updateField(field: FieldName, value: string) {
+  function updateField(field: EffortFieldName, value: string) {
     setValues((current) => ({ ...current, [field]: value }));
   }
 
@@ -107,7 +59,7 @@ export function EffortEntryForm({ storyId, onCreated }: EffortEntryFormProps) {
       return;
     }
 
-    const errors = validateFields(values);
+    const errors = validateEffortFields(values);
     setFieldErrors(errors);
     setGeneralError(null);
     if (Object.keys(errors).length > 0) {
@@ -133,7 +85,7 @@ export function EffortEntryForm({ storyId, onCreated }: EffortEntryFormProps) {
 
     // Un rechazo muestra el mensaje general y, si el backend lo informa, el detalle junto a cada
     // campo.
-    setFieldErrors(toFieldErrors(result.error.fields));
+    setFieldErrors(toEffortFieldErrors(result.error.fields));
     setGeneralError(result.error.message);
   }
 
@@ -164,7 +116,7 @@ export function EffortEntryForm({ storyId, onCreated }: EffortEntryFormProps) {
         step={0.25}
         value={values.hours}
         onChange={(event) => updateField("hours", event.target.value)}
-        hint={HOURS_HINT}
+        hint={EFFORT_HOURS_HINT}
         error={fieldErrors.hours}
       />
       <Button type="submit" disabled={isSubmitting}>

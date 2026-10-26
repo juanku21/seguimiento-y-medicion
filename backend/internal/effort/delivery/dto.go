@@ -172,7 +172,8 @@ type MemberEffort struct {
 type StoryEffort struct {
 	// Identificador de la historia consultada.
 	StoryID string `json:"storyId" validate:"required" format:"uuid" example:"2b9f1c3e-8d4a-4f5b-9e6c-7a8b9c0d1e2f"`
-	// Total de horas de todos los registros, de cualquier autor, fecha y sprint (FR-031).
+	// Total de horas de todos los registros, de cualquier autor, fecha y sprint, con exactamente 2
+	// decimales (FR-031, SC-015).
 	TotalHours Hundredths `json:"totalHours" validate:"required" swaggertype:"number" example:"16.00"`
 	// Una línea por persona con registros, ordenadas por nombre, incluidas las ex integrantes (FR-032).
 	ByMember []MemberEffort `json:"byMember" validate:"required"`

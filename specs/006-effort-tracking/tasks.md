@@ -697,7 +697,7 @@ vulnerabilidades y verificación de las puertas de calidad.
       (SC-020); y una aserción de que ninguna respuesta contiene `password_hash` ni `passwordHash`
       (Principio VI). Caracterización: las reglas ya existen, así que no tiene RED; el commit lo
       justifica — depende de T070
-- [ ] T072 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
+- [X] T072 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
       `backend/docs/` coincida con [contracts/openapi.yaml](./contracts/openapi.yaml) en las **siete**
       operaciones, sus códigos de respuesta (todas declaran `500`) y sus esquemas, incluidos los
       números de 2 decimales y los `null` de "no calculable"; corregir las anotaciones si difieren

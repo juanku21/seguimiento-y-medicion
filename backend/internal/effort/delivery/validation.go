@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -188,6 +189,13 @@ func ValidateEntryPatch(req EffortEntryPatch) (domain.EntryPatch, []authdelivery
 		return domain.EntryPatch{}, []authdelivery.FieldError{{Field: "body", Message: msgPatchEmpty}}
 	}
 	return patch, nil
+}
+
+// ParseEntryFilter valida los parámetros de query de la consulta de esfuerzo del proyecto y
+// devuelve el EntryFilter o un FieldError por cada filtro inválido (FR-038, FR-043). Firma mínima
+// de T055; la implementación corresponde a T058.
+func ParseEntryFilter(query url.Values) (domain.EntryFilter, []authdelivery.FieldError) {
+	return domain.EntryFilter{}, []authdelivery.FieldError{{Field: "query", Message: "not implemented"}}
 }
 
 // parseEntryDate valida una fecha de calendario con el formato AAAA-MM-DD y existente; time.Parse

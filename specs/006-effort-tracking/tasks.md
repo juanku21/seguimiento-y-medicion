@@ -547,7 +547,7 @@ sprint y su total; `?from=2026-10-10&to=2026-10-09` devuelve `400` en `to`.
 
 ### Pruebas de la Historia 4 ⚠️
 
-- [ ] T055 [P] [US4] Pruebas unitarias **obligatorias** de `ParseEntryFilter` en
+- [X] T055 [P] [US4] Pruebas unitarias **obligatorias** de `ParseEntryFilter` en
       `backend/internal/effort/delivery/validation_test.go`, cubriendo FR-038 y FR-043: sin
       parámetros → filtro vacío; `userId`, `storyId` y `sprintId` mal formados → `FieldError` en cada
       uno con "El filtro no corresponde al proyecto."; `sprintId=none` → `WithoutSprint`; `from` y

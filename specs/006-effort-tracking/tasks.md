@@ -394,7 +394,7 @@ registros en orden de fecha descendente.
       (tres fechas → una línea en el desglose y tres registros), `TestUS2_NoIntegrante` (`404`, ningún
       dato) y `TestUS2_HistoriaInexistente`. Orden verificado: `entry_date DESC, created_at ASC, id
       ASC`; desglose por `full_name ASC, user_id ASC` — depende de T033
-- [ ] T035 [P] [US2] Pruebas de frontend en
+- [X] T035 [P] [US2] Pruebas de frontend en
       `frontend/src/features/effort/components/effort-breakdown.test.tsx` y
       `frontend/src/features/effort/components/effort-entry-list.test.tsx`, con
       `describe("006/US2 - Consultar el esfuerzo de una historia")`: total y una línea por persona;

@@ -407,7 +407,7 @@ registros en orden de fecha descendente.
       `backend/internal/effort/repository/effort_repository.go`: una consulta de `effort_entries`
       unida a `users` (solo `id` y `full_name`) y con `LEFT JOIN` a `sprints` (`id`, `name`, `status`,
       `closed_at`), en el orden de FR-035 — depende de T034
-- [ ] T037 [US2] Implementar `StoryEffort(ctx, storyID)` en
+- [X] T037 [US2] Implementar `StoryEffort(ctx, storyID)` en
       `backend/internal/effort/service/effort_service.go`: total y desglose agregados en Go sobre la
       lista ya leída (research.md sección 11), y `definitive` de cada registro como "sprint `closed` y
       `!GraceOpen`" con el reloj del servicio — depende de T036

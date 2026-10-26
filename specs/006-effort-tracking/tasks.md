@@ -565,7 +565,7 @@ sprint y su total; `?from=2026-10-10&to=2026-10-09` devuelve `400` en `to`.
       proyecto, e integrante ajeno: `400` con el **mismo** cuerpo que un UUID inexistente, sin datos
       del otro proyecto) y `TestUS4_NoIntegrante` (`404` de la 002). Además, subtests con al menos
       tres combinaciones de dos o más filtros (SC-019) — depende de T054
-- [ ] T057 [P] [US4] Pruebas de frontend en
+- [X] T057 [P] [US4] Pruebas de frontend en
       `frontend/src/features/effort/components/effort-filters.test.tsx` y
       `frontend/src/features/effort/components/project-effort-view.test.tsx`, con
       `describe("006/US4 - Consultar el esfuerzo del proyecto con filtros")`: los filtros arman la

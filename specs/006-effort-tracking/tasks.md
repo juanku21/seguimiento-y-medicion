@@ -709,7 +709,7 @@ vulnerabilidades y verificación de las puertas de calidad.
       conoce el proyecto pueda ejecutarlo siguiendo el documento — depende de T071
 - [X] T074 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
-- [ ] T075 [P] Ejecutar los comandos de cobertura de los dos lados —
+- [X] T075 [P] Ejecutar los comandos de cobertura de los dos lados —
       `go test -p 1 ./... -coverprofile=coverage.out` más `go tool cover -func=coverage.out` en
       `backend/`, y `npm run test:coverage` en `frontend/` — y revisar que `internal/effort/`,
       `frontend/src/features/effort/` y `frontend/src/utils/effort-format.ts` estén cubiertos; correr

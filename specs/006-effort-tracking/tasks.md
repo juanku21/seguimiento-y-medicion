@@ -416,7 +416,7 @@ registros en orden de fecha descendente.
       `backend/internal/effort/delivery/handler.go` y registrar
       `GET /api/v1/stories/:storyId/effort` en `RegisterStoryRoutes` de
       `backend/internal/effort/delivery/routes.go`. Listas vacías como `[]` — depende de T037
-- [ ] T039 [US2] Implementar `getStoryEffort` en `frontend/src/features/effort/api.ts`,
+- [X] T039 [US2] Implementar `getStoryEffort` en `frontend/src/features/effort/api.ts`,
       `EffortBreakdown` en `frontend/src/features/effort/components/effort-breakdown.tsx`,
       `EffortEntryList` en `frontend/src/features/effort/components/effort-entry-list.tsx`, y
       completar `StoryEffortSection` para mostrar total, desglose y lista y recargarlos después de

@@ -601,7 +601,7 @@ sobre uno En progreso devuelve `409 links_frozen`; con `status` devuelve `400`.
       `json.RawMessage` para distinguir ausente de `null`, y `status`, `resolvedSprintId`,
       `projectId`, `createdBy` y `createdById` decodificados **solo para rechazarlos** con
       `swaggerignore:"true"` (patrón de `StoryPatch` de la 003) — depende de T047
-- [ ] T053 [US4] Implementar `Update` en `backend/internal/defects/repository/defect_repository.go` en
+- [X] T053 [US4] Implementar `Update` en `backend/internal/defects/repository/defect_repository.go` en
       una transacción con el orden de research.md sección 10: proyecto `FOR SHARE OF projects`
       (`finished` → `ErrDefectsReadOnly`); defecto `FOR UPDATE` releído; `EnsureDefectEditable`; para
       cada vínculo presente **cuyo valor difiere del vigente**, `EnsureLinksCorrectable`; si cambia el

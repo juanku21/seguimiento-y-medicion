@@ -740,7 +740,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       carga; con todas las historias sin estimar no muestra `role="alert"` (AC9); ante `404` o `500`
       muestra el mensaje de error sin la tabla (AC10) per Constitución II (partial) — origen:
       converge, detectado en 006/US5
-- [ ] T079 Pruebas de la comparación en `StoryEffortSection` en
+- [X] T079 Pruebas de la comparación en `StoryEffortSection` en
       `frontend/src/features/effort/components/story-effort-section.test.tsx`, con el `describe` de
       006/US5: carga la tarjeta junto con el esfuerzo, la recarga después de registrar, corregir y
       eliminar, y muestra el error si falla la consulta de comparación per FR-053, Constitución II

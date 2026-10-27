@@ -411,7 +411,7 @@ el sprint Activo devuelve `200` y deja el defecto `resolved` con ese sprint; `re
       mapa `allowedDefectTransitions` con `open: [in_progress]` e `in_progress: [resolved]`,
       `AllowedTransitions` y `PlanTransition`, que nunca devuelve ni modifica la historia ni el
       sprint de detección (FR-027) — depende de T025
-- [ ] T032 [US2] Implementar `ValidateStatusChange` en `backend/internal/defects/delivery/validation.go`
+- [X] T032 [US2] Implementar `ValidateStatusChange` en `backend/internal/defects/delivery/validation.go`
       con el DTO `DefectStatusChange` en `backend/internal/defects/delivery/dto.go` — depende de T026,
       T031
 - [ ] T033 [US2] Implementar en `backend/internal/defects/repository/defect_repository.go`

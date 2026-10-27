@@ -425,7 +425,7 @@ el sprint Activo devuelve `200` y deja el defecto `resolved` con ese sprint; `re
       **releído**; (5) escritura de `status`, `resolved_sprint_id` (siempre la salida de
       `PlanTransition`), `status_changed_at`, `status_changed_by_id` y `updated_by_id`. Devuelve
       `FindView` dentro de la misma transacción — depende de T027, T028, T031
-- [ ] T034 [US2] Implementar `RequireDefectAccess` en `backend/internal/defects/delivery/middleware.go`
+- [X] T034 [US2] Implementar `RequireDefectAccess` en `backend/internal/defects/delivery/middleware.go`
       con una única salida `404` y el mensaje `El defecto no existe.` — depende de T033
 - [ ] T035 [US2] Implementar `ChangeStatus` y `Get` en
       `backend/internal/defects/service/defect_service.go` con el actor de la sesión y el instante del

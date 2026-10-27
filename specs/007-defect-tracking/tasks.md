@@ -500,7 +500,7 @@ devuelve `400` en `status`.
 
 ### Implementación de la Historia 3
 
-- [ ] T041 [US3] Implementar `ParseDefectFilter` en `backend/internal/defects/delivery/validation.go`
+- [X] T041 [US3] Implementar `ParseDefectFilter` en `backend/internal/defects/delivery/validation.go`
       sobre `c.QueryArray("status")`, `c.QueryArray("severity")`, `storyId` y `sprintId` — depende de
       T038
 - [ ] T042 [US3] Implementar en `backend/internal/defects/repository/defect_repository.go`

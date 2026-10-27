@@ -23,6 +23,8 @@ const (
 	msgSprintRequired      = "El sprint de detección es obligatorio."
 	msgIDInvalid           = "El valor no es un identificador válido."
 
+	msgFilterOutsideProject = "El filtro no corresponde al proyecto."
+
 	msgStatusInvalid                = "El estado debe ser Abierto, En progreso, Resuelto o Descartado."
 	msgResolutionSprintRequired     = "El sprint de resolución es obligatorio para resolver."
 	msgResolutionSprintOnlyResolved = "El sprint de resolución solo se indica al resolver."
@@ -115,8 +117,70 @@ func ValidateStatusChange(req DefectStatusChange) (domain.StatusChange, []authde
 	return domain.StatusChange{To: to, ResolvedSprintID: resolvedSprintID}, nil
 }
 
-// ParseDefectFilter convierte los parámetros de consulta del listado en un filtro del dominio
-// (firma mínima: la lógica pertenece a T041).
+// ParseDefectFilter convierte los parámetros de consulta del listado en un filtro del dominio y
+// devuelve un FieldError por cada filtro inválido, todos a la vez (FR-046, FR-047, Principio VII).
+// Un valor vacío equivale a no filtrar; ante cualquier error se devuelve un DefectFilter vacío.
 func ParseDefectFilter(statuses, severities []string, storyID, sprintID string) (domain.DefectFilter, []authdelivery.FieldError) {
-	return domain.DefectFilter{}, nil
+	fields := []authdelivery.FieldError{}
+	addField := func(field, message string) {
+		fields = append(fields, authdelivery.FieldError{Field: field, Message: message})
+	}
+	filter := domain.DefectFilter{}
+
+	// Estados: se conservan en el orden recibido y se informa una sola vez si alguno es inexistente.
+	statusInvalid := false
+	for _, raw := range statuses {
+		if raw == "" {
+			continue
+		}
+		status := domain.DefectStatus(raw)
+		if !status.Valid() {
+			statusInvalid = true
+			continue
+		}
+		filter.Statuses = append(filter.Statuses, status)
+	}
+	if statusInvalid {
+		addField("status", msgStatusInvalid)
+	}
+
+	// Severidades: misma regla que los estados.
+	severityInvalid := false
+	for _, raw := range severities {
+		if raw == "" {
+			continue
+		}
+		severity := domain.DefectSeverity(raw)
+		if !severity.Valid() {
+			severityInvalid = true
+			continue
+		}
+		filter.Severities = append(filter.Severities, severity)
+	}
+	if severityInvalid {
+		addField("severity", msgSeverityInvalid)
+	}
+
+	// Historia y sprint: opcionales y con forma de UUID.
+	filter.StoryID = parseOptionalFilterID(storyID, "storyId", addField)
+	filter.SprintID = parseOptionalFilterID(sprintID, "sprintId", addField)
+
+	if len(fields) > 0 {
+		return domain.DefectFilter{}, fields
+	}
+	return filter, nil
+}
+
+// parseOptionalFilterID convierte un identificador de filtro: el texto vacío no filtra y un UUID
+// mal formado se informa como ajeno al proyecto.
+func parseOptionalFilterID(text, field string, addField func(field, message string)) *uuid.UUID {
+	if text == "" {
+		return nil
+	}
+	id, err := uuid.Parse(text)
+	if err != nil {
+		addField(field, msgFilterOutsideProject)
+		return nil
+	}
+	return &id
 }

@@ -212,7 +212,7 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
       `detectedSprintId` mal formados → "…no es un identificador válido."; varios campos inválidos
       devueltos **todos a la vez**; un `createdBy` o `createdById` en el cuerpo se ignora — depende de
       T007
-- [ ] T011 [US1] Pruebas de integración de la historia en
+- [X] T011 [US1] Pruebas de integración de la historia en
       `backend/internal/defects/delivery/handler_test.go`, creando en
       `backend/internal/defects/delivery/testenv_test.go` el ayudante `newDefectTestEnv` (router como
       `cmd/app` con las rutas de la 001 a la 004 y las de defectos, reloj falso compartido por los

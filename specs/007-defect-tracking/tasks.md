@@ -407,7 +407,7 @@ el sprint Activo devuelve `200` y deja el defecto `resolved` con ese sprint; `re
 
 ### Implementación de la Historia 2
 
-- [ ] T031 [US2] Implementar en `backend/internal/defects/domain/status.go` `DefectStatus.Valid`, el
+- [X] T031 [US2] Implementar en `backend/internal/defects/domain/status.go` `DefectStatus.Valid`, el
       mapa `allowedDefectTransitions` con `open: [in_progress]` e `in_progress: [resolved]`,
       `AllowedTransitions` y `PlanTransition`, que nunca devuelve ni modifica la historia ni el
       sprint de detección (FR-027) — depende de T025

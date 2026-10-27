@@ -562,7 +562,7 @@ sobre uno En progreso devuelve `409 links_frozen`; con `status` devuelve `400`.
       resolución se cambian con las acciones de estado del defecto."; `projectId`, `createdBy` y
       `createdById` presentes → "El proyecto y el autor de un defecto no se modifican." — depende de
       T045
-- [ ] T048 [US4] Pruebas de integración en `backend/internal/defects/delivery/handler_test.go`, una
+- [X] T048 [US4] Pruebas de integración en `backend/internal/defects/delivery/handler_test.go`, una
       por escenario con `// Escenario: <nombre> (007/US4)`: `TestUS4_DescripcionYSeveridad` (estado,
       sprints y `createdBy` sin cambio; `updatedBy` = quien modificó),
       `TestUS4_RevinculacionDeHistoria` (deja de aparecer en la historia anterior y aparece en la

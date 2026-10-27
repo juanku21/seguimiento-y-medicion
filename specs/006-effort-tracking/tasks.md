@@ -733,7 +733,7 @@ vulnerabilidades y verificación de las puertas de calidad.
 
 Propósito: ajustes transversales detectados por /speckit-converge y /revisar-seguridad.
 
-- [ ] T078 Pruebas de `ProjectEffortComparisonSection` en
+- [X] T078 Pruebas de `ProjectEffortComparisonSection` en
       `frontend/src/features/effort/components/project-effort-comparison.test.tsx`, con
       `describe("006/US5 - Comparar el esfuerzo estimado con el real")` y backend falso: pide
       `GET /api/v1/projects/{projectId}/effort-comparison` y muestra la tabla; muestra el estado de

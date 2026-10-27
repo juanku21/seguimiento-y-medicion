@@ -153,7 +153,7 @@ estructuras y contratos, sin lógica de negocio.
       `InvalidTransitionError{Current, Requested DefectStatus; Allowed []DefectStatus}` e
       `InvalidFilterError{Field string}` (este con `Is(ErrInvalidFilter)`, como el de la 006). El
       texto visible para la persona lo define `delivery`, no estos mensajes — depende de T002
-- [ ] T005 Declarar en `backend/internal/defects/domain/repository.go` la interfaz `DefectRepository`
+- [X] T005 Declarar en `backend/internal/defects/domain/repository.go` la interfaz `DefectRepository`
       con **exactamente** las ocho operaciones de data-model.md sección 10 (`FindAccessible`,
       `Create`, `ChangeStatus`, `Update`, `FindView`, `ListForProject`, `ValidateFilter`,
       `HasProjectDefects`) con sus firmas, y los tipos de lectura de la sección 9: `DefectAccess`,

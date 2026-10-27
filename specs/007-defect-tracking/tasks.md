@@ -580,7 +580,7 @@ sobre uno En progreso devuelve `409 links_frozen`; con `status` devuelve `400`.
       `TestUS4_DefectoDescartado` (preparado con `forceDefectStatus`: `409 defect_discarded`),
       `TestUS4_EstadoDesdeModificacion` (subtests `status` y `resolvedSprintId`: `400`) y
       `TestUS4_ProyectoFinalizado` (`409 read_only`) — depende de T045
-- [ ] T049 [US4] Agregar a `backend/internal/defects/delivery/defect_concurrency_test.go` la variante
+- [X] T049 [US4] Agregar a `backend/internal/defects/delivery/defect_concurrency_test.go` la variante
       `TestDefectLinks_ConcurrentCorrectionAndStart`, **sin** etiqueta: a la vez, sobre un defecto
       `open`, una corrección de su historia y un paso a `in_progress`; en 10 repeticiones el
       resultado es siempre uno de dos: la corrección se aplicó y después el paso, o el paso se aplicó

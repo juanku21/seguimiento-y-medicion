@@ -92,3 +92,50 @@ func TestDefectTransition_ConcurrentStart(t *testing.T) {
 		})
 	}
 }
+
+// Un integrante corrige la historia de un defecto Abierto mientras otro lo pasa a En progreso (T049;
+// FR-018, FR-038): en cada repetición el resultado es uno de dos. O la corrección se aplicó y después
+// el paso (200 y 200, con el defecto En progreso vinculado a la historia nueva), o el paso se aplicó
+// primero y la corrección recibió 409 links_frozen (el defecto queda En progreso con la historia
+// original). Ninguna solicitud recibe 500. No lleva etiqueta de escenario porque verifica una regla
+// de concurrencia y no un escenario Given/When/Then.
+func TestDefectLinks_ConcurrentCorrectionAndStart(t *testing.T) {
+	f := newDefectFixture(t)
+	otherStory := f.env.createStory(t, f.ownerToken, f.projectID, "Exportación a PDF")
+	_, memberToken := f.env.signUp(t, "Beto Ruiz", "beto@example.com")
+	f.env.addMember(t, f.ownerToken, f.projectID, "beto@example.com")
+
+	// Cada repetición registra un defecto Abierto nuevo y lanza la corrección y el paso a la vez.
+	for round := range defectConcurrentRounds {
+		t.Run(fmt.Sprintf("repeticion_%d", round+1), func(t *testing.T) {
+			defectID := f.registerDefect(t, f.storyID, f.sprintID)
+
+			// El índice 0 corrige la historia y el 1 pasa el defecto a En progreso.
+			recs := defectRequestsAtOnce([]string{f.ownerToken, memberToken}, func(token string) *httptest.ResponseRecorder {
+				if token == f.ownerToken {
+					return f.env.patchDefect(t, token, defectID, map[string]any{"storyId": otherStory.String()})
+				}
+				return f.env.putDefectStatus(t, token, defectID, "in_progress", uuid.Nil)
+			})
+			correction, start := recs[0], recs[1]
+
+			// El paso a En progreso siempre se acepta: desde Abierto es una transición válida.
+			require.Equal(t, http.StatusOK, start.Code, "el paso a En progreso; cuerpo: %s", start.Body.String())
+
+			stored := f.env.storedDefect(t, defectID)
+			assert.Equal(t, "in_progress", string(stored.Status))
+			switch correction.Code {
+			case http.StatusOK:
+				// La corrección se aplicó antes del paso: la historia nueva quedó vinculada.
+				assert.Equal(t, otherStory, stored.StoryID, "corrección aplicada: el defecto queda en la historia nueva")
+			case http.StatusConflict:
+				// El paso ganó: la corrección se rechazó y la historia original no cambió.
+				body := requireDefectConflict(t, correction, "links_frozen")
+				assert.Equal(t, `"in_progress"`, string(body.CurrentStatus))
+				assert.Equal(t, f.storyID, stored.StoryID, "corrección rechazada: la historia original no cambia")
+			default:
+				t.Errorf("corrección: código %d inesperado; cuerpo: %s", correction.Code, correction.Body.String())
+			}
+		})
+	}
+}

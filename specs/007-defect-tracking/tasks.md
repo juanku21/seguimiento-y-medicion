@@ -466,7 +466,7 @@ devuelve `400` en `status`.
 
 ### Pruebas de la Historia 3 ⚠️
 
-- [ ] T038 [P] [US3] Pruebas unitarias **obligatorias** de
+- [X] T038 [P] [US3] Pruebas unitarias **obligatorias** de
       `ParseDefectFilter(statuses, severities []string, storyID, sprintID string)` en
       `backend/internal/defects/delivery/validation_test.go`, cubriendo FR-046 y FR-047: sin
       parámetros → filtro vacío; `status` y `severity` repetidos → listas en el orden recibido; un

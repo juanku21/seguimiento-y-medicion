@@ -114,3 +114,9 @@ func ValidateStatusChange(req DefectStatusChange) (domain.StatusChange, []authde
 	}
 	return domain.StatusChange{To: to, ResolvedSprintID: resolvedSprintID}, nil
 }
+
+// ParseDefectFilter convierte los parámetros de consulta del listado en un filtro del dominio
+// (firma mínima: la lógica pertenece a T041).
+func ParseDefectFilter(statuses, severities []string, storyID, sprintID string) (domain.DefectFilter, []authdelivery.FieldError) {
+	return domain.DefectFilter{}, nil
+}

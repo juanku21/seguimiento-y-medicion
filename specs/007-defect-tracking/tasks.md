@@ -488,7 +488,7 @@ devuelve `400` en `status`.
       `TestUS3_ValorDeFiltroInvalido` (subtests estado y severidad) y `TestUS3_NoIntegrante` (`404` de
       la 002 en el listado del proyecto y de la 003 en el de la historia). Además, subtests con al
       menos tres combinaciones de dos o más filtros (SC-013) — depende de T037
-- [ ] T040 [P] [US3] Pruebas de frontend en
+- [X] T040 [P] [US3] Pruebas de frontend en
       `frontend/src/features/defects/components/defect-filters.test.tsx`,
       `frontend/src/features/defects/components/defect-list.test.tsx` y
       `frontend/src/features/defects/components/story-defects-section.test.tsx`, con

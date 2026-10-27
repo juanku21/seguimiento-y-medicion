@@ -9,9 +9,12 @@ import {
 import { listSprints } from "@/features/sprints/api";
 import type {
   Defect,
+  DefectFilterValues,
   DefectInput,
   DefectStatus,
   DefectStatusChange,
+  ProjectDefects,
+  StoryDefects,
 } from "@/types/defect";
 import type { SprintListResponse } from "@/types/sprint";
 
@@ -94,6 +97,26 @@ export function changeDefectStatus(
     body.resolvedSprintId = change.resolvedSprintId;
   }
   return putAuthorizedJson(`${defectPath(defectId)}/status`, body, isDefect);
+}
+
+// Firma mínima (T040): lista los defectos del proyecto con los filtros, GET
+// /api/v1/projects/{projectId}/defects. La implementa T045.
+export function listProjectDefects(
+  projectId: string,
+  filters: DefectFilterValues,
+): Promise<ApiResult<ProjectDefects>> {
+  void projectId;
+  void filters;
+  throw new Error("not implemented");
+}
+
+// Firma mínima (T040): lista los defectos de una historia, GET /api/v1/stories/{storyId}/defects.
+// La implementa T045.
+export function listStoryDefects(
+  storyId: string,
+): Promise<ApiResult<StoryDefects>> {
+  void storyId;
+  throw new Error("not implemented");
 }
 
 const DEFECT_STATUSES: DefectStatus[] = [

@@ -554,7 +554,7 @@ sobre uno En progreso devuelve `409 links_frozen`; con `status` devuelve `400`.
       `EnsureDefectEditable` con `open`, `in_progress` y `resolved` → `nil`, `discarded` →
       `ErrDefectDiscarded`; `EnsureLinksCorrectable` con `open` → `nil`, y `in_progress`, `resolved` y
       `discarded` → `ErrLinksFrozen` — depende de T045
-- [ ] T047 [P] [US4] Pruebas unitarias **obligatorias** de `ValidateDefectPatch` en
+- [X] T047 [P] [US4] Pruebas unitarias **obligatorias** de `ValidateDefectPatch` en
       `backend/internal/defects/delivery/validation_test.go`, cubriendo FR-034, FR-035 y FR-037:
       cuerpo `{}` → "Indicá al menos un dato para modificar."; solo `severity` → ok; las mismas reglas
       de descripción, severidad e identificadores que el alta; `status` y `resolvedSprintId`

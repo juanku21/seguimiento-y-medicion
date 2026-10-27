@@ -69,6 +69,13 @@ func ValidateDefectInput(req DefectInput) (domain.DefectInput, []authdelivery.Fi
 	}, nil
 }
 
+// ValidateDefectPatch valida el cuerpo de la modificación parcial y devuelve los cambios normalizados
+// junto con un FieldError por cada campo inválido, todos a la vez (FR-034, FR-035, FR-037).
+// Pendiente de implementar en T052.
+func ValidateDefectPatch(req DefectPatch) (domain.DefectPatch, []authdelivery.FieldError) {
+	return domain.DefectPatch{}, nil
+}
+
 // parseRequiredID convierte un identificador obligatorio: el texto vacío informa que falta y un UUID
 // mal formado informa que no es válido.
 func parseRequiredID(text, field, requiredMessage string, addField func(field, message string)) (uuid.UUID, bool) {

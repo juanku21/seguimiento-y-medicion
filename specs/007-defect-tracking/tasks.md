@@ -145,7 +145,7 @@ estructuras y contratos, sin lógica de negocio.
       recibe su primer defecto —por alta o por revinculación— y nunca vuelve a false, aunque el
       defecto se revincule a otra historia o se descarte (RC-05, RN-19); solo la escribe la feature
       de defectos", igual que `EverCommitted` y `EverHadEffort`
-- [ ] T004 [P] Declarar los errores de dominio en `backend/internal/defects/domain/errors.go` con la
+- [X] T004 [P] Declarar los errores de dominio en `backend/internal/defects/domain/errors.go` con la
       tabla de data-model.md sección 8: `ErrDefectNotFound`, `ErrDefectsReadOnly`,
       `ErrNoDetectionSprint`, `ErrDefectDiscarded`, `ErrLinksFrozen`, `ErrDetectionSprintPlanned`,
       `ErrResolutionSprintRequired`, `ErrResolutionSprintPlanned`, `ErrResolutionBeforeDetection` e

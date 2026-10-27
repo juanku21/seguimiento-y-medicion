@@ -99,24 +99,72 @@ export function changeDefectStatus(
   return putAuthorizedJson(`${defectPath(defectId)}/status`, body, isDefect);
 }
 
-// Firma mínima (T040): lista los defectos del proyecto con los filtros, GET
-// /api/v1/projects/{projectId}/defects. La implementa T045.
+// Reconoce el listado de defectos (ProjectDefects y StoryDefects) que devuelve el 200: la lista
+// siempre llega como arreglo y emptyReason es null cuando hay resultados.
+function isDefectList(
+  value: unknown,
+): value is { defects: Defect[]; emptyReason: string | null } {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.defects) &&
+    value.defects.every(isDefect) &&
+    (value.emptyReason === null || typeof value.emptyReason === "string")
+  );
+}
+
+// Reconoce el listado de defectos de un proyecto, cuyo motivo de vacío puede ser no_defects o
+// no_matches.
+function isProjectDefects(value: unknown): value is ProjectDefects {
+  return (
+    isDefectList(value) &&
+    (value.emptyReason === null ||
+      value.emptyReason === "no_defects" ||
+      value.emptyReason === "no_matches")
+  );
+}
+
+// Reconoce el listado de defectos de una historia, cuyo único motivo de vacío es no_defects.
+function isStoryDefects(value: unknown): value is StoryDefects {
+  return (
+    isDefectList(value) &&
+    (value.emptyReason === null || value.emptyReason === "no_defects")
+  );
+}
+
+// Lista los defectos del proyecto con GET /api/v1/projects/{projectId}/defects, usando la sesión de
+// la pestaña (007/US3). Cada valor elegido de estado o severidad viaja como parámetro repetido y
+// los filtros de historia y sprint solo viajan si tienen valor. El orden, el filtrado y el motivo
+// del vacío los resuelve el backend (FR-040 a FR-045).
 export function listProjectDefects(
   projectId: string,
   filters: DefectFilterValues,
 ): Promise<ApiResult<ProjectDefects>> {
-  void projectId;
-  void filters;
-  throw new Error("not implemented");
+  const query = new URLSearchParams();
+  filters.status.forEach((status) => query.append("status", status));
+  filters.severity.forEach((severity) => query.append("severity", severity));
+  if (filters.storyId !== "") {
+    query.append("storyId", filters.storyId);
+  }
+  if (filters.sprintId !== "") {
+    query.append("sprintId", filters.sprintId);
+  }
+  const encoded = query.toString();
+  const search = encoded === "" ? "" : `?${encoded}`;
+  return getJson(
+    `/api/v1/projects/${encodeURIComponent(projectId)}/defects${search}`,
+    isProjectDefects,
+  );
 }
 
-// Firma mínima (T040): lista los defectos de una historia, GET /api/v1/stories/{storyId}/defects.
-// La implementa T045.
+// Lista los defectos de una historia con GET /api/v1/stories/{storyId}/defects, usando la sesión de
+// la pestaña (007/US3). La historia inexistente o ajena llega como 404 con su mensaje.
 export function listStoryDefects(
   storyId: string,
 ): Promise<ApiResult<StoryDefects>> {
-  void storyId;
-  throw new Error("not implemented");
+  return getJson(
+    `/api/v1/stories/${encodeURIComponent(storyId)}/defects`,
+    isStoryDefects,
+  );
 }
 
 const DEFECT_STATUSES: DefectStatus[] = [

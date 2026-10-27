@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SessionGuard } from "@/features/auth/components/session-guard";
+import { StoryDefectsSection } from "@/features/defects/components/story-defects-section";
 import { StoryDetailView } from "@/features/backlog/components/story-detail-view";
 import { StoryEffortSection } from "@/features/effort/components/story-effort-section";
 import { StoryEstimationSection } from "@/features/poker/components/story-estimation-section";
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
 // Pantalla protegida del detalle de una historia (003/US3). Es un Server Component que solo toma los
 // identificadores de la ruta y encuadra la vista: la guardia de sesión corre en el cliente, porque
 // el token vive en sessionStorage, y muestra el regreso al backlog, el detalle, la sección de
-// Planning Poker para abrir o unirse a una sesión (005/US1), el registro de esfuerzo (006/US1) y los
+// Planning Poker para abrir o unirse a una sesión (005/US1), el registro de esfuerzo (006/US1), los defectos de la historia (007/US3) y los
 // sprints en los que estuvo la historia (004/US6) únicamente cuando hay una sesión vigente.
 export default async function StoryPage({
   params,
@@ -37,6 +38,7 @@ export default async function StoryPage({
           <StoryDetailView storyId={storyId} />
           <StoryEstimationSection projectId={projectId} storyId={storyId} />
           <StoryEffortSection storyId={storyId} />
+          <StoryDefectsSection projectId={projectId} storyId={storyId} />
           <StorySprintHistory storyId={storyId} />
         </div>
       </SessionGuard>

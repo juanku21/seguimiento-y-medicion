@@ -524,7 +524,7 @@ devuelve `400` en `status`.
       importar `backlog/delivery`; registrarlo en `backend/cmd/app/main.go` con el
       `RequireStoryAccess` de la 003 sobre la misma instancia del repositorio de historias — depende
       de T041, T043
-- [ ] T045 [US3] Implementar `listProjectDefects` y `listStoryDefects` en
+- [X] T045 [US3] Implementar `listProjectDefects` y `listStoryDefects` en
       `frontend/src/features/defects/api.ts`, `DefectFilters`, `DefectList` y `DefectRow` en
       `frontend/src/features/defects/components/`, la página
       `frontend/src/app/projects/[projectId]/defects/page.tsx`, `StoryDefectsSection` en

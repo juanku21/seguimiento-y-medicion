@@ -755,7 +755,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       003 y registra esfuerzo con `POST` → `201` y el registro persistido, completando la
       cobertura de RN-13 según la tabla de plan.md (SC-023). Caracterización: la regla ya
       existe, así que no tiene RED — origen: T076
-- [ ] T082 Renombrar los seis `it` de `frontend/src/features/effort/components/` que están en
+- [X] T082 Renombrar los seis `it` de `frontend/src/features/effort/components/` que están en
       bloques `006/USn` sin llevar el nombre de un escenario de spec.md
       (`effort-filters.test.tsx:111` y `:213`, `effort-comparison-table.test.tsx:79` y `:137`,
       `effort-comparison-card.test.tsx:179`, `effort-entry-list.test.tsx:79`): usar el nombre

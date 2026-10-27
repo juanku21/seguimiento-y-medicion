@@ -75,8 +75,9 @@ afterEach(() => {
   cleanup();
 });
 
-describe("006/US2 - Consultar el esfuerzo de una historia", () => {
-  it("Caso normal — cada registro con fecha, autor, actividad, horas y sprint", () => {
+// Verificación del detalle de cada registro; complementa el escenario 1 de US2 sin ser uno propio.
+describe("EffortEntryList - detalle de cada registro", () => {
+  it("cada registro con fecha, autor, actividad, horas y sprint", () => {
     const entries = [
       entry("a1", {
         entryDate: "2026-10-20",
@@ -107,7 +108,9 @@ describe("006/US2 - Consultar el esfuerzo de una historia", () => {
     expect(within(items[1]).getByText("Revisión de código")).toBeTruthy();
     expect(within(items[1]).getByText("4 h")).toBeTruthy();
   });
+});
 
+describe("006/US2 - Consultar el esfuerzo de una historia", () => {
   it("Caso alternativo — registros de dos sprints distintos y uno sin sprint", () => {
     const entries = [
       entry("e1", {

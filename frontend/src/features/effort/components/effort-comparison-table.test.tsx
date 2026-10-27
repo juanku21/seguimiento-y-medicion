@@ -76,7 +76,7 @@ afterEach(() => {
 });
 
 describe("006/US5 - Comparar el esfuerzo estimado con el real", () => {
-  it("El signo distingue el exceso del ahorro", () => {
+  it("Caso alternativo — la misma historia con 24 horas reales: el signo distingue el ahorro", () => {
     // Escenarios 1, 2 y 3 de US5: la misma historia de 5 Story Points con 36, 24 y 30 horas reales.
     render(
       <EffortComparisonTable
@@ -133,8 +133,11 @@ describe("006/US5 - Comparar el esfuerzo estimado con el real", () => {
       },
     ]);
   });
+});
 
-  it("Caso límite — historias de 0 Story Points y sin estimar se distinguen (FR-055)", () => {
+// Verificación de la distinción de FR-055 que agrupa varios escenarios; no corresponde a uno solo.
+describe("EffortComparisonTable - distinción entre 0 Story Points y sin estimar", () => {
+  it("historias de 0 Story Points y sin estimar se distinguen (FR-055)", () => {
     // Escenarios 5, 6, 7 y 8 de US5 en una misma tabla.
     render(
       <EffortComparisonTable
@@ -206,7 +209,9 @@ describe("006/US5 - Comparar el esfuerzo estimado con el real", () => {
       },
     ]);
   });
+});
 
+describe("006/US5 - Comparar el esfuerzo estimado con el real", () => {
   it("Caso límite — proyecto con todas las historias sin estimar", () => {
     // Escenario 9 de US5: la lista completa con "No calculable", sin mensaje de error.
     render(

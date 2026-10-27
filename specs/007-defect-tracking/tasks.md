@@ -162,7 +162,7 @@ estructuras y contratos, sin lógica de negocio.
       `StatusChange` (`To`, `ResolvedSprintID *uuid.UUID`) y `DefectFilter` (`Statuses`,
       `Severities`, `StoryID *uuid.UUID`, `SprintID *uuid.UUID`). Las escrituras reciben el actor y,
       las que fijan `status_changed_at`, el instante `now` — depende de T001, T002, T004
-- [ ] T006 Agregar `Defect` al `AutoMigrate` de `backend/internal/platform/database/postgres.go`
+- [X] T006 Agregar `Defect` al `AutoMigrate` de `backend/internal/platform/database/postgres.go`
       **después** de `SprintStory` (apunta a `user_stories`, `sprints` y `users`) y actualizar el
       comentario del orden y de la columna nueva `ever_had_defects` de `UserStory` — depende de T001,
       T003

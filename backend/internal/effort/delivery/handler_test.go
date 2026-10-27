@@ -2672,3 +2672,23 @@ func TestEffortGrace_Boundaries(t *testing.T) {
 		}
 	})
 }
+
+// TestEffortCreate_HistoriaDeCeroPuntos caracteriza RN-13: una historia estimada en 0 Story Points
+// con la 003 admite el alta de esfuerzo, que responde 201 y queda persistida (SC-023).
+func TestEffortCreate_HistoriaDeCeroPuntos(t *testing.T) {
+	f := newEffortFixture(t)
+	zeroID := f.env.createStory(t, f.ownerToken, f.projectID, "Ajuste de textos")
+	f.env.estimateStory(t, f.ownerToken, zeroID, 0)
+	before := f.env.effortEntryCount(t)
+
+	entry := requireEffortCreated(t, f.env.postEffort(t, f.ownerToken, zeroID, effortBody(effortToday, effortActivity, 2)))
+
+	// La respuesta refleja el alta y la fila existe en la base con las horas enviadas.
+	assert.Equal(t, zeroID.String(), entry.Story.ID, "historia del registro")
+	assert.Equal(t, "2.00", string(entry.Hours), "las horas se serializan con 2 decimales")
+	assert.Equal(t, before+1, f.env.effortEntryCount(t), "el alta debe persistir un registro")
+	stored := f.env.storedEntry(t, entry.ID)
+	assert.Equal(t, zeroID, stored.StoryID, "story_id en la base")
+	assert.Equal(t, f.ownerID, stored.UserID, "user_id en la base")
+	assert.Equal(t, int64(200), f.env.storyHundredths(t, zeroID), "total de la historia en centésimas")
+}

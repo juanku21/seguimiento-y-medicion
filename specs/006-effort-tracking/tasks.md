@@ -749,7 +749,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       `frontend/src/utils/effort-format.test.ts`: `+6 h`, `−6 h` con U+2212, `0 h` sin signo,
       "No calculable" para `null`, "n SP" y "Sin estimar" per Constitución VIII (partial) — origen:
       converge, detectado en 006/US5
-- [ ] T081 Prueba de integración de caracterización en
+- [X] T081 Prueba de integración de caracterización en
       `backend/internal/effort/delivery/handler_test.go`, sin etiqueta `006/USn`:
       `TestEffortCreate_HistoriaDeCeroPuntos`, que estima una historia en 0 Story Points con la
       003 y registra esfuerzo con `POST` → `201` y el registro persistido, completando la

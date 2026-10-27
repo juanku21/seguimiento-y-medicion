@@ -708,7 +708,7 @@ exactamente una de las dos.
       `TestUS6_DescartadoDefinitivo` (subtests descartar, pasar a En progreso, resolver y reabrir →
       `409 invalid_transition` con "El defecto está Descartado, que es un estado definitivo.", y
       modificar → `409 defect_discarded`; SC-012) y `TestUS6_ProyectoFinalizado` — depende de T061
-- [ ] T064 [US6] Agregar a `backend/internal/defects/delivery/defect_concurrency_test.go`
+- [X] T064 [US6] Agregar a `backend/internal/defects/delivery/defect_concurrency_test.go`
       `TestDefectTransition_Concurrency`, **sin** etiqueta: a la vez, sobre el mismo defecto
       `in_progress`, una resolución y un descarte de dos integrantes; en **10 de 10** repeticiones
       exactamente uno recibe `200` y el otro `409 invalid_transition` con el estado vigente, y el

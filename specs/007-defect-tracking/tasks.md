@@ -370,7 +370,7 @@ el sprint Activo devuelve `200` y deja el defecto `resolved` con ese sprint; `re
       resolver."; `in_progress`, `open` o `discarded` **con** `resolvedSprintId` → "El sprint de
       resolución solo se indica al resolver."; `resolvedSprintId` mal formado → "…no es un
       identificador válido." — depende de T024
-- [ ] T027 [P] [US2] Pruebas del middleware `RequireDefectAccess` en
+- [X] T027 [P] [US2] Pruebas del middleware `RequireDefectAccess` en
       `backend/internal/defects/delivery/middleware_test.go`, cubriendo FR-053 y FR-055: sin titular →
       `401` con el cuerpo de la 001; identificador mal formado, defecto inexistente, defecto de un
       proyecto ajeno y defecto registrado por una persona ya quitada del proyecto, pedido por ella →

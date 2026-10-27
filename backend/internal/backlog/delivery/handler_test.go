@@ -165,7 +165,7 @@ func newBacklogTestEnv(t *testing.T, overrides ...func(*backlogTestPorts)) backl
 	ports := backlogTestPorts{
 		sprints:  repository.NewSprintAssignments(db),
 		effort:   repository.NewEffortRecords(db),
-		defects:  repository.NewDefectRecords(),
+		defects:  repository.NewDefectRecords(db),
 		sessions: repository.NewEstimationSessions(db),
 		stories:  repository.NewStoryRepository(db),
 		projects: repository.NewProjectDirectory(db),

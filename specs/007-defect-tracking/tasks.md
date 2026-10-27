@@ -194,15 +194,15 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T008 [P] [US1] Pruebas unitarias **obligatorias** de `DefectSeverity.Valid() bool` y
+- [X] T008 [P] [US1] Pruebas unitarias **obligatorias** de `DefectSeverity.Valid() bool` y
       `SeverityRank(DefectSeverity) int` en `backend/internal/defects/domain/severity_test.go`,
       cubriendo RN-04: los cuatro valores válidos con rangos `critical` 0, `high` 1, `medium` 2,
       `low` 3; `"urgent"`, `""` y `"Critical"` inválidos — depende de T007
-- [ ] T009 [P] [US1] Pruebas unitarias **obligatorias** de
+- [X] T009 [P] [US1] Pruebas unitarias **obligatorias** de
       `EnsureSprintUsableForDetection(status sprintsdomain.SprintStatus) error` en
       `backend/internal/defects/domain/rules_test.go`, cubriendo RN-08: `planned` →
       `ErrDetectionSprintPlanned`; `active` y `closed` → `nil` — depende de T007
-- [ ] T010 [P] [US1] Pruebas unitarias **obligatorias** de `ValidateDefectInput` en
+- [X] T010 [P] [US1] Pruebas unitarias **obligatorias** de `ValidateDefectInput` en
       `backend/internal/defects/delivery/validation_test.go`, cubriendo RN-03, RN-04, RN-06 y
       FR-016: descripción ausente, `""` y `"   "` → "La descripción es obligatoria."; de exactamente
       **2000 runas** con acentos aceptada y recortada; de **2001** rechazada con "La descripción
@@ -212,7 +212,7 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
       `detectedSprintId` mal formados → "…no es un identificador válido."; varios campos inválidos
       devueltos **todos a la vez**; un `createdBy` o `createdById` en el cuerpo se ignora — depende de
       T007
-- [ ] T011 [US1] Pruebas de integración de la historia en
+- [X] T011 [US1] Pruebas de integración de la historia en
       `backend/internal/defects/delivery/handler_test.go`, creando en
       `backend/internal/defects/delivery/testenv_test.go` el ayudante `newDefectTestEnv` (router como
       `cmd/app` con las rutas de la 001 a la 004 y las de defectos, reloj falso compartido por los
@@ -237,7 +237,7 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
       en el cuerpo: ambos `409 no_detection_sprint`). En cada rechazo se verifica que la cantidad de
       filas de `defects` no cambió y que `ever_had_defects` de la historia sigue en `false` — depende
       de T007
-- [ ] T012 [P] [US1] Pruebas de integración contra `smye_test` en `backend/internal/backlog/repository/`:
+- [X] T012 [P] [US1] Pruebas de integración contra `smye_test` en `backend/internal/backlog/repository/`:
       en `defect_records_test.go`, `HasDefects` es `false` sin defectos y `true` con
       `ever_had_defects = true`, y **sigue** `true` después de mover el único defecto a otra historia
       con un `UPDATE` directo (RC-05, RN-19); en `story_repository_test.go`,
@@ -245,7 +245,7 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
       historia cuya marca sigue en `false` (simula la carrera de research.md sección 10),
       `StoryRepository.Delete` devuelve `DeletionBlockedError` con el motivo `defects` y no un error
       genérico, y la historia no se borra — depende de T007
-- [ ] T013 [P] [US1] Pruebas de frontend en `frontend/src/features/defects/validation.test.ts`
+- [X] T013 [P] [US1] Pruebas de frontend en `frontend/src/features/defects/validation.test.ts`
       (descripción y severidad con las mismas reglas de forma que el backend),
       `frontend/src/utils/defect-labels.test.ts` (etiquetas en español de las cuatro severidades, los
       cuatro estados, `no_defects`, `no_matches` y los cinco `code` de conflicto) y
@@ -259,16 +259,16 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
 
 ### Implementación de la Historia 1
 
-- [ ] T014 [P] [US1] Implementar `DefectSeverity.Valid` y `SeverityRank` en
+- [X] T014 [P] [US1] Implementar `DefectSeverity.Valid` y `SeverityRank` en
       `backend/internal/defects/domain/severity.go` — depende de T008
-- [ ] T015 [P] [US1] Implementar `EnsureSprintUsableForDetection` en
+- [X] T015 [P] [US1] Implementar `EnsureSprintUsableForDetection` en
       `backend/internal/defects/domain/rules.go` — depende de T009
-- [ ] T016 [US1] Implementar en `backend/internal/defects/delivery/validation.go`
+- [X] T016 [US1] Implementar en `backend/internal/defects/delivery/validation.go`
       `ValidateDefectInput` (recorte, 1 a 2000 runas, severidad válida, identificadores obligatorios y
       bien formados) y declarar el DTO `DefectInput` en `backend/internal/defects/delivery/dto.go`
       (**sin** campo de autor), con los mensajes como constantes nombradas en un único lugar y todos
       los campos inválidos a la vez (Principio VII) — depende de T010, T014
-- [ ] T017 [US1] Implementar `Create` en `backend/internal/defects/repository/defect_repository.go`
+- [X] T017 [US1] Implementar `Create` en `backend/internal/defects/repository/defect_repository.go`
       con el orden de bloqueos de research.md sección 10, en una transacción: (1) proyecto con
       `clause.Locking{Strength: "SHARE"}`, `finished` → `ErrDefectsReadOnly`; (2) `EXISTS` de un
       sprint del proyecto con `status IN ('active','closed')`, si no → `ErrNoDetectionSprint`; (3)
@@ -282,18 +282,18 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
       que devuelve el `DefectView` con historia, ambos sprints y los tres `UserRef` (`users.id` y
       `users.full_name`, **nunca** `password_hash`); sin fila → `ErrDefectNotFound` — depende de T005,
       T011, T015
-- [ ] T018 [US1] Implementar en `backend/internal/defects/service/defect_service.go` el constructor
+- [X] T018 [US1] Implementar en `backend/internal/defects/service/defect_service.go` el constructor
       `NewDefectService(repo domain.DefectRepository, now func() time.Time)`, con la firma definitiva
       para que no cambie en las historias siguientes, y `Create(ctx, projectID, actorID, input)`, que
       toma el actor **siempre** del titular de la sesión (FR-056) y el instante del reloj una sola vez
       — depende de T017
-- [ ] T019 [US1] Declarar en `backend/internal/defects/delivery/dto.go` los esquemas de
+- [X] T019 [US1] Declarar en `backend/internal/defects/delivery/dto.go` los esquemas de
       contracts/openapi.yaml `Defect` (con `projectId` derivado del proyecto de la historia),
       `UserRef`, `StoryRef`, `SprintRef` y `DefectConflictResponse` (`code`, `error`,
       `currentStatus` anulable, `allowedStatuses` siempre arreglo, nunca `null`), reutilizando
       `ErrorResponse`, `FieldError` y `ValidationErrorResponse` de la 001. `resolvedSprint` se
       serializa `null` cuando no aplica — depende de T018
-- [ ] T020 [US1] Implementar el manejador `createDefect` en
+- [X] T020 [US1] Implementar el manejador `createDefect` en
       `backend/internal/defects/delivery/handler.go` con anotaciones `swag` en español, y la
       traducción de errores: `ErrDetectionSprintPlanned` → `400` con `field: detectedSprintId` ("Un
       defecto solo se detecta en un sprint Activo o Cerrado."); `backlogdomain.ErrStoryNotFound` →
@@ -302,12 +302,12 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
       son de solo lectura."); `ErrNoDetectionSprint` → `409 no_detection_sprint` ("Todavía no hay
       ningún sprint Activo ni Cerrado que pueda ser sprint de detección."); cualquier otro → `500`
       genérico registrado con `slog` — depende de T016, T019
-- [ ] T021 [US1] Crear en `backend/internal/defects/delivery/routes.go`
+- [X] T021 [US1] Crear en `backend/internal/defects/delivery/routes.go`
       `RegisterProjectRoutes(projectGroup, handler)` con `POST /defects` sobre el subgrupo de la 002,
       sin importar `projects/delivery`; y componer el módulo en `backend/cmd/app/main.go`:
       repositorio, servicio con `time.Now`, registro sobre `projectGroup`, más el `@description`
       general de la API para que mencione la gestión de defectos — depende de T020
-- [ ] T022 [US1] Reemplazar el puerto de la 003 y traducir la clave foránea: en
+- [X] T022 [US1] Reemplazar el puerto de la 003 y traducir la clave foránea: en
       `backend/internal/backlog/repository/defect_records.go`, `NewDefectRecords(db *gorm.DB)` y
       `HasDefects` que lee `user_stories.ever_had_defects`; en
       `backend/internal/backlog/repository/story_repository.go`, `Delete` reconoce además la
@@ -320,11 +320,11 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
       `TestDefectPorts_BloqueanEliminacion`, que con los endpoints reales registra un defecto sobre
       una historia y verifica que `DELETE /api/v1/stories/{id}` responde `409` con el motivo
       `defects` (RC-05). Se escribe primero y falla con el puerto provisorio — depende de T012, T021
-- [ ] T023 [P] [US1] Declarar los tipos de petición y respuesta en `frontend/src/types/defect.ts` (sin
+- [X] T023 [P] [US1] Declarar los tipos de petición y respuesta en `frontend/src/types/defect.ts` (sin
       `any`; uniones literales para severidad, estado, `emptyReason` y `code`), implementar
       `frontend/src/utils/defect-labels.ts` y `frontend/src/features/defects/validation.ts` — depende
       de T013
-- [ ] T024 [US1] Implementar en `frontend/src/features/defects/api.ts` `createDefect` y
+- [X] T024 [US1] Implementar en `frontend/src/features/defects/api.ts` `createDefect` y
       `listDetectionSprints` (sobre `GET /api/v1/projects/{projectId}/sprints?status=active&status=closed`
       de la 004), `DefectForm` en `frontend/src/features/defects/components/defect-form.tsx`
       (descripción, severidad, historia, sprint propuesto; cinco pasos, cuatro si se llega desde la

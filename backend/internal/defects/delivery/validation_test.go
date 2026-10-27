@@ -474,3 +474,276 @@ func TestUS3_VariosFiltrosInvalidos(t *testing.T) {
 		t.Errorf("con campos inválidos no se debe devolver ningún dato, se obtuvo %+v", got)
 	}
 }
+
+// Pruebas unitarias obligatorias de la validación de la modificación parcial (T047; FR-034, FR-035,
+// FR-037). La ventana de corrección de los vínculos y el defecto Descartado son reglas del dominio
+// (rules_test.go); aquí solo se valida la forma del cuerpo antes de llegar al servicio.
+
+// Mensajes de la modificación, tal como los fijan tasks.md (T047) y research.md sección 6.
+const (
+	validationMsgPatchWithoutFields = "Indicá al menos un dato para modificar."
+	validationMsgStatusNotEditable  = "El estado y el sprint de resolución se cambian con las acciones de estado del defecto."
+	validationMsgOwnerNotEditable   = "El proyecto y el autor de un defecto no se modifican."
+)
+
+// validationDecodeDefectPatch decodifica el cuerpo JSON en DefectPatch y falla la prueba si el JSON
+// no es sintácticamente válido.
+func validationDecodeDefectPatch(t *testing.T, body string) DefectPatch {
+	t.Helper()
+	var req DefectPatch
+	if err := json.Unmarshal([]byte(body), &req); err != nil {
+		t.Fatalf("el cuerpo de prueba debe ser JSON válido: %v", err)
+	}
+	return req
+}
+
+// validationPatchBody serializa un mapa como cuerpo JSON, para armar textos largos sin escaparlos a
+// mano.
+func validationPatchBody(t *testing.T, body map[string]any) string {
+	t.Helper()
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(raw)
+}
+
+// validationRequireFieldPresent exige que entre los rechazos haya uno en el campo indicado, con el
+// mensaje indicado.
+func validationRequireFieldPresent(t *testing.T, fields []authdelivery.FieldError, field, message string) {
+	t.Helper()
+	for _, f := range fields {
+		if f.Field == field {
+			if !strings.Contains(f.Message, message) {
+				t.Errorf("el mensaje de %q es %q, debería contener %q", field, f.Message, message)
+			}
+			return
+		}
+	}
+	t.Errorf("se esperaba un rechazo en %q, se obtuvieron %v", field, fields)
+}
+
+// Un cuerpo sin ningún campo se rechaza: la modificación debe indicar al menos un dato (FR-033).
+func TestValidateDefectPatch_CuerpoVacio(t *testing.T) {
+	got, fields := ValidateDefectPatch(validationDecodeDefectPatch(t, `{}`))
+
+	if len(fields) != 1 {
+		t.Fatalf("se esperaba un único rechazo, se obtuvieron %v", fields)
+	}
+	if fields[0].Message != validationMsgPatchWithoutFields {
+		t.Errorf("mensaje = %q, se esperaba %q", fields[0].Message, validationMsgPatchWithoutFields)
+	}
+	if got != (domain.DefectPatch{}) {
+		t.Errorf("un cuerpo vacío no debe devolver cambios, se obtuvo %+v", got)
+	}
+}
+
+// Escenario: Dado un defecto En progreso, cuando un integrante le cambia la severidad, entonces el
+// cambio se acepta y el defecto sigue En progreso (007/US4). Aquí, la parte de forma: un cuerpo con
+// solo la severidad se acepta y deja los demás campos sin cambio.
+func TestUS4_ValidacionSoloSeveridad(t *testing.T) {
+	got, fields := ValidateDefectPatch(validationDecodeDefectPatch(t, `{"severity":"critical"}`))
+
+	if len(fields) != 0 {
+		t.Fatalf("solo la severidad debería aceptarse, se obtuvieron %v", fields)
+	}
+	if got.Severity == nil || *got.Severity != domain.DefectSeverityCritical {
+		t.Errorf("severidad = %v, se esperaba %q", got.Severity, domain.DefectSeverityCritical)
+	}
+	if got.Description != nil || got.StoryID != nil || got.DetectedSprintID != nil {
+		t.Errorf("los campos ausentes deben quedar nil, se obtuvo %+v", got)
+	}
+}
+
+// Escenario: Dado un defecto Abierto, cuando un integrante le corrige la historia relacionada y el
+// sprint de detección en la misma operación, entonces ambos cambios se aceptan (007/US4). Aquí, la
+// parte de forma: los cuatro campos editables se aceptan juntos y se normalizan al dominio.
+func TestUS4_ValidacionTodosLosCampos(t *testing.T) {
+	storyID, sprintID := uuid.New(), uuid.New()
+	body := validationPatchBody(t, map[string]any{
+		"description":      "  El total no suma los descuentos  ",
+		"severity":         "low",
+		"storyId":          storyID.String(),
+		"detectedSprintId": sprintID.String(),
+	})
+
+	got, fields := ValidateDefectPatch(validationDecodeDefectPatch(t, body))
+
+	if len(fields) != 0 {
+		t.Fatalf("no se esperaban rechazos, se obtuvieron %v", fields)
+	}
+	if got.Description == nil || *got.Description != "El total no suma los descuentos" {
+		t.Errorf("la descripción debería devolverse recortada, se obtuvo %v", got.Description)
+	}
+	if got.Severity == nil || *got.Severity != domain.DefectSeverityLow {
+		t.Errorf("severidad = %v, se esperaba %q", got.Severity, domain.DefectSeverityLow)
+	}
+	if got.StoryID == nil || *got.StoryID != storyID {
+		t.Errorf("storyId = %v, se esperaba %v", got.StoryID, storyID)
+	}
+	if got.DetectedSprintID == nil || *got.DetectedSprintID != sprintID {
+		t.Errorf("detectedSprintId = %v, se esperaba %v", got.DetectedSprintID, sprintID)
+	}
+}
+
+// Escenario: Dado un defecto, cuando un integrante lleva su descripción a exactamente 2000
+// caracteres, entonces el cambio se acepta (007/US4). Con 2001 se rechaza, como en el alta (FR-034).
+func TestUS4_ValidacionLimiteDescripcion(t *testing.T) {
+	t.Run("2000 runas con acentos se aceptan", func(t *testing.T) {
+		text := strings.Repeat("á", 2000)
+		body := validationPatchBody(t, map[string]any{"description": " " + text + " "})
+
+		got, fields := ValidateDefectPatch(validationDecodeDefectPatch(t, body))
+
+		if len(fields) != 0 {
+			t.Fatalf("2000 runas deberían aceptarse, se obtuvieron %v", fields)
+		}
+		if got.Description == nil || *got.Description != text {
+			t.Errorf("la descripción debería devolverse recortada con 2000 runas")
+		}
+	})
+
+	t.Run("2001 runas se rechazan", func(t *testing.T) {
+		body := validationPatchBody(t, map[string]any{"description": strings.Repeat("ñ", 2001)})
+
+		_, fields := ValidateDefectPatch(validationDecodeDefectPatch(t, body))
+
+		validationRequireOnlyField(t, fields, "description", validationMsgDescriptionTooLong)
+	})
+}
+
+// Escenario: Dado un defecto, cuando un integrante intenta dejar la descripción vacía o poner una
+// severidad inválida, entonces el cambio se rechaza con el motivo y el defecto queda exactamente como
+// estaba (007/US4). Las reglas son las del alta (FR-034); null cuenta como vacío.
+func TestUS4_ValidacionDatosInvalidos(t *testing.T) {
+	cases := []struct {
+		name, body, field, message string
+	}{
+		{"descripción vacía", `{"description":""}`, "description", validationMsgDescriptionRequired},
+		{"descripción solo espacios", `{"description":" \t\n "}`, "description", validationMsgDescriptionRequired},
+		{"descripción null", `{"description":null}`, "description", validationMsgDescriptionRequired},
+		{"severidad inexistente", `{"severity":"urgent"}`, "severity", validationMsgSeverityInvalid},
+		{"severidad con mayúscula", `{"severity":"Critical"}`, "severity", validationMsgSeverityInvalid},
+		{"severidad vacía", `{"severity":""}`, "severity", validationMsgSeverityInvalid},
+		{"severidad null", `{"severity":null}`, "severity", validationMsgSeverityInvalid},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, fields := ValidateDefectPatch(validationDecodeDefectPatch(t, tc.body))
+
+			validationRequireOnlyField(t, fields, tc.field, tc.message)
+			if got != (domain.DefectPatch{}) {
+				t.Errorf("con campos inválidos no se debe devolver ningún cambio, se obtuvo %+v", got)
+			}
+		})
+	}
+}
+
+// Los identificadores de los vínculos siguen las reglas del alta (FR-034, FR-016): vacíos o null
+// informan que faltan, y mal formados, que no son un identificador válido.
+func TestValidateDefectPatch_Identificadores(t *testing.T) {
+	cases := []struct {
+		name, body, field, message string
+	}{
+		{"storyId vacío", `{"storyId":""}`, "storyId", validationMsgStoryRequired},
+		{"storyId null", `{"storyId":null}`, "storyId", validationMsgStoryRequired},
+		{"storyId mal formado", `{"storyId":"no-es-un-uuid"}`, "storyId", validationMsgIDInvalid},
+		{"detectedSprintId vacío", `{"detectedSprintId":""}`, "detectedSprintId", validationMsgSprintRequired},
+		{"detectedSprintId null", `{"detectedSprintId":null}`, "detectedSprintId", validationMsgSprintRequired},
+		{"detectedSprintId mal formado", `{"detectedSprintId":"123"}`, "detectedSprintId", validationMsgIDInvalid},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, fields := ValidateDefectPatch(validationDecodeDefectPatch(t, tc.body))
+
+			validationRequireOnlyField(t, fields, tc.field, tc.message)
+			if got != (domain.DefectPatch{}) {
+				t.Errorf("con campos inválidos no se debe devolver ningún cambio, se obtuvo %+v", got)
+			}
+		})
+	}
+}
+
+// Escenario: Dado un defecto, cuando un integrante intenta cambiar su estado o su sprint de
+// resolución desde la modificación de datos, entonces la acción se rechaza indicando que el estado se
+// cambia con las transiciones de US2, US5 y US6 (007/US4). La sola presencia del campo basta, aunque
+// valga null (FR-035).
+func TestUS4_ValidacionEstadoDesdeModificacion(t *testing.T) {
+	for _, field := range []string{"status", "resolvedSprintId"} {
+		for _, literal := range []string{`null`, `""`, `"resolved"`, `"` + uuid.NewString() + `"`} {
+			t.Run(field+" = "+literal, func(t *testing.T) {
+				body := `{"severity":"low","` + field + `":` + literal + `}`
+
+				got, fields := ValidateDefectPatch(validationDecodeDefectPatch(t, body))
+
+				validationRequireOnlyField(t, fields, field, validationMsgStatusNotEditable)
+				if got != (domain.DefectPatch{}) {
+					t.Errorf("con campos prohibidos no se debe devolver ningún cambio, se obtuvo %+v", got)
+				}
+			})
+		}
+
+		t.Run(field+" como único campo", func(t *testing.T) {
+			_, fields := ValidateDefectPatch(validationDecodeDefectPatch(t, `{"`+field+`":null}`))
+
+			validationRequireFieldPresent(t, fields, field, validationMsgStatusNotEditable)
+		})
+	}
+}
+
+// El proyecto y el autor no se modifican (FR-035): projectId, createdBy y createdById se rechazan
+// en su campo con la sola presencia, aunque valgan null.
+func TestValidateDefectPatch_ProyectoYAutor(t *testing.T) {
+	for _, field := range []string{"projectId", "createdBy", "createdById"} {
+		for _, literal := range []string{`null`, `"alguien"`, `"` + uuid.NewString() + `"`} {
+			t.Run(field+" = "+literal, func(t *testing.T) {
+				body := `{"description":"Falla el total","` + field + `":` + literal + `}`
+
+				got, fields := ValidateDefectPatch(validationDecodeDefectPatch(t, body))
+
+				validationRequireOnlyField(t, fields, field, validationMsgOwnerNotEditable)
+				if got != (domain.DefectPatch{}) {
+					t.Errorf("con campos prohibidos no se debe devolver ningún cambio, se obtuvo %+v", got)
+				}
+			})
+		}
+
+		t.Run(field+" como único campo", func(t *testing.T) {
+			_, fields := ValidateDefectPatch(validationDecodeDefectPatch(t, `{"`+field+`":null}`))
+
+			validationRequireFieldPresent(t, fields, field, validationMsgOwnerNotEditable)
+		})
+	}
+}
+
+// La modificación es atómica (FR-037): si un campo es inválido no se devuelve ningún cambio, ni
+// siquiera el de los campos válidos.
+func TestValidateDefectPatch_Atomicidad(t *testing.T) {
+	body := `{"description":"Texto corregido","severity":"urgent","storyId":"` + uuid.NewString() + `"}`
+
+	got, fields := ValidateDefectPatch(validationDecodeDefectPatch(t, body))
+
+	validationRequireOnlyField(t, fields, "severity", validationMsgSeverityInvalid)
+	if got != (domain.DefectPatch{}) {
+		t.Errorf("con un campo inválido no se debe devolver ningún cambio, se obtuvo %+v", got)
+	}
+}
+
+// Todos los campos inválidos y prohibidos se informan a la vez, sin detenerse en el primero
+// (Principio VII).
+func TestValidateDefectPatch_VariosCamposInvalidos(t *testing.T) {
+	body := `{"description":"  ","severity":"urgent","storyId":"x","detectedSprintId":"",` +
+		`"status":null,"resolvedSprintId":null,"projectId":null,"createdBy":null,"createdById":null}`
+
+	got, fields := ValidateDefectPatch(validationDecodeDefectPatch(t, body))
+
+	want := []string{"createdBy", "createdById", "description", "detectedSprintId", "projectId",
+		"resolvedSprintId", "severity", "status", "storyId"}
+	names := validationFieldNames(fields)
+	if strings.Join(names, ",") != strings.Join(want, ",") {
+		t.Errorf("campos rechazados = %v, se esperaba %v", names, want)
+	}
+	if got != (domain.DefectPatch{}) {
+		t.Errorf("con campos inválidos no se debe devolver ningún cambio, se obtuvo %+v", got)
+	}
+}

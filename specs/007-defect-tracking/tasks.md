@@ -549,12 +549,12 @@ sobre uno En progreso devuelve `409 links_frozen`; con `status` devuelve `400`.
 
 ### Pruebas de la Historia 4 ⚠️
 
-- [ ] T046 [P] [US4] Pruebas unitarias **obligatorias** en
+- [X] T046 [P] [US4] Pruebas unitarias **obligatorias** en
       `backend/internal/defects/domain/rules_test.go`, cubriendo RN-16, RN-18 y RN-22:
       `EnsureDefectEditable` con `open`, `in_progress` y `resolved` → `nil`, `discarded` →
       `ErrDefectDiscarded`; `EnsureLinksCorrectable` con `open` → `nil`, y `in_progress`, `resolved` y
       `discarded` → `ErrLinksFrozen` — depende de T045
-- [ ] T047 [P] [US4] Pruebas unitarias **obligatorias** de `ValidateDefectPatch` en
+- [X] T047 [P] [US4] Pruebas unitarias **obligatorias** de `ValidateDefectPatch` en
       `backend/internal/defects/delivery/validation_test.go`, cubriendo FR-034, FR-035 y FR-037:
       cuerpo `{}` → "Indicá al menos un dato para modificar."; solo `severity` → ok; las mismas reglas
       de descripción, severidad e identificadores que el alta; `status` y `resolvedSprintId`
@@ -562,7 +562,7 @@ sobre uno En progreso devuelve `409 links_frozen`; con `status` devuelve `400`.
       resolución se cambian con las acciones de estado del defecto."; `projectId`, `createdBy` y
       `createdById` presentes → "El proyecto y el autor de un defecto no se modifican." — depende de
       T045
-- [ ] T048 [US4] Pruebas de integración en `backend/internal/defects/delivery/handler_test.go`, una
+- [X] T048 [US4] Pruebas de integración en `backend/internal/defects/delivery/handler_test.go`, una
       por escenario con `// Escenario: <nombre> (007/US4)`: `TestUS4_DescripcionYSeveridad` (estado,
       sprints y `createdBy` sin cambio; `updatedBy` = quien modificó),
       `TestUS4_RevinculacionDeHistoria` (deja de aparecer en la historia anterior y aparece en la
@@ -580,12 +580,12 @@ sobre uno En progreso devuelve `409 links_frozen`; con `status` devuelve `400`.
       `TestUS4_DefectoDescartado` (preparado con `forceDefectStatus`: `409 defect_discarded`),
       `TestUS4_EstadoDesdeModificacion` (subtests `status` y `resolvedSprintId`: `400`) y
       `TestUS4_ProyectoFinalizado` (`409 read_only`) — depende de T045
-- [ ] T049 [US4] Agregar a `backend/internal/defects/delivery/defect_concurrency_test.go` la variante
+- [X] T049 [US4] Agregar a `backend/internal/defects/delivery/defect_concurrency_test.go` la variante
       `TestDefectLinks_ConcurrentCorrectionAndStart`, **sin** etiqueta: a la vez, sobre un defecto
       `open`, una corrección de su historia y un paso a `in_progress`; en 10 repeticiones el
       resultado es siempre uno de dos: la corrección se aplicó y después el paso, o el paso se aplicó
       y la corrección recibió `409 links_frozen`; ninguna `500` (FR-018, FR-038) — depende de T048
-- [ ] T050 [P] [US4] Pruebas de frontend en
+- [X] T050 [P] [US4] Pruebas de frontend en
       `frontend/src/features/defects/components/defect-edit-form.test.tsx`, con
       `describe("007/US4 - Corregir los datos de un defecto")`: descripción y severidad editables en
       Abierto, En progreso y Resuelto; historia y sprint de detección editables **solo** en Abierto;
@@ -594,14 +594,14 @@ sobre uno En progreso devuelve `409 links_frozen`; con `status` devuelve `400`.
 
 ### Implementación de la Historia 4
 
-- [ ] T051 [P] [US4] Implementar `EnsureDefectEditable` y `EnsureLinksCorrectable` en
+- [X] T051 [P] [US4] Implementar `EnsureDefectEditable` y `EnsureLinksCorrectable` en
       `backend/internal/defects/domain/rules.go` — depende de T046
-- [ ] T052 [US4] Implementar `ValidateDefectPatch` en `backend/internal/defects/delivery/validation.go`
+- [X] T052 [US4] Implementar `ValidateDefectPatch` en `backend/internal/defects/delivery/validation.go`
       con el DTO `DefectPatch` en `backend/internal/defects/delivery/dto.go`: cada campo como
       `json.RawMessage` para distinguir ausente de `null`, y `status`, `resolvedSprintId`,
       `projectId`, `createdBy` y `createdById` decodificados **solo para rechazarlos** con
       `swaggerignore:"true"` (patrón de `StoryPatch` de la 003) — depende de T047
-- [ ] T053 [US4] Implementar `Update` en `backend/internal/defects/repository/defect_repository.go` en
+- [X] T053 [US4] Implementar `Update` en `backend/internal/defects/repository/defect_repository.go` en
       una transacción con el orden de research.md sección 10: proyecto `FOR SHARE OF projects`
       (`finished` → `ErrDefectsReadOnly`); defecto `FOR UPDATE` releído; `EnsureDefectEditable`; para
       cada vínculo presente **cuyo valor difiere del vigente**, `EnsureLinksCorrectable`; si cambia el
@@ -610,15 +610,15 @@ sobre uno En progreso devuelve `409 links_frozen`; con `status` devuelve `400`.
       la historia nueva con `project_id` (cero filas → `backlogdomain.ErrStoryNotFound`); escritura de
       los campos presentes y de `updated_by_id`. **Nunca** escribe `status`, `resolved_sprint_id`,
       `created_by_id` ni `status_changed_*` (FR-035) — depende de T048, T051
-- [ ] T054 [US4] Implementar `Update` en `backend/internal/defects/service/defect_service.go` con el
+- [X] T054 [US4] Implementar `Update` en `backend/internal/defects/service/defect_service.go` con el
       actor de la sesión — depende de T053
-- [ ] T055 [US4] Implementar el manejador `updateDefect` con anotaciones `swag` en
+- [X] T055 [US4] Implementar el manejador `updateDefect` con anotaciones `swag` en
       `backend/internal/defects/delivery/handler.go` (`ErrDefectDiscarded` → `409 defect_discarded`
       "El defecto está Descartado y es de solo lectura."; `ErrLinksFrozen` → `409 links_frozen` "La
       historia relacionada y el sprint de detección solo se corrigen mientras el defecto está
       Abierto." con el `currentStatus` releído y sus `allowedStatuses`), y agregar `PATCH ""` a
       `RegisterDefectRoutes` en `backend/internal/defects/delivery/routes.go` — depende de T052, T054
-- [ ] T056 [US4] Implementar `updateDefect` en `frontend/src/features/defects/api.ts` y
+- [X] T056 [US4] Implementar `updateDefect` en `frontend/src/features/defects/api.ts` y
       `DefectEditForm` en `frontend/src/features/defects/components/defect-edit-form.tsx`, compuesto en
       `DefectDetail` — depende de T050, T055
 

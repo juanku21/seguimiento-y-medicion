@@ -261,9 +261,119 @@ func readSprintAnchor(query *gorm.DB) (domain.SprintAnchor, error) {
 	return domain.SprintAnchor{ID: sprint.ID, Status: sprint.Status, StartDate: sprint.StartDate}, nil
 }
 
-// Update aplica una modificación parcial de campos.
-func (r *DefectRepository) Update(_ context.Context, _, _ uuid.UUID, _ domain.DefectPatch) (*domain.DefectView, error) {
-	return nil, errors.New("not implemented")
+// Update aplica una modificación parcial de campos en una transacción, con el orden de bloqueos de
+// research.md sección 10: proyecto (SHARE OF projects), defecto (UPDATE) releído, reglas de edición y
+// de vínculos sobre el estado vigente, sprint de detección nuevo (KEY SHARE), marca de la historia
+// nueva y, por último, la escritura de los campos presentes. Nunca escribe status, resolved_sprint_id,
+// created_by_id ni status_changed_* (FR-035). Devuelve el detalle leído dentro de la misma transacción.
+func (r *DefectRepository) Update(ctx context.Context, defectID, actorID uuid.UUID, patch domain.DefectPatch) (*domain.DefectView, error) {
+	var view *domain.DefectView
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Paso 1: el proyecto del defecto se lee con SHARE para que no pase a finalizado durante la edición.
+		var project projectsdomain.Project
+		err := tx.
+			Table("defects").
+			Select("projects.id", "projects.status").
+			Joins("JOIN user_stories ON user_stories.id = defects.story_id").
+			Joins("JOIN projects ON projects.id = user_stories.project_id").
+			Where("defects.id = ?", defectID).
+			Clauses(clause.Locking{Strength: "SHARE", Table: clause.Table{Name: "projects"}}).
+			Take(&project).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domain.ErrDefectNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("bloquear el proyecto del defecto: %w", err)
+		}
+		if project.Status == projectsdomain.ProjectStatusFinished {
+			return domain.ErrDefectsReadOnly
+		}
+
+		// Paso 2: el defecto se relee con FOR UPDATE para decidir sobre su estado y vínculos vigentes.
+		var defect domain.Defect
+		err = tx.
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id", "status", "story_id", "detected_sprint_id").
+			Where("id = ?", defectID).
+			Take(&defect).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domain.ErrDefectNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("bloquear el defecto: %w", err)
+		}
+
+		// Paso 3: un defecto descartado no se modifica, y los vínculos solo se corrigen si cambian y
+		// el defecto sigue abierto.
+		if err := domain.EnsureDefectEditable(defect.Status); err != nil {
+			return err
+		}
+		storyChanges := patch.StoryID != nil && *patch.StoryID != defect.StoryID
+		sprintChanges := patch.DetectedSprintID != nil && *patch.DetectedSprintID != defect.DetectedSprintID
+		if storyChanges || sprintChanges {
+			if err := domain.EnsureLinksCorrectable(defect.Status); err != nil {
+				return err
+			}
+		}
+
+		// Paso 4: el sprint de detección nuevo debe ser del proyecto y usable; KEY SHARE impide borrarlo.
+		if sprintChanges {
+			var sprint sprintsdomain.Sprint
+			err = tx.
+				Clauses(clause.Locking{Strength: "KEY SHARE"}).
+				Select("id", "status").
+				Where("id = ? AND project_id = ?", *patch.DetectedSprintID, project.ID).
+				Take(&sprint).Error
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return sprintsdomain.ErrSprintNotFound
+			}
+			if err != nil {
+				return fmt.Errorf("bloquear el sprint de detección: %w", err)
+			}
+			if err := domain.EnsureSprintUsableForDetection(sprint.Status); err != nil {
+				return err
+			}
+		}
+
+		// Paso 5: la marca valida la pertenencia de la historia nueva y la bloquea; no toca updated_at.
+		if storyChanges {
+			res := tx.Model(&backlogdomain.UserStory{}).
+				Where("id = ? AND project_id = ?", *patch.StoryID, project.ID).
+				UpdateColumn("ever_had_defects", true)
+			if res.Error != nil {
+				return fmt.Errorf("marcar la historia con defectos: %w", res.Error)
+			}
+			if res.RowsAffected == 0 {
+				return backlogdomain.ErrStoryNotFound
+			}
+		}
+
+		// Paso 6: se escriben solo los campos presentes y el autor; updated_at lo completa GORM.
+		changes := map[string]any{"updated_by_id": actorID}
+		if patch.StoryID != nil {
+			changes["story_id"] = *patch.StoryID
+		}
+		if patch.DetectedSprintID != nil {
+			changes["detected_sprint_id"] = *patch.DetectedSprintID
+		}
+		if patch.Description != nil {
+			changes["description"] = *patch.Description
+		}
+		if patch.Severity != nil {
+			changes["severity"] = *patch.Severity
+		}
+		if err := tx.Model(&domain.Defect{}).Where("id = ?", defectID).Updates(changes).Error; err != nil {
+			return fmt.Errorf("actualizar el defecto: %w", err)
+		}
+
+		// El detalle se lee con la transacción, para devolver lo escrito sin una lectura posterior.
+		view, err = NewDefectRepository(tx).FindView(ctx, defectID)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return view, nil
 }
 
 // defectViewRow es la fila plana de la consulta de detalle: las columnas de defects más los alias

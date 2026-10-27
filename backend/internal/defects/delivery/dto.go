@@ -1,6 +1,7 @@
 package delivery
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -44,6 +45,31 @@ type DefectStatusChange struct {
 	// Sprint de resolución: obligatorio si status es resolved y prohibido en cualquier otro destino
 	// (FR-023).
 	ResolvedSprintID string `json:"resolvedSprintId,omitempty" format:"uuid"`
+}
+
+// DefectPatch es el cuerpo de la modificación parcial de un defecto (contracts/openapi.yaml,
+// FR-033). Cada campo llega como json.RawMessage para distinguir el campo ausente, que queda nil, del
+// null, que llega como su literal. Status, ResolvedSprintID, ProjectID, CreatedBy y CreatedByID no
+// forman parte del contrato: se decodifican solo para rechazarlos (FR-035).
+type DefectPatch struct {
+	// Texto libre de 1 a 2000 caracteres tras recortar los espacios extremos (FR-034).
+	Description json.RawMessage `json:"description" swaggertype:"string" minLength:"1" maxLength:"2000"`
+	// Severidad: critical, high, medium o low (FR-034).
+	Severity json.RawMessage `json:"severity" swaggertype:"string" enums:"critical,high,medium,low"`
+	// Historia del mismo proyecto; solo se corrige con el defecto open (FR-038).
+	StoryID json.RawMessage `json:"storyId" swaggertype:"string" format:"uuid"`
+	// Sprint de detección del mismo proyecto; solo se corrige con el defecto open (FR-038).
+	DetectedSprintID json.RawMessage `json:"detectedSprintId" swaggertype:"string" format:"uuid"`
+	// El estado se cambia con las acciones de estado: si llega, se rechaza (FR-035).
+	Status json.RawMessage `json:"status" swaggerignore:"true"`
+	// El sprint de resolución se cambia con las acciones de estado: si llega, se rechaza (FR-035).
+	ResolvedSprintID json.RawMessage `json:"resolvedSprintId" swaggerignore:"true"`
+	// El proyecto no se modifica: si llega, se rechaza (FR-035).
+	ProjectID json.RawMessage `json:"projectId" swaggerignore:"true"`
+	// El autor no se modifica: si llega, se rechaza (FR-035).
+	CreatedBy json.RawMessage `json:"createdBy" swaggerignore:"true"`
+	// El autor no se modifica: si llega, se rechaza (FR-035).
+	CreatedByID json.RawMessage `json:"createdById" swaggerignore:"true"`
 }
 
 // UserRef es la referencia a una persona dentro de un defecto.

@@ -17,6 +17,15 @@ export type DefectInput = {
   detectedSprintId: string;
 };
 
+// Cuerpo de la modificación parcial de un defecto (DefectPatch, FR-033): cada campo es opcional y
+// solo viajan los que cambian.
+export type DefectPatch = {
+  description?: string;
+  severity?: DefectSeverity;
+  storyId?: string;
+  detectedSprintId?: string;
+};
+
 // Cuerpo del cambio de estado de un defecto (DefectStatusChange); resolvedSprintId solo viaja al
 // resolver (FR-023).
 export type DefectStatusChange = {

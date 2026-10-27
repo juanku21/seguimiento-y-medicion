@@ -1300,3 +1300,397 @@ func TestUS3_CombinacionesDeFiltros(t *testing.T) {
 		})
 	}
 }
+
+// Pruebas de integración de la corrección de los datos de un defecto (T048, US4): atraviesan el
+// router compuesto como en cmd/app, el middleware de sesión de la 001, RequireDefectAccess, el
+// servicio y el repositorio de defectos contra smye_test. Cubren PATCH /api/v1/defects/{defectId} con
+// un caso por escenario de spec.md; los "Dado" se preparan con los endpoints reales y solo los
+// estados que producen otras historias (Descartado, reabierto) se fuerzan con forceDefectStatus. En
+// cada rechazo se verifica que la fila del defecto quedó idéntica a la previa (FR-037).
+
+// Textos exactos que fijan el contrato y data-model.md para los rechazos de la modificación.
+const (
+	defectMsgStatusNotEditable = "El estado y el sprint de resolución se cambian con las acciones de estado del defecto."
+	defectMsgDiscarded         = "El defecto está Descartado y es de solo lectura."
+	defectMsgLinksFrozen       = "La historia relacionada y el sprint de detección solo se corrigen mientras el defecto está Abierto."
+)
+
+// patchDefect envía PATCH /api/v1/defects/{defectId} con el cuerpo recibido.
+func (e *defectTestEnv) patchDefect(t *testing.T, token, defectID string, body map[string]any) *httptest.ResponseRecorder {
+	t.Helper()
+	return e.do(t, http.MethodPatch, defectPath(defectID), token, body)
+}
+
+// requireLinksFrozen exige el 409 links_frozen con el estado vigente indicado y el defecto intacto.
+func (f defectFixture) requireLinksFrozen(t *testing.T, rec *httptest.ResponseRecorder, currentStatus string, before domain.Defect) {
+	t.Helper()
+	body := requireDefectConflict(t, rec, "links_frozen")
+	assert.Equal(t, defectMsgLinksFrozen, body.Error)
+	assert.Equal(t, `"`+currentStatus+`"`, string(body.CurrentStatus))
+	f.requireDefectRowUnchanged(t, before)
+}
+
+// requireOnlyEditableChanged verifica que entre las dos filas solo difieren los campos que una
+// modificación puede tocar: el estado, el sprint de resolución, el autor y los datos del último
+// cambio de estado nunca cambian (FR-035).
+func requireOnlyEditableChanged(t *testing.T, before, after domain.Defect) {
+	t.Helper()
+	neutral := func(d domain.Defect) domain.Defect {
+		d.Description, d.Severity, d.StoryID, d.DetectedSprintID = "", "", uuid.Nil, uuid.Nil
+		d.UpdatedAt, d.UpdatedByID = time.Time{}, uuid.Nil
+		return d
+	}
+	assert.Equal(t, neutral(before), neutral(after), "una modificación no toca estado, sprint de resolución ni autor")
+}
+
+// Escenario: Dado un defecto Abierto con severidad Media, cuando un integrante corrige su descripción y le sube la severidad a Crítica, entonces el defecto queda actualizado y su estado, sus sprints y su autor no cambian (007/US4)
+func TestUS4_DescripcionYSeveridad(t *testing.T) {
+	f := newDefectFixture(t)
+	memberID, memberToken := f.env.signUp(t, "Beto Gómez", "beto@example.com")
+	f.env.addMember(t, f.ownerToken, f.projectID, "beto@example.com")
+	defectID := f.registerWithSeverity(t, "medium", f.storyID, f.sprintID)
+	before := f.env.storedDefect(t, defectID)
+
+	defect := requireDefectOK(t, f.env.patchDefect(t, memberToken, defectID, map[string]any{
+		"description": "El total del reporte no suma los descuentos por volumen",
+		"severity":    "critical",
+	}))
+
+	assert.Equal(t, "El total del reporte no suma los descuentos por volumen", defect.Description)
+	assert.Equal(t, "critical", defect.Severity)
+	assert.Equal(t, "open", defect.Status)
+	assert.Equal(t, f.sprintID.String(), defect.DetectedSprint.ID)
+	assert.Nil(t, defect.ResolvedSprint)
+	assert.Equal(t, f.storyID.String(), defect.Story.ID)
+	assert.Equal(t, f.ownerID.String(), defect.CreatedBy.ID, "el autor no cambia")
+	assert.Equal(t, memberID.String(), defect.UpdatedBy.ID, "updatedBy es quien modificó")
+	stored := f.env.storedDefect(t, defectID)
+	assert.Equal(t, memberID, stored.UpdatedByID)
+	assert.Equal(t, "critical", string(stored.Severity))
+	requireOnlyEditableChanged(t, before, stored)
+	detail := f.env.getDefect(t, f.ownerToken, defectID)
+	assert.Equal(t, defect.Description, detail.Description, "el detalle refleja la modificación")
+	assert.Equal(t, defect.Severity, detail.Severity)
+}
+
+// Escenario: Dado un defecto Abierto vinculado a la historia equivocada, cuando un integrante lo revincula a otra historia del mismo proyecto, entonces el cambio se acepta y el defecto deja de aparecer en la historia anterior (007/US4)
+func TestUS4_RevinculacionDeHistoria(t *testing.T) {
+	f := newDefectFixture(t)
+	otherStory := f.env.createStory(t, f.ownerToken, f.projectID, "Exportación a PDF")
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	require.False(t, f.env.everHadDefects(t, otherStory), "precondición: la historia nueva nunca tuvo defectos")
+
+	defect := requireDefectOK(t, f.env.patchDefect(t, f.ownerToken, defectID, map[string]any{"storyId": otherStory.String()}))
+
+	assert.Equal(t, otherStory.String(), defect.Story.ID)
+	assert.Empty(t, requireDefectList(t, f.listStory(t, f.storyID)).Defects, "deja de aparecer en la historia anterior")
+	assert.Equal(t, []string{defectID}, defectIDs(requireDefectList(t, f.listStory(t, otherStory))))
+	assert.True(t, f.env.everHadDefects(t, f.storyID), "la historia anterior conserva ever_had_defects")
+	assert.True(t, f.env.everHadDefects(t, otherStory), "la historia nueva queda marcada con ever_had_defects")
+}
+
+// Escenario: Dado un defecto ya Resuelto, cuando un integrante corrige su descripción, entonces el cambio se acepta, porque corregir el texto no altera el resultado del seguimiento (007/US4)
+func TestUS4_DescripcionDeResuelto(t *testing.T) {
+	f := newDefectFixture(t)
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	f.resolveDefect(t, defectID, f.sprintID)
+	before := f.env.storedDefect(t, defectID)
+
+	defect := requireDefectOK(t, f.env.patchDefect(t, f.ownerToken, defectID, map[string]any{"description": "Descripción corregida"}))
+
+	assert.Equal(t, "Descripción corregida", defect.Description)
+	f.requireResolvedIn(t, defect, f.sprintID, f.sprintID)
+	requireOnlyEditableChanged(t, before, f.env.storedDefect(t, defectID))
+}
+
+// Escenario: Dado un defecto En progreso, cuando un integrante le cambia la severidad, entonces el cambio se acepta y el defecto sigue En progreso (007/US4)
+func TestUS4_SeveridadEnProgreso(t *testing.T) {
+	f := newDefectFixture(t)
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	f.startDefect(t, f.ownerToken, defectID)
+	before := f.env.storedDefect(t, defectID)
+
+	defect := requireDefectOK(t, f.env.patchDefect(t, f.ownerToken, defectID, map[string]any{"severity": "low"}))
+
+	assert.Equal(t, "low", defect.Severity)
+	assert.Equal(t, "in_progress", defect.Status)
+	stored := f.env.storedDefect(t, defectID)
+	assert.Equal(t, "low", string(stored.Severity))
+	requireOnlyEditableChanged(t, before, stored)
+}
+
+// Escenario: Dado un defecto Abierto registrado con el sprint de detección equivocado, cuando un integrante lo corrige por otro sprint Activo o Cerrado del proyecto, entonces el cambio se acepta, porque el defecto todavía no empezó a trabajarse (007/US4)
+func TestUS4_CorreccionDeSprintDeDeteccion(t *testing.T) {
+	t.Run("otro sprint Activo", func(t *testing.T) {
+		f := newDefectFixtureWithoutSprint(t)
+		closedID := f.env.closedSprint(t, f.ownerToken, f.projectID, "Sprint 1", "2026-10-05", "2026-10-09")
+		f.sprintID = f.env.activeSprint(t, f.ownerToken, f.projectID, "Sprint 2")
+		defectID := f.registerDefect(t, f.storyID, closedID)
+		before := f.env.storedDefect(t, defectID)
+
+		defect := requireDefectOK(t, f.env.patchDefect(t, f.ownerToken, defectID,
+			map[string]any{"detectedSprintId": f.sprintID.String()}))
+
+		assert.Equal(t, f.sprintID.String(), defect.DetectedSprint.ID)
+		stored := f.env.storedDefect(t, defectID)
+		assert.Equal(t, f.sprintID, stored.DetectedSprintID)
+		requireOnlyEditableChanged(t, before, stored)
+	})
+
+	t.Run("un sprint Cerrado", func(t *testing.T) {
+		f := newDefectFixtureWithoutSprint(t)
+		closedID := f.env.closedSprint(t, f.ownerToken, f.projectID, "Sprint 1", "2026-10-05", "2026-10-09")
+		f.sprintID = f.env.activeSprint(t, f.ownerToken, f.projectID, "Sprint 2")
+		defectID := f.registerDefect(t, f.storyID, f.sprintID)
+		before := f.env.storedDefect(t, defectID)
+
+		defect := requireDefectOK(t, f.env.patchDefect(t, f.ownerToken, defectID,
+			map[string]any{"detectedSprintId": closedID.String()}))
+
+		assert.Equal(t, closedID.String(), defect.DetectedSprint.ID)
+		stored := f.env.storedDefect(t, defectID)
+		assert.Equal(t, closedID, stored.DetectedSprintID)
+		requireOnlyEditableChanged(t, before, stored)
+	})
+}
+
+// Escenario: Dado un defecto Abierto, cuando un integrante le corrige la historia relacionada y el sprint de detección en la misma operación, entonces ambos cambios se aceptan, porque los dos vínculos comparten la misma ventana de corrección (007/US4)
+func TestUS4_AmbosVinculos(t *testing.T) {
+	f := newDefectFixtureWithoutSprint(t)
+	closedID := f.env.closedSprint(t, f.ownerToken, f.projectID, "Sprint 1", "2026-10-05", "2026-10-09")
+	f.sprintID = f.env.activeSprint(t, f.ownerToken, f.projectID, "Sprint 2")
+	otherStory := f.env.createStory(t, f.ownerToken, f.projectID, "Exportación a PDF")
+	defectID := f.registerDefect(t, f.storyID, closedID)
+
+	defect := requireDefectOK(t, f.env.patchDefect(t, f.ownerToken, defectID, map[string]any{
+		"storyId":          otherStory.String(),
+		"detectedSprintId": f.sprintID.String(),
+	}))
+
+	assert.Equal(t, otherStory.String(), defect.Story.ID)
+	assert.Equal(t, f.sprintID.String(), defect.DetectedSprint.ID)
+	stored := f.env.storedDefect(t, defectID)
+	assert.Equal(t, otherStory, stored.StoryID)
+	assert.Equal(t, f.sprintID, stored.DetectedSprintID)
+}
+
+// Escenario: Dado un defecto, cuando un integrante lo deja con exactamente la misma descripción y severidad que ya tenía, entonces el cambio se acepta sin efectos (007/US4)
+func TestUS4_SinCambios(t *testing.T) {
+	t.Run("descripción y severidad iguales en un defecto Abierto", func(t *testing.T) {
+		f := newDefectFixture(t)
+		defectID := f.registerDefect(t, f.storyID, f.sprintID)
+		before := f.env.storedDefect(t, defectID)
+
+		defect := requireDefectOK(t, f.env.patchDefect(t, f.ownerToken, defectID,
+			map[string]any{"description": defectDescription, "severity": "high"}))
+
+		assert.Equal(t, defectDescription, defect.Description)
+		assert.Equal(t, "high", defect.Severity)
+		stored := f.env.storedDefect(t, defectID)
+		requireOnlyEditableChanged(t, before, stored)
+		assert.Equal(t, before.Description, stored.Description)
+		assert.Equal(t, before.Severity, stored.Severity)
+	})
+
+	t.Run("los dos vínculos iguales en un defecto En progreso", func(t *testing.T) {
+		f := newDefectFixture(t)
+		defectID := f.registerDefect(t, f.storyID, f.sprintID)
+		f.startDefect(t, f.ownerToken, defectID)
+		before := f.env.storedDefect(t, defectID)
+
+		defect := requireDefectOK(t, f.env.patchDefect(t, f.ownerToken, defectID, map[string]any{
+			"storyId":          f.storyID.String(),
+			"detectedSprintId": f.sprintID.String(),
+		}))
+
+		assert.Equal(t, "in_progress", defect.Status)
+		stored := f.env.storedDefect(t, defectID)
+		requireOnlyEditableChanged(t, before, stored)
+		assert.Equal(t, before.StoryID, stored.StoryID)
+		assert.Equal(t, before.DetectedSprintID, stored.DetectedSprintID)
+	})
+}
+
+// Escenario: Dado un defecto, cuando un integrante lleva su descripción a exactamente 2000 caracteres, entonces el cambio se acepta (007/US4)
+func TestUS4_DescripcionDeDosMilCaracteres(t *testing.T) {
+	f := newDefectFixture(t)
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	text := strings.Repeat("ñ", 2000)
+
+	defect := requireDefectOK(t, f.env.patchDefect(t, f.ownerToken, defectID, map[string]any{"description": text}))
+
+	assert.Equal(t, text, defect.Description)
+	assert.Equal(t, text, f.env.storedDefect(t, defectID).Description)
+}
+
+// Escenario: Dado un defecto que fue resuelto y después reabierto, cuando un integrante le corrige el sprint de detección, entonces el cambio se acepta, porque el defecto volvió a estar Abierto y la ventana de corrección se abre de nuevo (007/US4)
+func TestUS4_VentanaReabierta(t *testing.T) {
+	f := newDefectFixtureWithoutSprint(t)
+	closedID := f.env.closedSprint(t, f.ownerToken, f.projectID, "Sprint 1", "2026-10-05", "2026-10-09")
+	f.sprintID = f.env.activeSprint(t, f.ownerToken, f.projectID, "Sprint 2")
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	f.resolveDefect(t, defectID, f.sprintID)
+	// La reapertura (US5) deja el defecto open sin sprint de resolución; se prepara directamente.
+	f.env.forceDefectStatus(t, defectParseID(t, defectID), domain.DefectStatus("open"), nil)
+
+	defect := requireDefectOK(t, f.env.patchDefect(t, f.ownerToken, defectID,
+		map[string]any{"detectedSprintId": closedID.String()}))
+
+	assert.Equal(t, "open", defect.Status)
+	assert.Equal(t, closedID.String(), defect.DetectedSprint.ID)
+	assert.Equal(t, closedID, f.env.storedDefect(t, defectID).DetectedSprintID)
+}
+
+// Escenario: Dado un defecto, cuando un integrante intenta dejar la descripción vacía o poner una severidad inválida, entonces el cambio se rechaza con el motivo y el defecto queda exactamente como estaba (007/US4)
+func TestUS4_DatosInvalidos(t *testing.T) {
+	t.Run("descripción vacía", func(t *testing.T) {
+		f := newDefectFixture(t)
+		defectID := f.registerDefect(t, f.storyID, f.sprintID)
+		before := f.env.storedDefect(t, defectID)
+
+		requireDefectFieldRejected(t, f.env.patchDefect(t, f.ownerToken, defectID,
+			map[string]any{"description": "   "}), "description", defectMsgDescRequired)
+
+		f.requireDefectRowUnchanged(t, before)
+	})
+
+	t.Run("severidad inválida", func(t *testing.T) {
+		f := newDefectFixture(t)
+		defectID := f.registerDefect(t, f.storyID, f.sprintID)
+		before := f.env.storedDefect(t, defectID)
+
+		requireDefectFieldRejected(t, f.env.patchDefect(t, f.ownerToken, defectID,
+			map[string]any{"description": "Texto válido", "severity": "urgent"}), "severity", defectMsgSeverityInvalid)
+
+		f.requireDefectRowUnchanged(t, before)
+	})
+}
+
+// Escenario: Dado un defecto Abierto, cuando un integrante intenta revincularlo a una historia de otro proyecto, entonces el cambio se rechaza con una respuesta de historia inexistente, aunque esté dentro de la ventana de corrección (007/US4)
+func TestUS4_HistoriaDeOtroProyecto(t *testing.T) {
+	f := newDefectFixture(t)
+	otherProject := f.env.createProjectInProgress(t, f.ownerToken, "Otro proyecto")
+	otherStory := f.env.createStory(t, f.ownerToken, otherProject, "Historia ajena")
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	before := f.env.storedDefect(t, defectID)
+
+	unknown := f.env.patchDefect(t, f.ownerToken, defectID, map[string]any{"storyId": uuid.NewString()})
+	rec := f.env.patchDefect(t, f.ownerToken, defectID, map[string]any{"storyId": otherStory.String()})
+
+	requireNotFoundLikeUnknown(t, rec, unknown, defectMsgStoryNotFound)
+	f.requireDefectRowUnchanged(t, before)
+	assert.False(t, f.env.everHadDefects(t, otherStory), "la historia ajena no se marca")
+}
+
+// Escenario: Dado un defecto En progreso o Resuelto, cuando un integrante intenta corregirle el sprint de detección o la historia relacionada, entonces el cambio se rechaza indicando que los vínculos del defecto solo se corrigen mientras está Abierto (007/US4)
+func TestUS4_VinculosCongelados(t *testing.T) {
+	for _, status := range []string{"in_progress", "resolved"} {
+		for _, link := range []string{"historia", "sprint de detección"} {
+			t.Run(link+" con el defecto "+status, func(t *testing.T) {
+				f := newDefectFixtureWithoutSprint(t)
+				closedID := f.env.closedSprint(t, f.ownerToken, f.projectID, "Sprint 1", "2026-10-05", "2026-10-09")
+				f.sprintID = f.env.activeSprint(t, f.ownerToken, f.projectID, "Sprint 2")
+				otherStory := f.env.createStory(t, f.ownerToken, f.projectID, "Exportación a PDF")
+				defectID := f.registerDefect(t, f.storyID, f.sprintID)
+				if status == "in_progress" {
+					f.startDefect(t, f.ownerToken, defectID)
+				} else {
+					f.resolveDefect(t, defectID, f.sprintID)
+				}
+				before := f.env.storedDefect(t, defectID)
+				body := map[string]any{"storyId": otherStory.String()}
+				if link != "historia" {
+					body = map[string]any{"detectedSprintId": closedID.String()}
+				}
+
+				f.requireLinksFrozen(t, f.env.patchDefect(t, f.ownerToken, defectID, body), status, before)
+
+				assert.False(t, f.env.everHadDefects(t, otherStory), "un rechazo no marca la historia")
+			})
+		}
+	}
+}
+
+// Escenario: Dado un defecto Abierto, cuando un integrante intenta corregir su sprint de detección por uno Planificado o por uno de otro proyecto, entonces el cambio se rechaza con el mismo criterio que en el registro (007/US4)
+func TestUS4_SprintDeDeteccionInvalido(t *testing.T) {
+	t.Run("sprint Planificado", func(t *testing.T) {
+		f := newDefectFixture(t)
+		plannedID := f.env.createSprint(t, f.ownerToken, f.projectID, "Sprint 3", "2026-11-02", "2026-11-13")
+		defectID := f.registerDefect(t, f.storyID, f.sprintID)
+		before := f.env.storedDefect(t, defectID)
+
+		requireDefectFieldRejected(t, f.env.patchDefect(t, f.ownerToken, defectID,
+			map[string]any{"detectedSprintId": plannedID.String()}), "detectedSprintId", defectMsgSprintPlanned)
+
+		f.requireDefectRowUnchanged(t, before)
+	})
+
+	t.Run("sprint de otro proyecto", func(t *testing.T) {
+		f := newDefectFixture(t)
+		otherProject := f.env.createProjectInProgress(t, f.ownerToken, "Otro proyecto")
+		otherSprint := f.env.activeSprint(t, f.ownerToken, otherProject, "Sprint ajeno")
+		defectID := f.registerDefect(t, f.storyID, f.sprintID)
+		before := f.env.storedDefect(t, defectID)
+
+		unknown := f.env.patchDefect(t, f.ownerToken, defectID, map[string]any{"detectedSprintId": uuid.NewString()})
+		rec := f.env.patchDefect(t, f.ownerToken, defectID, map[string]any{"detectedSprintId": otherSprint.String()})
+
+		requireNotFoundLikeUnknown(t, rec, unknown, defectMsgSprintNotFound)
+		f.requireDefectRowUnchanged(t, before)
+	})
+}
+
+// Escenario: Dado un defecto Descartado, cuando un integrante intenta modificar cualquiera de sus datos, entonces la acción se rechaza porque un defecto descartado es de solo lectura (007/US4)
+func TestUS4_DefectoDescartado(t *testing.T) {
+	f := newDefectFixture(t)
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	f.env.forceDefectStatus(t, defectParseID(t, defectID), domain.DefectStatus("discarded"), nil)
+	before := f.env.storedDefect(t, defectID)
+
+	body := requireDefectConflict(t, f.env.patchDefect(t, f.ownerToken, defectID,
+		map[string]any{"description": "Descripción corregida"}), "defect_discarded")
+
+	assert.Equal(t, defectMsgDiscarded, body.Error)
+	assert.Equal(t, `"discarded"`, string(body.CurrentStatus))
+	f.requireDefectRowUnchanged(t, before)
+}
+
+// Escenario: Dado un defecto, cuando un integrante intenta cambiar su estado o su sprint de resolución desde la modificación de datos, entonces la acción se rechaza indicando que el estado se cambia con las transiciones de US2, US5 y US6 (007/US4)
+func TestUS4_EstadoDesdeModificacion(t *testing.T) {
+	cases := []struct {
+		field string
+		value string
+	}{
+		{"status", "in_progress"},
+		{"resolvedSprintId", uuid.NewString()},
+	}
+	for _, tc := range cases {
+		t.Run(tc.field, func(t *testing.T) {
+			f := newDefectFixture(t)
+			defectID := f.registerDefect(t, f.storyID, f.sprintID)
+			before := f.env.storedDefect(t, defectID)
+
+			requireDefectFieldRejected(t, f.env.patchDefect(t, f.ownerToken, defectID,
+				map[string]any{"severity": "low", tc.field: tc.value}), tc.field, defectMsgStatusNotEditable)
+
+			f.requireDefectRowUnchanged(t, before)
+		})
+	}
+}
+
+// Escenario: Dado un proyecto en estado Finalizado, cuando un integrante intenta modificar un defecto, entonces la acción se rechaza porque el proyecto es de solo lectura (007/US4)
+func TestUS4_ProyectoFinalizado(t *testing.T) {
+	f := newDefectFixture(t)
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	defectRequireStatus(t, f.env.do(t, http.MethodPost, "/api/v1/sprints/"+f.sprintID.String()+"/close", f.ownerToken, nil),
+		http.StatusOK, nil)
+	f.env.setProjectStatus(t, f.ownerToken, f.projectID, "finished")
+	before := f.env.storedDefect(t, defectID)
+
+	body := requireDefectConflict(t, f.env.patchDefect(t, f.ownerToken, defectID,
+		map[string]any{"description": "Descripción corregida"}), "read_only")
+
+	assert.Equal(t, defectMsgReadOnly, body.Error)
+	assert.Equal(t, "null", string(body.CurrentStatus), "currentStatus es null con read_only")
+	f.requireDefectRowUnchanged(t, before)
+}

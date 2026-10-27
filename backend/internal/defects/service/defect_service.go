@@ -46,6 +46,16 @@ func (s *DefectService) ChangeStatus(ctx context.Context, defectID, actorID uuid
 	return view, nil
 }
 
+// Update aplica una modificación parcial de campos a un defecto atribuyéndola al actor (el titular de la
+// sesión). El repositorio decide las reglas de edición y de vínculos sobre el estado vigente.
+func (s *DefectService) Update(ctx context.Context, defectID, actorID uuid.UUID, patch domain.DefectPatch) (*domain.DefectView, error) {
+	view, err := s.repo.Update(ctx, defectID, actorID, patch)
+	if err != nil {
+		return nil, fmt.Errorf("modificar el defecto: %w", err)
+	}
+	return view, nil
+}
+
 // Get devuelve el detalle de un defecto con sus relaciones resueltas.
 func (s *DefectService) Get(ctx context.Context, defectID uuid.UUID) (*domain.DefectView, error) {
 	view, err := s.repo.FindView(ctx, defectID)

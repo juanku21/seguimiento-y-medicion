@@ -1,6 +1,7 @@
 package delivery
 
 import (
+	"encoding/json"
 	"strings"
 	"unicode/utf8"
 
@@ -23,6 +24,10 @@ const (
 	msgSprintRequired      = "El sprint de detección es obligatorio."
 	msgIDInvalid           = "El valor no es un identificador válido."
 
+	msgPatchWithoutFields = "Indicá al menos un dato para modificar."
+	msgStatusNotEditable  = "El estado y el sprint de resolución se cambian con las acciones de estado del defecto."
+	msgOwnerNotEditable   = "El proyecto y el autor de un defecto no se modifican."
+
 	msgFilterOutsideProject = "El filtro no corresponde al proyecto."
 
 	msgStatusInvalid                = "El estado debe ser Abierto, En progreso, Resuelto o Descartado."
@@ -39,20 +44,10 @@ func ValidateDefectInput(req DefectInput) (domain.DefectInput, []authdelivery.Fi
 		fields = append(fields, authdelivery.FieldError{Field: field, Message: message})
 	}
 
-	// Descripción recortada, de 1 a 2000 runas (RN-06).
-	description := strings.TrimSpace(req.Description)
-	switch {
-	case description == "":
-		addField("description", msgDescriptionRequired)
-	case utf8.RuneCountInString(description) > maxDescriptionLength:
-		addField("description", msgDescriptionTooLong)
-	}
-
-	// Severidad dentro de las cuatro admitidas (RN-04).
-	severity := domain.DefectSeverity(req.Severity)
-	if !severity.Valid() {
-		addField("severity", msgSeverityInvalid)
-	}
+	// Descripción recortada, de 1 a 2000 runas (RN-06) y severidad dentro de las cuatro admitidas
+	// (RN-04).
+	description := validateDescription(req.Description, addField)
+	severity := validateSeverity(req.Severity, addField)
 
 	// Historia y sprint de detección: obligatorios y con forma de UUID (FR-016).
 	storyID, _ := parseRequiredID(req.StoryID, "storyId", msgStoryRequired, addField)
@@ -67,6 +62,113 @@ func ValidateDefectInput(req DefectInput) (domain.DefectInput, []authdelivery.Fi
 		Description:      description,
 		Severity:         severity,
 	}, nil
+}
+
+// ValidateDefectPatch valida el cuerpo de la modificación parcial y devuelve los cambios normalizados
+// junto con un FieldError por cada campo inválido, todos a la vez (FR-034, FR-035, FR-037). Si hay
+// algún campo inválido, se devuelve un DefectPatch vacío.
+func ValidateDefectPatch(req DefectPatch) (domain.DefectPatch, []authdelivery.FieldError) {
+	fields := []authdelivery.FieldError{}
+	addField := func(field, message string) {
+		fields = append(fields, authdelivery.FieldError{Field: field, Message: message})
+	}
+	patch := domain.DefectPatch{}
+
+	// Estado, sprint de resolución, proyecto y autor no se modifican: basta que el campo esté presente,
+	// aunque valga null (FR-035).
+	for _, f := range []struct {
+		name    string
+		raw     json.RawMessage
+		message string
+	}{
+		{"status", req.Status, msgStatusNotEditable},
+		{"resolvedSprintId", req.ResolvedSprintID, msgStatusNotEditable},
+		{"projectId", req.ProjectID, msgOwnerNotEditable},
+		{"createdBy", req.CreatedBy, msgOwnerNotEditable},
+		{"createdById", req.CreatedByID, msgOwnerNotEditable},
+	} {
+		if f.raw != nil {
+			addField(f.name, f.message)
+		}
+	}
+
+	// Descripción y severidad: mismas reglas del alta; el null cuenta como vacío.
+	if req.Description != nil {
+		text, _ := rawString(req.Description)
+		description := validateDescription(text, addField)
+		patch.Description = &description
+	}
+	if req.Severity != nil {
+		text, _ := rawString(req.Severity)
+		severity := validateSeverity(text, addField)
+		patch.Severity = &severity
+	}
+
+	// Vínculos: obligatorios si llegan y con forma de UUID; un valor que no es texto no es un
+	// identificador válido.
+	if req.StoryID != nil {
+		patch.StoryID = parsePatchID(req.StoryID, "storyId", msgStoryRequired, addField)
+	}
+	if req.DetectedSprintID != nil {
+		patch.DetectedSprintID = parsePatchID(req.DetectedSprintID, "detectedSprintId", msgSprintRequired, addField)
+	}
+
+	// Un cuerpo sin ningún campo no modifica nada.
+	if len(fields) == 0 && patch == (domain.DefectPatch{}) {
+		addField("body", msgPatchWithoutFields)
+	}
+	if len(fields) > 0 {
+		return domain.DefectPatch{}, fields
+	}
+	return patch, nil
+}
+
+// rawString decodifica un valor JSON como texto; el null y cualquier valor que no sea texto devuelven
+// la cadena vacía y false.
+func rawString(raw json.RawMessage) (string, bool) {
+	var text string
+	if err := json.Unmarshal(raw, &text); err != nil {
+		return "", false
+	}
+	return text, true
+}
+
+// parsePatchID convierte un identificador de la modificación con las reglas del alta; un valor que no
+// es texto ni null se informa como identificador inválido. Devuelve nil si el campo es inválido.
+func parsePatchID(raw json.RawMessage, field, requiredMessage string, addField func(field, message string)) *uuid.UUID {
+	text, ok := rawString(raw)
+	if !ok && string(raw) != "null" {
+		addField(field, msgIDInvalid)
+		return nil
+	}
+	id, valid := parseRequiredID(text, field, requiredMessage, addField)
+	if !valid {
+		return nil
+	}
+	return &id
+}
+
+// validateDescription recorta la descripción y exige de 1 a 2000 runas (RN-06); informa el rechazo
+// con addField y devuelve el texto recortado.
+func validateDescription(text string, addField func(field, message string)) string {
+	description := strings.TrimSpace(text)
+	switch {
+	case description == "":
+		addField("description", msgDescriptionRequired)
+	case utf8.RuneCountInString(description) > maxDescriptionLength:
+		addField("description", msgDescriptionTooLong)
+	}
+	return description
+}
+
+// validateSeverity exige una de las cuatro severidades admitidas (RN-04); informa el rechazo con
+// addField.
+func validateSeverity(text string, addField func(field, message string)) domain.DefectSeverity {
+	severity := domain.DefectSeverity(text)
+	if !severity.Valid() {
+		addField("severity", msgSeverityInvalid)
+	}
+	return severity
 }
 
 // parseRequiredID convierte un identificador obligatorio: el texto vacío informa que falta y un UUID

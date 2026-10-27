@@ -20,12 +20,13 @@ func RegisterStoryRoutes(router *gin.Engine, requireSession, requireStoryAccess 
 	storyGroup.GET("/defects", handler.listStoryDefects)
 }
 
-// RegisterDefectRoutes registra el detalle, GET "", y el cambio de estado, PUT /status, en el grupo
+// RegisterDefectRoutes registra el detalle, GET "", la modificación, PATCH "", y el cambio de estado, PUT /status, en el grupo
 // plano /api/v1/defects/:defectId, con el middleware de sesión y RequireDefectAccess sobre el
 // repositorio recibido. El defecto inexistente, ajeno o con identificador mal formado recibe el 404
 // indistinguible del middleware antes de llegar al manejador.
 func RegisterDefectRoutes(router *gin.Engine, requireSession gin.HandlerFunc, defects domain.DefectRepository, handler *Handler) {
 	defectGroup := router.Group("/api/v1/defects/:defectId", requireSession, RequireDefectAccess(defects))
 	defectGroup.GET("", handler.getDefect)
+	defectGroup.PATCH("", handler.updateDefect)
 	defectGroup.PUT("/status", handler.changeDefectStatus)
 }

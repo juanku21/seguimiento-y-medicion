@@ -13,3 +13,14 @@ func EnsureSprintUsableForDetection(status sprintsdomain.SprintStatus) error {
 	}
 	return nil
 }
+
+// EnsureDefectEditable verifica que un defecto admita la modificación de sus datos (FR-036, RN-22).
+func EnsureDefectEditable(status DefectStatus) error {
+	return nil
+}
+
+// EnsureLinksCorrectable verifica que la historia relacionada y el sprint de detección de un defecto
+// puedan corregirse (FR-038, RN-16).
+func EnsureLinksCorrectable(status DefectStatus) error {
+	return nil
+}

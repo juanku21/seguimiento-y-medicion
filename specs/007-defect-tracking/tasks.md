@@ -549,7 +549,7 @@ sobre uno En progreso devuelve `409 links_frozen`; con `status` devuelve `400`.
 
 ### Pruebas de la Historia 4 ⚠️
 
-- [ ] T046 [P] [US4] Pruebas unitarias **obligatorias** en
+- [X] T046 [P] [US4] Pruebas unitarias **obligatorias** en
       `backend/internal/defects/domain/rules_test.go`, cubriendo RN-16, RN-18 y RN-22:
       `EnsureDefectEditable` con `open`, `in_progress` y `resolved` → `nil`, `discarded` →
       `ErrDefectDiscarded`; `EnsureLinksCorrectable` con `open` → `nil`, y `in_progress`, `resolved` y

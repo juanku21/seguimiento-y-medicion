@@ -259,7 +259,7 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
 
 ### Implementación de la Historia 1
 
-- [ ] T014 [P] [US1] Implementar `DefectSeverity.Valid` y `SeverityRank` en
+- [X] T014 [P] [US1] Implementar `DefectSeverity.Valid` y `SeverityRank` en
       `backend/internal/defects/domain/severity.go` — depende de T008
 - [ ] T015 [P] [US1] Implementar `EnsureSprintUsableForDetection` en
       `backend/internal/defects/domain/rules.go` — depende de T009

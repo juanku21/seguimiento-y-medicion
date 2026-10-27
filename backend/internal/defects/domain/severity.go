@@ -15,10 +15,28 @@ const (
 
 // Valid indica si la severidad es una de las cuatro admitidas (RN-04).
 func (s DefectSeverity) Valid() bool {
-	return false
+	// Solo las cuatro constantes definidas son válidas; cualquier otro valor se rechaza.
+	switch s {
+	case DefectSeverityCritical, DefectSeverityHigh, DefectSeverityMedium, DefectSeverityLow:
+		return true
+	default:
+		return false
+	}
 }
 
 // SeverityRank devuelve el orden de severidad: critical 0, high 1, medium 2, low 3.
 func SeverityRank(s DefectSeverity) int {
-	return -1
+	// Mapea cada severidad a su posición; el valor inválido conserva el -1 previo (no definido por la spec).
+	switch s {
+	case DefectSeverityCritical:
+		return 0
+	case DefectSeverityHigh:
+		return 1
+	case DefectSeverityMedium:
+		return 2
+	case DefectSeverityLow:
+		return 3
+	default:
+		return -1
+	}
 }

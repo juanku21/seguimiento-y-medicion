@@ -351,7 +351,7 @@ el sprint Activo devuelve `200` y deja el defecto `resolved` con ese sprint; `re
 
 ### Pruebas de la Historia 2 ⚠️
 
-- [ ] T025 [P] [US2] Pruebas unitarias **obligatorias** en
+- [X] T025 [P] [US2] Pruebas unitarias **obligatorias** en
       `backend/internal/defects/domain/status_test.go`, cubriendo RN-11 a RN-14 para las transiciones
       de esta historia: `DefectStatus.Valid` con los cuatro valores y uno inexistente;
       `AllowedTransitions(open)` = `[in_progress]` y `AllowedTransitions(in_progress)` = `[resolved]`;

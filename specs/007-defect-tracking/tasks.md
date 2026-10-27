@@ -198,7 +198,7 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
       `SeverityRank(DefectSeverity) int` en `backend/internal/defects/domain/severity_test.go`,
       cubriendo RN-04: los cuatro valores válidos con rangos `critical` 0, `high` 1, `medium` 2,
       `low` 3; `"urgent"`, `""` y `"Critical"` inválidos — depende de T007
-- [ ] T009 [P] [US1] Pruebas unitarias **obligatorias** de
+- [X] T009 [P] [US1] Pruebas unitarias **obligatorias** de
       `EnsureSprintUsableForDetection(status sprintsdomain.SprintStatus) error` en
       `backend/internal/defects/domain/rules_test.go`, cubriendo RN-08: `planned` →
       `ErrDetectionSprintPlanned`; `active` y `closed` → `nil` — depende de T007

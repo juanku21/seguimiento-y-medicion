@@ -114,7 +114,7 @@ estructuras y contratos, sin lógica de negocio.
 
 **Rama**: `fase/007-foundational`
 
-- [ ] T001 [P] Declarar la entidad `Defect` en `backend/internal/defects/domain/defect.go` con los
+- [X] T001 [P] Declarar la entidad `Defect` en `backend/internal/defects/domain/defect.go` con los
       campos de data-model.md sección 1: `ID uuid` PK generado con `google/uuid`;
       `StoryID uuid NOT NULL` con FK a `user_stories.id` (campo `Story *backlogdomain.UserStory` solo
       para la FK, nunca precargado); `Description varchar(2000) NOT NULL` ("Recortada; 1 a 2000

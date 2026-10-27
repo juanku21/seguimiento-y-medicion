@@ -44,6 +44,11 @@ const (
 	msgSkipToResolved            = "Un defecto Abierto primero debe pasar a En progreso."
 	msgBackToOpen                = "Para volver a Abierto, resolvé el defecto y después reabrilo."
 	codeInvalidTransition        = "invalid_transition"
+
+	msgDefectDiscarded  = "El defecto está Descartado y es de solo lectura."
+	msgLinksFrozen      = "La historia relacionada y el sprint de detección solo se corrigen mientras el defecto está Abierto."
+	codeDefectDiscarded = "defect_discarded"
+	codeLinksFrozen     = "links_frozen"
 )
 
 // statusLabels son los nombres en español de los estados, para los mensajes dirigidos a la persona.
@@ -58,6 +63,8 @@ var statusLabels = map[domain.DefectStatus]string{
 type DefectService interface {
 	// Create registra un defecto en el proyecto atribuido al actor.
 	Create(ctx context.Context, projectID, actorID uuid.UUID, input domain.DefectInput) (*domain.DefectView, error)
+	// Update aplica una modificación parcial de campos atribuyéndola al actor.
+	Update(ctx context.Context, defectID, actorID uuid.UUID, patch domain.DefectPatch) (*domain.DefectView, error)
 	// ChangeStatus cambia el estado de un defecto atribuyendo el cambio al actor.
 	ChangeStatus(ctx context.Context, defectID, actorID uuid.UUID, change domain.StatusChange) (*domain.DefectView, error)
 	// Get devuelve el detalle de un defecto con sus relaciones resueltas.
@@ -227,6 +234,94 @@ func (h *Handler) changeDefectStatus(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, newDefect(view, access.ProjectID))
+}
+
+// updateDefect godoc
+//
+//	@Summary		Modifica los datos de un defecto
+//	@Description	Corrige parcialmente la descripción (1 a 2000 caracteres), la severidad, la historia
+//	@Description	relacionada y el sprint de detección; los campos ausentes no cambian y al menos uno debe
+//	@Description	venir (FR-033, FR-034). La historia y el sprint de detección solo se corrigen con el
+//	@Description	defecto open y siguen el mismo criterio que el registro (FR-038). El estado, el sprint de
+//	@Description	resolución, el proyecto y el autor no se modifican por esta vía (FR-035). Un defecto
+//	@Description	discarded es de solo lectura (FR-036). El cambio se atribuye al titular de la sesión, que
+//	@Description	puede ser cualquier integrante del proyecto. Los 409 defect_discarded y links_frozen
+//	@Description	informan el estado vigente releído y los destinos admitidos desde él.
+//	@Tags			Defectos
+//	@ID				updateDefect
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			defectId	path		string								true	"Identificador del defecto"	format(uuid)
+//	@Param			request		body		DefectPatch							true	"Campos a corregir"
+//	@Success		200			{object}	Defect								"Defecto con los datos corregidos."
+//	@Failure		400			{object}	delivery.ValidationErrorResponse	"Campos inválidos, cuerpo sin cambios, o estado, sprint de resolución, proyecto o autor indicados; sprint de detección Planificado. Si el cuerpo no es un JSON válido o está vacío, la respuesta es ErrorResponse."
+//	@Failure		401			{object}	delivery.ErrorResponse				"Se requiere iniciar sesión."
+//	@Failure		404			{object}	delivery.ErrorResponse				"El defecto no existe o es ajeno, o la historia o el sprint de detección no existen o pertenecen a otro proyecto; cada situación devuelve el mismo cuerpo que su inexistente."
+//	@Failure		409			{object}	DefectConflictResponse				"Proyecto finished (read_only), defecto discarded (defect_discarded) o vínculos congelados (links_frozen), con currentStatus y allowedStatuses."
+//	@Failure		500			{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."
+//	@Router			/api/v1/defects/{defectId} [patch]
+func (h *Handler) updateDefect(c *gin.Context) {
+	// El actor es el titular de la sesión y el defecto es el que resolvió RequireDefectAccess.
+	actorID, ok := authdelivery.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, authdelivery.ErrorResponse{Error: msgSessionRequired})
+		return
+	}
+	access, ok := defectAccessFromContext(c)
+	if !ok {
+		respondInternalError(c, "updateDefect sin DefectAccess en el contexto")
+		return
+	}
+
+	// Se decodifica y valida el cuerpo antes de llegar al servicio (Principio VII).
+	var req DefectPatch
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, authdelivery.ErrorResponse{Error: msgInvalidBody})
+		return
+	}
+	patch, fields := ValidateDefectPatch(req)
+	if len(fields) > 0 {
+		respondInvalidFields(c, fields)
+		return
+	}
+
+	// Se aplica la modificación; los rechazos por estado se informan con el estado vigente releído.
+	view, err := h.svc.Update(c.Request.Context(), access.DefectID, actorID, patch)
+	if err != nil {
+		switch {
+		case errors.Is(err, domain.ErrDefectDiscarded):
+			h.respondStateConflict(c, access.DefectID, codeDefectDiscarded, msgDefectDiscarded)
+		case errors.Is(err, domain.ErrLinksFrozen):
+			h.respondStateConflict(c, access.DefectID, codeLinksFrozen, msgLinksFrozen)
+		default:
+			respondServiceError(c, err, "no se pudo modificar el defecto")
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, newDefect(view, access.ProjectID))
+}
+
+// respondStateConflict responde el 409 con el estado vigente del defecto, releído, y los destinos
+// admitidos desde él. Si el defecto ya no se puede leer, responde el error que corresponda.
+func (h *Handler) respondStateConflict(c *gin.Context, defectID uuid.UUID, code, message string) {
+	view, err := h.svc.Get(c.Request.Context(), defectID)
+	if err != nil {
+		respondServiceError(c, err, "no se pudo releer el defecto tras el rechazo")
+		return
+	}
+	current := string(view.Defect.Status)
+	allowed := make([]string, 0)
+	for _, status := range domain.AllowedTransitions(view.Defect.Status) {
+		allowed = append(allowed, string(status))
+	}
+	c.JSON(http.StatusConflict, DefectConflictResponse{
+		Code:            code,
+		Error:           message,
+		CurrentStatus:   &current,
+		AllowedStatuses: allowed,
+	})
 }
 
 // listProjectDefects godoc

@@ -612,7 +612,7 @@ sobre uno En progreso devuelve `409 links_frozen`; con `status` devuelve `400`.
       `created_by_id` ni `status_changed_*` (FR-035) — depende de T048, T051
 - [X] T054 [US4] Implementar `Update` en `backend/internal/defects/service/defect_service.go` con el
       actor de la sesión — depende de T053
-- [ ] T055 [US4] Implementar el manejador `updateDefect` con anotaciones `swag` en
+- [X] T055 [US4] Implementar el manejador `updateDefect` con anotaciones `swag` en
       `backend/internal/defects/delivery/handler.go` (`ErrDefectDiscarded` → `409 defect_discarded`
       "El defecto está Descartado y es de solo lectura."; `ErrLinksFrozen` → `409 links_frozen` "La
       historia relacionada y el sprint de detección solo se corrigen mientras el defecto está

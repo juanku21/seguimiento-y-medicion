@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { formatHours, formatPercent } from "@/utils/effort-format";
+import {
+  formatHours,
+  formatPercent,
+  formatSignedHours,
+  formatStoryPoints,
+} from "@/utils/effort-format";
 
 // Pruebas unitarias del formato de horas y porcentajes del esfuerzo (T018; research.md sección 14).
 // La API serializa siempre 2 decimales y usa null para "no calculable"; la interfaz muestra las horas
@@ -24,5 +29,40 @@ describe("Formato de horas y porcentajes del esfuerzo", () => {
   it("muestra No calculable para null", () => {
     expect(formatHours(null)).toBe("No calculable");
     expect(formatPercent(null)).toBe("No calculable");
+  });
+});
+
+// Pruebas unitarias de la diferencia de horas y de los Story Points (T080). Es cobertura de formato
+// sin escenario propio: el describe no lleva el prefijo 006/USn.
+describe("Formato de la diferencia de horas y de los Story Points", () => {
+  // La diferencia positiva lleva "+".
+  it("muestra la diferencia positiva con signo más", () => {
+    expect(formatSignedHours(6)).toBe("+6 h");
+  });
+
+  // La diferencia negativa usa el signo menos tipográfico (U+2212).
+  it("muestra la diferencia negativa con el signo menos tipográfico", () => {
+    expect(formatSignedHours(-6)).toBe("−6 h");
+  });
+
+  // El cero no lleva signo.
+  it("muestra el cero sin signo", () => {
+    expect(formatSignedHours(0)).toBe("0 h");
+  });
+
+  // Un null es "no calculable", no un cero.
+  it("muestra No calculable para una diferencia null", () => {
+    expect(formatSignedHours(null)).toBe("No calculable");
+  });
+
+  // Los Story Points se muestran como "n SP", incluido el 0.
+  it("muestra los Story Points con la unidad SP", () => {
+    expect(formatStoryPoints(5)).toBe("5 SP");
+    expect(formatStoryPoints(0)).toBe("0 SP");
+  });
+
+  // Una historia sin estimar se distingue de una de 0 SP.
+  it("muestra Sin estimar para Story Points null", () => {
+    expect(formatStoryPoints(null)).toBe("Sin estimar");
   });
 });

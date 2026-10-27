@@ -162,10 +162,13 @@ func newDefectRouter(db *gorm.DB, cfg config.Config, clock *defectClock, locatio
 	sprintsdelivery.RegisterSprintRoutes(router, authHandler.RequireSession, sprintRepository, sprintsHandler)
 	sprintsdelivery.RegisterStoryRoutes(router, authHandler.RequireSession, backlogdelivery.RequireStoryAccess(storyRepository), sprintsHandler)
 
-	// Módulo de defectos con el mismo reloj falso, sobre el subgrupo /:projectId de la 002.
+	// Módulo de defectos con el mismo reloj falso, sobre el subgrupo /:projectId de la 002 y el grupo
+	// plano /api/v1/defects/:defectId, con la misma instancia del repositorio que cmd/app.
 	defectRepository := repository.NewDefectRepository(db)
 	defects := service.NewDefectService(defectRepository, clock.Now)
-	RegisterProjectRoutes(projectGroup, NewHandler(defects))
+	defectHandler := NewHandler(defects)
+	RegisterProjectRoutes(projectGroup, defectHandler)
+	RegisterDefectRoutes(router, authHandler.RequireSession, defectRepository, defectHandler)
 	return router
 }
 

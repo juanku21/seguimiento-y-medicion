@@ -376,7 +376,7 @@ el sprint Activo devuelve `200` y deja el defecto `resolved` con ese sprint; `re
       proyecto ajeno y defecto registrado por una persona ya quitada del proyecto, pedido por ella →
       `404` con **el mismo cuerpo byte a byte** (`{"error":"El defecto no existe."}`); integrante →
       sigue la cadena con el `DefectAccess` en el contexto, sea o no el autor — depende de T024
-- [ ] T028 [US2] Pruebas de integración en `backend/internal/defects/delivery/handler_test.go`, una
+- [X] T028 [US2] Pruebas de integración en `backend/internal/defects/delivery/handler_test.go`, una
       por escenario con `// Escenario: <nombre> (007/US2)`: `TestUS2_CicloCompleto` (dos `200`;
       `GET /api/v1/defects/{id}` muestra `resolved`, el sprint de resolución, y
       `statusChangedBy`/`statusChangedAt` de la última transición), `TestUS2_MismoSprint`,

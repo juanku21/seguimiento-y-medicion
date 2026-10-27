@@ -681,7 +681,7 @@ vulnerabilidades y verificación de las puertas de calidad.
 
 **Rama**: `fase/006-polish`
 
-- [ ] T071 Pruebas de integración de caracterización en
+- [X] T071 Pruebas de integración de caracterización en
       `backend/internal/effort/delivery/handler_test.go`, **sin** etiqueta `006/USn`:
       `TestEffortEndpoints_SinSesion`, con un subtest por cada uno de los **siete** endpoints sin
       cabecera y con token adulterado → `401` y ningún cambio (SC-017);
@@ -697,24 +697,24 @@ vulnerabilidades y verificación de las puertas de calidad.
       (SC-020); y una aserción de que ninguna respuesta contiene `password_hash` ni `passwordHash`
       (Principio VI). Caracterización: las reglas ya existen, así que no tiene RED; el commit lo
       justifica — depende de T070
-- [ ] T072 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
+- [X] T072 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
       `backend/docs/` coincida con [contracts/openapi.yaml](./contracts/openapi.yaml) en las **siete**
       operaciones, sus códigos de respuesta (todas declaran `500`) y sus esquemas, incluidos los
       números de 2 decimales y los `null` de "no calculable"; corregir las anotaciones si difieren
       (Principio VIII) — depende de T071
-- [ ] T073 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona el
+- [X] T073 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona el
       registro de esfuerzo y la comparación entre estimado y real, y se agregan los siete endpoints
       (la variable ya está desde T019), la sección "Esfuerzo" del detalle de la
       historia y la página de esfuerzo del proyecto, manteniendo el criterio de que alguien que no
       conoce el proyecto pueda ejecutarlo siguiendo el documento — depende de T071
-- [ ] T074 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
+- [X] T074 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
-- [ ] T075 [P] Ejecutar los comandos de cobertura de los dos lados —
+- [X] T075 [P] Ejecutar los comandos de cobertura de los dos lados —
       `go test -p 1 ./... -coverprofile=coverage.out` más `go tool cover -func=coverage.out` en
       `backend/`, y `npm run test:coverage` en `frontend/` — y revisar que `internal/effort/`,
       `frontend/src/features/effort/` y `frontend/src/utils/effort-format.ts` estén cubiertos; correr
       además `go test -race -p 1 ./internal/effort/...` — depende de T071
-- [ ] T076 Verificar la trazabilidad y las puertas de seguridad recorriendo `backend/internal/effort/`
+- [X] T076 Verificar la trazabilidad y las puertas de seguridad recorriendo `backend/internal/effort/`
       y `frontend/src/features/effort/`: que buscar `006/US1` a `006/US5` en el código de pruebas
       devuelva los **74** escenarios; que las **26** reglas RN-01 a RN-26 tengan prueba asociada según
       la tabla de plan.md (SC-023); que los **siete** endpoints tengan su prueba de `401` (SC-017);
@@ -722,7 +722,7 @@ vulnerabilidades y verificación de las puertas de calidad.
       escriba `user_stories.ever_had_effort`; que ningún cálculo de horas o porcentajes use
       `float64`; que no haya dependencias nuevas en `go.mod` ni en `package.json`; y que ninguna
       respuesta incluya `password_hash` — depende de T071
-- [ ] T077 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluida la
+- [X] T077 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluida la
       validación manual de 16 pasos con `EFFORT_GRACE_PERIOD_HOURS=1`, las pruebas de concurrencia
       con `-count=5` y la verificación de que las pruebas corrieron contra `smye_test` en el puerto
       5433 y no contra desarrollo — depende de T072, T073, T076
@@ -749,6 +749,18 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
       `frontend/src/utils/effort-format.test.ts`: `+6 h`, `−6 h` con U+2212, `0 h` sin signo,
       "No calculable" para `null`, "n SP" y "Sin estimar" per Constitución VIII (partial) — origen:
       converge, detectado en 006/US5
+- [ ] T081 Prueba de integración de caracterización en
+      `backend/internal/effort/delivery/handler_test.go`, sin etiqueta `006/USn`:
+      `TestEffortCreate_HistoriaDeCeroPuntos`, que estima una historia en 0 Story Points con la
+      003 y registra esfuerzo con `POST` → `201` y el registro persistido, completando la
+      cobertura de RN-13 según la tabla de plan.md (SC-023). Caracterización: la regla ya
+      existe, así que no tiene RED — origen: T076
+- [ ] T082 Renombrar los seis `it` de `frontend/src/features/effort/components/` que están en
+      bloques `006/USn` sin llevar el nombre de un escenario de spec.md
+      (`effort-filters.test.tsx:111` y `:213`, `effort-comparison-table.test.tsx:79` y `:137`,
+      `effort-comparison-card.test.tsx:179`, `effort-entry-list.test.tsx:79`): usar el nombre
+      del escenario que cubren o moverlos a un `describe` sin `006/USn`, per Constitución II —
+      origen: T076
 
 ---
 

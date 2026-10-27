@@ -64,14 +64,15 @@ func NewHandler(efforts *service.EffortService) *Handler {
 //
 //	@Summary		Registra esfuerzo sobre una historia
 //	@Description	Registra las horas que el titular de la sesión trabajó sobre la historia en una fecha,
-//	@Description	con la actividad realizada (FR-001). El autor es siempre quien inicia la sesión: el
-//	@Description	cuerpo no admite indicar a otra persona (FR-002). Las horas son mayores que 0, como
-//	@Description	máximo 24 y múltiplos de 0,25 (FR-004); la actividad tiene de 1 a 300 caracteres
+//	@Description	con la actividad realizada (FR-001). El autor es siempre el titular de la sesión:
+//	@Description	cualquier dato de autoría que llegue en el cuerpo se ignora (FR-002). Las horas son
+//	@Description	mayores que 0, como máximo 24 y múltiplos de 0,25 (FR-004); la actividad tiene de 1 a
+//	@Description	300 caracteres
 //	@Description	(FR-003); la fecha no puede ser futura ni anterior al inicio del proyecto (FR-006). El
 //	@Description	registro queda asociado al sprint abierto de la historia o, dentro del plazo de gracia,
-//	@Description	al sprint recién cerrado; si no corresponde ninguno, queda sin sprint (FR-012 a
+//	@Description	al sprint recién cerrado; si no corresponde ninguno, queda sin sprint (FR-014 a
 //	@Description	FR-016). La suma de las horas de la persona en la fecha, en todos sus proyectos, no
-//	@Description	puede superar 24 (FR-010). Cualquier integrante del proyecto puede registrar esfuerzo.
+//	@Description	puede superar 24 (FR-005). Cualquier integrante del proyecto puede registrar esfuerzo.
 //	@Tags			Esfuerzo
 //	@ID				createEffortEntry
 //	@Accept			json

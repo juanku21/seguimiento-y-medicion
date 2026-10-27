@@ -2331,3 +2331,344 @@ func TestUS5_HistoriaInexistente(t *testing.T) {
 		})
 	}
 }
+
+// Pruebas de integración de caracterización de la Fase 7 (T071), sin etiqueta de historia porque no
+// corresponden a un escenario de spec.md sino a los criterios de éxito SC-004, SC-010, SC-015,
+// SC-017, SC-018 y SC-020 y al Principio VI. Las reglas ya las implementaron las historias, así que
+// estas pruebas fijan su comportamiento de punta a punta sobre el router compuesto como en cmd/app
+// contra smye_test: en cada rechazo verifican que la base no cambió y toda respuesta que reciben pasa
+// por polishRequireNoPasswordHash.
+
+// polishRequireNoPasswordHash verifica que el cuerpo de la respuesta no exponga el hash de la
+// contraseña con ninguna de sus dos grafías (Principio VI).
+func polishRequireNoPasswordHash(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	assert.NotContains(t, rec.Body.String(), "password_hash", "la respuesta no debe exponer el hash de la contraseña")
+	assert.NotContains(t, rec.Body.String(), "passwordHash", "la respuesta no debe exponer el hash de la contraseña")
+}
+
+// polishTamperToken devuelve el token con el primer carácter de la firma reemplazado, de modo que
+// conserva la forma de un JWT pero su firma ya no corresponde al contenido.
+func polishTamperToken(t *testing.T, token string) string {
+	t.Helper()
+	parts := strings.Split(token, ".")
+	require.Len(t, parts, 3, "el token de sesión debe ser un JWT de tres partes")
+	signature := []byte(parts[2])
+	if signature[0] == 'A' {
+		signature[0] = 'B'
+	} else {
+		signature[0] = 'A'
+	}
+	parts[2] = string(signature)
+	return strings.Join(parts, ".")
+}
+
+// polishEndpoint describe una de las siete acciones de la feature: método, ruta, cuerpo opcional y
+// el código con que responde a una sesión válida.
+type polishEndpoint struct {
+	name    string
+	method  string
+	path    string
+	body    map[string]any
+	success int
+}
+
+// polishEndpoints arma las siete acciones de la feature sobre la historia, el proyecto y el registro
+// indicados, en un orden en que la eliminación del registro queda al final.
+func polishEndpoints(storyID, projectID uuid.UUID, entryID string) []polishEndpoint {
+	return []polishEndpoint{
+		{name: "alta de esfuerzo", method: http.MethodPost, path: effortEntriesPath(storyID),
+			body: effortBody(effortToday, effortActivity, 1), success: http.StatusCreated},
+		{name: "esfuerzo de la historia", method: http.MethodGet, path: storyEffortPath(storyID.String()), success: http.StatusOK},
+		{name: "comparación de la historia", method: http.MethodGet, path: storyComparisonPath(storyID.String()), success: http.StatusOK},
+		{name: "esfuerzo del proyecto", method: http.MethodGet, path: projectEffortPath(projectID.String(), nil), success: http.StatusOK},
+		{name: "comparación del proyecto", method: http.MethodGet, path: projectComparisonPath(projectID.String()), success: http.StatusOK},
+		{name: "modificación del registro", method: http.MethodPatch, path: effortEntryPath(entryID),
+			body: map[string]any{"hours": 5}, success: http.StatusOK},
+		{name: "eliminación del registro", method: http.MethodDelete, path: effortEntryPath(entryID), success: http.StatusNoContent},
+	}
+}
+
+// TestEffortEndpoints_SinSesion verifica que cada una de las siete acciones de la feature, sin
+// cabecera Authorization y con un token adulterado, responde el 401 de la 001 byte a byte y no cambia
+// effort_entries (SC-017). Como control, la misma petición con la sesión válida de Ana se atiende, lo
+// que prueba que el 401 se debe solo a la credencial.
+func TestEffortEndpoints_SinSesion(t *testing.T) {
+	f := newEffortFixture(t)
+	entry := f.ownEntry(t, 4)
+	tampered := polishTamperToken(t, f.ownerToken)
+	credentials := []struct {
+		name  string
+		token string
+	}{
+		{name: "sin cabecera", token: ""},
+		{name: "token adulterado", token: tampered},
+	}
+
+	for _, ep := range polishEndpoints(f.storyID, f.projectID, entry.ID) {
+		t.Run(ep.name, func(t *testing.T) {
+			// Rechazo con cada credencial inválida, sin ningún cambio en la base.
+			for _, cred := range credentials {
+				t.Run(cred.name, func(t *testing.T) {
+					before := f.env.effortEntryCount(t)
+					stored := f.env.storedEntry(t, entry.ID)
+
+					rec := f.env.do(t, ep.method, ep.path, cred.token, ep.body)
+
+					assert.Equal(t, http.StatusUnauthorized, rec.Code, "cuerpo: %s", rec.Body.String())
+					assert.Equal(t, entryAccessSessionBody, rec.Body.String(), "el cuerpo debe ser el 401 de la 001")
+					polishRequireNoPasswordHash(t, rec)
+					assert.Equal(t, before, f.env.effortEntryCount(t), "un 401 no debe crear ni borrar registros")
+					f.env.requireEntryUnchanged(t, stored)
+				})
+			}
+
+			// Control: con la sesión válida la acción se atiende.
+			rec := f.env.do(t, ep.method, ep.path, f.ownerToken, ep.body)
+			require.Equal(t, ep.success, rec.Code, "control con sesión válida; cuerpo: %s", rec.Body.String())
+			polishRequireNoPasswordHash(t, rec)
+		})
+	}
+}
+
+// TestEffortEndpoints_NotFoundIndistinguible verifica que, para quien no es integrante, la historia,
+// el proyecto y el registro de esfuerzo de otro proyecto responden exactamente igual —estado, tipo de
+// contenido y cuerpo byte a byte— que un identificador inexistente, en las tres rutas de historia,
+// las dos de proyecto y las dos de registro, sin cambiar effort_entries (SC-018). Carlos tiene su
+// propio proyecto con una historia y un registro, así que su sesión es válida y opera en otro
+// proyecto.
+func TestEffortEndpoints_NotFoundIndistinguible(t *testing.T) {
+	f := newEffortFixture(t)
+	entry := f.ownEntry(t, 4)
+	_, carlosToken := f.env.signUp(t, "Carlos Gómez", "carlos@example.com")
+	carlosProject := f.env.createProjectInProgress(t, carlosToken, "Tienda en línea")
+	carlosStory := f.env.createReadyStory(t, carlosToken, carlosProject, "Carrito de compras")
+	requireEffortCreated(t, f.env.postEffort(t, carlosToken, carlosStory, effortBody(effortToday, effortActivity, 2)))
+
+	// Cada acción se arma una vez sobre los recursos de Ana y otra sobre un UUID que no existe.
+	missing := uuid.New()
+	foreign := polishEndpoints(f.storyID, f.projectID, entry.ID)
+	absent := polishEndpoints(missing, missing, missing.String())
+	for i := range foreign {
+		t.Run(foreign[i].name, func(t *testing.T) {
+			before := f.env.effortEntryCount(t)
+			stored := f.env.storedEntry(t, entry.ID)
+
+			foreignRec := f.env.do(t, foreign[i].method, foreign[i].path, carlosToken, foreign[i].body)
+			absentRec := f.env.do(t, absent[i].method, absent[i].path, carlosToken, absent[i].body)
+
+			require.Equal(t, http.StatusNotFound, absentRec.Code, "inexistente; cuerpo: %s", absentRec.Body.String())
+			assert.Equal(t, absentRec.Code, foreignRec.Code, "ajeno; cuerpo: %s", foreignRec.Body.String())
+			assert.Equal(t, absentRec.Header().Get("Content-Type"), foreignRec.Header().Get("Content-Type"), "tipo de contenido")
+			assert.Equal(t, absentRec.Body.String(), foreignRec.Body.String(), "el 404 ajeno debe ser igual byte a byte al inexistente")
+			polishRequireNoPasswordHash(t, foreignRec)
+			polishRequireNoPasswordHash(t, absentRec)
+			assert.Equal(t, before, f.env.effortEntryCount(t), "un 404 no debe crear ni borrar registros")
+			f.env.requireEntryUnchanged(t, stored)
+		})
+	}
+}
+
+// TestEffortAuthor_TodasLasFormas verifica que el alta queda siempre a nombre del titular de la
+// sesión aunque se indique a otra persona como autor por cualquier vía: userId, authorId o memberId
+// en el cuerpo, userId en la query, o todas a la vez (SC-004). Bruno, integrante, intenta cargar
+// horas a nombre de Ana.
+func TestEffortAuthor_TodasLasFormas(t *testing.T) {
+	cases := []struct {
+		name   string
+		fields []string
+		query  bool
+	}{
+		{name: "userId en el cuerpo", fields: []string{"userId"}},
+		{name: "authorId en el cuerpo", fields: []string{"authorId"}},
+		{name: "memberId en el cuerpo", fields: []string{"memberId"}},
+		{name: "userId en la query", query: true},
+		{name: "todas las formas a la vez", fields: []string{"userId", "authorId", "memberId"}, query: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newEffortFixture(t)
+			brunoID, brunoToken := f.env.signUp(t, "Bruno Díaz", "bruno@example.com")
+			f.env.addMember(t, f.ownerToken, f.projectID, "bruno@example.com")
+			body := effortBody(effortToday, effortActivity, 2)
+			for _, field := range tc.fields {
+				body[field] = f.ownerID.String()
+			}
+			path := effortEntriesPath(f.storyID)
+			if tc.query {
+				path += "?userId=" + f.ownerID.String()
+			}
+
+			rec := f.env.do(t, http.MethodPost, path, brunoToken, body)
+
+			// El registro queda a nombre de Bruno y nada queda a nombre de Ana.
+			entry := requireEffortCreated(t, rec)
+			polishRequireNoPasswordHash(t, rec)
+			assert.Equal(t, brunoID.String(), entry.Author.ID, "autor del registro")
+			assert.Equal(t, brunoID, f.env.storedEntry(t, entry.ID).UserID, "user_id en la base")
+			assert.Equal(t, int64(0), f.env.userDateHundredths(t, f.ownerID, effortToday), "nada a nombre de la persona indicada")
+		})
+	}
+}
+
+// TestEffortTotals_CuartosDeHora verifica que 100 altas reales de 0,25 horas repartidas en 20 fechas
+// suman exactamente 25 horas en la base y en cada total que expone la feature: el de la historia, el
+// de la persona en el desglose, el del proyecto y las horas reales de la comparación (SC-015).
+func TestEffortTotals_CuartosDeHora(t *testing.T) {
+	f := newEffortFixture(t)
+	start := effortDate(t, effortProjectStart)
+	for i := 0; i < 100; i++ {
+		date := start.AddDate(0, 0, i%20).Format(time.DateOnly)
+		rec := f.post(t, effortBody(date, effortActivity, 0.25))
+		require.Equal(t, http.StatusCreated, rec.Code, "alta %d del %s; cuerpo: %s", i+1, date, rec.Body.String())
+	}
+	assert.Equal(t, int64(2500), f.env.storyHundredths(t, f.storyID), "centésimas de hora en la base")
+
+	// Total y desglose de la historia.
+	storyRec := f.env.do(t, http.MethodGet, storyEffortPath(f.storyID.String()), f.ownerToken, nil)
+	var story storyEffortResponse
+	effortRequireStatus(t, storyRec, http.StatusOK, &story)
+	polishRequireNoPasswordHash(t, storyRec)
+	assert.Equal(t, "25.00", string(story.TotalHours), "total de la historia")
+	require.Len(t, story.ByMember, 1, "una línea por persona")
+	assert.Equal(t, "25.00", string(story.ByMember[0].Hours), "total de Ana en el desglose")
+
+	// Total del esfuerzo del proyecto.
+	projectRec := f.env.do(t, http.MethodGet, projectEffortPath(f.projectID.String(), nil), f.ownerToken, nil)
+	var project projectEffortResponse
+	effortRequireStatus(t, projectRec, http.StatusOK, &project)
+	polishRequireNoPasswordHash(t, projectRec)
+	assert.Equal(t, "25.00", string(project.TotalHours), "total del proyecto")
+	assert.Len(t, project.Entries, 100, "registros del proyecto")
+
+	// Horas reales de la comparación.
+	comparisonRec := f.env.do(t, http.MethodGet, storyComparisonPath(f.storyID.String()), f.ownerToken, nil)
+	var comparison effortComparisonResponse
+	effortRequireStatus(t, comparisonRec, http.StatusOK, &comparison)
+	polishRequireNoPasswordHash(t, comparisonRec)
+	assert.Equal(t, "25.00", string(comparison.ActualHours), "horas reales de la comparación")
+}
+
+// TestEffortAnchor_Immutable verifica que un registro conserva su sprint asociado original cuando la
+// historia se quita de ese sprint, se compromete en otro y el primero se cierra: la fila de la base
+// no cambia y la consulta de la historia lo sigue mostrando en el sprint original, ahora Cerrado
+// (SC-010).
+func TestEffortAnchor_Immutable(t *testing.T) {
+	f := newEffortFixture(t)
+	sprintA := f.env.activeSprintWith(t, f.ownerToken, f.projectID, f.storyID)
+	createdRec := f.post(t, effortBody(effortToday, effortActivity, 3))
+	created := requireEffortCreated(t, createdRec)
+	polishRequireNoPasswordHash(t, createdRec)
+	f.requireAnchoredTo(t, created, sprintA, "active")
+	before := f.env.storedEntry(t, created.ID)
+
+	// La historia se quita del Sprint 3, se compromete en el Sprint 4 y el Sprint 3 se cierra.
+	removeRec := f.env.do(t, http.MethodDelete,
+		"/api/v1/sprints/"+sprintA.String()+"/stories?storyId="+f.storyID.String(), f.ownerToken, nil)
+	effortRequireStatus(t, removeRec, http.StatusOK, nil)
+	sprintB := f.env.createSprint(t, f.ownerToken, f.projectID, "Sprint 4", "2026-10-26", "2026-11-06")
+	f.env.assignStories(t, f.ownerToken, sprintB, f.storyID)
+	f.env.closeSprintAt(t, f.ownerToken, sprintA, f.fridayClose())
+
+	// La fila no cambió y las horas siguen en el Sprint 3, ninguna en el Sprint 4.
+	f.env.requireEntryUnchanged(t, before)
+	assert.Equal(t, int64(300), f.env.sprintHundredths(t, sprintA), "horas del sprint original")
+	assert.Equal(t, int64(0), f.env.sprintHundredths(t, sprintB), "horas del sprint nuevo")
+
+	// La consulta de la historia muestra el registro en el sprint original, ahora Cerrado.
+	storyRec := f.env.do(t, http.MethodGet, storyEffortPath(f.storyID.String()), f.ownerToken, nil)
+	var story storyEffortResponse
+	effortRequireStatus(t, storyRec, http.StatusOK, &story)
+	polishRequireNoPasswordHash(t, storyRec)
+	require.Len(t, story.Entries, 1, "registros de la historia")
+	require.NotNil(t, story.Entries[0].Sprint, "el registro debe seguir asociado a un sprint")
+	assert.Equal(t, sprintA.String(), story.Entries[0].Sprint.ID, "sprint asociado después")
+	assert.Equal(t, "closed", story.Entries[0].Sprint.Status, "estado del sprint asociado después")
+}
+
+// TestEffortGrace_Boundaries verifica los cuatro bordes del plazo de gracia de 48 horas para el
+// alta, la modificación y la eliminación: un segundo después del cierre y un segundo antes del
+// vencimiento se aceptan; exactamente en el vencimiento y un segundo después se rechazan con el 409
+// effort_finalized sin cambiar la base (SC-020). El sprint se cierra el viernes 2026-10-23 a las
+// 18:00 con la historia Completada.
+func TestEffortGrace_Boundaries(t *testing.T) {
+	cases := []struct {
+		name     string
+		offset   time.Duration
+		accepted bool
+	}{
+		{name: "justo después del cierre", offset: time.Second, accepted: true},
+		{name: "poco antes del vencimiento", offset: effortDefaultGrace - time.Second, accepted: true},
+		{name: "exactamente en el vencimiento", offset: effortDefaultGrace, accepted: false},
+		{name: "después del vencimiento", offset: effortDefaultGrace + time.Second, accepted: false},
+	}
+
+	// Alta sobre la historia Completada del sprint cerrado, con fecha del día del cierre.
+	t.Run("alta", func(t *testing.T) {
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				f := newEffortFixture(t)
+				sprintID := f.closedWithCompletedStory(t)
+				f.env.clock.Set(f.fridayClose().Add(tc.offset))
+				before := f.env.effortEntryCount(t)
+
+				rec := f.post(t, effortBody("2026-10-23", effortActivity, 2))
+
+				polishRequireNoPasswordHash(t, rec)
+				if tc.accepted {
+					f.requireAnchoredTo(t, requireEffortCreated(t, rec), sprintID, "closed")
+					return
+				}
+				requireEffortConflict(t, rec, "effort_finalized")
+				f.requireNothingCreated(t, before)
+			})
+		}
+	})
+
+	// Modificación de un registro creado antes del cierre.
+	t.Run("modificación", func(t *testing.T) {
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				f := newEffortFixture(t)
+				created, sprintID := f.entryInClosedSprint(t, f.ownerToken)
+				f.env.clock.Set(f.fridayClose().Add(tc.offset))
+				before := f.env.storedEntry(t, created.ID)
+
+				rec := f.env.patchEffort(t, f.ownerToken, created.ID, map[string]any{"hours": 5})
+
+				polishRequireNoPasswordHash(t, rec)
+				if tc.accepted {
+					updated := requireEffortUpdated(t, rec)
+					assert.Equal(t, "5.00", string(updated.Hours))
+					f.requireAnchoredTo(t, updated, sprintID, "closed")
+					return
+				}
+				requireEffortConflict(t, rec, "effort_finalized")
+				f.env.requireEntryUnchanged(t, before)
+			})
+		}
+	})
+
+	// Eliminación de un registro creado antes del cierre.
+	t.Run("eliminación", func(t *testing.T) {
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				f := newEffortFixture(t)
+				created, _ := f.entryInClosedSprint(t, f.ownerToken)
+				f.env.clock.Set(f.fridayClose().Add(tc.offset))
+				before := f.env.storedEntry(t, created.ID)
+
+				rec := f.env.deleteEffort(t, f.ownerToken, created.ID)
+
+				polishRequireNoPasswordHash(t, rec)
+				if tc.accepted {
+					requireEffortDeleted(t, rec)
+					assert.False(t, f.env.entryExists(t, created.ID), "el registro debe dejar de existir")
+					return
+				}
+				requireEffortConflict(t, rec, "effort_finalized")
+				f.env.requireEntryUnchanged(t, before)
+			})
+		}
+	})
+}

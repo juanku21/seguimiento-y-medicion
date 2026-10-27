@@ -12,6 +12,11 @@ func RegisterProjectRoutes(projectGroup *gin.RouterGroup, handler *Handler) {
 	projectGroup.POST("/defects", handler.createDefect)
 }
 
+// RegisterStoryRoutes registrará GET /api/v1/stories/:storyId/defects con el middleware de sesión y
+// el RequireStoryAccess de la 003 (firma mínima: la lógica pertenece a T044).
+func RegisterStoryRoutes(router *gin.Engine, requireSession, requireStoryAccess gin.HandlerFunc, handler *Handler) {
+}
+
 // RegisterDefectRoutes registra el detalle, GET "", y el cambio de estado, PUT /status, en el grupo
 // plano /api/v1/defects/:defectId, con el middleware de sesión y RequireDefectAccess sobre el
 // repositorio recibido. El defecto inexistente, ajeno o con identificador mal formado recibe el 404

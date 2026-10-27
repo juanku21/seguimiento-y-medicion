@@ -473,7 +473,7 @@ devuelve `400` en `status`.
       valor inexistente en cada uno → `FieldError` con los valores admitidos; `storyId` y `sprintId`
       mal formados → `FieldError` con "El filtro no corresponde al proyecto."; varios filtros
       inválidos a la vez — depende de T037
-- [ ] T039 [US3] Pruebas de integración en `backend/internal/defects/delivery/handler_test.go`, una
+- [X] T039 [US3] Pruebas de integración en `backend/internal/defects/delivery/handler_test.go`, una
       por escenario con `// Escenario: <nombre> (007/US3)`: `TestUS3_SinFiltros` (defectos en los
       cuatro estados —el Descartado preparado con `forceDefectStatus`— y de las cuatro severidades,
       todos con descripción, severidad, estado, historia, sprint de detección y de resolución

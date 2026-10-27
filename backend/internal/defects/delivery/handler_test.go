@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -889,4 +890,413 @@ func TestUS2_ProyectoFinalizado(t *testing.T) {
 	assert.NotNil(t, body.AllowedStatuses, "allowedStatuses es siempre un arreglo")
 	assert.Empty(t, body.AllowedStatuses)
 	f.requireDefectRowUnchanged(t, before)
+}
+
+// Pruebas de integración de la consulta y el filtrado de defectos (T039): GET
+// /api/v1/projects/{projectId}/defects y GET /api/v1/stories/{storyId}/defects sobre el router de
+// testenv_test.go. Los "Dado" se preparan con los endpoints reales; solo el estado Descartado, que
+// produce otra historia, se fuerza con forceDefectStatus. TestUS3_ValorDeFiltroInvalidoHTTP lleva el
+// sufijo "HTTP" para no chocar con la unitaria homónima de validation_test.go.
+
+// Textos del contrato para los rechazos del listado.
+const (
+	defectMsgFilterForeign = "El filtro no corresponde al proyecto."
+	defectMsgStatusInvalid = "El estado debe ser Abierto, En progreso, Resuelto o Descartado."
+)
+
+// defectListResponse refleja ProjectDefects y StoryDefects del contrato; Raw distingue `[]` de null.
+type defectListResponse struct {
+	Defects     []defectResponse           `json:"defects"`
+	EmptyReason *string                    `json:"emptyReason"`
+	Raw         map[string]json.RawMessage `json:"-"`
+}
+
+// requireDefectList exige un 200 cuyo cuerpo sea un listado de defectos y lo devuelve decodificado.
+func requireDefectList(t *testing.T, rec *httptest.ResponseRecorder) defectListResponse {
+	t.Helper()
+	var list defectListResponse
+	defectRequireStatus(t, rec, http.StatusOK, &list)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list.Raw), "el cuerpo del 200 no es un objeto JSON")
+	return list
+}
+
+// defectIDs devuelve los identificadores del listado en el orden recibido.
+func defectIDs(list defectListResponse) []string {
+	ids := make([]string, 0, len(list.Defects))
+	for _, d := range list.Defects {
+		ids = append(ids, d.ID)
+	}
+	return ids
+}
+
+// requireEmptyList exige defects: [] (nunca null) y el emptyReason indicado.
+func requireEmptyList(t *testing.T, list defectListResponse, reason string) {
+	t.Helper()
+	assert.Equal(t, "[]", string(list.Raw["defects"]), "defects debe serializarse como []")
+	if assert.NotNil(t, list.EmptyReason, "emptyReason no debe ser null con la lista vacía") {
+		assert.Equal(t, reason, *list.EmptyReason)
+	}
+}
+
+// requireNoEmptyReason exige que emptyReason sea null cuando la lista tiene elementos.
+func requireNoEmptyReason(t *testing.T, list defectListResponse) {
+	t.Helper()
+	assert.Equal(t, "null", string(list.Raw["emptyReason"]), "emptyReason es null si hay defectos")
+}
+
+// listProject consulta el listado del proyecto con la query indicada (con el "?" inicial o vacía).
+func (f defectFixture) listProject(t *testing.T, query string) *httptest.ResponseRecorder {
+	t.Helper()
+	return f.env.do(t, http.MethodGet, defectsPath(f.projectID)+query, f.ownerToken, nil)
+}
+
+// listStory consulta el listado de la historia.
+func (f defectFixture) listStory(t *testing.T, storyID uuid.UUID) *httptest.ResponseRecorder {
+	t.Helper()
+	return f.env.do(t, http.MethodGet, "/api/v1/stories/"+storyID.String()+"/defects", f.ownerToken, nil)
+}
+
+// registerWithSeverity registra un defecto con la severidad indicada y devuelve su identificador.
+func (f defectFixture) registerWithSeverity(t *testing.T, severity string, storyID, detectedSprintID uuid.UUID) string {
+	t.Helper()
+	body := f.body(storyID, detectedSprintID)
+	body["severity"] = severity
+	return requireDefectCreated(t, f.post(t, body)).ID
+}
+
+// resolveDefect lleva el defecto a En progreso y de ahí a Resuelto en el sprint indicado.
+func (f defectFixture) resolveDefect(t *testing.T, defectID string, resolvedSprintID uuid.UUID) {
+	t.Helper()
+	f.startDefect(t, f.ownerToken, defectID)
+	requireDefectOK(t, f.env.putDefectStatus(t, f.ownerToken, defectID, "resolved", resolvedSprintID))
+}
+
+// defectRank replica el orden por severidad del listado: crítica, alta, media y baja.
+func defectRank(severity domain.DefectSeverity) int {
+	switch string(severity) {
+	case "critical":
+		return 0
+	case "high":
+		return 1
+	case "medium":
+		return 2
+	default:
+		return 3
+	}
+}
+
+// listingOrder ordena los identificadores como debe hacerlo el listado (FR-044): rango de severidad,
+// created_at descendente e id descendente, leyendo esos valores de la base.
+func (e *defectTestEnv) listingOrder(t *testing.T, ids []string) []string {
+	t.Helper()
+	stored := make(map[string]domain.Defect, len(ids))
+	for _, id := range ids {
+		stored[id] = e.storedDefect(t, id)
+	}
+	ordered := append([]string{}, ids...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		a, b := stored[ordered[i]], stored[ordered[j]]
+		if ra, rb := defectRank(a.Severity), defectRank(b.Severity); ra != rb {
+			return ra < rb
+		}
+		if !a.CreatedAt.Equal(b.CreatedAt) {
+			return a.CreatedAt.After(b.CreatedAt)
+		}
+		return ordered[i] > ordered[j]
+	})
+	return ordered
+}
+
+// requireListing exige que el listado contenga exactamente los defectos esperados y en el orden
+// estable del contrato.
+func (f defectFixture) requireListing(t *testing.T, list defectListResponse, want ...string) {
+	t.Helper()
+	assert.Equal(t, f.env.listingOrder(t, want), defectIDs(list))
+}
+
+// us3Seed es el "Dado" común de US3: dos historias, un sprint Cerrado y uno Activo, y seis defectos
+// de las cuatro severidades y los cuatro estados.
+type us3Seed struct {
+	defectFixture
+	closedID uuid.UUID
+	storyA   uuid.UUID
+	storyB   uuid.UUID
+	// Defectos por nombre: d1 crítico Abierto (A, detectado en el Cerrado); d2 alto En progreso (A,
+	// Cerrado); d3 medio Resuelto (B, Cerrado, resuelto en el Activo); d4 bajo Descartado (B, Activo);
+	// d5 crítico En progreso (B, Activo); d6 alto Resuelto (A, detectado y resuelto en el Activo).
+	d map[string]string
+}
+
+// newUS3Seed arma el "Dado" común de US3 con los endpoints reales.
+func newUS3Seed(t *testing.T) us3Seed {
+	t.Helper()
+	f := newDefectFixtureWithoutSprint(t)
+	closedID := f.env.closedSprint(t, f.ownerToken, f.projectID, "Sprint 1", "2026-10-05", "2026-10-09")
+	f.sprintID = f.env.activeSprint(t, f.ownerToken, f.projectID, "Sprint 2")
+	s := us3Seed{defectFixture: f, closedID: closedID, storyA: f.storyID, d: map[string]string{}}
+	s.storyB = f.env.createStory(t, f.ownerToken, f.projectID, "Exportación a PDF")
+
+	s.d["d1"] = f.registerWithSeverity(t, "critical", s.storyA, closedID)
+	s.d["d2"] = f.registerWithSeverity(t, "high", s.storyA, closedID)
+	f.startDefect(t, f.ownerToken, s.d["d2"])
+	s.d["d3"] = f.registerWithSeverity(t, "medium", s.storyB, closedID)
+	f.resolveDefect(t, s.d["d3"], f.sprintID)
+	s.d["d4"] = f.registerWithSeverity(t, "low", s.storyB, f.sprintID)
+	f.env.forceDefectStatus(t, defectParseID(t, s.d["d4"]), domain.DefectStatus("discarded"), nil)
+	s.d["d5"] = f.registerWithSeverity(t, "critical", s.storyB, f.sprintID)
+	f.startDefect(t, f.ownerToken, s.d["d5"])
+	s.d["d6"] = f.registerWithSeverity(t, "high", s.storyA, f.sprintID)
+	f.resolveDefect(t, s.d["d6"], f.sprintID)
+	return s
+}
+
+// want devuelve los identificadores de los defectos con los nombres indicados.
+func (s us3Seed) want(names ...string) []string {
+	ids := make([]string, 0, len(names))
+	for _, name := range names {
+		ids = append(ids, s.d[name])
+	}
+	return ids
+}
+
+// Escenario: Dado un proyecto con defectos en los cuatro estados y de las cuatro severidades, cuando un integrante abre la lista sin filtros, entonces ve todos los defectos con su descripción, severidad, estado, historia, sprint de detección y sprint de resolución cuando lo tienen (007/US3)
+func TestUS3_SinFiltros(t *testing.T) {
+	s := newUS3Seed(t)
+
+	list := requireDefectList(t, s.listProject(t, ""))
+
+	s.requireListing(t, list, s.want("d1", "d2", "d3", "d4", "d5", "d6")...)
+	requireNoEmptyReason(t, list)
+	type expected struct {
+		severity, status, story, detected, resolved string
+	}
+	cases := map[string]expected{
+		"d1": {"critical", "open", "Reporte de ventas mensual", "Sprint 1", ""},
+		"d2": {"high", "in_progress", "Reporte de ventas mensual", "Sprint 1", ""},
+		"d3": {"medium", "resolved", "Exportación a PDF", "Sprint 1", "Sprint 2"},
+		"d4": {"low", "discarded", "Exportación a PDF", "Sprint 2", ""},
+		"d5": {"critical", "in_progress", "Exportación a PDF", "Sprint 2", ""},
+		"d6": {"high", "resolved", "Reporte de ventas mensual", "Sprint 2", "Sprint 2"},
+	}
+	byID := map[string]defectResponse{}
+	for _, d := range list.Defects {
+		byID[d.ID] = d
+	}
+	for name, want := range cases {
+		d := byID[s.d[name]]
+		assert.Equal(t, defectDescription, d.Description, name)
+		assert.Equal(t, want.severity, d.Severity, name)
+		assert.Equal(t, want.status, d.Status, name)
+		assert.Equal(t, want.story, d.Story.Title, name)
+		assert.Equal(t, want.detected, d.DetectedSprint.Name, name)
+		if want.resolved == "" {
+			assert.Nil(t, d.ResolvedSprint, name)
+		} else if assert.NotNil(t, d.ResolvedSprint, name) {
+			assert.Equal(t, want.resolved, d.ResolvedSprint.Name, name)
+		}
+	}
+}
+
+// Escenario: Dado una historia con defectos de distintos estados, cuando un integrante consulta los defectos de esa historia, entonces ve solo los de ella, de cualquier estado, con los mismos datos y el mismo orden que en la lista del proyecto (007/US3)
+func TestUS3_DefectosDeUnaHistoria(t *testing.T) {
+	s := newUS3Seed(t)
+
+	listA := requireDefectList(t, s.listStory(t, s.storyA))
+	listB := requireDefectList(t, s.listStory(t, s.storyB))
+
+	s.requireListing(t, listA, s.want("d1", "d2", "d6")...)
+	s.requireListing(t, listB, s.want("d3", "d4", "d5")...)
+	requireNoEmptyReason(t, listA)
+
+	// Los datos de cada elemento coinciden con los del listado del proyecto.
+	project := requireDefectList(t, s.listProject(t, "?storyId="+s.storyB.String()))
+	assert.Equal(t, project.Defects, listB.Defects)
+}
+
+// Escenario: Dado un proyecto con defectos de distintos estados, cuando un integrante filtra por uno o varios estados, entonces la lista contiene solo los defectos de esos estados (007/US3)
+func TestUS3_FiltroPorEstado(t *testing.T) {
+	s := newUS3Seed(t)
+
+	t.Run("un estado", func(t *testing.T) {
+		list := requireDefectList(t, s.listProject(t, "?status=resolved"))
+		s.requireListing(t, list, s.want("d3", "d6")...)
+	})
+
+	t.Run("varios estados excluyen los descartados", func(t *testing.T) {
+		list := requireDefectList(t, s.listProject(t, "?status=open&status=in_progress&status=resolved"))
+		s.requireListing(t, list, s.want("d1", "d2", "d3", "d5", "d6")...)
+	})
+
+	t.Run("descartados", func(t *testing.T) {
+		list := requireDefectList(t, s.listProject(t, "?status=discarded"))
+		s.requireListing(t, list, s.want("d4")...)
+	})
+}
+
+// Escenario: Dado un proyecto con defectos de distintas severidades y estados, cuando un integrante filtra por severidad Crítica y estado En progreso, entonces la lista contiene solo los que cumplen ambos filtros (007/US3)
+func TestUS3_SeveridadYEstado(t *testing.T) {
+	s := newUS3Seed(t)
+
+	list := requireDefectList(t, s.listProject(t, "?severity=critical&status=in_progress"))
+
+	s.requireListing(t, list, s.want("d5")...)
+}
+
+// Escenario: Dado un sprint con defectos detectados en él y defectos resueltos en él, cuando un integrante filtra por ese sprint, entonces ve ambos grupos y un defecto detectado y resuelto en el mismo sprint aparece una sola vez (007/US3)
+func TestUS3_FiltroPorSprint(t *testing.T) {
+	s := newUS3Seed(t)
+
+	list := requireDefectList(t, s.listProject(t, "?sprintId="+s.sprintID.String()))
+
+	// d3 solo se resolvió en el sprint; d4 y d5 solo se detectaron; d6 se detectó y se resolvió en él.
+	s.requireListing(t, list, s.want("d3", "d4", "d5", "d6")...)
+	count := 0
+	for _, d := range list.Defects {
+		if d.ID == s.d["d6"] {
+			count++
+		}
+	}
+	assert.Equal(t, 1, count, "el defecto detectado y resuelto en el sprint aparece una sola vez")
+}
+
+// Escenario: Dado un proyecto sin ningún defecto, cuando un integrante abre la lista, entonces recibe una lista vacía que indica que el proyecto no tiene defectos (007/US3)
+func TestUS3_ProyectoSinDefectos(t *testing.T) {
+	f := newDefectFixture(t)
+
+	list := requireDefectList(t, f.listProject(t, ""))
+
+	requireEmptyList(t, list, "no_defects")
+}
+
+// Escenario: Dado una historia sin defectos, cuando un integrante consulta sus defectos, entonces recibe una lista vacía y no un error (007/US3)
+func TestUS3_HistoriaSinDefectos(t *testing.T) {
+	s := newUS3Seed(t)
+	emptyStory := s.env.createStory(t, s.ownerToken, s.projectID, "Historia sin defectos")
+
+	list := requireDefectList(t, s.listStory(t, emptyStory))
+
+	requireEmptyList(t, list, "no_defects")
+}
+
+// Escenario: Dado un proyecto con defectos, cuando un integrante aplica filtros que ningún defecto cumple, entonces recibe una lista vacía que indica que no hay coincidencias, distinta de la del proyecto sin defectos (007/US3)
+func TestUS3_SinCoincidencias(t *testing.T) {
+	f := newDefectFixture(t)
+	f.registerDefect(t, f.storyID, f.sprintID)
+
+	list := requireDefectList(t, f.listProject(t, "?status=resolved"))
+
+	requireEmptyList(t, list, "no_matches")
+}
+
+// Escenario: Dado una historia con 50 defectos de severidades mezcladas, cuando un integrante los consulta varias veces, entonces recibe los 50 siempre en el mismo orden: severidad, más recientes primero y desempate por id (007/US3)
+func TestUS3_OrdenEstable(t *testing.T) {
+	f := newDefectFixture(t)
+	severities := []string{"low", "critical", "medium", "high"}
+	ids := make([]string, 0, 50)
+	for i := 0; i < 50; i++ {
+		ids = append(ids, f.registerWithSeverity(t, severities[(i*3+i/4)%4], f.storyID, f.sprintID))
+	}
+	expected := f.env.listingOrder(t, ids)
+
+	for attempt := 1; attempt <= 3; attempt++ {
+		list := requireDefectList(t, f.listStory(t, f.storyID))
+		assert.Equal(t, expected, defectIDs(list), "consulta %d de la historia", attempt)
+	}
+	assert.Equal(t, expected, defectIDs(requireDefectList(t, f.listProject(t, ""))), "el listado del proyecto usa el mismo orden")
+}
+
+// Escenario: Dado una historia o un sprint que pertenece a otro proyecto, cuando un integrante lo usa como filtro, entonces la respuesta es un error de filtro idéntico al de un identificador inexistente, sin revelar nada del otro proyecto (007/US3)
+func TestUS3_FiltroDeOtroProyecto(t *testing.T) {
+	cases := []struct {
+		name  string
+		field string
+		// foreign arma el identificador ajeno en otro proyecto del mismo titular.
+		foreign func(t *testing.T, f defectFixture, otherProject uuid.UUID) uuid.UUID
+	}{
+		{"historia ajena", "storyId", func(t *testing.T, f defectFixture, other uuid.UUID) uuid.UUID {
+			return f.env.createStory(t, f.ownerToken, other, "Historia ajena")
+		}},
+		{"sprint ajeno", "sprintId", func(t *testing.T, f defectFixture, other uuid.UUID) uuid.UUID {
+			return f.env.activeSprint(t, f.ownerToken, other, "Sprint ajeno")
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newDefectFixture(t)
+			otherProject := f.env.createProjectInProgress(t, f.ownerToken, "Otro proyecto")
+			foreign := tc.foreign(t, f, otherProject)
+
+			unknown := f.listProject(t, "?"+tc.field+"="+uuid.New().String())
+			rec := f.listProject(t, "?"+tc.field+"="+foreign.String())
+
+			requireDefectFieldRejected(t, unknown, tc.field, defectMsgFilterForeign)
+			requireDefectFieldRejected(t, rec, tc.field, defectMsgFilterForeign)
+			assert.Equal(t, unknown.Body.String(), rec.Body.String(), "el 400 debe ser idéntico al de un UUID inexistente")
+		})
+	}
+}
+
+// Escenario: Dado un filtro con un estado o una severidad que no existen, cuando un integrante consulta la lista, entonces la respuesta es un error de entrada inválida que informa el campo (007/US3)
+func TestUS3_ValorDeFiltroInvalidoHTTP(t *testing.T) {
+	f := newDefectFixture(t)
+	f.registerDefect(t, f.storyID, f.sprintID)
+
+	t.Run("estado", func(t *testing.T) {
+		requireDefectFieldRejected(t, f.listProject(t, "?status=closed"), "status", defectMsgStatusInvalid)
+	})
+
+	t.Run("severidad", func(t *testing.T) {
+		requireDefectFieldRejected(t, f.listProject(t, "?severity=urgent"), "severity", defectMsgSeverityInvalid)
+	})
+}
+
+// Escenario: Dado un usuario que no es integrante del proyecto, cuando intenta consultar los defectos del proyecto o de una historia, entonces recibe el mismo 404 de proyecto o de historia inexistente de las specs 002 y 003 (007/US3)
+func TestUS3_NoIntegrante(t *testing.T) {
+	f := newDefectFixture(t)
+	f.registerDefect(t, f.storyID, f.sprintID)
+	_, outsiderToken := f.env.signUp(t, "Carlos Gómez", "carlos@example.com")
+
+	t.Run("listado del proyecto", func(t *testing.T) {
+		projectNotFound := f.env.do(t, http.MethodGet, "/api/v1/projects/"+f.projectID.String(), outsiderToken, nil)
+		require.Equal(t, http.StatusNotFound, projectNotFound.Code, "precondición: la 002 responde 404")
+
+		rec := f.env.do(t, http.MethodGet, defectsPath(f.projectID), outsiderToken, nil)
+
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.JSONEq(t, projectNotFound.Body.String(), rec.Body.String(), "el cuerpo debe ser el 404 de la 002")
+	})
+
+	t.Run("listado de la historia", func(t *testing.T) {
+		storyNotFound := f.env.do(t, http.MethodGet, "/api/v1/stories/"+f.storyID.String(), outsiderToken, nil)
+		require.Equal(t, http.StatusNotFound, storyNotFound.Code, "precondición: la 003 responde 404")
+
+		rec := f.env.do(t, http.MethodGet, "/api/v1/stories/"+f.storyID.String()+"/defects", outsiderToken, nil)
+
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.JSONEq(t, storyNotFound.Body.String(), rec.Body.String(), "el cuerpo debe ser el 404 de la 003")
+	})
+}
+
+// Escenario: Dado un proyecto con defectos, cuando un integrante combina dos o más filtros, entonces la lista contiene exactamente el subconjunto que cumple todos (007/US3)
+func TestUS3_CombinacionesDeFiltros(t *testing.T) {
+	s := newUS3Seed(t)
+	sprint, storyA, storyB := s.sprintID.String(), s.storyA.String(), s.storyB.String()
+	cases := []struct {
+		name  string
+		query string
+		want  []string
+	}{
+		{"severidad alta y estado resuelto", "?severity=high&status=resolved", []string{"d6"}},
+		{"historia B y severidad crítica", "?storyId=" + storyB + "&severity=critical", []string{"d5"}},
+		{"sprint y estado resuelto", "?sprintId=" + sprint + "&status=resolved", []string{"d3", "d6"}},
+		{"historia A y sprint", "?storyId=" + storyA + "&sprintId=" + sprint, []string{"d6"}},
+		{"dos severidades y historia A", "?severity=critical&severity=high&storyId=" + storyA, []string{"d1", "d2", "d6"}},
+		{"cuatro filtros", "?status=in_progress&severity=critical&storyId=" + storyB + "&sprintId=" + sprint, []string{"d5"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			list := requireDefectList(t, s.listProject(t, tc.query))
+			s.requireListing(t, list, s.want(tc.want...)...)
+		})
+	}
 }

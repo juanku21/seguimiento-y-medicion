@@ -320,7 +320,7 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
       `TestDefectPorts_BloqueanEliminacion`, que con los endpoints reales registra un defecto sobre
       una historia y verifica que `DELETE /api/v1/stories/{id}` responde `409` con el motivo
       `defects` (RC-05). Se escribe primero y falla con el puerto provisorio — depende de T012, T021
-- [ ] T023 [P] [US1] Declarar los tipos de petición y respuesta en `frontend/src/types/defect.ts` (sin
+- [X] T023 [P] [US1] Declarar los tipos de petición y respuesta en `frontend/src/types/defect.ts` (sin
       `any`; uniones literales para severidad, estado, `emptyReason` y `code`), implementar
       `frontend/src/utils/defect-labels.ts` y `frontend/src/features/defects/validation.ts` — depende
       de T013

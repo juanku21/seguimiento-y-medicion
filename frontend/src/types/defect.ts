@@ -59,3 +59,23 @@ export type DefectConflictCode =
   | "invalid_transition"
   | "defect_discarded"
   | "links_frozen";
+
+// Lista de defectos de un proyecto; emptyReason es null si la lista tiene elementos (ProjectDefects).
+export type ProjectDefects = {
+  defects: Defect[];
+  emptyReason: DefectEmptyReason | null;
+};
+
+// Lista de defectos de una historia; solo admite el motivo no_defects (StoryDefects).
+export type StoryDefects = {
+  defects: Defect[];
+  emptyReason: "no_defects" | null;
+};
+
+// Cuerpo del 409 de una escritura de defecto (DefectConflictResponse).
+export type DefectConflictResponse = {
+  code: DefectConflictCode;
+  error: string;
+  currentStatus: DefectStatus | null;
+  allowedStatuses: DefectStatus[];
+};

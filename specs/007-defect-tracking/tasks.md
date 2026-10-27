@@ -166,7 +166,7 @@ estructuras y contratos, sin lógica de negocio.
       **después** de `SprintStory` (apunta a `user_stories`, `sprints` y `users`) y actualizar el
       comentario del orden y de la columna nueva `ever_had_defects` de `UserStory` — depende de T001,
       T003
-- [ ] T007 Extender el vaciado del ayudante de pruebas en
+- [X] T007 Extender el vaciado del ayudante de pruebas en
       `backend/internal/platform/testsupport/database.go` para incluir `defects` en el
       `TRUNCATE ... CASCADE`, manteniendo la verificación de que la base es `smye_test` y el lock de
       la base de test — depende de T006

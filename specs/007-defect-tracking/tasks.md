@@ -653,7 +653,7 @@ progreso devuelve `409 invalid_transition`.
       `TestUS5_SinSprintActivo` (único sprint Cerrado), `TestUS5_DefectoNoResuelto` (subtests Abierto y
       En progreso: `409` con "Solo se reabre un defecto Resuelto.") y `TestUS5_ProyectoFinalizado` —
       depende de T056
-- [ ] T059 [P] [US5] Pruebas de frontend en
+- [X] T059 [P] [US5] Pruebas de frontend en
       `frontend/src/features/defects/components/defect-status-actions.test.tsx` y
       `frontend/src/features/defects/transitions.test.ts`, con
       `describe("007/US5 - Reabrir un defecto resuelto")`: el botón "Reabrir" aparece solo en un

@@ -41,3 +41,18 @@ describe("007/US2 - Seguir y resolver un defecto", () => {
     }
   });
 });
+
+describe("007/US5 - Reabrir un defecto resuelto", () => {
+  // Caso normal: un defecto Resuelto puede volver a Abierto (US5, RN-15).
+  it("un defecto Resuelto puede reabrirse a Abierto", () => {
+    expect(allowedTransitions("resolved")).toContain("open");
+  });
+
+  // Caso de error: solo lo Resuelto se reabre; un Abierto, un En progreso y un Descartado no pasan
+  // a Abierto (US5, RN-12).
+  it("un defecto que no está Resuelto no pasa a Abierto", () => {
+    for (const current of ["open", "in_progress", "discarded"] as const) {
+      expect(allowedTransitions(current)).not.toContain("open");
+    }
+  });
+});

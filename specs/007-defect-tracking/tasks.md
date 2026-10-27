@@ -503,7 +503,7 @@ devuelve `400` en `status`.
 - [X] T041 [US3] Implementar `ParseDefectFilter` en `backend/internal/defects/delivery/validation.go`
       sobre `c.QueryArray("status")`, `c.QueryArray("severity")`, `storyId` y `sprintId` — depende de
       T038
-- [ ] T042 [US3] Implementar en `backend/internal/defects/repository/defect_repository.go`
+- [X] T042 [US3] Implementar en `backend/internal/defects/repository/defect_repository.go`
       `ValidateFilter` (historia y sprint del proyecto; cualquier otro → `InvalidFilterError{Field}`
       sin distinguir inexistente de ajeno), `ListForProject` (filtros conjuntivos sobre `defects`
       unido a `user_stories` por `project_id`, `status IN ?`, `severity IN ?`, `story_id = ?` y

@@ -282,12 +282,10 @@ type defectViewRow struct {
 	StatusChangedByName  string
 }
 
-// FindView devuelve el detalle de un defecto con historia, sprints y usuarios resueltos por JOIN;
-// si no existe devuelve ErrDefectNotFound.
-func (r *DefectRepository) FindView(ctx context.Context, defectID uuid.UUID) (*domain.DefectView, error) {
-	// Una sola consulta con los JOIN; el sprint de resolución es LEFT JOIN porque puede ser nulo.
-	var row defectViewRow
-	res := r.db.WithContext(ctx).
+// viewQuery arma la consulta base de la vista de un defecto: las columnas de defects con la historia, los
+// sprints y los usuarios resueltos por JOIN; el sprint de resolución es LEFT JOIN porque puede ser nulo.
+func (r *DefectRepository) viewQuery(ctx context.Context) *gorm.DB {
+	return r.db.WithContext(ctx).
 		Table("defects AS d").
 		Select(`d.*,
 			us.title AS story_title,
@@ -299,19 +297,12 @@ func (r *DefectRepository) FindView(ctx context.Context, defectID uuid.UUID) (*d
 		Joins("LEFT JOIN sprints rs ON rs.id = d.resolved_sprint_id").
 		Joins("JOIN users cu ON cu.id = d.created_by_id").
 		Joins("JOIN users uu ON uu.id = d.updated_by_id").
-		Joins("JOIN users su ON su.id = d.status_changed_by_id").
-		Where("d.id = ?", defectID).
-		Limit(1).
-		Scan(&row)
-	if res.Error != nil {
-		return nil, fmt.Errorf("leer el defecto: %w", res.Error)
-	}
-	if res.RowsAffected == 0 {
-		return nil, domain.ErrDefectNotFound
-	}
+		Joins("JOIN users su ON su.id = d.status_changed_by_id")
+}
 
-	// Se arma la vista con las referencias mínimas de cada relación.
-	view := &domain.DefectView{
+// toView arma la vista con las referencias mínimas de cada relación a partir de la fila plana.
+func (row defectViewRow) toView() domain.DefectView {
+	view := domain.DefectView{
 		Defect: row.Defect,
 		Story:  domain.StoryRef{ID: row.StoryID, Title: row.StoryTitle},
 		DetectedSprint: domain.SprintRef{
@@ -335,20 +326,100 @@ func (r *DefectRepository) FindView(ctx context.Context, defectID uuid.UUID) (*d
 			StartDate: *row.ResolvedSprintStart,
 		}
 	}
-	return view, nil
+	return view
 }
 
-// ListForProject lista los defectos de un proyecto según el filtro.
-func (r *DefectRepository) ListForProject(_ context.Context, _ uuid.UUID, _ domain.DefectFilter) ([]domain.DefectView, error) {
-	return nil, errors.New("not implemented")
+// FindView devuelve el detalle de un defecto con historia, sprints y usuarios resueltos por JOIN;
+// si no existe devuelve ErrDefectNotFound.
+func (r *DefectRepository) FindView(ctx context.Context, defectID uuid.UUID) (*domain.DefectView, error) {
+	var row defectViewRow
+	res := r.viewQuery(ctx).
+		Where("d.id = ?", defectID).
+		Limit(1).
+		Scan(&row)
+	if res.Error != nil {
+		return nil, fmt.Errorf("leer el defecto: %w", res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return nil, domain.ErrDefectNotFound
+	}
+	view := row.toView()
+	return &view, nil
 }
 
-// ValidateFilter verifica que los identificadores del filtro pertenezcan al proyecto.
-func (r *DefectRepository) ValidateFilter(_ context.Context, _ uuid.UUID, _ domain.DefectFilter) error {
-	return errors.New("not implemented")
+// severityOrder ordena por gravedad descendente: crítica, alta, media y baja.
+const severityOrder = "CASE d.severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END"
+
+// ListForProject lista los defectos del proyecto (los de sus historias) con los filtros combinados
+// de forma conjuntiva, de mayor a menor gravedad y, a igual gravedad, del más reciente al más antiguo.
+// No pagina; devuelve una lista vacía y no nil cuando nada coincide.
+func (r *DefectRepository) ListForProject(ctx context.Context, projectID uuid.UUID, filter domain.DefectFilter) ([]domain.DefectView, error) {
+	query := r.viewQuery(ctx).Where("us.project_id = ?", projectID)
+	if len(filter.Statuses) > 0 {
+		query = query.Where("d.status IN ?", filter.Statuses)
+	}
+	if len(filter.Severities) > 0 {
+		query = query.Where("d.severity IN ?", filter.Severities)
+	}
+	if filter.StoryID != nil {
+		query = query.Where("d.story_id = ?", *filter.StoryID)
+	}
+	if filter.SprintID != nil {
+		query = query.Where("(d.detected_sprint_id = ? OR d.resolved_sprint_id = ?)", *filter.SprintID, *filter.SprintID)
+	}
+
+	var rows []defectViewRow
+	if err := query.Order(severityOrder + ", d.created_at DESC, d.id DESC").Scan(&rows).Error; err != nil {
+		return nil, fmt.Errorf("listar los defectos del proyecto: %w", err)
+	}
+	views := make([]domain.DefectView, 0, len(rows))
+	for _, row := range rows {
+		views = append(views, row.toView())
+	}
+	return views, nil
 }
 
-// HasProjectDefects indica si el proyecto tiene al menos un defecto.
-func (r *DefectRepository) HasProjectDefects(_ context.Context, _ uuid.UUID) (bool, error) {
-	return false, errors.New("not implemented")
+// ValidateFilter verifica que la historia y el sprint del filtro pertenezcan al proyecto. Un
+// identificador inexistente y uno de otro proyecto se rechazan igual, con InvalidFilterError.
+func (r *DefectRepository) ValidateFilter(ctx context.Context, projectID uuid.UUID, filter domain.DefectFilter) error {
+	if filter.StoryID != nil {
+		var count int64
+		err := r.db.WithContext(ctx).Model(&backlogdomain.UserStory{}).
+			Where("id = ? AND project_id = ?", *filter.StoryID, projectID).
+			Count(&count).Error
+		if err != nil {
+			return fmt.Errorf("validar la historia del filtro: %w", err)
+		}
+		if count == 0 {
+			return &domain.InvalidFilterError{Field: "storyId"}
+		}
+	}
+	if filter.SprintID != nil {
+		var count int64
+		err := r.db.WithContext(ctx).Model(&sprintsdomain.Sprint{}).
+			Where("id = ? AND project_id = ?", *filter.SprintID, projectID).
+			Count(&count).Error
+		if err != nil {
+			return fmt.Errorf("validar el sprint del filtro: %w", err)
+		}
+		if count == 0 {
+			return &domain.InvalidFilterError{Field: "sprintId"}
+		}
+	}
+	return nil
+}
+
+// HasProjectDefects indica si alguna historia del proyecto tiene al menos un defecto.
+func (r *DefectRepository) HasProjectDefects(ctx context.Context, projectID uuid.UUID) (bool, error) {
+	var exists bool
+	err := r.db.WithContext(ctx).
+		Table("defects AS d").
+		Select("COUNT(*) > 0").
+		Joins("JOIN user_stories us ON us.id = d.story_id").
+		Where("us.project_id = ?", projectID).
+		Scan(&exists).Error
+	if err != nil {
+		return false, fmt.Errorf("buscar defectos del proyecto: %w", err)
+	}
+	return exists, nil
 }

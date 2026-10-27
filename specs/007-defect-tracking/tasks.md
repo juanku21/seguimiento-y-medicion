@@ -511,7 +511,7 @@ devuelve `400` en `status`.
       `CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
       created_at DESC, id DESC`; sin paginación) y `HasProjectDefects`, reutilizando la consulta de
       `FindView` para las columnas — depende de T039
-- [ ] T043 [US3] Implementar `ListForProject(ctx, projectID, filter)` y `ListForStory(ctx, access)` en
+- [X] T043 [US3] Implementar `ListForProject(ctx, projectID, filter)` y `ListForStory(ctx, access)` en
       `backend/internal/defects/service/defect_service.go`: valida el filtro, lista y, con la lista
       vacía, calcula `emptyReason` (`no_defects` si `HasProjectDefects` es `false`, si no
       `no_matches`; siempre `no_defects` para una historia) — depende de T042

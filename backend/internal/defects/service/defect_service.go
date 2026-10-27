@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	backlogdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/domain"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/defects/domain"
 )
 
@@ -52,4 +53,65 @@ func (s *DefectService) Get(ctx context.Context, defectID uuid.UUID) (*domain.De
 		return nil, fmt.Errorf("leer el defecto: %w", err)
 	}
 	return view, nil
+}
+
+// EmptyReason explica por qué un listado de defectos vino vacío, para que la pantalla distinga el
+// proyecto sin defectos de los filtros sin coincidencias. Viaja como texto en el campo emptyReason del
+// contrato; su ausencia (nil) significa que hay resultados.
+type EmptyReason string
+
+// Motivos posibles de un listado vacío: no hay ningún defecto o los hay pero ninguno cumple el filtro.
+const (
+	EmptyReasonNoDefects EmptyReason = "no_defects"
+	EmptyReasonNoMatches EmptyReason = "no_matches"
+)
+
+// DefectListView es el resultado de un listado: los defectos en el orden del repositorio, nunca nil, y
+// el motivo del vacío, nil cuando hay resultados.
+type DefectListView struct {
+	Defects     []domain.DefectView
+	EmptyReason *EmptyReason
+}
+
+// ListForProject lista los defectos del proyecto según el filtro. Primero verifica que el filtro
+// corresponda al proyecto: el rechazo se envuelve con %w para que delivery lo reconozca con errors.As.
+// Solo con la lista vacía se consulta si el proyecto tiene algún defecto para elegir el motivo.
+func (s *DefectService) ListForProject(ctx context.Context, projectID uuid.UUID, filter domain.DefectFilter) (*DefectListView, error) {
+	if err := s.repo.ValidateFilter(ctx, projectID, filter); err != nil {
+		return nil, fmt.Errorf("validar el filtro de defectos: %w", err)
+	}
+
+	defects, err := s.repo.ListForProject(ctx, projectID, filter)
+	if err != nil {
+		return nil, fmt.Errorf("listar los defectos del proyecto: %w", err)
+	}
+	if len(defects) > 0 {
+		return &DefectListView{Defects: defects}, nil
+	}
+
+	// Resultado vacío: se consulta si el proyecto tiene algún defecto para elegir el motivo.
+	hasDefects, err := s.repo.HasProjectDefects(ctx, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("verificar si el proyecto tiene defectos: %w", err)
+	}
+	reason := EmptyReasonNoDefects
+	if hasDefects {
+		reason = EmptyReasonNoMatches
+	}
+	return &DefectListView{Defects: []domain.DefectView{}, EmptyReason: &reason}, nil
+}
+
+// ListForStory lista los defectos de la historia a la que el actor ya accedió. Una historia sin
+// defectos siempre se explica con no_defects: este listado no admite filtros.
+func (s *DefectService) ListForStory(ctx context.Context, access *backlogdomain.StoryAccess) (*DefectListView, error) {
+	filter := domain.DefectFilter{StoryID: &access.StoryID}
+	defects, err := s.repo.ListForProject(ctx, access.ProjectID, filter)
+	if err != nil {
+		return nil, fmt.Errorf("listar los defectos de la historia: %w", err)
+	}
+	if len(defects) > 0 {
+		return &DefectListView{Defects: defects}, nil
+	}
+	reason := EmptyReasonNoDefects
+	return &DefectListView{Defects: []domain.DefectView{}, EmptyReason: &reason}, nil
 }

@@ -666,7 +666,7 @@ progreso devuelve `409 invalid_transition`.
       en la función de mensajes de `backend/internal/defects/delivery/handler.go`, el caso de
       reapertura de lo que no está Resuelto ("Solo se reabre un defecto Resuelto.") — depende de T057,
       T058
-- [ ] T061 [US5] Agregar la reapertura a `frontend/src/features/defects/transitions.ts` y el botón
+- [X] T061 [US5] Agregar la reapertura a `frontend/src/features/defects/transitions.ts` y el botón
       "Reabrir" a `DefectStatusActions` en
       `frontend/src/features/defects/components/defect-status-actions.tsx` — depende de T059, T060
 

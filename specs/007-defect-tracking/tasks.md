@@ -640,7 +640,7 @@ progreso devuelve `409 invalid_transition`.
 
 ### Pruebas de la Historia 5 ⚠️
 
-- [ ] T057 [P] [US5] Ampliar las pruebas unitarias **obligatorias** de
+- [X] T057 [P] [US5] Ampliar las pruebas unitarias **obligatorias** de
       `backend/internal/defects/domain/status_test.go`, cubriendo RN-15 y RN-17:
       `AllowedTransitions(resolved)` = `[open]`; `PlanTransition(resolved, open, …)` → `nil, nil`
       (sprint de resolución borrado); `PlanTransition(open, open, …)` e

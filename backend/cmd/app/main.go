@@ -210,12 +210,15 @@ func run() error {
 	effortdelivery.RegisterEntryRoutes(router, handler.RequireSession, effortRepository, effortHandler)
 	effortdelivery.RegisterProjectRoutes(projectGroup, effortHandler)
 
-	// El módulo de defectos se compone sobre su repositorio y el reloj del sistema. Sus rutas cuelgan
-	// del subgrupo /:projectId de la 002, que ya exige sesión y membresía vigente, recibido aquí para
-	// que defects/delivery no importe projects/delivery.
+	// El módulo de defectos se compone sobre su repositorio y el reloj del sistema. El alta cuelga del
+	// subgrupo /:projectId de la 002, que ya exige sesión y membresía vigente, recibido aquí para que
+	// defects/delivery no importe projects/delivery; el detalle y el cambio de estado van en el grupo
+	// plano /api/v1/defects/:defectId, con la misma instancia del repositorio para RequireDefectAccess.
 	defectRepository := defectsrepository.NewDefectRepository(db)
 	defects := defectsservice.NewDefectService(defectRepository, time.Now)
-	defectsdelivery.RegisterProjectRoutes(projectGroup, defectsdelivery.NewHandler(defects))
+	defectHandler := defectsdelivery.NewHandler(defects)
+	defectsdelivery.RegisterProjectRoutes(projectGroup, defectHandler)
+	defectsdelivery.RegisterDefectRoutes(router, handler.RequireSession, defectRepository, defectHandler)
 
 	// Ninguna conexión al canal de eventos sobrevive a un reinicio, así que antes de escuchar se
 	// marcan desconectados los participantes de las sesiones abiertas (research.md sección 9). El

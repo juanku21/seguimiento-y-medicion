@@ -17,6 +17,13 @@ export type DefectInput = {
   detectedSprintId: string;
 };
 
+// Cuerpo del cambio de estado de un defecto (DefectStatusChange); resolvedSprintId solo viaja al
+// resolver (FR-023).
+export type DefectStatusChange = {
+  status: DefectStatus;
+  resolvedSprintId?: string;
+};
+
 // Identificación mínima de la historia del defecto (StoryRef).
 export type DefectStoryRef = {
   id: string;

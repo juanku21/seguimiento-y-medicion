@@ -21,6 +21,15 @@ type DefectInput struct {
 	DetectedSprintID string `json:"detectedSprintId" validate:"required" format:"uuid"`
 }
 
+// DefectStatusChange es el cuerpo del cambio de estado de un defecto (contracts/openapi.yaml).
+type DefectStatusChange struct {
+	// Estado destino: open, in_progress, resolved o discarded (FR-018).
+	Status string `json:"status" validate:"required" enums:"open,in_progress,resolved,discarded"`
+	// Sprint de resolución: obligatorio si status es resolved y prohibido en cualquier otro destino
+	// (FR-023).
+	ResolvedSprintID string `json:"resolvedSprintId,omitempty" format:"uuid"`
+}
+
 // UserRef es la referencia a una persona dentro de un defecto.
 type UserRef struct {
 	// Identificador de la persona.

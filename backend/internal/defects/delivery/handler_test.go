@@ -6,12 +6,14 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	authdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/delivery"
+	"github.com/juanku21/seguimiento-y-medicion/backend/internal/defects/domain"
 )
 
 // Pruebas de integración de punta a punta del registro de defectos (T011): atraviesan el router de
@@ -543,4 +545,348 @@ func TestDefectPorts_BloqueanEliminacion(t *testing.T) {
 		codes = append(codes, reason.Code)
 	}
 	assert.Contains(t, codes, "defects", "el 409 debe incluir el motivo defects")
+}
+
+// Pruebas de integración de punta a punta del seguimiento y la resolución de un defecto (T028, US2):
+// atraviesan el router compuesto como en cmd/app, el middleware de sesión de la 001,
+// RequireDefectAccess, el servicio y el repositorio de defectos contra smye_test. Cubren
+// PUT /api/v1/defects/{defectId}/status y GET /api/v1/defects/{defectId} con un caso por escenario de
+// spec.md; los defectos se crean con POST y las transiciones previas con el mismo PUT. En cada
+// rechazo se verifica que la fila del defecto quedó idéntica a la previa.
+
+// Textos exactos que fijan el contrato, data-model.md sección 8 y tasks.md (T028) para los rechazos
+// del cambio de estado.
+const (
+	defectMsgResolutionRequired = "El sprint de resolución es obligatorio para resolver."
+	defectMsgResolutionBefore   = "El sprint de resolución no puede empezar antes que el de detección."
+	defectMsgResolutionPlanned  = "Un defecto solo se resuelve en un sprint Activo o Cerrado."
+	defectMsgSkipToResolved     = "Un defecto Abierto primero debe pasar a En progreso."
+	defectMsgBackToOpen         = "Para volver a Abierto, resolvé el defecto y después reabrilo."
+)
+
+// defectPath es la ruta del detalle de un defecto según contracts/openapi.yaml.
+func defectPath(defectID string) string {
+	return "/api/v1/defects/" + defectID
+}
+
+// putDefectStatus envía PUT /api/v1/defects/{defectId}/status con el estado destino y, si no es
+// uuid.Nil, el sprint de resolución.
+func (e *defectTestEnv) putDefectStatus(t *testing.T, token, defectID, status string, resolvedSprintID uuid.UUID) *httptest.ResponseRecorder {
+	t.Helper()
+	body := map[string]any{"status": status}
+	if resolvedSprintID != uuid.Nil {
+		body["resolvedSprintId"] = resolvedSprintID.String()
+	}
+	return e.do(t, http.MethodPut, defectPath(defectID)+"/status", token, body)
+}
+
+// requireDefectOK exige un 200 cuyo cuerpo sea un defecto y lo devuelve decodificado.
+func requireDefectOK(t *testing.T, rec *httptest.ResponseRecorder) defectResponse {
+	t.Helper()
+	var defect defectResponse
+	defectRequireStatus(t, rec, http.StatusOK, &defect)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &defect.Raw), "el cuerpo del 200 no es un objeto JSON")
+	return defect
+}
+
+// getDefect consulta con GET /api/v1/defects/{defectId} y exige el 200 con el defecto.
+func (e *defectTestEnv) getDefect(t *testing.T, token, defectID string) defectResponse {
+	t.Helper()
+	return requireDefectOK(t, e.do(t, http.MethodGet, defectPath(defectID), token, nil))
+}
+
+// registerDefect registra con POST un defecto de la historia detectado en el sprint indicado y
+// devuelve su identificador.
+func (f defectFixture) registerDefect(t *testing.T, storyID, detectedSprintID uuid.UUID) string {
+	t.Helper()
+	return requireDefectCreated(t, f.post(t, f.body(storyID, detectedSprintID))).ID
+}
+
+// startDefect pasa el defecto a En progreso con el token indicado y exige el 200.
+func (f defectFixture) startDefect(t *testing.T, token, defectID string) defectResponse {
+	t.Helper()
+	defect := requireDefectOK(t, f.env.putDefectStatus(t, token, defectID, "in_progress", uuid.Nil))
+	require.Equal(t, "in_progress", defect.Status, "precondición: el defecto quedó En progreso")
+	return defect
+}
+
+// requireDefectTime exige que el instante serializado coincida con el esperado.
+func requireDefectTime(t *testing.T, expected time.Time, raw, name string) {
+	t.Helper()
+	got, err := time.Parse(time.RFC3339Nano, raw)
+	require.NoError(t, err, "%s = %q no es un instante RFC 3339", name, raw)
+	assert.True(t, expected.Equal(got), "%s = %s, se esperaba %s", name, got, expected)
+}
+
+// requireResolvedIn verifica en la respuesta y en la base que el defecto quedó Resuelto con el
+// sprint de resolución indicado y sin cambio en el sprint de detección.
+func (f defectFixture) requireResolvedIn(t *testing.T, defect defectResponse, detectedID, resolvedID uuid.UUID) {
+	t.Helper()
+	assert.Equal(t, "resolved", defect.Status)
+	assert.Equal(t, detectedID.String(), defect.DetectedSprint.ID, "el sprint de detección no cambia (FR-027)")
+	if assert.NotNil(t, defect.ResolvedSprint, "un defecto Resuelto lleva su sprint de resolución") {
+		assert.Equal(t, resolvedID.String(), defect.ResolvedSprint.ID)
+	}
+	stored := f.env.storedDefect(t, defect.ID)
+	assert.Equal(t, "resolved", string(stored.Status))
+	assert.Equal(t, detectedID, stored.DetectedSprintID)
+	if assert.NotNil(t, stored.ResolvedSprintID, "la fila Resuelta guarda el sprint de resolución") {
+		assert.Equal(t, resolvedID, *stored.ResolvedSprintID)
+	}
+}
+
+// requireDefectRowUnchanged verifica que la fila del defecto en la base es idéntica a la previa.
+func (f defectFixture) requireDefectRowUnchanged(t *testing.T, before domain.Defect) {
+	t.Helper()
+	assert.Equal(t, before, f.env.storedDefect(t, before.ID.String()), "un rechazo no debe modificar el defecto")
+}
+
+// Escenario: Dado un defecto Abierto, cuando un integrante lo pasa a En progreso y más tarde a Resuelto indicando el sprint Activo como sprint de resolución, entonces ambas transiciones se aceptan y el defecto queda Resuelto con ese sprint registrado (007/US2)
+func TestUS2_CicloCompleto(t *testing.T) {
+	f := newDefectFixture(t)
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+
+	// Cada transición ocurre en un instante distinto del reloj falso, para identificar la última.
+	startedAt := time.Date(2026, time.October, 22, 9, 30, 0, 0, f.env.location)
+	f.env.clock.Set(startedAt)
+	started := requireDefectOK(t, f.env.putDefectStatus(t, f.ownerToken, defectID, "in_progress", uuid.Nil))
+	assert.Equal(t, "in_progress", started.Status)
+	assert.Nil(t, started.ResolvedSprint, "En progreso no tiene sprint de resolución")
+	requireDefectTime(t, startedAt, started.StatusChangedAt, "statusChangedAt tras pasar a En progreso")
+
+	resolvedAt := time.Date(2026, time.October, 23, 16, 45, 0, 0, f.env.location)
+	f.env.clock.Set(resolvedAt)
+	resolved := requireDefectOK(t, f.env.putDefectStatus(t, f.ownerToken, defectID, "resolved", f.sprintID))
+	f.requireResolvedIn(t, resolved, f.sprintID, f.sprintID)
+
+	// El detalle muestra el estado, el sprint de resolución y la autoría de la última transición.
+	detail := f.env.getDefect(t, f.ownerToken, defectID)
+	assert.Equal(t, "resolved", detail.Status)
+	if assert.NotNil(t, detail.ResolvedSprint) {
+		assert.Equal(t, f.sprintID.String(), detail.ResolvedSprint.ID)
+		assert.Equal(t, "Sprint 2", detail.ResolvedSprint.Name)
+		assert.Equal(t, "active", detail.ResolvedSprint.Status)
+	}
+	assert.Equal(t, f.ownerID.String(), detail.StatusChangedBy.ID)
+	assert.Equal(t, "Ana Pérez", detail.StatusChangedBy.FullName)
+	requireDefectTime(t, resolvedAt, detail.StatusChangedAt, "statusChangedAt del detalle")
+	stored := f.env.storedDefect(t, defectID)
+	assert.True(t, resolvedAt.Equal(stored.StatusChangedAt), "status_changed_at es el de la última transición")
+	assert.Equal(t, f.ownerID, stored.StatusChangedByID)
+}
+
+// Escenario: Dado un defecto detectado en el sprint Activo, cuando se resuelve en ese mismo sprint, entonces la resolución se acepta y el defecto queda con el mismo sprint en ambos campos, porque se detectó y se arregló dentro del mismo período (007/US2)
+func TestUS2_MismoSprint(t *testing.T) {
+	f := newDefectFixture(t)
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	f.startDefect(t, f.ownerToken, defectID)
+
+	resolved := requireDefectOK(t, f.env.putDefectStatus(t, f.ownerToken, defectID, "resolved", f.sprintID))
+
+	f.requireResolvedIn(t, resolved, f.sprintID, f.sprintID)
+	if assert.NotNil(t, resolved.ResolvedSprint) {
+		assert.Equal(t, resolved.DetectedSprint.ID, resolved.ResolvedSprint.ID, "el mismo sprint en ambos campos")
+	}
+}
+
+// Escenario: Dado un defecto detectado en un sprint ya Cerrado, cuando se resuelve en el sprint Activo posterior, entonces la resolución se acepta y los dos sprints quedan registrados por separado, dejando visible que el arreglo llevó más de un sprint (007/US2)
+func TestUS2_SprintPosterior(t *testing.T) {
+	f := newDefectFixtureWithoutSprint(t)
+	closedID := f.env.closedSprint(t, f.ownerToken, f.projectID, "Sprint 1", "2026-10-05", "2026-10-09")
+	f.sprintID = f.env.activeSprint(t, f.ownerToken, f.projectID, "Sprint 2")
+	defectID := f.registerDefect(t, f.storyID, closedID)
+	f.startDefect(t, f.ownerToken, defectID)
+
+	resolved := requireDefectOK(t, f.env.putDefectStatus(t, f.ownerToken, defectID, "resolved", f.sprintID))
+
+	f.requireResolvedIn(t, resolved, closedID, f.sprintID)
+	assert.Equal(t, "closed", resolved.DetectedSprint.Status)
+	if assert.NotNil(t, resolved.ResolvedSprint) {
+		assert.Equal(t, "active", resolved.ResolvedSprint.Status)
+		assert.NotEqual(t, resolved.DetectedSprint.ID, resolved.ResolvedSprint.ID, "los dos sprints quedan por separado")
+	}
+}
+
+// Escenario: Dado un defecto, cuando un integrante distinto del que lo registró lo pasa a En progreso o lo resuelve, entonces la acción se acepta, porque cualquier integrante puede actualizar cualquier defecto del proyecto (007/US2)
+func TestUS2_OtroIntegrante(t *testing.T) {
+	// newWithMember arma el "Dado" con Beto Ruiz como segundo integrante del proyecto de Ana.
+	newWithMember := func(t *testing.T) (defectFixture, uuid.UUID, string) {
+		f := newDefectFixture(t)
+		memberID, memberToken := f.env.signUp(t, "Beto Ruiz", "beto@example.com")
+		f.env.addMember(t, f.ownerToken, f.projectID, "beto@example.com")
+		return f, memberID, memberToken
+	}
+
+	// requireActedBy verifica que updatedBy y statusChangedBy son quien actuó y createdBy sigue siendo Ana.
+	requireActedBy := func(t *testing.T, f defectFixture, defect defectResponse, actorID uuid.UUID) {
+		t.Helper()
+		assert.Equal(t, actorID.String(), defect.UpdatedBy.ID, "updatedBy es quien actuó")
+		assert.Equal(t, "Beto Ruiz", defect.UpdatedBy.FullName)
+		assert.Equal(t, actorID.String(), defect.StatusChangedBy.ID, "statusChangedBy es quien actuó")
+		assert.Equal(t, f.ownerID.String(), defect.CreatedBy.ID, "createdBy no cambia")
+		assert.Equal(t, "Ana Pérez", defect.CreatedBy.FullName)
+		stored := f.env.storedDefect(t, defect.ID)
+		assert.Equal(t, actorID, stored.UpdatedByID)
+		assert.Equal(t, actorID, stored.StatusChangedByID)
+		assert.Equal(t, f.ownerID, stored.CreatedByID)
+	}
+
+	t.Run("otro integrante lo pasa a En progreso", func(t *testing.T) {
+		f, memberID, memberToken := newWithMember(t)
+		defectID := f.registerDefect(t, f.storyID, f.sprintID)
+
+		started := requireDefectOK(t, f.env.putDefectStatus(t, memberToken, defectID, "in_progress", uuid.Nil))
+
+		assert.Equal(t, "in_progress", started.Status)
+		requireActedBy(t, f, started, memberID)
+	})
+
+	t.Run("otro integrante lo resuelve", func(t *testing.T) {
+		f, memberID, memberToken := newWithMember(t)
+		defectID := f.registerDefect(t, f.storyID, f.sprintID)
+		f.startDefect(t, f.ownerToken, defectID)
+
+		resolved := requireDefectOK(t, f.env.putDefectStatus(t, memberToken, defectID, "resolved", f.sprintID))
+
+		f.requireResolvedIn(t, resolved, f.sprintID, f.sprintID)
+		requireActedBy(t, f, resolved, memberID)
+	})
+}
+
+// Escenario: Dado un defecto detectado en un sprint Cerrado, cuando se lo resuelve indicando otro sprint Cerrado posterior, entonces la resolución se acepta, porque el sprint de resolución puede ser Cerrado y no necesita ser el actual (007/US2)
+func TestUS2_ResolucionEnSprintCerrado(t *testing.T) {
+	f := newDefectFixtureWithoutSprint(t)
+	firstID := f.env.closedSprint(t, f.ownerToken, f.projectID, "Sprint 1", "2026-10-05", "2026-10-09")
+	defectID := f.registerDefect(t, f.storyID, firstID)
+	f.startDefect(t, f.ownerToken, defectID)
+	secondID := f.env.closedSprint(t, f.ownerToken, f.projectID, "Sprint 2", "2026-10-12", "2026-10-16")
+
+	resolved := requireDefectOK(t, f.env.putDefectStatus(t, f.ownerToken, defectID, "resolved", secondID))
+
+	f.requireResolvedIn(t, resolved, firstID, secondID)
+	if assert.NotNil(t, resolved.ResolvedSprint) {
+		assert.Equal(t, "closed", resolved.ResolvedSprint.Status)
+	}
+}
+
+// Escenario: Dado un defecto cuyo sprint de detección es el único sprint del proyecto, cuando se lo resuelve en ese mismo sprint, entonces la resolución se acepta (007/US2)
+func TestUS2_UnicoSprint(t *testing.T) {
+	f := newDefectFixture(t)
+	var sprints int64
+	require.NoError(t, f.env.db.Table("sprints").Where("project_id = ?", f.projectID).Count(&sprints).Error)
+	require.Equal(t, int64(1), sprints, "precondición: el proyecto tiene un único sprint")
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	f.startDefect(t, f.ownerToken, defectID)
+
+	resolved := requireDefectOK(t, f.env.putDefectStatus(t, f.ownerToken, defectID, "resolved", f.sprintID))
+
+	f.requireResolvedIn(t, resolved, f.sprintID, f.sprintID)
+}
+
+// Escenario: Dado un defecto En progreso, cuando un integrante intenta resolverlo sin indicar sprint de resolución, entonces la acción se rechaza indicando que el sprint de resolución es obligatorio para resolver, y el defecto sigue En progreso (007/US2)
+func TestUS2_ResolucionSinSprint(t *testing.T) {
+	f := newDefectFixture(t)
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	f.startDefect(t, f.ownerToken, defectID)
+	before := f.env.storedDefect(t, defectID)
+
+	rec := f.env.putDefectStatus(t, f.ownerToken, defectID, "resolved", uuid.Nil)
+
+	requireDefectFieldRejected(t, rec, "resolvedSprintId", defectMsgResolutionRequired)
+	f.requireDefectRowUnchanged(t, before)
+	assert.Equal(t, "in_progress", f.env.getDefect(t, f.ownerToken, defectID).Status, "el defecto sigue En progreso (SC-006)")
+}
+
+// Escenario: Dado un defecto detectado en el segundo sprint del proyecto, cuando un integrante intenta resolverlo indicando el primer sprint, entonces la acción se rechaza indicando que el sprint de resolución no puede empezar antes que el de detección (007/US2)
+func TestUS2_ResolucionAnteriorALaDeteccion(t *testing.T) {
+	f := newDefectFixtureWithoutSprint(t)
+	firstID := f.env.closedSprint(t, f.ownerToken, f.projectID, "Sprint 1", "2026-10-05", "2026-10-09")
+	f.sprintID = f.env.activeSprint(t, f.ownerToken, f.projectID, "Sprint 2")
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	f.startDefect(t, f.ownerToken, defectID)
+	before := f.env.storedDefect(t, defectID)
+
+	rec := f.env.putDefectStatus(t, f.ownerToken, defectID, "resolved", firstID)
+
+	requireDefectFieldRejected(t, rec, "resolvedSprintId", defectMsgResolutionBefore)
+	f.requireDefectRowUnchanged(t, before)
+}
+
+// Escenario: Dado un sprint Planificado, cuando un integrante intenta usarlo como sprint de resolución, entonces la acción se rechaza indicando que solo se resuelve en un sprint Activo o Cerrado (007/US2)
+func TestUS2_ResolucionEnSprintPlanificado(t *testing.T) {
+	f := newDefectFixture(t)
+	plannedID := f.env.createSprint(t, f.ownerToken, f.projectID, "Sprint 3", "2026-11-02", "2026-11-13")
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	f.startDefect(t, f.ownerToken, defectID)
+	before := f.env.storedDefect(t, defectID)
+
+	rec := f.env.putDefectStatus(t, f.ownerToken, defectID, "resolved", plannedID)
+
+	requireDefectFieldRejected(t, rec, "resolvedSprintId", defectMsgResolutionPlanned)
+	f.requireDefectRowUnchanged(t, before)
+}
+
+// Escenario: Dado un defecto Abierto, cuando un integrante intenta pasarlo directamente a Resuelto, entonces la acción se rechaza indicando que primero debe pasar por En progreso (007/US2)
+func TestUS2_SaltoAResuelto(t *testing.T) {
+	f := newDefectFixture(t)
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	before := f.env.storedDefect(t, defectID)
+
+	body := requireDefectConflict(t, f.env.putDefectStatus(t, f.ownerToken, defectID, "resolved", f.sprintID), "invalid_transition")
+
+	assert.Equal(t, defectMsgSkipToResolved, body.Error)
+	assert.Equal(t, `"open"`, string(body.CurrentStatus), "currentStatus es el estado vigente")
+	assert.Contains(t, body.AllowedStatuses, "in_progress", "desde Abierto se permite En progreso")
+	assert.NotContains(t, body.AllowedStatuses, "resolved")
+	f.requireDefectRowUnchanged(t, before)
+}
+
+// Escenario: Dado un defecto En progreso, cuando un integrante intenta devolverlo a Abierto, entonces la acción se rechaza indicando las transiciones permitidas; para volver a Abierto hay que resolverlo y después reabrirlo (007/US2)
+func TestUS2_VueltaAAbierto(t *testing.T) {
+	f := newDefectFixture(t)
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	f.startDefect(t, f.ownerToken, defectID)
+	before := f.env.storedDefect(t, defectID)
+
+	body := requireDefectConflict(t, f.env.putDefectStatus(t, f.ownerToken, defectID, "open", uuid.Nil), "invalid_transition")
+
+	assert.Equal(t, defectMsgBackToOpen, body.Error)
+	assert.Equal(t, `"in_progress"`, string(body.CurrentStatus), "currentStatus es el estado vigente")
+	assert.Contains(t, body.AllowedStatuses, "resolved", "desde En progreso se permite Resuelto")
+	assert.NotContains(t, body.AllowedStatuses, "open")
+	f.requireDefectRowUnchanged(t, before)
+}
+
+// Escenario: Dado un sprint de resolución de otro proyecto, cuando un integrante intenta usarlo, entonces la acción se rechaza con una respuesta de sprint inexistente (007/US2)
+func TestUS2_SprintDeOtroProyecto(t *testing.T) {
+	f := newDefectFixture(t)
+	otherProject := f.env.createProjectInProgress(t, f.ownerToken, "Otro proyecto")
+	otherSprint := f.env.activeSprint(t, f.ownerToken, otherProject, "Sprint ajeno")
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	f.startDefect(t, f.ownerToken, defectID)
+	before := f.env.storedDefect(t, defectID)
+
+	unknown := f.env.putDefectStatus(t, f.ownerToken, defectID, "resolved", uuid.New())
+	rec := f.env.putDefectStatus(t, f.ownerToken, defectID, "resolved", otherSprint)
+
+	requireNotFoundLikeUnknown(t, rec, unknown, defectMsgSprintNotFound)
+	f.requireDefectRowUnchanged(t, before)
+}
+
+// Escenario: Dado un proyecto en estado Finalizado, cuando un integrante intenta cambiar el estado de un defecto, entonces la acción se rechaza porque el proyecto es de solo lectura (007/US2)
+func TestUS2_ProyectoFinalizado(t *testing.T) {
+	f := newDefectFixture(t)
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	defectRequireStatus(t, f.env.do(t, http.MethodPost, "/api/v1/sprints/"+f.sprintID.String()+"/close", f.ownerToken, nil),
+		http.StatusOK, nil)
+	f.env.setProjectStatus(t, f.ownerToken, f.projectID, "finished")
+	before := f.env.storedDefect(t, defectID)
+
+	body := requireDefectConflict(t, f.env.putDefectStatus(t, f.ownerToken, defectID, "in_progress", uuid.Nil), "read_only")
+
+	assert.Equal(t, defectMsgReadOnly, body.Error)
+	assert.Equal(t, "null", string(body.CurrentStatus), "currentStatus es null con read_only")
+	assert.NotNil(t, body.AllowedStatuses, "allowedStatuses es siempre un arreglo")
+	assert.Empty(t, body.AllowedStatuses)
+	f.requireDefectRowUnchanged(t, before)
 }

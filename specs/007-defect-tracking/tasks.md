@@ -351,7 +351,7 @@ el sprint Activo devuelve `200` y deja el defecto `resolved` con ese sprint; `re
 
 ### Pruebas de la Historia 2 ⚠️
 
-- [ ] T025 [P] [US2] Pruebas unitarias **obligatorias** en
+- [X] T025 [P] [US2] Pruebas unitarias **obligatorias** en
       `backend/internal/defects/domain/status_test.go`, cubriendo RN-11 a RN-14 para las transiciones
       de esta historia: `DefectStatus.Valid` con los cuatro valores y uno inexistente;
       `AllowedTransitions(open)` = `[in_progress]` y `AllowedTransitions(in_progress)` = `[resolved]`;
@@ -363,20 +363,20 @@ el sprint Activo devuelve `200` y deja el defecto `resolved` con ese sprint; `re
       `Current`, `Requested` y `Allowed`: `open → resolved`, `in_progress → open`, `open → open`,
       `in_progress → in_progress`, `resolved → in_progress` y `resolved → resolved`. Las transiciones
       de reapertura y descarte se prueban en US5 y US6 — depende de T024
-- [ ] T026 [P] [US2] Pruebas unitarias **obligatorias** de `ValidateStatusChange` en
+- [X] T026 [P] [US2] Pruebas unitarias **obligatorias** de `ValidateStatusChange` en
       `backend/internal/defects/delivery/validation_test.go`, cubriendo FR-023: `status` ausente o
       `closed` → "El estado debe ser Abierto, En progreso, Resuelto o Descartado."; `resolved` sin
       `resolvedSprintId` → `field: resolvedSprintId` "El sprint de resolución es obligatorio para
       resolver."; `in_progress`, `open` o `discarded` **con** `resolvedSprintId` → "El sprint de
       resolución solo se indica al resolver."; `resolvedSprintId` mal formado → "…no es un
       identificador válido." — depende de T024
-- [ ] T027 [P] [US2] Pruebas del middleware `RequireDefectAccess` en
+- [X] T027 [P] [US2] Pruebas del middleware `RequireDefectAccess` en
       `backend/internal/defects/delivery/middleware_test.go`, cubriendo FR-053 y FR-055: sin titular →
       `401` con el cuerpo de la 001; identificador mal formado, defecto inexistente, defecto de un
       proyecto ajeno y defecto registrado por una persona ya quitada del proyecto, pedido por ella →
       `404` con **el mismo cuerpo byte a byte** (`{"error":"El defecto no existe."}`); integrante →
       sigue la cadena con el `DefectAccess` en el contexto, sea o no el autor — depende de T024
-- [ ] T028 [US2] Pruebas de integración en `backend/internal/defects/delivery/handler_test.go`, una
+- [X] T028 [US2] Pruebas de integración en `backend/internal/defects/delivery/handler_test.go`, una
       por escenario con `// Escenario: <nombre> (007/US2)`: `TestUS2_CicloCompleto` (dos `200`;
       `GET /api/v1/defects/{id}` muestra `resolved`, el sprint de resolución, y
       `statusChangedBy`/`statusChangedAt` de la última transición), `TestUS2_MismoSprint`,
@@ -391,12 +391,12 @@ el sprint Activo devuelve `200` y deja el defecto `resolved` con ese sprint; `re
       y después reabrilo."), `TestUS2_SprintDeOtroProyecto` (`404` "El sprint no existe.", idéntico al
       de un UUID inexistente) y `TestUS2_ProyectoFinalizado` (`409 read_only`). En cada rechazo se
       verifica que la fila del defecto quedó idéntica — depende de T024
-- [ ] T029 [US2] Prueba de concurrencia `TestDefectTransition_ConcurrentStart` en
+- [X] T029 [US2] Prueba de concurrencia `TestDefectTransition_ConcurrentStart` en
       `backend/internal/defects/delivery/defect_concurrency_test.go`, **sin** etiqueta `007/USn`: dos
       integrantes envían a la vez `in_progress` sobre el mismo defecto `open`; exactamente uno recibe
       `200` y el otro `409 invalid_transition` con `currentStatus: in_progress`, ninguno `500`.
       Repetida **10** veces para que el intercalado sea real (FR-018, RN-24) — depende de T028
-- [ ] T030 [P] [US2] Pruebas de frontend en `frontend/src/features/defects/transitions.test.ts`
+- [X] T030 [P] [US2] Pruebas de frontend en `frontend/src/features/defects/transitions.test.ts`
       (`allowedTransitions` coincide con el mapa del backend para las transiciones de esta historia)
       y `frontend/src/features/defects/components/defect-status-actions.test.tsx`, con
       `describe("007/US2 - Seguir y resolver un defecto")`: un defecto Abierto ofrece solo "Pasar a En
@@ -407,14 +407,14 @@ el sprint Activo devuelve `200` y deja el defecto `resolved` con ese sprint; `re
 
 ### Implementación de la Historia 2
 
-- [ ] T031 [US2] Implementar en `backend/internal/defects/domain/status.go` `DefectStatus.Valid`, el
+- [X] T031 [US2] Implementar en `backend/internal/defects/domain/status.go` `DefectStatus.Valid`, el
       mapa `allowedDefectTransitions` con `open: [in_progress]` e `in_progress: [resolved]`,
       `AllowedTransitions` y `PlanTransition`, que nunca devuelve ni modifica la historia ni el
       sprint de detección (FR-027) — depende de T025
-- [ ] T032 [US2] Implementar `ValidateStatusChange` en `backend/internal/defects/delivery/validation.go`
+- [X] T032 [US2] Implementar `ValidateStatusChange` en `backend/internal/defects/delivery/validation.go`
       con el DTO `DefectStatusChange` en `backend/internal/defects/delivery/dto.go` — depende de T026,
       T031
-- [ ] T033 [US2] Implementar en `backend/internal/defects/repository/defect_repository.go`
+- [X] T033 [US2] Implementar en `backend/internal/defects/repository/defect_repository.go`
       `FindAccessible` (una consulta `defects → user_stories → project_members (sesión) → projects`;
       sin fila → `ErrDefectNotFound`) y `ChangeStatus` en una transacción con el orden de
       research.md sección 10: (1) proyecto del defecto con
@@ -425,12 +425,12 @@ el sprint Activo devuelve `200` y deja el defecto `resolved` con ese sprint; `re
       **releído**; (5) escritura de `status`, `resolved_sprint_id` (siempre la salida de
       `PlanTransition`), `status_changed_at`, `status_changed_by_id` y `updated_by_id`. Devuelve
       `FindView` dentro de la misma transacción — depende de T027, T028, T031
-- [ ] T034 [US2] Implementar `RequireDefectAccess` en `backend/internal/defects/delivery/middleware.go`
+- [X] T034 [US2] Implementar `RequireDefectAccess` en `backend/internal/defects/delivery/middleware.go`
       con una única salida `404` y el mensaje `El defecto no existe.` — depende de T033
-- [ ] T035 [US2] Implementar `ChangeStatus` y `Get` en
+- [X] T035 [US2] Implementar `ChangeStatus` y `Get` en
       `backend/internal/defects/service/defect_service.go` con el actor de la sesión y el instante del
       reloj — depende de T033
-- [ ] T036 [US2] Implementar los manejadores `changeDefectStatus` y `getDefect` con anotaciones `swag`
+- [X] T036 [US2] Implementar los manejadores `changeDefectStatus` y `getDefect` con anotaciones `swag`
       en `backend/internal/defects/delivery/handler.go`: `InvalidTransitionError` → `409
       invalid_transition` con `currentStatus` y `allowedStatuses`, y el mensaje elegido por
       `(Current, Requested)` en una función de `delivery` (salto de Abierto a Resuelto, vuelta de En
@@ -440,7 +440,7 @@ el sprint Activo devuelve `200` y deja el defecto `resolved` con ese sprint; `re
       repo, handler)` con el grupo plano `/api/v1/defects/:defectId`, `GET ""` y `PUT /status`,
       registrado en `backend/cmd/app/main.go` sobre la misma instancia del repositorio — depende de
       T032, T034, T035
-- [ ] T037 [US2] Implementar `frontend/src/features/defects/transitions.ts` (mapa con las
+- [X] T037 [US2] Implementar `frontend/src/features/defects/transitions.ts` (mapa con las
       transiciones de esta historia), `getDefect` y `changeDefectStatus` en
       `frontend/src/features/defects/api.ts`, `DefectDetail` en
       `frontend/src/features/defects/components/defect-detail.tsx`, `DefectStatusActions` en

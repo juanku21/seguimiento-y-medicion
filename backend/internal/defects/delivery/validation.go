@@ -22,6 +22,10 @@ const (
 	msgStoryRequired       = "La historia relacionada es obligatoria."
 	msgSprintRequired      = "El sprint de detección es obligatorio."
 	msgIDInvalid           = "El valor no es un identificador válido."
+
+	msgStatusInvalid                = "El estado debe ser Abierto, En progreso, Resuelto o Descartado."
+	msgResolutionSprintRequired     = "El sprint de resolución es obligatorio para resolver."
+	msgResolutionSprintOnlyResolved = "El sprint de resolución solo se indica al resolver."
 )
 
 // ValidateDefectInput valida el cuerpo del alta y devuelve los datos normalizados junto con un
@@ -76,4 +80,37 @@ func parseRequiredID(text, field, requiredMessage string, addField func(field, m
 		return uuid.Nil, false
 	}
 	return id, true
+}
+
+// ValidateStatusChange valida el cuerpo del cambio de estado y devuelve el cambio normalizado junto
+// con un FieldError por cada campo inválido (FR-023, Principio VII).
+func ValidateStatusChange(req DefectStatusChange) (domain.StatusChange, []authdelivery.FieldError) {
+	fields := []authdelivery.FieldError{}
+	addField := func(field, message string) {
+		fields = append(fields, authdelivery.FieldError{Field: field, Message: message})
+	}
+
+	// Estado destino dentro de los cuatro admitidos (RN-11).
+	to := domain.DefectStatus(req.Status)
+	if !to.Valid() {
+		addField("status", msgStatusInvalid)
+		return domain.StatusChange{}, fields
+	}
+
+	// Sprint de resolución: obligatorio y con forma de UUID al resolver, prohibido en cualquier otro
+	// destino (FR-023).
+	var resolvedSprintID *uuid.UUID
+	switch {
+	case to == domain.DefectStatusResolved:
+		if id, ok := parseRequiredID(req.ResolvedSprintID, "resolvedSprintId", msgResolutionSprintRequired, addField); ok {
+			resolvedSprintID = &id
+		}
+	case req.ResolvedSprintID != "":
+		addField("resolvedSprintId", msgResolutionSprintOnlyResolved)
+	}
+
+	if len(fields) > 0 {
+		return domain.StatusChange{}, fields
+	}
+	return domain.StatusChange{To: to, ResolvedSprintID: resolvedSprintID}, nil
 }

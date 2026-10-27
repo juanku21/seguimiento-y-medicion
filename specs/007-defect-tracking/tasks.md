@@ -130,7 +130,7 @@ estructuras y contratos, sin lógica de negocio.
       GORM. Claves foráneas **sin `ON DELETE CASCADE`**; la del campo `Story` debe llamarse
       `fk_defects_story` (el nombre que GORM genera por defecto). **Sin** columnas `project_id`, de
       borrado lógico ni de historial
-- [ ] T002 [P] Declarar en `backend/internal/defects/domain/severity.go` el tipo
+- [X] T002 [P] Declarar en `backend/internal/defects/domain/severity.go` el tipo
       `DefectSeverity string` con las constantes `DefectSeverityCritical = "critical"`,
       `DefectSeverityHigh = "high"`, `DefectSeverityMedium = "medium"` y `DefectSeverityLow = "low"`;
       y en `backend/internal/defects/domain/status.go` el tipo `DefectStatus string` con

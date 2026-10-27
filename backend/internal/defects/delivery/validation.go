@@ -77,3 +77,9 @@ func parseRequiredID(text, field, requiredMessage string, addField func(field, m
 	}
 	return id, true
 }
+
+// ValidateStatusChange valida el cuerpo del cambio de estado y devuelve el cambio normalizado junto
+// con un FieldError por cada campo inválido (FR-023, Principio VII).
+func ValidateStatusChange(req DefectStatusChange) (domain.StatusChange, []authdelivery.FieldError) {
+	return domain.StatusChange{}, nil
+}

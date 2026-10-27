@@ -363,7 +363,7 @@ el sprint Activo devuelve `200` y deja el defecto `resolved` con ese sprint; `re
       `Current`, `Requested` y `Allowed`: `open → resolved`, `in_progress → open`, `open → open`,
       `in_progress → in_progress`, `resolved → in_progress` y `resolved → resolved`. Las transiciones
       de reapertura y descarte se prueban en US5 y US6 — depende de T024
-- [ ] T026 [P] [US2] Pruebas unitarias **obligatorias** de `ValidateStatusChange` en
+- [X] T026 [P] [US2] Pruebas unitarias **obligatorias** de `ValidateStatusChange` en
       `backend/internal/defects/delivery/validation_test.go`, cubriendo FR-023: `status` ausente o
       `closed` → "El estado debe ser Abierto, En progreso, Resuelto o Descartado."; `resolved` sin
       `resolvedSprintId` → `field: resolvedSprintId` "El sprint de resolución es obligatorio para

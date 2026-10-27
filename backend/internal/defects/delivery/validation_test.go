@@ -270,3 +270,111 @@ func TestValidateDefectInput_IgnoraAutoria(t *testing.T) {
 		t.Errorf("el alta debería normalizarse sin cambios, se obtuvo %+v", got)
 	}
 }
+
+// Pruebas unitarias obligatorias de la validación del cambio de estado (T026; FR-023, RN-11). La
+// regla de transiciones y la del sprint de resolución contra el de detección son del dominio
+// (status_test.go); aquí solo se valida la forma del cuerpo antes de llegar al servicio.
+
+// Mensajes del cambio de estado, tal como los fija tasks.md (T026) y data-model.md sección 8.
+const (
+	validationMsgStatusInvalid            = "El estado debe ser Abierto, En progreso, Resuelto o Descartado."
+	validationMsgResolutionSprintRequired = "El sprint de resolución es obligatorio para resolver."
+	validationMsgResolutionSprintOnlyOn   = "El sprint de resolución solo se indica al resolver."
+)
+
+// Los destinos sin sprint de resolución se aceptan y se normalizan al estado del dominio, sin sprint.
+func TestValidateStatusChange_DestinosSinSprint(t *testing.T) {
+	cases := map[string]domain.DefectStatus{
+		"open":        domain.DefectStatusOpen,
+		"in_progress": domain.DefectStatusInProgress,
+		"discarded":   domain.DefectStatusDiscarded,
+	}
+	for raw, want := range cases {
+		t.Run(raw, func(t *testing.T) {
+			got, fields := ValidateStatusChange(DefectStatusChange{Status: raw})
+
+			if len(fields) != 0 {
+				t.Fatalf("el destino %q sin sprint debería aceptarse, se obtuvieron %v", raw, fields)
+			}
+			if got.To != want {
+				t.Errorf("destino = %q, se esperaba %q", got.To, want)
+			}
+			if got.ResolvedSprintID != nil {
+				t.Errorf("no se esperaba sprint de resolución, se obtuvo %v", *got.ResolvedSprintID)
+			}
+		})
+	}
+}
+
+// Resolver con un sprint bien formado se acepta y devuelve ese sprint convertido (FR-023).
+func TestValidateStatusChange_ResolverConSprint(t *testing.T) {
+	sprintID := uuid.New()
+
+	got, fields := ValidateStatusChange(DefectStatusChange{Status: "resolved", ResolvedSprintID: sprintID.String()})
+
+	if len(fields) != 0 {
+		t.Fatalf("resolver con sprint debería aceptarse, se obtuvieron %v", fields)
+	}
+	if got.To != domain.DefectStatusResolved {
+		t.Errorf("destino = %q, se esperaba %q", got.To, domain.DefectStatusResolved)
+	}
+	if got.ResolvedSprintID == nil || *got.ResolvedSprintID != sprintID {
+		t.Errorf("sprint de resolución = %v, se esperaba %v", got.ResolvedSprintID, sprintID)
+	}
+}
+
+// Un estado ausente o fuera de los cuatro admitidos se rechaza en el campo status (RN-11). closed es
+// un estado de sprint, no de defecto.
+func TestValidateStatusChange_EstadoInvalido(t *testing.T) {
+	for _, raw := range []string{"", "closed", "Resolved"} {
+		t.Run("estado "+raw, func(t *testing.T) {
+			got, fields := ValidateStatusChange(DefectStatusChange{Status: raw})
+
+			validationRequireOnlyField(t, fields, "status", validationMsgStatusInvalid)
+			if got != (domain.StatusChange{}) {
+				t.Errorf("con campos inválidos no se debe devolver ningún dato, se obtuvo %+v", got)
+			}
+		})
+	}
+}
+
+// Resolver sin sprint de resolución se rechaza en resolvedSprintId (FR-023). Corresponde al
+// escenario 7 de la historia 2 (007/US2), cuya prueba de punta a punta es TestUS2_ResolucionSinSprint.
+func TestValidateStatusChange_ResolverSinSprint(t *testing.T) {
+	got, fields := ValidateStatusChange(DefectStatusChange{Status: "resolved"})
+
+	validationRequireOnlyField(t, fields, "resolvedSprintId", validationMsgResolutionSprintRequired)
+	if got != (domain.StatusChange{}) {
+		t.Errorf("con campos inválidos no se debe devolver ningún dato, se obtuvo %+v", got)
+	}
+}
+
+// Un sprint de resolución en cualquier destino que no sea resolved se rechaza en resolvedSprintId
+// (FR-023), aunque el identificador esté bien formado.
+func TestValidateStatusChange_SprintFueraDeResolucion(t *testing.T) {
+	for _, raw := range []string{"in_progress", "open", "discarded"} {
+		t.Run(raw, func(t *testing.T) {
+			got, fields := ValidateStatusChange(DefectStatusChange{Status: raw, ResolvedSprintID: uuid.NewString()})
+
+			validationRequireOnlyField(t, fields, "resolvedSprintId", validationMsgResolutionSprintOnlyOn)
+			if got != (domain.StatusChange{}) {
+				t.Errorf("con campos inválidos no se debe devolver ningún dato, se obtuvo %+v", got)
+			}
+		})
+	}
+}
+
+// Un sprint de resolución mal formado se rechaza en resolvedSprintId y no llega al servicio
+// (Principio VII).
+func TestValidateStatusChange_SprintMalFormado(t *testing.T) {
+	for _, raw := range []string{"no-es-un-uuid", "123"} {
+		t.Run(raw, func(t *testing.T) {
+			got, fields := ValidateStatusChange(DefectStatusChange{Status: "resolved", ResolvedSprintID: raw})
+
+			validationRequireOnlyField(t, fields, "resolvedSprintId", validationMsgIDInvalid)
+			if got != (domain.StatusChange{}) {
+				t.Errorf("con campos inválidos no se debe devolver ningún dato, se obtuvo %+v", got)
+			}
+		})
+	}
+}

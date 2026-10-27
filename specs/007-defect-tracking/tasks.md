@@ -268,7 +268,7 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
       bien formados) y declarar el DTO `DefectInput` en `backend/internal/defects/delivery/dto.go`
       (**sin** campo de autor), con los mensajes como constantes nombradas en un único lugar y todos
       los campos inválidos a la vez (Principio VII) — depende de T010, T014
-- [ ] T017 [US1] Implementar `Create` en `backend/internal/defects/repository/defect_repository.go`
+- [X] T017 [US1] Implementar `Create` en `backend/internal/defects/repository/defect_repository.go`
       con el orden de bloqueos de research.md sección 10, en una transacción: (1) proyecto con
       `clause.Locking{Strength: "SHARE"}`, `finished` → `ErrDefectsReadOnly`; (2) `EXISTS` de un
       sprint del proyecto con `status IN ('active','closed')`, si no → `ErrNoDetectionSprint`; (3)

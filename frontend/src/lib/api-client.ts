@@ -8,6 +8,8 @@ import type { FieldError } from "@/types/auth";
 // (DeletionBlockedResponse de la spec 003). stories trae el motivo de cada historia rechazada solo
 // cuando el cuerpo los informa (StoriesNotAdmittedResponse de la spec 004). sessionId trae la sesión
 // de estimación en curso solo cuando el cuerpo la informa (OpenSessionExistsResponse de la spec 005).
+// code y currentStatus traen el motivo del conflicto y el estado vigente del recurso solo cuando el
+// cuerpo los informa (DefectConflictResponse de la spec 007).
 export type ApiError = {
   status: number;
   message: string;
@@ -15,6 +17,8 @@ export type ApiError = {
   reasons?: string[];
   stories?: StoryProblem[];
   sessionId?: string;
+  code?: string;
+  currentStatus?: string;
 };
 
 // Motivo por el que el backend rechazó una historia concreta, identificada por su storyId.
@@ -76,8 +80,9 @@ async function readJson(response: Response): Promise<unknown> {
 
 // Traduce un cuerpo de error a ApiError. Distingue las formas del contrato: con "fields" es un
 // ValidationErrorResponse, con "reasons" un DeletionBlockedResponse, con "stories" un
-// StoriesNotAdmittedResponse, con "sessionId" un OpenSessionExistsResponse y sin ninguno un
-// ErrorResponse; si no coincide con ninguna, usa un mensaje genérico para no mostrar nada técnico.
+// StoriesNotAdmittedResponse, con "sessionId" un OpenSessionExistsResponse, con "code" y
+// "currentStatus" un DefectConflictResponse y sin ninguno un ErrorResponse; si no coincide con
+// ninguna, usa un mensaje genérico para no mostrar nada técnico.
 function toApiError(status: number, body: unknown): ApiError {
   if (!isRecord(body) || typeof body.error !== "string") {
     return genericError(status, UNEXPECTED_ERROR_MESSAGE);
@@ -98,6 +103,12 @@ function toApiError(status: number, body: unknown): ApiError {
   }
   if (typeof body.sessionId === "string") {
     error.sessionId = body.sessionId;
+  }
+  if (typeof body.code === "string") {
+    error.code = body.code;
+  }
+  if (typeof body.currentStatus === "string") {
+    error.currentStatus = body.currentStatus;
   }
   return error;
 }

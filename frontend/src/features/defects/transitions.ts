@@ -1,8 +1,17 @@
 import type { DefectStatus } from "@/types/defect";
 
-// Firma mínima de la copia en el cliente del mapa de transiciones del backend (007/US2,
-// research.md sección 8). Todavía no devuelve destinos: el mapa lo implementa T037.
+// Copia en el cliente del mapa de transiciones del backend (research.md sección 8, RN-12), con las
+// transiciones de 007/US2: Abierto → En progreso y En progreso → Resuelto. La interfaz lo usa para
+// decidir qué acciones ofrecer; el backend lo vuelve a validar.
+const DEFECT_TRANSITIONS: Record<DefectStatus, DefectStatus[]> = {
+  open: ["in_progress"],
+  in_progress: ["resolved"],
+  resolved: [],
+  discarded: [],
+};
+
+// Devuelve los estados a los que puede pasar un defecto desde su estado vigente, como una copia
+// para que quien la recibe no altere el mapa.
 export function allowedTransitions(current: DefectStatus): DefectStatus[] {
-  void current;
-  throw new Error("not implemented");
+  return [...DEFECT_TRANSITIONS[current]];
 }

@@ -440,7 +440,7 @@ el sprint Activo devuelve `200` y deja el defecto `resolved` con ese sprint; `re
       repo, handler)` con el grupo plano `/api/v1/defects/:defectId`, `GET ""` y `PUT /status`,
       registrado en `backend/cmd/app/main.go` sobre la misma instancia del repositorio — depende de
       T032, T034, T035
-- [ ] T037 [US2] Implementar `frontend/src/features/defects/transitions.ts` (mapa con las
+- [X] T037 [US2] Implementar `frontend/src/features/defects/transitions.ts` (mapa con las
       transiciones de esta historia), `getDefect` y `changeDefectStatus` en
       `frontend/src/features/defects/api.ts`, `DefectDetail` en
       `frontend/src/features/defects/components/defect-detail.tsx`, `DefectStatusActions` en

@@ -55,6 +55,15 @@ es lo único honesto.
 
 - Q: El dashboard necesita seis series por sprint para sus gráficos y esta feature exponía una sola, la de Story Points completados. ¿De dónde salen las otras cinco? (FR-022) → A: de acá. FR-022 pasa a definir una métrica de **series del proyecto** que entrega las seis juntas, en orden cronológico y con el estado de valor de cada punto. Esta feature sigue siendo dueña de todo lo que se grafica, incluido el orden; el dashboard presenta y no arma series.
 
+### Session 2026-10-26
+
+- Q: `specs/006-effort-tracking` (su FR-014) ancla al sprint Planificado el esfuerzo de una historia comprometida en él. Esas horas no entran en los acumulados (FR-017), no se informan como horas reales del Planificado (FR-015) y no son "fuera de sprint" (FR-029), así que quedarían invisibles. ¿Cómo se informan? (FR-029, SC-016) → A: como una cifra propia y separada del proyecto, **esfuerzo en sprints planificados**, igual que el esfuerzo fuera de sprint: no se suma a las horas reales acumuladas y se informa aunque sea 0. Cuando el sprint se inicia, sus horas pasan solas al acumulado, porque el ancla no cambia.
+- Q: Un sprint Planificado informa solo sus Story Points planificados y sus horas estimadas. ¿Con qué estado de valor tienen que venir esas dos cifras: definitiva, provisoria, parcial o ninguno? (FR-015, FR-019) → A: sin estado de valor. Son una previsión de un sprint que todavía no arrancó; "parcial" lo haría parecer en curso, "provisoria" está reservada a sprints Cerrados y "definitiva" sería falsa.
+
+### Session 2026-10-27
+
+- Q: Además de la historia sin estimar, ¿qué otros datos rotos de un sprint Cerrado se tratan con advertencia? (FR-037, FR-038) → A: el sprint Cerrado sin factor congelado (se usa el factor vigente) y el sprint Cerrado sin momento de cierre (plazo de gracia vencido, último en la ventana de velocidad), con el mismo criterio de calcular y avisar de RN-30.
+
 ---
 
 ## Entradas y Salidas Esperadas
@@ -74,7 +83,7 @@ es lo único honesto.
 
 | Entradas | Salidas esperadas |
 | --- | --- |
-| Sesión de un integrante e identificador del proyecto | Velocidad del equipo, serie de velocidad por sprint, acumulados de Story Points, horas, desviación y porcentaje de historias completadas —marcados como **parciales** si incluyen al sprint activo—, esfuerzo fuera de sprint, cantidad de historias del backlog sin estimar, y métricas de defectos con desglose por severidad |
+| Sesión de un integrante e identificador del proyecto | Velocidad del equipo, serie de velocidad por sprint, acumulados de Story Points, horas, desviación y porcentaje de historias completadas —marcados como **parciales** si incluyen al sprint activo—, esfuerzo fuera de sprint, esfuerzo en sprints planificados, cantidad de historias del backlog sin estimar, y métricas de defectos con desglose por severidad |
 | Proyecto sin sprints cerrados | Velocidad y serie como "no calculable" y vacía respectivamente; los acumulados reflejan solo el sprint activo si existe |
 | Proyecto sin sprints | Todas las métricas en su forma vacía o "no calculable", sin que eso sea un error |
 | Proyecto inexistente o del que quien pide no es integrante | Respuesta de proyecto inexistente |
@@ -284,13 +293,19 @@ mano y comparando contra el acumulado devuelto.
 11. *(Caso límite)* **Dado** un proyecto donde todo el esfuerzo se cargó dentro de sprints, **cuando**
     un integrante consulta los acumulados, **entonces** el esfuerzo fuera de sprint se informa como
     **0 horas**, no se omite del resultado.
-12. *(Caso alternativo)* **Dado** un proyecto cuyo backlog tiene 6 historias sin estimar, **cuando**
+12. *(Caso alternativo)* **Dado** el mismo proyecto con un sprint Planificado sobre cuyas historias
+    ya se registraron 9 horas, **cuando** un integrante consulta los acumulados, **entonces** ve
+    **esfuerzo en sprints planificados: 9 horas** como cifra separada, las horas reales acumuladas
+    siguen siendo **312,5**, y la suma de las horas reales acumuladas, el esfuerzo fuera de sprint y
+    el esfuerzo en sprints planificados iguala el total de horas registradas del proyecto. Si no hay
+    horas en sprints Planificados, la cifra se informa como **0 horas**.
+13. *(Caso alternativo)* **Dado** un proyecto cuyo backlog tiene 6 historias sin estimar, **cuando**
     un integrante consulta las métricas del proyecto, **entonces** ve el contador en **6** junto con
     la advertencia de que las cifras de planificación pueden quedar cortas.
-13. *(Caso límite)* **Dado** un proyecto cuyo backlog no tiene ninguna historia sin estimar,
+14. *(Caso límite)* **Dado** un proyecto cuyo backlog no tiene ninguna historia sin estimar,
     **cuando** un integrante consulta las métricas, **entonces** el contador es **0** y no se
     muestra ninguna advertencia.
-14. *(Caso de error)* **Dado** un identificador de proyecto que no existe, **cuando** un integrante
+15. *(Caso de error)* **Dado** un identificador de proyecto que no existe, **cuando** un integrante
     consulta sus acumulados, **entonces** obtiene una respuesta de proyecto inexistente.
 
 ---
@@ -323,8 +338,9 @@ verificando la marca "parcial" y que el Planificado solo informa dos métricas.
    el factor vigente y no uno congelado.
 4. *(Caso alternativo)* **Dado** un sprint Planificado con 15 Story Points planificados y factor
    vigente 6, **cuando** un integrante consulta sus métricas, **entonces** obtiene Story Points
-   planificados **15** y horas estimadas **90**, y el resto de las métricas se informa como no
-   aplicable para un sprint que todavía no arrancó.
+   planificados **15** y horas estimadas **90**, ambas sin estado de valor (ni definitivas, ni
+   provisorias, ni parciales), y el resto de las métricas se informa como no aplicable para un
+   sprint que todavía no arrancó.
 5. *(Caso límite)* **Dado** un sprint Activo sin ninguna historia, **cuando** un integrante consulta
    sus métricas, **entonces** obtiene 0 en los totales, **"no calculable"** en las métricas con
    denominador cero, y la marca de parcial.
@@ -414,6 +430,10 @@ resolviendo algunos, reabriendo otro y verificando los conteos.
 - **Esfuerzo cargado sobre un sprint cerrado dentro de su plazo de gracia**: aumenta las horas reales
   de ese sprint después del cierre, por lo que esas métricas vienen marcadas como provisorias hasta
   que el plazo vence (FR-019).
+- **Esfuerzo cargado sobre una historia de un sprint Planificado**: queda anclado a ese sprint
+  (`specs/006-effort-tracking`, FR-014), no entra en los acumulados ni se informa como horas reales
+  del Planificado; se informa como esfuerzo en sprints planificados (FR-029). Al iniciarse el sprint,
+  esas horas pasan a ser horas reales del sprint Activo y entran en el acumulado.
 - **Resultado de una división que da exactamente un número con más de 2 decimales**: se redondea solo
   al final; los pasos intermedios conservan toda la precisión.
 - **Proyecto Finalizado**: sus métricas se consultan con normalidad, porque consultar no escribe.
@@ -478,7 +498,8 @@ resolviendo algunos, reabriendo otro y verificando los conteos.
   como **parciales**, para que nadie las confunda con un resultado definitivo.
 - **FR-015**: Para un sprint **Planificado**, el sistema DEBE informar únicamente Story Points
   planificados y horas estimadas, calculadas con el factor vigente, y DEBE presentar las demás
-  métricas como no aplicables, no como 0.
+  métricas como no aplicables, no como 0. Esas dos cifras NO DEBEN llevar estado de valor: no son
+  definitivas, ni provisorias, ni parciales, porque el sprint todavía no arrancó.
 - **FR-016**: Cuando el proyecto no tiene sprint Activo, el sistema DEBE devolver una indicación
   explícita de que no hay sprint activo, en lugar de un error o un conjunto de ceros.
 - **FR-017**: El sistema NO DEBE incluir los sprints Planificados en ninguna métrica acumulada del
@@ -523,9 +544,10 @@ resolviendo algunos, reabriendo otro y verificando los conteos.
   al que pertenece (FR-014, FR-019): un punto de un sprint Activo viene marcado como parcial y uno
   de un sprint Cerrado viene con su estado definitivo o provisorio. Un valor 0 DEBE distinguirse de
   la ausencia de dato. Las seis series abarcan los sprints Cerrados y el Activo si existe; los
-  sprints Planificados NO DEBEN incluirse, por aplicación de FR-017. La serie de velocidad DEBE
-  poder consultarse también por separado, restringida a los sprints Cerrados, porque es la que
-  alimenta el cálculo de FR-020.
+  sprints Planificados NO DEBEN incluirse, por aplicación de FR-017. Además, las métricas del
+  proyecto DEBEN incluir la serie de velocidad como dato propio, junto a la velocidad y restringida
+  a los sprints Cerrados, porque es la que alimenta el cálculo de FR-020; no hace falta pedir las
+  seis series para obtenerla.
 - **FR-023**: El sistema DEBE calcular los acumulados del proyecto —Story Points planificados y
   completados, horas estimadas y reales, desviación absoluta y porcentual, y porcentaje de historias
   completadas— sumando los valores de todos los sprints Cerrados más el sprint Activo si existe. El
@@ -550,7 +572,10 @@ resolviendo algunos, reabriendo otro y verificando los conteos.
   sobre historias que estaban solo en el backlog (`specs/006-effort-tracking`, FR-014). Esa cifra
   DEBE presentarse como una métrica propia y separada, y NO DEBE sumarse a las horas reales
   acumuladas de FR-023, para que los acumulados sigan cuadrando exactamente con la suma de los
-  sprints. El sistema DEBE informarla aunque sea 0.
+  sprints. El sistema DEBE informarla aunque sea 0. Con el mismo tratamiento, el sistema DEBE
+  informar el **esfuerzo en sprints planificados**: la suma de las horas de los registros asociados a
+  sprints en estado Planificado (`specs/006-effort-tracking`, FR-014). Esa cifra también DEBE
+  presentarse separada, NO DEBE sumarse a las horas reales acumuladas y DEBE informarse aunque sea 0.
 
 **Cálculo, redondeo y valores no calculables**
 
@@ -585,7 +610,8 @@ resolviendo algunos, reabriendo otro y verificando los conteos.
   - **Advertencia de planificación**, cuando el dato es válido pero incompleto. Es el caso del
     contador de historias del backlog sin estimar (FR-036).
   - **Advertencia de inconsistencia de datos**, cuando el sistema encuentra una combinación que las
-    reglas de las features anteriores no deberían permitir. Es el caso de FR-037.
+    reglas de las features anteriores no deberían permitir. Es el caso de FR-037 y de los otros
+    datos rotos de la tabla de Condiciones de Error.
   Las dos clases DEBEN presentarse de forma distinguible, porque la primera es parte de la operación
   normal y la segunda indica que hay datos rotos que alguien tiene que revisar.
 - **FR-039**: La presencia de una advertencia NUNCA DEBE impedir la entrega de las métricas: el
@@ -632,7 +658,7 @@ resolviendo algunos, reabriendo otro y verificando los conteos.
 | RN-22 | Las métricas de un proyecto Finalizado se consultan con normalidad. |
 | RN-23 | Cada métrica de un sprint cerrado informa si es definitiva o provisoria; las horas reales y sus desviaciones son provisorias hasta que vence el plazo de gracia, y los conteos de defectos son siempre provisorios. |
 | RN-24 | "Parcial" califica a todas las métricas de un sprint Activo; "provisoria" califica a una métrica concreta de un sprint Cerrado. No son lo mismo. |
-| RN-25 | El esfuerzo que no pertenece a ningún sprint se informa aparte y no se suma a las horas reales acumuladas. |
+| RN-25 | El esfuerzo que no pertenece a ningún sprint y el anclado a sprints Planificados se informan aparte, cada uno como cifra propia, y no se suman a las horas reales acumuladas. |
 | RN-26 | La cantidad de historias del backlog sin estimar se informa como advertencia a nivel de proyecto, nunca por sprint. |
 | RN-27 | El acumulado del proyecto es parcial cuando incluye al sprint activo y definitivo cuando solo contiene sprints cerrados. |
 | RN-28 | La velocidad y su serie nunca son parciales, porque solo miran sprints cerrados. |
@@ -698,7 +724,7 @@ resolviendo algunos, reabriendo otro y verificando los conteos.
 | División por cero en cualquier fórmula | La métrica se devuelve como "no calculable"; las demás se calculan igual. No es un error. |
 | Proyecto o sprint sin datos suficientes para una métrica | La métrica se devuelve como "no calculable" o como no aplicable según corresponda; nunca como 0. |
 | Consulta de métricas de un proyecto Finalizado | Se responde con normalidad: consultar no escribe. |
-| Inconsistencia de datos detectada al calcular, como una historia sin estimar dentro de un sprint | Las métricas se calculan igual con el supuesto documentado y la respuesta incluye una advertencia de inconsistencia que identifica el dato afectado. No es un error y no bloquea la consulta. |
+| Inconsistencia de datos detectada al calcular: una historia sin estimar dentro de un sprint, un sprint Cerrado sin factor congelado o un sprint Cerrado sin momento de cierre | Las métricas se calculan igual con el supuesto documentado —la historia cuenta como 0 puntos; se usa el factor vigente del proyecto; el plazo de gracia se toma como vencido y el sprint queda último en la ventana de velocidad— y la respuesta incluye una advertencia de inconsistencia que identifica el dato afectado. No es un error y no bloquea la consulta. |
 
 ---
 
@@ -706,11 +732,15 @@ resolviendo algunos, reabriendo otro y verificando los conteos.
 
 - **Métricas de un sprint**: conjunto derivado, no almacenado, compuesto por Story Points
   planificados y completados, horas estimadas y reales, desviación absoluta y porcentual, porcentaje
-  de historias completadas, defectos detectados y defectos resueltos, más el indicador de si el
-  resultado es parcial. Cualquiera de los valores derivados puede ser "no calculable".
+  de historias completadas, defectos detectados y defectos resueltos. Cada métrica lleva su propio
+  estado de valor: parcial en un sprint Activo, definitiva o provisoria en uno Cerrado (FR-014,
+  FR-019), y ninguno en uno Planificado (FR-015). Cualquiera de los valores derivados puede ser "no
+  calculable".
 - **Métricas de un proyecto**: conjunto derivado, no almacenado, compuesto por la velocidad del
   equipo, la serie de velocidad por sprint, los acumulados de Story Points, horas, desviación y
-  porcentaje de historias completadas, y los conteos de defectos con su desglose por severidad.
+  porcentaje de historias completadas, el esfuerzo fuera de sprint, el esfuerzo en sprints
+  planificados, la cantidad de historias del backlog sin estimar y los conteos de defectos con su
+  desglose por severidad.
 - **Valor no calculable**: estado posible de cualquier métrica que sea un cociente, cuando su
   denominador es 0. Es distinto de 0 y distinto de "no aplicable".
 - **Valor no aplicable**: estado de una métrica que no tiene sentido para el estado del sprint
@@ -769,9 +799,10 @@ resolviendo algunos, reabriendo otro y verificando los conteos.
 - **SC-015**: El 100 % de las métricas de un sprint cerrado viene con su estado, y la clasificación
   coincide con FR-019 en los tres casos, verificado consultando un sprint dentro de su plazo de
   gracia y otro con el plazo vencido.
-- **SC-016**: Cero horas de esfuerzo invisibles: la suma de las horas reales acumuladas más el
-  esfuerzo fuera de sprint iguala el total de horas registradas del proyecto en el 100 % de los
-  casos.
+- **SC-016**: Cero horas de esfuerzo invisibles: la suma de las horas reales acumuladas, el
+  esfuerzo fuera de sprint y el esfuerzo en sprints planificados iguala el total de horas
+  registradas del proyecto en el 100 % de los casos, verificado con esfuerzo cargado en los tres
+  lugares.
 - **SC-017**: La cantidad de historias del backlog sin estimar coincide con el conteo manual en el
   100 % de los casos, y nunca aparece entre las métricas de un sprint.
 - **SC-018**: El acumulado del proyecto viene marcado como parcial en el 100 % de los casos en que
@@ -821,8 +852,9 @@ resolviendo algunos, reabriendo otro y verificando los conteos.
 - **Los acumulados suman los sprints y el esfuerzo fuera de sprint va aparte**: decisión confirmada
   el 2026-10-03 (FR-029, RN-25). El acumulado sigue siendo exactamente la suma de los sprints, de
   modo que siempre cuadra con las métricas por sprint, y las horas que nunca entraron a un sprint se
-  informan como una cifra propia en vez de perderse. Quien necesite el total de horas del proyecto
-  suma las dos cifras a la vista.
+  informan como una cifra propia en vez de perderse. El mismo criterio se extendió el 2026-10-26 a
+  las horas ancladas a sprints Planificados, que se informan como esfuerzo en sprints planificados.
+  Quien necesite el total de horas del proyecto suma las tres cifras a la vista.
 - **Hay tres estados posibles para una métrica de sprint cerrado**: decisión confirmada el
   2026-10-03 (FR-019, RN-23). Las cuatro que salen de la instantánea son definitivas; las horas
   reales y sus desviaciones son provisorias hasta que vence el plazo de gracia; los dos conteos de

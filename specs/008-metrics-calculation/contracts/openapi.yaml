@@ -1,0 +1,630 @@
+# Contrato de la API de Cálculo de Métricas (spec 008).
+# Fuente de verdad del diseño: specs/008-metrics-calculation/spec.md
+# Este archivo es el contrato acordado en la Fase 1 del plan. La documentación publicada en
+# /swagger/index.html se genera con `swag init` a partir de las anotaciones del código y DEBE
+# coincidir con este contrato (Principio VIII).
+openapi: 3.0.3
+
+info:
+  title: Software Metrics & Estimation — Cálculo de Métricas
+  description: |
+    Métricas de estimación, seguimiento y calidad de un proyecto, por sprint y para el proyecto
+    completo. Esta API es la **única fuente de las fórmulas**: el dashboard y los reportes muestran
+    estos valores tal cual, sin recalcular (FR-001, RN-01).
+
+    **Todas** las operaciones exigen una sesión válida (FR-040), enviada en la cabecera
+    `Authorization: Bearer <token>` emitida por `/api/v1/auth/login` de la spec 001.
+
+    Reglas que gobiernan todas las respuestas:
+
+    - Solo lectura: ninguna operación modifica datos (FR-002). Un proyecto `finished` se consulta
+      con normalidad (FR-043).
+    - Cada respuesta corresponde a **un único instante** de los datos: sus cifras nunca se
+      contradicen entre sí (FR-003, RN-29). Dos consultas separadas por una escritura pueden
+      devolver valores distintos.
+    - Cada métrica que puede no tener valor viaja como `Metric`, con un `status` explícito que
+      distingue un valor real (`available`, incluido el 0), un cociente con denominador 0
+      (`not_calculable`) y una métrica que no aplica al estado del sprint (`not_applicable`)
+      (FR-030 a FR-035). Un `not_calculable` nunca impide calcular las demás.
+    - Horas y porcentajes se expresan con **exactamente 2 decimales**; los porcentajes y promedios
+      se redondean solo en el resultado final, mitad lejos de cero (FR-033). Los Story Points son
+      enteros (FR-034).
+    - `finality` distingue `definitive`, `provisional` (métrica de un sprint Cerrado cuyo valor
+      todavía puede moverse) y `partial` (sprint Activo, o acumulado que lo incluye). `provisional`
+      y `partial` no son intercambiables (FR-019, RN-24).
+    - Toda respuesta lleva `warnings`; una advertencia nunca impide la entrega de las métricas
+      (FR-038, FR-039).
+    - Quien no es integrante vigente recibe el mismo `404` que ante un proyecto inexistente, y un
+      sprint de otro proyecto, el mismo `404` que ante un sprint inexistente (FR-042).
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Entorno de desarrollo local
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Métricas
+    description: Métricas por sprint y del proyecto
+
+paths:
+  /api/v1/projects/{projectId}/metrics:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Métricas]
+      summary: Métricas del proyecto
+      description: |
+        Velocidad del equipo con su serie, acumulados de los sprints Cerrados y del Activo,
+        esfuerzo fuera de sprint y en sprints Planificados, historias del backlog sin estimar y
+        defectos del proyecto con su desglose por severidad (US2, US3, US5).
+
+        - La velocidad promedia los Story Points completados de los últimos 3 sprints Cerrados por
+          momento real de cierre, o de todos si hay menos; sin Cerrados es `not_calculable`
+          (FR-020, FR-021, FR-031). Nunca es `partial` (RN-28).
+        - Los acumulados no incluyen sprints Planificados (FR-017); son `partial` si incluyen al
+          Activo y `definitive` si no (FR-023). Sus cocientes se calculan sobre los totales
+          (FR-024).
+        - El esfuerzo fuera de sprint y el esfuerzo en sprints Planificados se informan aparte,
+          aunque valgan 0, y no se suman a las horas reales acumuladas (FR-029; plan, decisión del
+          2026-10-26).
+        - Los defectos Descartados no cuentan; abiertos son los `open` e `in_progress` (FR-018,
+          FR-027).
+      operationId: getProjectMetrics
+      responses:
+        '200':
+          description: Métricas del proyecto. Un proyecto sin sprints responde 200 con totales en 0 y cocientes `not_calculable`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectMetricsResponse'
+              examples:
+                conSprintActivo:
+                  summary: Dos sprints Cerrados y uno Activo (US3-1, US3-10)
+                  value:
+                    projectId: 6b1f0d4e-2a7c-4e19-9d3b-8f5a2c1e7d40
+                    velocity:
+                      value: { status: available, value: 17.00 }
+                      sprintsConsidered: 2
+                      series:
+                        - { sprintId: 0c6e3f1a-91b2-4d7e-a5c8-2f4b6d8e1a30, sprintName: Sprint 1, closedAt: '2026-09-12T18:30:00Z', completedStoryPoints: 13 }
+                        - { sprintId: 1d7f4a2b-a2c3-4e8f-b6d9-3a5c7e9f2b41, sprintName: Sprint 2, closedAt: '2026-09-26T18:00:00Z', completedStoryPoints: 21 }
+                    cumulative:
+                      finality: partial
+                      includesActiveSprint: true
+                      plannedStoryPoints: { status: available, value: 63 }
+                      completedStoryPoints: { status: available, value: 39 }
+                      estimatedHours: { status: available, value: 378.00 }
+                      actualHours: { status: available, value: 312.50 }
+                      deviationHours: { status: available, value: -65.50 }
+                      deviationPercent: { status: available, value: -17.33 }
+                      storyCompletionPercent: { status: available, value: 63.64 }
+                    effortOutsideSprintsHours: 18.00
+                    effortInPlannedSprintsHours: 0.00
+                    unestimatedBacklogStories: 6
+                    defects:
+                      detected: { total: 12, bySeverity: { critical: 3, high: 4, medium: 3, low: 2 } }
+                      resolved: { total: 5, bySeverity: { critical: 2, high: 2, medium: 1, low: 0 } }
+                      open: { total: 7, bySeverity: { critical: 1, high: 2, medium: 2, low: 2 } }
+                    warnings:
+                      - kind: planning
+                        code: unestimated_backlog_stories
+                        message: Hay 6 historias del backlog sin estimar; las cifras de planificación pueden quedar cortas.
+                        count: 6
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/ProjectNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/projects/{projectId}/metrics/series:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Métricas]
+      summary: Series del proyecto por sprint
+      description: |
+        Las seis series por sprint que grafica el dashboard, en una única respuesta y listas para
+        usar (FR-022, RC-12): Story Points planificados y completados, horas estimadas y reales, y
+        defectos detectados y resueltos.
+
+        - Las seis contienen exactamente los mismos sprints, en orden cronológico ascendente por
+          fecha de inicio: los Cerrados y el Activo si existe. Los Planificados no aparecen.
+        - Cada punto identifica su sprint y conserva el `finality` de la métrica en ese sprint:
+          `partial` en el Activo; `definitive` o `provisional` en un Cerrado (FR-019).
+        - Un 0 es un dato real (`status: available`); la ausencia de dato es la ausencia del sprint
+          en la serie. Sin sprints Cerrados ni Activo, las seis vienen vacías.
+      operationId: getProjectSeries
+      responses:
+        '200':
+          description: Series del proyecto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectSeriesResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/ProjectNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/projects/{projectId}/metrics/active-sprint:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Métricas]
+      summary: Métricas del sprint Activo
+      description: |
+        Las métricas del sprint Activo, calculadas con los datos y el factor vigentes y todas
+        marcadas `partial` (FR-014, US4). Si el proyecto no tiene sprint Activo, responde 200 con
+        `activeSprint: false` y `metrics: null`: no es un error ni un conjunto de ceros (FR-016).
+      operationId: getActiveSprintMetrics
+      responses:
+        '200':
+          description: Métricas del sprint Activo o la indicación de que no hay ninguno.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActiveSprintMetricsResponse'
+              examples:
+                sinSprintActivo:
+                  summary: Proyecto sin sprint Activo (US4-7)
+                  value: { activeSprint: false, metrics: null }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/ProjectNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/projects/{projectId}/metrics/sprints/{sprintId}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/SprintId'
+    get:
+      tags: [Métricas]
+      summary: Métricas de un sprint
+      description: |
+        Las nueve métricas de un sprint del proyecto según su estado (US1, US4, US5):
+
+        - **Cerrado**: Story Points, factor e historias salen exclusivamente de la instantánea de
+          cierre (FR-013). Story Points planificados y completados, horas estimadas y porcentaje de
+          historias completadas son `definitive`; horas reales y las dos desviaciones son
+          `provisional` mientras el plazo de gracia siga vigente y `definitive` después; los dos
+          conteos de defectos son siempre `provisional` (FR-019).
+        - **Activo**: datos y factor vigentes; las nueve `partial` (FR-014).
+        - **Planificado**: solo Story Points planificados y horas estimadas con el factor vigente,
+          con `finality: null`; las otras siete son `not_applicable` (FR-015).
+      operationId: getSprintMetrics
+      responses:
+        '200':
+          description: Métricas del sprint.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SprintMetrics'
+              examples:
+                cerradoEnGracia:
+                  summary: Sprint Cerrado hace 10 horas, plazo de 48 horas (US1-1, US1-5)
+                  value:
+                    sprint:
+                      id: 0c6e3f1a-91b2-4d7e-a5c8-2f4b6d8e1a30
+                      name: Sprint 1
+                      status: closed
+                      startDate: '2026-09-01'
+                      endDate: '2026-09-12'
+                      closedAt: '2026-09-12T18:30:00Z'
+                    plannedStoryPoints: { status: available, value: 21, finality: definitive }
+                    completedStoryPoints: { status: available, value: 13, finality: definitive }
+                    estimatedHours: { status: available, value: 126.00, finality: definitive }
+                    actualHours: { status: available, value: 142.50, finality: provisional }
+                    deviationHours: { status: available, value: 16.50, finality: provisional }
+                    deviationPercent: { status: available, value: 13.10, finality: provisional }
+                    storyCompletionPercent: { status: available, value: 50.00, finality: definitive }
+                    defectsDetected: { status: available, value: 7, finality: provisional }
+                    defectsResolved: { status: available, value: 4, finality: provisional }
+                    warnings: []
+                planificado:
+                  summary: Sprint Planificado (US4-4)
+                  value:
+                    sprint:
+                      id: 2e8a5b3c-b3d4-4f9a-c7e1-4b6d8f1a3c52
+                      name: Sprint 4
+                      status: planned
+                      startDate: '2026-10-27'
+                      endDate: '2026-11-07'
+                      closedAt: null
+                    plannedStoryPoints: { status: available, value: 15, finality: null }
+                    completedStoryPoints: { status: not_applicable, value: null, finality: null }
+                    estimatedHours: { status: available, value: 90.00, finality: null }
+                    actualHours: { status: not_applicable, value: null, finality: null }
+                    deviationHours: { status: not_applicable, value: null, finality: null }
+                    deviationPercent: { status: not_applicable, value: null, finality: null }
+                    storyCompletionPercent: { status: not_applicable, value: null, finality: null }
+                    defectsDetected: { status: not_applicable, value: null, finality: null }
+                    defectsResolved: { status: not_applicable, value: null, finality: null }
+                    warnings: []
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: |
+            El proyecto no existe o quien pide no es integrante (cuerpo de la 002), o el sprint no
+            existe, es de otro proyecto o su identificador está mal formado (cuerpo de la 004).
+            Ambos cuerpos son idénticos a los de un identificador inexistente (FR-042, SC-014).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                proyecto:
+                  value: { error: El proyecto no existe. }
+                sprint:
+                  value: { error: El sprint no existe. }
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      description: Identificador del proyecto. Un valor que no es UUID responde como proyecto inexistente.
+      schema:
+        type: string
+        format: uuid
+    SprintId:
+      name: sprintId
+      in: path
+      required: true
+      description: Identificador del sprint. Un valor que no es UUID responde como sprint inexistente.
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    Unauthorized:
+      description: Sin sesión válida.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example: { error: Se requiere iniciar sesión. }
+    ProjectNotFound:
+      description: El proyecto no existe, su identificador está mal formado o quien pide no es integrante vigente (FR-042).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example: { error: El proyecto no existe. }
+    InternalError:
+      description: Error inesperado, registrado en el log del servidor.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    ValueStatus:
+      type: string
+      enum: [available, not_calculable, not_applicable]
+      description: |
+        `available`: hay valor, incluido el 0. `not_calculable`: el denominador de la fórmula es 0
+        (FR-030). `not_applicable`: la métrica no tiene sentido para el estado del sprint (FR-015).
+
+    Finality:
+      type: string
+      enum: [definitive, provisional, partial]
+      description: |
+        `definitive`: el valor ya no cambia. `provisional`: métrica de un sprint Cerrado que todavía
+        puede moverse (FR-019). `partial`: métrica de un sprint Activo, o acumulado que lo incluye
+        (FR-014, FR-023).
+
+    Metric:
+      type: object
+      required: [status, value]
+      description: Valor de una métrica con su estado. `value` es null si y solo si `status` no es `available`.
+      properties:
+        status:
+          $ref: '#/components/schemas/ValueStatus'
+        value:
+          type: number
+          nullable: true
+          description: Story Points como entero; horas y porcentajes con exactamente 2 decimales.
+
+    SprintMetric:
+      allOf:
+        - $ref: '#/components/schemas/Metric'
+        - type: object
+          required: [finality]
+          properties:
+            finality:
+              allOf:
+                - $ref: '#/components/schemas/Finality'
+              nullable: true
+              description: Null en un sprint Planificado.
+
+    SprintRef:
+      type: object
+      required: [id, name, status, startDate, endDate, closedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, example: Sprint 1 }
+        status: { type: string, enum: [planned, active, closed] }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Momento real de cierre; null si el sprint no está Cerrado.
+
+    SprintMetrics:
+      type: object
+      required:
+        - sprint
+        - plannedStoryPoints
+        - completedStoryPoints
+        - estimatedHours
+        - actualHours
+        - deviationHours
+        - deviationPercent
+        - storyCompletionPercent
+        - defectsDetected
+        - defectsResolved
+        - warnings
+      properties:
+        sprint:
+          $ref: '#/components/schemas/SprintRef'
+        plannedStoryPoints:
+          $ref: '#/components/schemas/SprintMetric'
+        completedStoryPoints:
+          $ref: '#/components/schemas/SprintMetric'
+        estimatedHours:
+          $ref: '#/components/schemas/SprintMetric'
+        actualHours:
+          $ref: '#/components/schemas/SprintMetric'
+        deviationHours:
+          description: Horas reales − horas estimadas. Positiva indica subestimación (RN-08).
+          allOf:
+            - $ref: '#/components/schemas/SprintMetric'
+        deviationPercent:
+          description: Desviación / horas estimadas × 100, con el mismo signo; `not_calculable` si las estimadas son 0.
+          allOf:
+            - $ref: '#/components/schemas/SprintMetric'
+        storyCompletionPercent:
+          description: Historias completadas / planificadas × 100, por cantidad de historias (RN-09); `not_calculable` sin historias.
+          allOf:
+            - $ref: '#/components/schemas/SprintMetric'
+        defectsDetected:
+          $ref: '#/components/schemas/SprintMetric'
+        defectsResolved:
+          $ref: '#/components/schemas/SprintMetric'
+        warnings:
+          type: array
+          description: Advertencias de inconsistencia de datos del sprint. Nunca incluye la de backlog sin estimar (RN-26).
+          items:
+            $ref: '#/components/schemas/Warning'
+
+    ActiveSprintMetricsResponse:
+      type: object
+      required: [activeSprint, metrics]
+      properties:
+        activeSprint:
+          type: boolean
+          description: false si el proyecto no tiene sprint Activo (FR-016).
+        metrics:
+          allOf:
+            - $ref: '#/components/schemas/SprintMetrics'
+          nullable: true
+
+    VelocityPoint:
+      type: object
+      required: [sprintId, sprintName, closedAt, completedStoryPoints]
+      properties:
+        sprintId: { type: string, format: uuid }
+        sprintName: { type: string }
+        closedAt: { type: string, format: date-time, nullable: true }
+        completedStoryPoints: { type: integer, minimum: 0 }
+
+    Velocity:
+      type: object
+      required: [value, sprintsConsidered, series]
+      description: Nunca lleva `finality`, porque solo mira sprints Cerrados (RN-28).
+      properties:
+        value:
+          $ref: '#/components/schemas/Metric'
+        sprintsConsidered:
+          type: integer
+          minimum: 0
+          maximum: 3
+          description: Cantidad de sprints Cerrados que entraron en el promedio.
+        series:
+          type: array
+          description: Story Points completados de cada sprint Cerrado, en orden cronológico, sin promediar ni recortar.
+          items:
+            $ref: '#/components/schemas/VelocityPoint'
+
+    Cumulative:
+      type: object
+      required:
+        - finality
+        - includesActiveSprint
+        - plannedStoryPoints
+        - completedStoryPoints
+        - estimatedHours
+        - actualHours
+        - deviationHours
+        - deviationPercent
+        - storyCompletionPercent
+      description: Suma de los sprints Cerrados y del Activo. La marca `finality` califica al bloque entero (FR-023).
+      properties:
+        finality:
+          type: string
+          enum: [definitive, partial]
+        includesActiveSprint: { type: boolean }
+        plannedStoryPoints: { $ref: '#/components/schemas/Metric' }
+        completedStoryPoints: { $ref: '#/components/schemas/Metric' }
+        estimatedHours: { $ref: '#/components/schemas/Metric' }
+        actualHours: { $ref: '#/components/schemas/Metric' }
+        deviationHours: { $ref: '#/components/schemas/Metric' }
+        deviationPercent: { $ref: '#/components/schemas/Metric' }
+        storyCompletionPercent: { $ref: '#/components/schemas/Metric' }
+
+    SeverityBreakdown:
+      type: object
+      required: [critical, high, medium, low]
+      description: Las cuatro severidades siempre presentes; su suma es el total (SC-010).
+      properties:
+        critical: { type: integer, minimum: 0 }
+        high: { type: integer, minimum: 0 }
+        medium: { type: integer, minimum: 0 }
+        low: { type: integer, minimum: 0 }
+
+    DefectTally:
+      type: object
+      required: [total, bySeverity]
+      properties:
+        total: { type: integer, minimum: 0 }
+        bySeverity: { $ref: '#/components/schemas/SeverityBreakdown' }
+
+    ProjectDefects:
+      type: object
+      required: [detected, resolved, open]
+      description: Excluye los Descartados. Un proyecto sin defectos informa 0, no `not_calculable`.
+      properties:
+        detected: { $ref: '#/components/schemas/DefectTally' }
+        resolved: { $ref: '#/components/schemas/DefectTally' }
+        open:
+          description: Defectos `open` e `in_progress` (FR-027).
+          allOf:
+            - $ref: '#/components/schemas/DefectTally'
+
+    ProjectMetricsResponse:
+      type: object
+      required:
+        - projectId
+        - velocity
+        - cumulative
+        - effortOutsideSprintsHours
+        - effortInPlannedSprintsHours
+        - unestimatedBacklogStories
+        - defects
+        - warnings
+      properties:
+        projectId: { type: string, format: uuid }
+        velocity: { $ref: '#/components/schemas/Velocity' }
+        cumulative: { $ref: '#/components/schemas/Cumulative' }
+        effortOutsideSprintsHours:
+          type: number
+          description: Horas de registros sin sprint asociado, con 2 decimales; 0 incluido (FR-029).
+          example: 18.00
+        effortInPlannedSprintsHours:
+          type: number
+          description: Horas de registros anclados a sprints Planificados, con 2 decimales; 0 incluido (plan, decisión del 2026-10-26).
+          example: 0.00
+        unestimatedBacklogStories:
+          type: integer
+          minimum: 0
+          description: Historias del proyecto sin estimar (FR-036).
+        defects: { $ref: '#/components/schemas/ProjectDefects' }
+        warnings:
+          type: array
+          items: { $ref: '#/components/schemas/Warning' }
+
+    SeriesPoint:
+      type: object
+      required: [sprintId, sprintName, sprintStatus, status, value, finality]
+      properties:
+        sprintId: { type: string, format: uuid }
+        sprintName: { type: string }
+        sprintStatus: { type: string, enum: [active, closed] }
+        status: { $ref: '#/components/schemas/ValueStatus' }
+        value: { type: number, nullable: true }
+        finality: { $ref: '#/components/schemas/Finality' }
+
+    ProjectSeriesResponse:
+      type: object
+      required:
+        - plannedStoryPoints
+        - completedStoryPoints
+        - estimatedHours
+        - actualHours
+        - defectsDetected
+        - defectsResolved
+        - warnings
+      description: Seis series con los mismos sprints en el mismo orden cronológico.
+      properties:
+        plannedStoryPoints:
+          type: array
+          items: { $ref: '#/components/schemas/SeriesPoint' }
+        completedStoryPoints:
+          type: array
+          description: Velocidad por sprint.
+          items: { $ref: '#/components/schemas/SeriesPoint' }
+        estimatedHours:
+          type: array
+          items: { $ref: '#/components/schemas/SeriesPoint' }
+        actualHours:
+          type: array
+          items: { $ref: '#/components/schemas/SeriesPoint' }
+        defectsDetected:
+          type: array
+          items: { $ref: '#/components/schemas/SeriesPoint' }
+        defectsResolved:
+          type: array
+          items: { $ref: '#/components/schemas/SeriesPoint' }
+        warnings:
+          type: array
+          items: { $ref: '#/components/schemas/Warning' }
+
+    Warning:
+      type: object
+      required: [kind, code, message]
+      properties:
+        kind:
+          type: string
+          enum: [planning, data_inconsistency]
+          description: |
+            `planning`: dato válido pero incompleto. `data_inconsistency`: combinación que las reglas
+            de las features anteriores no deberían permitir; alguien tiene que revisarla (FR-038).
+        code:
+          type: string
+          enum:
+            - unestimated_backlog_stories
+            - unestimated_story_in_sprint
+            - missing_frozen_factor
+            - missing_close_time
+        message:
+          type: string
+          description: Texto en español para la persona.
+        sprintId:
+          type: string
+          format: uuid
+          description: Sprint afectado; presente en las advertencias de inconsistencia.
+        storyId:
+          type: string
+          format: uuid
+          description: Historia afectada; solo en `unestimated_story_in_sprint`.
+        count:
+          type: integer
+          minimum: 1
+          description: Cantidad de historias; solo en `unestimated_backlog_stories`.
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Mensaje en español dirigido a la persona.

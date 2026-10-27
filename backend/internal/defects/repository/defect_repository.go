@@ -28,9 +28,41 @@ func NewDefectRepository(db *gorm.DB) *DefectRepository {
 	return &DefectRepository{db: db}
 }
 
-// FindAccessible resuelve el acceso del usuario a un defecto.
-func (r *DefectRepository) FindAccessible(_ context.Context, _, _ uuid.UUID) (*domain.DefectAccess, error) {
-	return nil, errors.New("not implemented")
+// defectAccessRow es la fila plana de la consulta de acceso: el defecto, el proyecto de su historia y
+// el estado de ese proyecto.
+type defectAccessRow struct {
+	DefectID      uuid.UUID
+	ProjectID     uuid.UUID
+	ProjectStatus projectsdomain.ProjectStatus
+}
+
+// FindAccessible resuelve el acceso a un defecto para RequireDefectAccess con una sola consulta
+// (research.md sección 3): une defects con su historia, con la membresía vigente del usuario en
+// project_members y con projects. Si no hay fila, el defecto no existe o el usuario no es integrante
+// vigente del proyecto, y ambos casos se reportan igual con ErrDefectNotFound.
+func (r *DefectRepository) FindAccessible(ctx context.Context, defectID, userID uuid.UUID) (*domain.DefectAccess, error) {
+	var row defectAccessRow
+	err := r.db.WithContext(ctx).
+		Table("defects").
+		Select(`defects.id AS defect_id, user_stories.project_id AS project_id,
+			projects.status AS project_status`).
+		Joins("JOIN user_stories ON user_stories.id = defects.story_id").
+		Joins(`JOIN project_members ON project_members.project_id = user_stories.project_id
+			AND project_members.user_id = ?`, userID).
+		Joins("JOIN projects ON projects.id = user_stories.project_id").
+		Where("defects.id = ?", defectID).
+		Take(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, domain.ErrDefectNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("resolver el acceso al defecto: %w", err)
+	}
+	return &domain.DefectAccess{
+		DefectID:        row.DefectID,
+		ProjectID:       row.ProjectID,
+		ProjectFinished: row.ProjectStatus == projectsdomain.ProjectStatusFinished,
+	}, nil
 }
 
 // Create da de alta un defecto en el proyecto, en una transacción y con el orden de bloqueos de
@@ -127,9 +159,106 @@ func (r *DefectRepository) Create(ctx context.Context, projectID, actorID uuid.U
 	return r.FindView(ctx, defectID)
 }
 
-// ChangeStatus aplica un cambio de estado.
-func (r *DefectRepository) ChangeStatus(_ context.Context, _, _ uuid.UUID, _ domain.StatusChange, _ time.Time) (*domain.DefectView, error) {
-	return nil, errors.New("not implemented")
+// ChangeStatus aplica un cambio de estado en una transacción, con el orden de bloqueos de research.md
+// sección 10: proyecto (SHARE OF projects), defecto (UPDATE) y su sprint de detección, sprint de
+// resolución (KEY SHARE) si viene, PlanTransition con el estado releído y, por último, la escritura.
+// Devuelve el detalle leído dentro de la misma transacción.
+func (r *DefectRepository) ChangeStatus(ctx context.Context, defectID, actorID uuid.UUID, change domain.StatusChange, now time.Time) (*domain.DefectView, error) {
+	var view *domain.DefectView
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Paso 1: el proyecto del defecto se lee con SHARE para que no pase a finalizado durante el cambio.
+		var project projectsdomain.Project
+		err := tx.
+			Table("defects").
+			Select("projects.id", "projects.status").
+			Joins("JOIN user_stories ON user_stories.id = defects.story_id").
+			Joins("JOIN projects ON projects.id = user_stories.project_id").
+			Where("defects.id = ?", defectID).
+			Clauses(clause.Locking{Strength: "SHARE", Table: clause.Table{Name: "projects"}}).
+			Take(&project).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domain.ErrDefectNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("bloquear el proyecto del defecto: %w", err)
+		}
+		if project.Status == projectsdomain.ProjectStatusFinished {
+			return domain.ErrDefectsReadOnly
+		}
+
+		// Paso 2: el defecto se relee con FOR UPDATE, junto con su sprint de detección, para decidir
+		// la transición sobre el estado vigente y serializar los cambios concurrentes (FR-018).
+		var defect domain.Defect
+		err = tx.
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id", "status", "detected_sprint_id").
+			Where("id = ?", defectID).
+			Take(&defect).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domain.ErrDefectNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("bloquear el defecto: %w", err)
+		}
+		detected, err := readSprintAnchor(tx.Where("id = ?", defect.DetectedSprintID))
+		if err != nil {
+			return fmt.Errorf("leer el sprint de detección: %w", err)
+		}
+
+		// Paso 3: el sprint de resolución, si viene, debe ser del proyecto; KEY SHARE impide borrarlo.
+		var resolution *domain.SprintAnchor
+		if change.ResolvedSprintID != nil {
+			anchor, err := readSprintAnchor(tx.
+				Clauses(clause.Locking{Strength: "KEY SHARE"}).
+				Where("id = ? AND project_id = ?", *change.ResolvedSprintID, project.ID))
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return sprintsdomain.ErrSprintNotFound
+			}
+			if err != nil {
+				return fmt.Errorf("bloquear el sprint de resolución: %w", err)
+			}
+			resolution = &anchor
+		}
+
+		// Paso 4: la regla de dominio decide sobre el estado releído y fija el sprint de resolución.
+		resolvedSprintID, err := domain.PlanTransition(defect.Status, change.To, detected, resolution)
+		if err != nil {
+			return err
+		}
+
+		// Paso 5: se escriben el estado, el sprint de resolución que devolvió la regla y el autor y el
+		// instante del cambio; updated_at lo completa GORM.
+		err = tx.Model(&domain.Defect{}).
+			Where("id = ?", defectID).
+			Updates(map[string]any{
+				"status":               change.To,
+				"resolved_sprint_id":   resolvedSprintID,
+				"status_changed_at":    now,
+				"status_changed_by_id": actorID,
+				"updated_by_id":        actorID,
+			}).Error
+		if err != nil {
+			return fmt.Errorf("actualizar el estado del defecto: %w", err)
+		}
+
+		// El detalle se lee con la transacción, para devolver lo escrito sin una lectura posterior.
+		view, err = NewDefectRepository(tx).FindView(ctx, defectID)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return view, nil
+}
+
+// readSprintAnchor lee el identificador, el estado y la fecha de inicio del sprint que selecciona la
+// consulta recibida; si no hay fila devuelve gorm.ErrRecordNotFound para que quien llama lo traduzca.
+func readSprintAnchor(query *gorm.DB) (domain.SprintAnchor, error) {
+	var sprint sprintsdomain.Sprint
+	if err := query.Select("id", "status", "start_date").Take(&sprint).Error; err != nil {
+		return domain.SprintAnchor{}, err
+	}
+	return domain.SprintAnchor{ID: sprint.ID, Status: sprint.Status, StartDate: sprint.StartDate}, nil
 }
 
 // Update aplica una modificación parcial de campos.

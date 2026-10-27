@@ -414,7 +414,7 @@ el sprint Activo devuelve `200` y deja el defecto `resolved` con ese sprint; `re
 - [X] T032 [US2] Implementar `ValidateStatusChange` en `backend/internal/defects/delivery/validation.go`
       con el DTO `DefectStatusChange` en `backend/internal/defects/delivery/dto.go` — depende de T026,
       T031
-- [ ] T033 [US2] Implementar en `backend/internal/defects/repository/defect_repository.go`
+- [X] T033 [US2] Implementar en `backend/internal/defects/repository/defect_repository.go`
       `FindAccessible` (una consulta `defects → user_stories → project_members (sesión) → projects`;
       sin fila → `ErrDefectNotFound`) y `ChangeStatus` en una transacción con el orden de
       research.md sección 10: (1) proyecto del defecto con

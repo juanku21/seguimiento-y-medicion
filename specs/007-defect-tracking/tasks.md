@@ -466,14 +466,14 @@ devuelve `400` en `status`.
 
 ### Pruebas de la Historia 3 ⚠️
 
-- [ ] T038 [P] [US3] Pruebas unitarias **obligatorias** de
+- [X] T038 [P] [US3] Pruebas unitarias **obligatorias** de
       `ParseDefectFilter(statuses, severities []string, storyID, sprintID string)` en
       `backend/internal/defects/delivery/validation_test.go`, cubriendo FR-046 y FR-047: sin
       parámetros → filtro vacío; `status` y `severity` repetidos → listas en el orden recibido; un
       valor inexistente en cada uno → `FieldError` con los valores admitidos; `storyId` y `sprintId`
       mal formados → `FieldError` con "El filtro no corresponde al proyecto."; varios filtros
       inválidos a la vez — depende de T037
-- [ ] T039 [US3] Pruebas de integración en `backend/internal/defects/delivery/handler_test.go`, una
+- [X] T039 [US3] Pruebas de integración en `backend/internal/defects/delivery/handler_test.go`, una
       por escenario con `// Escenario: <nombre> (007/US3)`: `TestUS3_SinFiltros` (defectos en los
       cuatro estados —el Descartado preparado con `forceDefectStatus`— y de las cuatro severidades,
       todos con descripción, severidad, estado, historia, sprint de detección y de resolución
@@ -488,7 +488,7 @@ devuelve `400` en `status`.
       `TestUS3_ValorDeFiltroInvalido` (subtests estado y severidad) y `TestUS3_NoIntegrante` (`404` de
       la 002 en el listado del proyecto y de la 003 en el de la historia). Además, subtests con al
       menos tres combinaciones de dos o más filtros (SC-013) — depende de T037
-- [ ] T040 [P] [US3] Pruebas de frontend en
+- [X] T040 [P] [US3] Pruebas de frontend en
       `frontend/src/features/defects/components/defect-filters.test.tsx`,
       `frontend/src/features/defects/components/defect-list.test.tsx` y
       `frontend/src/features/defects/components/story-defects-section.test.tsx`, con
@@ -500,10 +500,10 @@ devuelve `400` en `status`.
 
 ### Implementación de la Historia 3
 
-- [ ] T041 [US3] Implementar `ParseDefectFilter` en `backend/internal/defects/delivery/validation.go`
+- [X] T041 [US3] Implementar `ParseDefectFilter` en `backend/internal/defects/delivery/validation.go`
       sobre `c.QueryArray("status")`, `c.QueryArray("severity")`, `storyId` y `sprintId` — depende de
       T038
-- [ ] T042 [US3] Implementar en `backend/internal/defects/repository/defect_repository.go`
+- [X] T042 [US3] Implementar en `backend/internal/defects/repository/defect_repository.go`
       `ValidateFilter` (historia y sprint del proyecto; cualquier otro → `InvalidFilterError{Field}`
       sin distinguir inexistente de ajeno), `ListForProject` (filtros conjuntivos sobre `defects`
       unido a `user_stories` por `project_id`, `status IN ?`, `severity IN ?`, `story_id = ?` y
@@ -511,11 +511,11 @@ devuelve `400` en `status`.
       `CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
       created_at DESC, id DESC`; sin paginación) y `HasProjectDefects`, reutilizando la consulta de
       `FindView` para las columnas — depende de T039
-- [ ] T043 [US3] Implementar `ListForProject(ctx, projectID, filter)` y `ListForStory(ctx, access)` en
+- [X] T043 [US3] Implementar `ListForProject(ctx, projectID, filter)` y `ListForStory(ctx, access)` en
       `backend/internal/defects/service/defect_service.go`: valida el filtro, lista y, con la lista
       vacía, calcula `emptyReason` (`no_defects` si `HasProjectDefects` es `false`, si no
       `no_matches`; siempre `no_defects` para una historia) — depende de T042
-- [ ] T044 [US3] Declarar `ProjectDefects` y `StoryDefects` en `backend/internal/defects/delivery/dto.go`
+- [X] T044 [US3] Declarar `ProjectDefects` y `StoryDefects` en `backend/internal/defects/delivery/dto.go`
       (listas vacías como `[]`), implementar los manejadores `listProjectDefects` (`InvalidFilterError`
       → `400` con `ValidationErrorResponse`) y `listStoryDefects` con anotaciones `swag` en
       `backend/internal/defects/delivery/handler.go`, agregar `GET /defects` a `RegisterProjectRoutes`
@@ -524,7 +524,7 @@ devuelve `400` en `status`.
       importar `backlog/delivery`; registrarlo en `backend/cmd/app/main.go` con el
       `RequireStoryAccess` de la 003 sobre la misma instancia del repositorio de historias — depende
       de T041, T043
-- [ ] T045 [US3] Implementar `listProjectDefects` y `listStoryDefects` en
+- [X] T045 [US3] Implementar `listProjectDefects` y `listStoryDefects` en
       `frontend/src/features/defects/api.ts`, `DefectFilters`, `DefectList` y `DefectRow` en
       `frontend/src/features/defects/components/`, la página
       `frontend/src/app/projects/[projectId]/defects/page.tsx`, `StoryDefectsSection` en

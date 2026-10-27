@@ -169,6 +169,7 @@ func newDefectRouter(db *gorm.DB, cfg config.Config, clock *defectClock, locatio
 	defectHandler := NewHandler(defects)
 	RegisterProjectRoutes(projectGroup, defectHandler)
 	RegisterDefectRoutes(router, authHandler.RequireSession, defectRepository, defectHandler)
+	RegisterStoryRoutes(router, authHandler.RequireSession, backlogdelivery.RequireStoryAccess(storyRepository), defectHandler)
 	return router
 }
 

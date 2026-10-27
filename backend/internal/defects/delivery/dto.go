@@ -6,7 +6,23 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/defects/domain"
+	"github.com/juanku21/seguimiento-y-medicion/backend/internal/defects/service"
 )
+
+// newDefectList convierte los defectos del servicio en el arreglo HTTP, siempre no nil, y el motivo
+// del vacío en su texto o nil.
+func newDefectList(list *service.DefectListView, projectID uuid.UUID) ([]Defect, *string) {
+	defects := make([]Defect, 0, len(list.Defects))
+	for i := range list.Defects {
+		defects = append(defects, newDefect(&list.Defects[i], projectID))
+	}
+	var reason *string
+	if list.EmptyReason != nil {
+		text := string(*list.EmptyReason)
+		reason = &text
+	}
+	return defects, reason
+}
 
 // DefectInput es el cuerpo del alta de un defecto. No declara ningún campo de autoría: un createdBy
 // o createdById que llegue en el cuerpo se ignora (FR-056).
@@ -88,6 +104,25 @@ type Defect struct {
 	CreatedAt time.Time `json:"createdAt" validate:"required"`
 	// Momento de la última actualización.
 	UpdatedAt time.Time `json:"updatedAt" validate:"required"`
+}
+
+// ProjectDefects es el listado de defectos de un proyecto. Defects se serializa siempre como arreglo,
+// nunca como null, y EmptyReason es null cuando la lista tiene elementos (FR-045, FR-048).
+type ProjectDefects struct {
+	// Ordenados por severidad descendente y, a igual severidad, por creación descendente.
+	Defects []Defect `json:"defects" validate:"required"`
+	// Motivo del vacío: no_defects si el proyecto no tiene defectos, no_matches si los filtros no
+	// encuentran ninguno; null si la lista tiene elementos.
+	EmptyReason *string `json:"emptyReason" enums:"no_defects,no_matches" extensions:"x-nullable"`
+}
+
+// StoryDefects es el listado de defectos de una historia, con el mismo orden y datos que el del
+// proyecto. Defects se serializa siempre como arreglo, nunca como null.
+type StoryDefects struct {
+	// Defectos de la historia, de cualquier estado.
+	Defects []Defect `json:"defects" validate:"required"`
+	// no_defects si la historia no tiene defectos; null si la lista tiene elementos.
+	EmptyReason *string `json:"emptyReason" enums:"no_defects" extensions:"x-nullable"`
 }
 
 // DefectConflictResponse es el rechazo 409 por una regla de estado del defecto. AllowedStatuses se

@@ -67,6 +67,15 @@ export type DefectConflictCode =
   | "defect_discarded"
   | "links_frozen";
 
+// Filtros del listado de defectos de un proyecto (FR-040 a FR-042): estado y severidad admiten
+// varios valores; historia y sprint, uno o ninguno (cadena vacía).
+export type DefectFilterValues = {
+  status: DefectStatus[];
+  severity: DefectSeverity[];
+  storyId: string;
+  sprintId: string;
+};
+
 // Lista de defectos de un proyecto; emptyReason es null si la lista tiene elementos (ProjectDefects).
 export type ProjectDefects = {
   defects: Defect[];

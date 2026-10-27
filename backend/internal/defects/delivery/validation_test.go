@@ -378,3 +378,99 @@ func TestValidateStatusChange_SprintMalFormado(t *testing.T) {
 		})
 	}
 }
+
+// Pruebas unitarias obligatorias de la validación de los filtros del listado (T038; FR-046, FR-047).
+// Corresponden a los escenarios de filtrado de la historia 3 (007/US3).
+
+// Mensaje de un filtro de historia o sprint mal formado, tal como lo fija data-model.md.
+const validationMsgFilterOutsideProject = "El filtro no corresponde al proyecto."
+
+// Escenario: Dado un integrante, cuando consulta los defectos sin ningún filtro, entonces el filtro
+// resultante no acota nada (007/US3).
+func TestUS3_FiltroVacio(t *testing.T) {
+	got, fields := ParseDefectFilter(nil, nil, "", "")
+
+	if len(fields) != 0 {
+		t.Fatalf("sin parámetros no se esperaban errores, se obtuvieron %v", fields)
+	}
+	if len(got.Statuses) != 0 || len(got.Severities) != 0 || got.StoryID != nil || got.SprintID != nil {
+		t.Errorf("el filtro debería estar vacío, se obtuvo %+v", got)
+	}
+}
+
+// Escenario: Dado un integrante, cuando filtra por varios estados y severidades repetidos, entonces
+// el filtro conserva las listas en el orden recibido y convierte historia y sprint (007/US3).
+func TestUS3_FiltroValido(t *testing.T) {
+	storyID, sprintID := uuid.New(), uuid.New()
+
+	got, fields := ParseDefectFilter(
+		[]string{"in_progress", "open"},
+		[]string{"critical", "low", "high"},
+		storyID.String(), sprintID.String(),
+	)
+
+	if len(fields) != 0 {
+		t.Fatalf("no se esperaban errores, se obtuvieron %v", fields)
+	}
+	wantStatuses := []domain.DefectStatus{domain.DefectStatusInProgress, domain.DefectStatusOpen}
+	if len(got.Statuses) != 2 || got.Statuses[0] != wantStatuses[0] || got.Statuses[1] != wantStatuses[1] {
+		t.Errorf("estados = %v, se esperaba %v", got.Statuses, wantStatuses)
+	}
+	wantSeverities := []domain.DefectSeverity{domain.DefectSeverityCritical, domain.DefectSeverityLow, domain.DefectSeverityHigh}
+	if len(got.Severities) != 3 || got.Severities[0] != wantSeverities[0] ||
+		got.Severities[1] != wantSeverities[1] || got.Severities[2] != wantSeverities[2] {
+		t.Errorf("severidades = %v, se esperaba %v", got.Severities, wantSeverities)
+	}
+	if got.StoryID == nil || *got.StoryID != storyID {
+		t.Errorf("storyId = %v, se esperaba %v", got.StoryID, storyID)
+	}
+	if got.SprintID == nil || *got.SprintID != sprintID {
+		t.Errorf("sprintId = %v, se esperaba %v", got.SprintID, sprintID)
+	}
+}
+
+// Escenario: Dado un integrante, cuando filtra por un estado o una severidad inexistentes, entonces
+// se rechaza indicando los valores admitidos (007/US3).
+func TestUS3_ValorDeFiltroInvalido(t *testing.T) {
+	t.Run("estado inexistente", func(t *testing.T) {
+		_, fields := ParseDefectFilter([]string{"open", "closed"}, nil, "", "")
+
+		validationRequireOnlyField(t, fields, "status", validationMsgStatusInvalid)
+	})
+
+	t.Run("severidad inexistente", func(t *testing.T) {
+		_, fields := ParseDefectFilter(nil, []string{"urgent"}, "", "")
+
+		validationRequireOnlyField(t, fields, "severity", validationMsgSeverityInvalid)
+	})
+}
+
+// Escenario: Dado un integrante, cuando filtra por una historia o un sprint con identificador mal
+// formado, entonces se rechaza con el mensaje de filtro ajeno al proyecto (007/US3).
+func TestUS3_FiltroMalFormado(t *testing.T) {
+	t.Run("storyId mal formado", func(t *testing.T) {
+		_, fields := ParseDefectFilter(nil, nil, "no-es-un-uuid", "")
+
+		validationRequireOnlyField(t, fields, "storyId", validationMsgFilterOutsideProject)
+	})
+
+	t.Run("sprintId mal formado", func(t *testing.T) {
+		_, fields := ParseDefectFilter(nil, nil, "", "123")
+
+		validationRequireOnlyField(t, fields, "sprintId", validationMsgFilterOutsideProject)
+	})
+}
+
+// Todos los filtros inválidos se informan a la vez, sin detenerse en el primero (Principio VII).
+func TestUS3_VariosFiltrosInvalidos(t *testing.T) {
+	got, fields := ParseDefectFilter([]string{"closed"}, []string{"urgent"}, "x", "y")
+
+	want := []string{"severity", "sprintId", "status", "storyId"}
+	names := validationFieldNames(fields)
+	if strings.Join(names, ",") != strings.Join(want, ",") {
+		t.Errorf("campos rechazados = %v, se esperaba %v", names, want)
+	}
+	if len(got.Statuses) != 0 || len(got.Severities) != 0 || got.StoryID != nil || got.SprintID != nil {
+		t.Errorf("con campos inválidos no se debe devolver ningún dato, se obtuvo %+v", got)
+	}
+}

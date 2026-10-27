@@ -219,6 +219,7 @@ func run() error {
 	defectHandler := defectsdelivery.NewHandler(defects)
 	defectsdelivery.RegisterProjectRoutes(projectGroup, defectHandler)
 	defectsdelivery.RegisterDefectRoutes(router, handler.RequireSession, defectRepository, defectHandler)
+	defectsdelivery.RegisterStoryRoutes(router, handler.RequireSession, backlogdelivery.RequireStoryAccess(storyRepository), defectHandler)
 
 	// Ninguna conexión al canal de eventos sobrevive a un reinicio, así que antes de escuchar se
 	// marcan desconectados los participantes de las sesiones abiertas (research.md sección 9). El

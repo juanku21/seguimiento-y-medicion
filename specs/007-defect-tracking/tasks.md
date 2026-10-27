@@ -697,7 +697,7 @@ exactamente una de las dos.
       `InvalidTransitionError`; y una prueba de tabla con **las 16 combinaciones** de origen y
       destino: exactamente 5 válidas y 11 inválidas, incluidas las 4 salidas desde `discarded` —
       depende de T061
-- [ ] T063 [US6] Pruebas de integración en `backend/internal/defects/delivery/handler_test.go`, una
+- [X] T063 [US6] Pruebas de integración en `backend/internal/defects/delivery/handler_test.go`, una
       por escenario con `// Escenario: <nombre> (007/US6)`: `TestUS6_DescarteDesdeAbierto` (conserva
       la detección, `resolvedSprint: null`), `TestUS6_DescarteDesdeEnProgreso`,
       `TestUS6_ListadoConDescartados` (aparece en el listado sin filtros con `status: discarded`),

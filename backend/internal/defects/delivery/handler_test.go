@@ -1841,3 +1841,200 @@ func TestUS5_ProyectoFinalizado(t *testing.T) {
 	assert.Equal(t, "null", string(body.CurrentStatus), "currentStatus es null con read_only")
 	f.requireDefectRowUnchanged(t, before)
 }
+
+// Pruebas de integración del descarte de un defecto (T063, US6): PUT /api/v1/defects/{defectId}/status
+// con el estado discarded sobre el router de testenv_test.go.
+
+// Textos del contrato para el descarte de un Resuelto y para cualquier transición desde un Descartado.
+const (
+	defectMsgOnlyOpenDiscards = "Solo se descarta un defecto Abierto o En progreso; para descartarlo, primero reabrilo."
+	defectMsgDiscardedFinal   = "El defecto está Descartado, que es un estado definitivo."
+)
+
+// discardDefect descarta el defecto con el token del propietario y exige el 200 con el defecto Descartado.
+func (f defectFixture) discardDefect(t *testing.T, defectID string) defectResponse {
+	t.Helper()
+	defect := requireDefectOK(t, f.env.putDefectStatus(t, f.ownerToken, defectID, "discarded", uuid.Nil))
+	require.Equal(t, "discarded", defect.Status, "el descarte deja el defecto Descartado")
+	return defect
+}
+
+// requireDiscardedStored verifica en la base que el defecto está Descartado, conserva su detección y
+// no tiene sprint de resolución.
+func (f defectFixture) requireDiscardedStored(t *testing.T, defectID string) {
+	t.Helper()
+	stored := f.env.storedDefect(t, defectID)
+	assert.Equal(t, "discarded", string(stored.Status))
+	assert.Equal(t, f.sprintID, stored.DetectedSprintID)
+	assert.Nil(t, stored.ResolvedSprintID, "un descartado nunca tiene sprint de resolución")
+}
+
+// Escenario: Dado un defecto Abierto que resultó ser un duplicado, cuando un integrante lo descarta, entonces el defecto queda en estado Descartado, conserva su sprint de detección y sigue sin sprint de resolución (007/US6)
+func TestUS6_DescarteDesdeAbierto(t *testing.T) {
+	f := newDefectFixture(t)
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+
+	defect := f.discardDefect(t, defectID)
+
+	assert.Equal(t, f.sprintID.String(), defect.DetectedSprint.ID, "conserva el sprint de detección")
+	assert.Equal(t, "null", string(defect.Raw["resolvedSprint"]), "resolvedSprint debe serializarse null")
+	f.requireDiscardedStored(t, defectID)
+}
+
+// Escenario: Dado un defecto En progreso que al investigarlo resultó no ser un defecto, cuando un integrante lo descarta, entonces el descarte se acepta, porque también se llega a Descartado desde En progreso (007/US6)
+func TestUS6_DescarteDesdeEnProgreso(t *testing.T) {
+	f := newDefectFixture(t)
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	f.startDefect(t, f.ownerToken, defectID)
+
+	defect := f.discardDefect(t, defectID)
+
+	assert.Equal(t, f.sprintID.String(), defect.DetectedSprint.ID)
+	assert.Equal(t, "null", string(defect.Raw["resolvedSprint"]))
+	f.requireDiscardedStored(t, defectID)
+}
+
+// Escenario: Dado un defecto Descartado, cuando un integrante consulta los defectos del proyecto sin filtros, entonces lo ve listado con su estado Descartado, distinguible de los demás (007/US6)
+func TestUS6_ListadoConDescartados(t *testing.T) {
+	f := newDefectFixture(t)
+	keptID := f.registerDefect(t, f.storyID, f.sprintID)
+	discardedID := f.registerDefect(t, f.storyID, f.sprintID)
+	f.discardDefect(t, discardedID)
+
+	list := requireDefectList(t, f.listProject(t, ""))
+
+	f.requireListing(t, list, keptID, discardedID)
+	for _, d := range list.Defects {
+		if d.ID == discardedID {
+			assert.Equal(t, "discarded", d.Status)
+		} else {
+			assert.Equal(t, "open", d.Status)
+		}
+	}
+}
+
+// Escenario: Dado un proyecto con defectos en los cuatro estados, cuando un integrante filtra por estado Descartado, entonces ve únicamente los descartados (007/US6)
+func TestUS6_FiltroPorDescartado(t *testing.T) {
+	s := newUS3Seed(t)
+	// Se descarta con el endpoint real un defecto más, además del d4 sembrado.
+	s.discardDefect(t, s.d["d1"])
+
+	t.Run("solo descartados", func(t *testing.T) {
+		list := requireDefectList(t, s.listProject(t, "?status=discarded"))
+		s.requireListing(t, list, s.want("d1", "d4")...)
+	})
+
+	t.Run("los otros tres estados lo excluyen", func(t *testing.T) {
+		list := requireDefectList(t, s.listProject(t, "?status=open&status=in_progress&status=resolved"))
+		s.requireListing(t, list, s.want("d2", "d3", "d5", "d6")...)
+	})
+}
+
+// Escenario: Dado una historia cuyos únicos defectos fueron todos descartados, cuando un integrante intenta eliminar esa historia, entonces la eliminación se rechaza igual, porque la historia tuvo defectos asociados y eso no se revierte (007/US6)
+func TestUS6_HistoriaNoEliminable(t *testing.T) {
+	f := newDefectFixture(t)
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	f.discardDefect(t, defectID)
+
+	rec := f.env.do(t, http.MethodDelete, "/api/v1/stories/"+f.storyID.String(), f.ownerToken, nil)
+
+	var blocked struct {
+		Reasons []struct {
+			Code string `json:"code"`
+		} `json:"reasons"`
+	}
+	defectRequireStatus(t, rec, http.StatusConflict, &blocked)
+	codes := make([]string, 0, len(blocked.Reasons))
+	for _, reason := range blocked.Reasons {
+		codes = append(codes, reason.Code)
+	}
+	assert.Contains(t, codes, "defects", "el 409 debe incluir el motivo defects (RN-19)")
+}
+
+// Escenario: Dado un defecto Descartado, cuando un integrante consulta su detalle, entonces ve su sprint de detección y el campo de sprint de resolución vacío, porque el defecto nunca se resolvió (007/US6)
+func TestUS6_DetalleDeDescartado(t *testing.T) {
+	f := newDefectFixture(t)
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	f.discardDefect(t, defectID)
+
+	detail := f.env.getDefect(t, f.ownerToken, defectID)
+
+	assert.Equal(t, "discarded", detail.Status)
+	assert.Equal(t, f.sprintID.String(), detail.DetectedSprint.ID)
+	assert.Equal(t, "null", string(detail.Raw["resolvedSprint"]))
+}
+
+// Escenario: Dado un defecto Resuelto, cuando un integrante intenta descartarlo, entonces la acción se rechaza indicando que solo se descarta un defecto Abierto o En progreso; para sacarlo de circulación hay que reabrirlo primero (007/US6)
+func TestUS6_DescarteDeResuelto(t *testing.T) {
+	f := newDefectFixture(t)
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	f.resolveFromOpen(t, defectID, f.sprintID)
+	before := f.env.storedDefect(t, defectID)
+
+	body := requireDefectConflict(t, f.env.putDefectStatus(t, f.ownerToken, defectID, "discarded", uuid.Nil), "invalid_transition")
+
+	assert.Equal(t, defectMsgOnlyOpenDiscards, body.Error)
+	assert.Equal(t, `"resolved"`, string(body.CurrentStatus), "currentStatus es el estado vigente")
+	f.requireDefectRowUnchanged(t, before)
+}
+
+// Escenario: Dado un defecto Descartado, cuando un integrante intenta descartarlo de nuevo, pasarlo a En progreso, resolverlo o reabrirlo, entonces la acción se rechaza porque Descartado es un estado definitivo (007/US6)
+func TestUS6_DescartadoDefinitivo(t *testing.T) {
+	cases := []struct {
+		name   string
+		status string
+	}{
+		{"descartar", "discarded"},
+		{"pasar a En progreso", "in_progress"},
+		{"resolver", "resolved"},
+		{"reabrir", "open"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newDefectFixture(t)
+			defectID := f.registerDefect(t, f.storyID, f.sprintID)
+			f.discardDefect(t, defectID)
+			before := f.env.storedDefect(t, defectID)
+			resolvedSprint := uuid.Nil
+			if tc.status == "resolved" {
+				resolvedSprint = f.sprintID
+			}
+
+			body := requireDefectConflict(t, f.env.putDefectStatus(t, f.ownerToken, defectID, tc.status, resolvedSprint), "invalid_transition")
+
+			assert.Equal(t, defectMsgDiscardedFinal, body.Error)
+			assert.Equal(t, `"discarded"`, string(body.CurrentStatus))
+			f.requireDefectRowUnchanged(t, before)
+		})
+	}
+
+	t.Run("modificar", func(t *testing.T) {
+		f := newDefectFixture(t)
+		defectID := f.registerDefect(t, f.storyID, f.sprintID)
+		f.discardDefect(t, defectID)
+		before := f.env.storedDefect(t, defectID)
+
+		body := requireDefectConflict(t, f.env.patchDefect(t, f.ownerToken, defectID,
+			map[string]any{"description": "Descripción corregida"}), "defect_discarded")
+
+		assert.Equal(t, defectMsgDiscarded, body.Error)
+		assert.Equal(t, `"discarded"`, string(body.CurrentStatus))
+		f.requireDefectRowUnchanged(t, before)
+	})
+}
+
+// Escenario: Dado un proyecto en estado Finalizado, cuando un integrante intenta descartar un defecto, entonces la acción se rechaza porque el proyecto es de solo lectura (007/US6)
+func TestUS6_ProyectoFinalizado(t *testing.T) {
+	f := newDefectFixture(t)
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	defectRequireStatus(t, f.env.do(t, http.MethodPost, "/api/v1/sprints/"+f.sprintID.String()+"/close", f.ownerToken, nil),
+		http.StatusOK, nil)
+	f.env.setProjectStatus(t, f.ownerToken, f.projectID, "finished")
+	before := f.env.storedDefect(t, defectID)
+
+	body := requireDefectConflict(t, f.env.putDefectStatus(t, f.ownerToken, defectID, "discarded", uuid.Nil), "read_only")
+
+	assert.Equal(t, defectMsgReadOnly, body.Error)
+	assert.Equal(t, "null", string(body.CurrentStatus), "currentStatus es null con read_only")
+	f.requireDefectRowUnchanged(t, before)
+}

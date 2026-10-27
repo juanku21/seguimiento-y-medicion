@@ -1,13 +1,15 @@
 package domain
 
 import (
-	"errors"
-
 	sprintsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
 
 // EnsureSprintUsableForDetection verifica que un sprint pueda ser de detección (RN-08): solo
-// los sprints activos o cerrados. Firma mínima: la lógica la aporta la tarea de implementación.
+// los sprints activos o cerrados.
 func EnsureSprintUsableForDetection(status sprintsdomain.SprintStatus) error {
-	return errors.New("not implemented")
+	// Un sprint planificado todavía no se ejecutó, por lo que no puede detectar defectos.
+	if status == sprintsdomain.SprintStatusPlanned {
+		return ErrDetectionSprintPlanned
+	}
+	return nil
 }

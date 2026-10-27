@@ -261,7 +261,7 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
 
 - [X] T014 [P] [US1] Implementar `DefectSeverity.Valid` y `SeverityRank` en
       `backend/internal/defects/domain/severity.go` — depende de T008
-- [ ] T015 [P] [US1] Implementar `EnsureSprintUsableForDetection` en
+- [X] T015 [P] [US1] Implementar `EnsureSprintUsableForDetection` en
       `backend/internal/defects/domain/rules.go` — depende de T009
 - [ ] T016 [US1] Implementar en `backend/internal/defects/delivery/validation.go`
       `ValidateDefectInput` (recorte, 1 a 2000 runas, severidad válida, identificadores obligatorios y

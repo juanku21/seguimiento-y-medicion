@@ -12,8 +12,12 @@ func RegisterProjectRoutes(projectGroup *gin.RouterGroup, handler *Handler) {
 	projectGroup.POST("/defects", handler.createDefect)
 }
 
-// RegisterDefectRoutes registra las rutas de un defecto en el grupo plano /api/v1/defects/:defectId,
-// con el middleware de sesión y RequireDefectAccess. Firma mínima de T028: el registro de GET "" y
-// PUT /status corresponde a T036.
+// RegisterDefectRoutes registra el detalle, GET "", y el cambio de estado, PUT /status, en el grupo
+// plano /api/v1/defects/:defectId, con el middleware de sesión y RequireDefectAccess sobre el
+// repositorio recibido. El defecto inexistente, ajeno o con identificador mal formado recibe el 404
+// indistinguible del middleware antes de llegar al manejador.
 func RegisterDefectRoutes(router *gin.Engine, requireSession gin.HandlerFunc, defects domain.DefectRepository, handler *Handler) {
+	defectGroup := router.Group("/api/v1/defects/:defectId", requireSession, RequireDefectAccess(defects))
+	defectGroup.GET("", handler.getDefect)
+	defectGroup.PUT("/status", handler.changeDefectStatus)
 }

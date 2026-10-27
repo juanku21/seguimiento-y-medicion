@@ -430,7 +430,7 @@ el sprint Activo devuelve `200` y deja el defecto `resolved` con ese sprint; `re
 - [X] T035 [US2] Implementar `ChangeStatus` y `Get` en
       `backend/internal/defects/service/defect_service.go` con el actor de la sesión y el instante del
       reloj — depende de T033
-- [ ] T036 [US2] Implementar los manejadores `changeDefectStatus` y `getDefect` con anotaciones `swag`
+- [X] T036 [US2] Implementar los manejadores `changeDefectStatus` y `getDefect` con anotaciones `swag`
       en `backend/internal/defects/delivery/handler.go`: `InvalidTransitionError` → `409
       invalid_transition` con `currentStatus` y `allowedStatuses`, y el mensaje elegido por
       `(Current, Requested)` en una función de `delivery` (salto de Abierto a Resuelto, vuelta de En

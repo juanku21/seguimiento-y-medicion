@@ -307,7 +307,7 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
       sin importar `projects/delivery`; y componer el módulo en `backend/cmd/app/main.go`:
       repositorio, servicio con `time.Now`, registro sobre `projectGroup`, más el `@description`
       general de la API para que mencione la gestión de defectos — depende de T020
-- [ ] T022 [US1] Reemplazar el puerto de la 003 y traducir la clave foránea: en
+- [X] T022 [US1] Reemplazar el puerto de la 003 y traducir la clave foránea: en
       `backend/internal/backlog/repository/defect_records.go`, `NewDefectRecords(db *gorm.DB)` y
       `HasDefects` que lee `user_stories.ever_had_defects`; en
       `backend/internal/backlog/repository/story_repository.go`, `Delete` reconoce además la

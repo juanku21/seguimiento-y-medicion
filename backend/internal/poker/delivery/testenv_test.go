@@ -180,7 +180,7 @@ func newPokerRouter(db *gorm.DB, cfg config.Config, clock *pokerClock) (*gin.Eng
 		storyRepository,
 		backlogrepository.NewSprintAssignments(db),
 		backlogrepository.NewEffortRecords(db),
-		backlogrepository.NewDefectRecords(),
+		backlogrepository.NewDefectRecords(db),
 		backlogrepository.NewEstimationSessions(db),
 		backlogrepository.NewProjectDirectory(db),
 	)

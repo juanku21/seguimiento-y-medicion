@@ -149,7 +149,7 @@ func run() error {
 		storyRepository,
 		backlogrepository.NewSprintAssignments(db),
 		backlogrepository.NewEffortRecords(db),
-		backlogrepository.NewDefectRecords(),
+		backlogrepository.NewDefectRecords(db),
 		backlogrepository.NewEstimationSessions(db),
 		backlogrepository.NewProjectDirectory(db),
 	)

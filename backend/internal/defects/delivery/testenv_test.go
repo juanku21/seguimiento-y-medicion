@@ -146,7 +146,7 @@ func newDefectRouter(db *gorm.DB, cfg config.Config, clock *defectClock, locatio
 		storyRepository,
 		backlogrepository.NewSprintAssignments(db),
 		backlogrepository.NewEffortRecords(db),
-		backlogrepository.NewDefectRecords(),
+		backlogrepository.NewDefectRecords(db),
 		backlogrepository.NewEstimationSessions(db),
 		backlogrepository.NewProjectDirectory(db),
 	)

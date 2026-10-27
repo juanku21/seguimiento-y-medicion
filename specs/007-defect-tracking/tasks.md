@@ -237,7 +237,7 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
       en el cuerpo: ambos `409 no_detection_sprint`). En cada rechazo se verifica que la cantidad de
       filas de `defects` no cambió y que `ever_had_defects` de la historia sigue en `false` — depende
       de T007
-- [ ] T012 [P] [US1] Pruebas de integración contra `smye_test` en `backend/internal/backlog/repository/`:
+- [X] T012 [P] [US1] Pruebas de integración contra `smye_test` en `backend/internal/backlog/repository/`:
       en `defect_records_test.go`, `HasDefects` es `false` sin defectos y `true` con
       `ever_had_defects = true`, y **sigue** `true` después de mover el único defecto a otra historia
       con un `UPDATE` directo (RC-05, RN-19); en `story_repository_test.go`,

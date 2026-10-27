@@ -396,7 +396,7 @@ el sprint Activo devuelve `200` y deja el defecto `resolved` con ese sprint; `re
       integrantes envían a la vez `in_progress` sobre el mismo defecto `open`; exactamente uno recibe
       `200` y el otro `409 invalid_transition` con `currentStatus: in_progress`, ninguno `500`.
       Repetida **10** veces para que el intercalado sea real (FR-018, RN-24) — depende de T028
-- [ ] T030 [P] [US2] Pruebas de frontend en `frontend/src/features/defects/transitions.test.ts`
+- [X] T030 [P] [US2] Pruebas de frontend en `frontend/src/features/defects/transitions.test.ts`
       (`allowedTransitions` coincide con el mapa del backend para las transiciones de esta historia)
       y `frontend/src/features/defects/components/defect-status-actions.test.tsx`, con
       `describe("007/US2 - Seguir y resolver un defecto")`: un defecto Abierto ofrece solo "Pasar a En

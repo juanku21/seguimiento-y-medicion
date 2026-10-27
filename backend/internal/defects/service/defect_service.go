@@ -34,3 +34,22 @@ func (s *DefectService) Create(ctx context.Context, projectID, actorID uuid.UUID
 	}
 	return view, nil
 }
+
+// ChangeStatus cambia el estado de un defecto atribuyendo el cambio al actor (el titular de la sesión)
+// y fechándolo con el instante del reloj. El repositorio decide la transición sobre el estado vigente.
+func (s *DefectService) ChangeStatus(ctx context.Context, defectID, actorID uuid.UUID, change domain.StatusChange) (*domain.DefectView, error) {
+	view, err := s.repo.ChangeStatus(ctx, defectID, actorID, change, s.now())
+	if err != nil {
+		return nil, fmt.Errorf("cambiar el estado del defecto: %w", err)
+	}
+	return view, nil
+}
+
+// Get devuelve el detalle de un defecto con sus relaciones resueltas.
+func (s *DefectService) Get(ctx context.Context, defectID uuid.UUID) (*domain.DefectView, error) {
+	view, err := s.repo.FindView(ctx, defectID)
+	if err != nil {
+		return nil, fmt.Errorf("leer el defecto: %w", err)
+	}
+	return view, nil
+}

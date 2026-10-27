@@ -714,7 +714,7 @@ vulnerabilidades y verificación de las puertas de calidad.
       `backend/`, y `npm run test:coverage` en `frontend/` — y revisar que `internal/effort/`,
       `frontend/src/features/effort/` y `frontend/src/utils/effort-format.ts` estén cubiertos; correr
       además `go test -race -p 1 ./internal/effort/...` — depende de T071
-- [ ] T076 Verificar la trazabilidad y las puertas de seguridad recorriendo `backend/internal/effort/`
+- [X] T076 Verificar la trazabilidad y las puertas de seguridad recorriendo `backend/internal/effort/`
       y `frontend/src/features/effort/`: que buscar `006/US1` a `006/US5` en el código de pruebas
       devuelva los **74** escenarios; que las **26** reglas RN-01 a RN-26 tengan prueba asociada según
       la tabla de plan.md (SC-023); que los **siete** endpoints tengan su prueba de `401` (SC-017);

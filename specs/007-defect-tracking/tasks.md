@@ -245,7 +245,7 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
       historia cuya marca sigue en `false` (simula la carrera de research.md sección 10),
       `StoryRepository.Delete` devuelve `DeletionBlockedError` con el motivo `defects` y no un error
       genérico, y la historia no se borra — depende de T007
-- [ ] T013 [P] [US1] Pruebas de frontend en `frontend/src/features/defects/validation.test.ts`
+- [X] T013 [P] [US1] Pruebas de frontend en `frontend/src/features/defects/validation.test.ts`
       (descripción y severidad con las mismas reglas de forma que el backend),
       `frontend/src/utils/defect-labels.test.ts` (etiquetas en español de las cuatro severidades, los
       cuatro estados, `no_defects`, `no_matches` y los cinco `code` de conflicto) y

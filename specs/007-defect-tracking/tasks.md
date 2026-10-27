@@ -515,7 +515,7 @@ devuelve `400` en `status`.
       `backend/internal/defects/service/defect_service.go`: valida el filtro, lista y, con la lista
       vacía, calcula `emptyReason` (`no_defects` si `HasProjectDefects` es `false`, si no
       `no_matches`; siempre `no_defects` para una historia) — depende de T042
-- [ ] T044 [US3] Declarar `ProjectDefects` y `StoryDefects` en `backend/internal/defects/delivery/dto.go`
+- [X] T044 [US3] Declarar `ProjectDefects` y `StoryDefects` en `backend/internal/defects/delivery/dto.go`
       (listas vacías como `[]`), implementar los manejadores `listProjectDefects` (`InvalidFilterError`
       → `400` con `ValidationErrorResponse`) y `listStoryDefects` con anotaciones `swag` en
       `backend/internal/defects/delivery/handler.go`, agregar `GET /defects` a `RegisterProjectRoutes`

@@ -6,15 +6,18 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/defects/domain"
 )
 
-// RegisterProjectRoutes registra POST /defects sobre el subgrupo /api/v1/projects/:projectId de la
+// RegisterProjectRoutes registra POST y GET /defects sobre el subgrupo /api/v1/projects/:projectId de la
 // 002, recibido desde cmd/app para no importar ese paquete. El subgrupo ya exige sesión y membresía.
 func RegisterProjectRoutes(projectGroup *gin.RouterGroup, handler *Handler) {
 	projectGroup.POST("/defects", handler.createDefect)
+	projectGroup.GET("/defects", handler.listProjectDefects)
 }
 
-// RegisterStoryRoutes registrará GET /api/v1/stories/:storyId/defects con el middleware de sesión y
-// el RequireStoryAccess de la 003 (firma mínima: la lógica pertenece a T044).
+// RegisterStoryRoutes registra GET /api/v1/stories/:storyId/defects con el middleware de sesión y el
+// RequireStoryAccess de la 003, recibidos desde cmd/app para no importar backlog/delivery.
 func RegisterStoryRoutes(router *gin.Engine, requireSession, requireStoryAccess gin.HandlerFunc, handler *Handler) {
+	storyGroup := router.Group("/api/v1/stories/:storyId", requireSession, requireStoryAccess)
+	storyGroup.GET("/defects", handler.listStoryDefects)
 }
 
 // RegisterDefectRoutes registra el detalle, GET "", y el cambio de estado, PUT /status, en el grupo

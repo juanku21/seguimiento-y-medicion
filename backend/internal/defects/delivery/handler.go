@@ -14,8 +14,16 @@ import (
 	authdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/delivery"
 	backlogdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/domain"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/defects/domain"
+	"github.com/juanku21/seguimiento-y-medicion/backend/internal/defects/service"
 	sprintsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
+
+// storyAccessContextKey es la clave con la que RequireStoryAccess de la 003 deja el StoryAccess en el
+// contexto de gin. Replica la de backlog/delivery porque este paquete no lo importa (Principio III).
+const storyAccessContextKey = "backlog.storyAccess"
+
+// msgFilterForeign es el rechazo de un filtro que no corresponde al proyecto.
+const msgFilterForeign = "El filtro no corresponde al proyecto."
 
 // Mensajes de las respuestas de error del alta de defectos, en español y dirigidos a la persona.
 const (
@@ -54,6 +62,10 @@ type DefectService interface {
 	ChangeStatus(ctx context.Context, defectID, actorID uuid.UUID, change domain.StatusChange) (*domain.DefectView, error)
 	// Get devuelve el detalle de un defecto con sus relaciones resueltas.
 	Get(ctx context.Context, defectID uuid.UUID) (*domain.DefectView, error)
+	// ListForProject lista los defectos del proyecto según el filtro.
+	ListForProject(ctx context.Context, projectID uuid.UUID, filter domain.DefectFilter) (*service.DefectListView, error)
+	// ListForStory lista los defectos de la historia a la que el actor ya accedió.
+	ListForStory(ctx context.Context, access *backlogdomain.StoryAccess) (*service.DefectListView, error)
 }
 
 // Handler expone los endpoints HTTP de los defectos.
@@ -215,6 +227,106 @@ func (h *Handler) changeDefectStatus(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, newDefect(view, access.ProjectID))
+}
+
+// listProjectDefects godoc
+//
+//	@Summary		Lista los defectos del proyecto con filtros
+//	@Description	Devuelve los defectos del proyecto que cumplen todos los filtros indicados (FR-040,
+//	@Description	FR-041), incluidos los discarded cuando no se filtra por estado. Los valores repetidos
+//	@Description	de un mismo filtro se combinan con "o". El filtro sprintId devuelve los defectos
+//	@Description	detectados o resueltos en ese sprint (FR-042). Una lista vacía no es un error:
+//	@Description	emptyReason es no_defects si el proyecto no tiene defectos o no_matches si los filtros
+//	@Description	no encuentran ninguno (FR-045). Se ordena por severidad descendente y, a igual
+//	@Description	severidad, por creación descendente (FR-048).
+//	@Tags			Defectos
+//	@ID				listProjectDefects
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			projectId	path		string								true	"Identificador del proyecto"	format(uuid)
+//	@Param			status		query		[]string							false	"Estado del defecto; repetible"		Enums(open, in_progress, resolved, discarded)	collectionFormat(multi)
+//	@Param			severity	query		[]string							false	"Severidad del defecto; repetible"	Enums(critical, high, medium, low)				collectionFormat(multi)
+//	@Param			storyId		query		string								false	"Historia del proyecto"				format(uuid)
+//	@Param			sprintId	query		string								false	"Sprint del proyecto; coincide por detección o por resolución"	format(uuid)
+//	@Success		200			{object}	ProjectDefects						"Defectos del proyecto, posiblemente vacío."
+//	@Failure		400			{object}	delivery.ValidationErrorResponse	"Filtro inválido o que no corresponde al proyecto. Indica todos los filtros a corregir y por qué."
+//	@Failure		401			{object}	delivery.ErrorResponse				"Se requiere iniciar sesión."
+//	@Failure		404			{object}	delivery.ErrorResponse				"El proyecto no existe o quien pide no es integrante; las situaciones devuelven el mismo cuerpo."
+//	@Failure		500			{object}	delivery.ErrorResponse				"Error interno sin detalles expuestos."
+//	@Router			/api/v1/projects/{projectId}/defects [get]
+func (h *Handler) listProjectDefects(c *gin.Context) {
+	projectID, err := uuid.Parse(c.Param("projectId"))
+	if err != nil {
+		respondInternalError(c, "listProjectDefects sin un projectId válido en la ruta", "error", err)
+		return
+	}
+
+	// Los filtros de la consulta se validan todos a la vez antes de llegar al servicio (Principio VII).
+	filter, fields := ParseDefectFilter(c.QueryArray("status"), c.QueryArray("severity"), c.Query("storyId"), c.Query("sprintId"))
+	if len(fields) > 0 {
+		respondInvalidFields(c, fields)
+		return
+	}
+
+	// Un filtro de otro proyecto se informa como campo del 400; el resto sigue la traducción común.
+	list, err := h.svc.ListForProject(c.Request.Context(), projectID, filter)
+	if err != nil {
+		var invalid *domain.InvalidFilterError
+		if errors.As(err, &invalid) {
+			respondInvalidFields(c, []authdelivery.FieldError{{Field: invalid.Field, Message: msgFilterForeign}})
+			return
+		}
+		respondServiceError(c, err, "no se pudo listar los defectos del proyecto")
+		return
+	}
+
+	defects, reason := newDefectList(list, projectID)
+	c.JSON(http.StatusOK, ProjectDefects{Defects: defects, EmptyReason: reason})
+}
+
+// listStoryDefects godoc
+//
+//	@Summary		Lista los defectos de una historia
+//	@Description	Devuelve todos los defectos de la historia, de cualquier estado, con el mismo orden y
+//	@Description	los mismos datos que el listado del proyecto (FR-043, FR-044, FR-048). Sin defectos,
+//	@Description	emptyReason es no_defects y no es un error (FR-045).
+//	@Tags			Defectos
+//	@ID				listStoryDefects
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			storyId	path		string					true	"Identificador de la historia"	format(uuid)
+//	@Success		200		{object}	StoryDefects			"Defectos de la historia, posiblemente vacío."
+//	@Failure		401		{object}	delivery.ErrorResponse	"Se requiere iniciar sesión."
+//	@Failure		404		{object}	delivery.ErrorResponse	"La historia no existe o quien pide no es integrante de su proyecto; las situaciones devuelven el mismo cuerpo."
+//	@Failure		500		{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/stories/{storyId}/defects [get]
+func (h *Handler) listStoryDefects(c *gin.Context) {
+	// RequireStoryAccess de la 003 ya respondió 401 y 404; sin su dato la cadena está mal armada.
+	access, ok := storyAccessFromContext(c)
+	if !ok {
+		respondInternalError(c, "listStoryDefects sin StoryAccess en el contexto")
+		return
+	}
+
+	list, err := h.svc.ListForStory(c.Request.Context(), access)
+	if err != nil {
+		respondServiceError(c, err, "no se pudo listar los defectos de la historia")
+		return
+	}
+
+	defects, reason := newDefectList(list, access.ProjectID)
+	c.JSON(http.StatusOK, StoryDefects{Defects: defects, EmptyReason: reason})
+}
+
+// storyAccessFromContext devuelve el StoryAccess que RequireStoryAccess dejó en el contexto de gin, y
+// si estaba presente.
+func storyAccessFromContext(c *gin.Context) (*backlogdomain.StoryAccess, bool) {
+	value, exists := c.Get(storyAccessContextKey)
+	if !exists {
+		return nil, false
+	}
+	access, ok := value.(*backlogdomain.StoryAccess)
+	return access, ok && access != nil
 }
 
 // respondServiceError traduce un error del servicio a la respuesta del contrato; lo desconocido

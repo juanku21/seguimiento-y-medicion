@@ -594,7 +594,7 @@ sobre uno En progreso devuelve `409 links_frozen`; con `status` devuelve `400`.
 
 ### Implementación de la Historia 4
 
-- [ ] T051 [P] [US4] Implementar `EnsureDefectEditable` y `EnsureLinksCorrectable` en
+- [X] T051 [P] [US4] Implementar `EnsureDefectEditable` y `EnsureLinksCorrectable` en
       `backend/internal/defects/domain/rules.go` — depende de T046
 - [ ] T052 [US4] Implementar `ValidateDefectPatch` en `backend/internal/defects/delivery/validation.go`
       con el DTO `DefectPatch` en `backend/internal/defects/delivery/dto.go`: cada campo como

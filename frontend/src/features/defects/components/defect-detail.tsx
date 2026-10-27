@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Alert } from "@/components/alert";
 import { getDefect } from "@/features/defects/api";
+import { DefectEditForm } from "@/features/defects/components/defect-edit-form";
 import { DefectStatusActions } from "@/features/defects/components/defect-status-actions";
 import { useRequireSession } from "@/hooks/use-session";
 import type { Defect } from "@/types/defect";
@@ -107,6 +108,17 @@ export function DefectDetail({ defectId }: DefectDetailProps) {
         defect={defect}
         onChanged={(changed) => setState({ status: "loaded", defect: changed })}
       />
+
+      {/* Corrección de los datos del defecto; el defecto devuelto reemplaza al mostrado. */}
+      <section className="flex flex-col gap-3">
+        <h2 className="text-lg font-semibold">Corregir datos</h2>
+        <DefectEditForm
+          defect={defect}
+          onUpdated={(updated) =>
+            setState({ status: "loaded", defect: updated })
+          }
+        />
+      </section>
     </div>
   );
 }

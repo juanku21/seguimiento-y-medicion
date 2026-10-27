@@ -1,13 +1,13 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
-import { FIELD_CONTROL_CLASS_NAME, FormField } from "@/components/form-field";
 import { Textarea } from "@/components/textarea";
-import { listStories } from "@/features/backlog/api";
-import { createDefect, listDetectionSprints } from "@/features/defects/api";
+import { createDefect } from "@/features/defects/api";
+import { DefectSelectField } from "@/features/defects/components/defect-select-field";
+import { useDefectOptions } from "@/features/defects/use-defect-options";
 import {
   toDefectFieldErrors,
   validateDefectFields,
@@ -16,8 +16,6 @@ import {
   type DefectFormValues,
 } from "@/features/defects/validation";
 import type { Defect, DefectSeverity } from "@/types/defect";
-import type { SprintListItem } from "@/types/sprint";
-import type { StoryListItem } from "@/types/story";
 import { DEFECT_SEVERITY_LABELS } from "@/utils/defect-labels";
 
 // Propiedades del formulario: el proyecto donde se registra y el aviso del alta exitosa.
@@ -30,46 +28,6 @@ const NO_SPRINTS_NOTICE = "Todavía no hay ningún sprint Activo ni Cerrado.";
 
 // Severidades en el orden en que se ofrecen, de la más grave a la menos grave.
 const SEVERITIES = Object.keys(DEFECT_SEVERITY_LABELS) as DefectSeverity[];
-
-type SelectFieldProps = {
-  label: string;
-  name: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: { value: string; label: string }[];
-  error?: string;
-};
-
-// Select nativo con su etiqueta y los estilos comunes de los campos; su primera opción es vacía.
-function SelectField({
-  label,
-  name,
-  value,
-  onChange,
-  options,
-  error,
-}: SelectFieldProps) {
-  return (
-    <FormField label={label} error={error}>
-      {(control) => (
-        <select
-          {...control}
-          name={name}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className={`h-11 ${FIELD_CONTROL_CLASS_NAME}`}
-        >
-          <option value=""></option>
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      )}
-    </FormField>
-  );
-}
 
 // Formulario de registro de un defecto (007/US1). Carga las historias del backlog y los sprints
 // Activos y Cerrados, propone el sprint Activo y la historia de ?storyId= si llega, de modo que el
@@ -85,47 +43,24 @@ export function DefectForm({ projectId, onCreated }: DefectFormProps) {
     storyId: presetStoryId,
     detectedSprintId: "",
   });
-  const [stories, setStories] = useState<StoryListItem[]>([]);
-  const [sprints, setSprints] = useState<SprintListItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const {
+    stories,
+    sprints,
+    isLoading,
+    error: loadError,
+  } = useDefectOptions(projectId);
   const [fieldErrors, setFieldErrors] = useState<DefectFieldErrors>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submittingRef = useRef(false);
+  // Sprint elegido por la persona: null es "sin elección" y "" es la opción vacía elegida.
+  const [sprintChoice, setSprintChoice] = useState<string | null>(null);
 
-  // Carga historias y sprints al montar y propone el sprint Activo, si existe.
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      const [storiesResult, sprintsResult] = await Promise.all([
-        listStories(projectId, { status: [], priority: [] }),
-        listDetectionSprints(projectId),
-      ]);
-      if (cancelled) {
-        return;
-      }
-      if (storiesResult.ok) {
-        setStories(storiesResult.data.stories);
-      } else {
-        setGeneralError(storiesResult.error.message);
-      }
-      if (sprintsResult.ok) {
-        const loaded = sprintsResult.data.sprints;
-        setSprints(loaded);
-        const active = loaded.find((sprint) => sprint.status === "active");
-        if (active) {
-          setValues((current) => ({ ...current, detectedSprintId: active.id }));
-        }
-      } else {
-        setGeneralError(sprintsResult.error.message);
-      }
-      setIsLoading(false);
-    }
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId]);
+  // Propone el sprint Activo hasta que la persona elige, incluida la opción vacía.
+  const activeSprintId = sprints.find(
+    (sprint) => sprint.status === "active",
+  )?.id;
+  const detectedSprintId = sprintChoice ?? activeSprintId ?? "";
 
   // Actualiza un campo del formulario a partir de lo que se escribió o eligió.
   function updateField(field: DefectFieldName, value: string) {
@@ -140,7 +75,7 @@ export function DefectForm({ projectId, onCreated }: DefectFormProps) {
       return;
     }
 
-    const errors = validateDefectFields(values);
+    const errors = validateDefectFields({ ...values, detectedSprintId });
     setFieldErrors(errors);
     setGeneralError(null);
     if (Object.keys(errors).length > 0) {
@@ -153,7 +88,7 @@ export function DefectForm({ projectId, onCreated }: DefectFormProps) {
       description: values.description,
       severity: values.severity as DefectSeverity,
       storyId: values.storyId,
-      detectedSprintId: values.detectedSprintId,
+      detectedSprintId,
     });
     submittingRef.current = false;
     setIsSubmitting(false);
@@ -173,7 +108,9 @@ export function DefectForm({ projectId, onCreated }: DefectFormProps) {
 
   return (
     <form noValidate onSubmit={handleSubmit} className="flex flex-col gap-5">
-      {generalError && <Alert>{generalError}</Alert>}
+      {(generalError ?? loadError) && (
+        <Alert>{generalError ?? loadError}</Alert>
+      )}
       {hasNoSprints && <Alert>{NO_SPRINTS_NOTICE}</Alert>}
       <Textarea
         label="Descripción"
@@ -182,7 +119,7 @@ export function DefectForm({ projectId, onCreated }: DefectFormProps) {
         onChange={(event) => updateField("description", event.target.value)}
         error={fieldErrors.description}
       />
-      <SelectField
+      <DefectSelectField
         label="Severidad"
         name="severity"
         value={values.severity}
@@ -193,7 +130,7 @@ export function DefectForm({ projectId, onCreated }: DefectFormProps) {
         }))}
         error={fieldErrors.severity}
       />
-      <SelectField
+      <DefectSelectField
         label="Historia"
         name="storyId"
         value={values.storyId}
@@ -204,11 +141,11 @@ export function DefectForm({ projectId, onCreated }: DefectFormProps) {
         }))}
         error={fieldErrors.storyId}
       />
-      <SelectField
+      <DefectSelectField
         label="Sprint de detección"
         name="detectedSprintId"
-        value={values.detectedSprintId}
-        onChange={(value) => updateField("detectedSprintId", value)}
+        value={detectedSprintId}
+        onChange={setSprintChoice}
         options={sprints.map((sprint) => ({
           value: sprint.id,
           label: sprint.name,

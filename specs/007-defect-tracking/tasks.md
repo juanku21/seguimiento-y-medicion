@@ -618,7 +618,7 @@ sobre uno En progreso devuelve `409 links_frozen`; con `status` devuelve `400`.
       historia relacionada y el sprint de detección solo se corrigen mientras el defecto está
       Abierto." con el `currentStatus` releído y sus `allowedStatuses`), y agregar `PATCH ""` a
       `RegisterDefectRoutes` en `backend/internal/defects/delivery/routes.go` — depende de T052, T054
-- [ ] T056 [US4] Implementar `updateDefect` en `frontend/src/features/defects/api.ts` y
+- [X] T056 [US4] Implementar `updateDefect` en `frontend/src/features/defects/api.ts` y
       `DefectEditForm` en `frontend/src/features/defects/components/defect-edit-form.tsx`, compuesto en
       `DefectDetail` — depende de T050, T055
 

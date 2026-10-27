@@ -1,6 +1,7 @@
 import {
   getJson,
   isRecord,
+  patchAuthorizedJson,
   postAuthorizedJson,
   putAuthorizedJson,
   type ApiError,
@@ -187,12 +188,11 @@ export function invalidTransitionStatus(error: ApiError): DefectStatus | null {
 }
 
 // Modifica los datos de un defecto con PATCH /api/v1/defects/{defectId} (007/US4). Solo viajan los
-// campos que cambian.
+// campos que cambian. Las reglas las resuelve el backend: el 400 llega con el detalle por campo, el
+// 404 con su mensaje y el 409 links_frozen cuando se corrigen los vínculos fuera del estado Abierto.
 export function updateDefect(
   defectId: string,
   patch: DefectPatch,
 ): Promise<ApiResult<Defect>> {
-  void defectId;
-  void patch;
-  throw new Error("not implemented");
+  return patchAuthorizedJson(defectPath(defectId), patch, isDefect);
 }

@@ -202,7 +202,7 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
       `EnsureSprintUsableForDetection(status sprintsdomain.SprintStatus) error` en
       `backend/internal/defects/domain/rules_test.go`, cubriendo RN-08: `planned` →
       `ErrDetectionSprintPlanned`; `active` y `closed` → `nil` — depende de T007
-- [ ] T010 [P] [US1] Pruebas unitarias **obligatorias** de `ValidateDefectInput` en
+- [X] T010 [P] [US1] Pruebas unitarias **obligatorias** de `ValidateDefectInput` en
       `backend/internal/defects/delivery/validation_test.go`, cubriendo RN-03, RN-04, RN-06 y
       FR-016: descripción ausente, `""` y `"   "` → "La descripción es obligatoria."; de exactamente
       **2000 runas** con acentos aceptada y recortada; de **2001** rechazada con "La descripción

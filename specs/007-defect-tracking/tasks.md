@@ -287,7 +287,7 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
       para que no cambie en las historias siguientes, y `Create(ctx, projectID, actorID, input)`, que
       toma el actor **siempre** del titular de la sesión (FR-056) y el instante del reloj una sola vez
       — depende de T017
-- [ ] T019 [US1] Declarar en `backend/internal/defects/delivery/dto.go` los esquemas de
+- [X] T019 [US1] Declarar en `backend/internal/defects/delivery/dto.go` los esquemas de
       contracts/openapi.yaml `Defect` (con `projectId` derivado del proyecto de la historia),
       `UserRef`, `StoryRef`, `SprintRef` y `DefectConflictResponse` (`code`, `error`,
       `currentStatus` anulable, `allowedStatuses` siempre arreglo, nunca `null`), reutilizando

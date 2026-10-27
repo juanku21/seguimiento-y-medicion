@@ -282,7 +282,7 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
       que devuelve el `DefectView` con historia, ambos sprints y los tres `UserRef` (`users.id` y
       `users.full_name`, **nunca** `password_hash`); sin fila → `ErrDefectNotFound` — depende de T005,
       T011, T015
-- [ ] T018 [US1] Implementar en `backend/internal/defects/service/defect_service.go` el constructor
+- [X] T018 [US1] Implementar en `backend/internal/defects/service/defect_service.go` el constructor
       `NewDefectService(repo domain.DefectRepository, now func() time.Time)`, con la firma definitiva
       para que no cambie en las historias siguientes, y `Create(ctx, projectID, actorID, input)`, que
       toma el actor **siempre** del titular de la sesión (FR-056) y el instante del reloj una sola vez

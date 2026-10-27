@@ -114,7 +114,7 @@ estructuras y contratos, sin lógica de negocio.
 
 **Rama**: `fase/007-foundational`
 
-- [ ] T001 [P] Declarar la entidad `Defect` en `backend/internal/defects/domain/defect.go` con los
+- [X] T001 [P] Declarar la entidad `Defect` en `backend/internal/defects/domain/defect.go` con los
       campos de data-model.md sección 1: `ID uuid` PK generado con `google/uuid`;
       `StoryID uuid NOT NULL` con FK a `user_stories.id` (campo `Story *backlogdomain.UserStory` solo
       para la FK, nunca precargado); `Description varchar(2000) NOT NULL` ("Recortada; 1 a 2000
@@ -130,7 +130,7 @@ estructuras y contratos, sin lógica de negocio.
       GORM. Claves foráneas **sin `ON DELETE CASCADE`**; la del campo `Story` debe llamarse
       `fk_defects_story` (el nombre que GORM genera por defecto). **Sin** columnas `project_id`, de
       borrado lógico ni de historial
-- [ ] T002 [P] Declarar en `backend/internal/defects/domain/severity.go` el tipo
+- [X] T002 [P] Declarar en `backend/internal/defects/domain/severity.go` el tipo
       `DefectSeverity string` con las constantes `DefectSeverityCritical = "critical"`,
       `DefectSeverityHigh = "high"`, `DefectSeverityMedium = "medium"` y `DefectSeverityLow = "low"`;
       y en `backend/internal/defects/domain/status.go` el tipo `DefectStatus string` con
@@ -139,13 +139,13 @@ estructuras y contratos, sin lógica de negocio.
       lectura `SprintAnchor` (`ID uuid.UUID`, `Status sprintsdomain.SprintStatus`,
       `StartDate time.Time`). Las funciones (`Valid`, `SeverityRank`, `AllowedTransitions`,
       `PlanTransition`) se implementan en las historias
-- [ ] T003 [P] Agregar a `UserStory` en `backend/internal/backlog/domain/user_story.go` el campo
+- [X] T003 [P] Agregar a `UserStory` en `backend/internal/backlog/domain/user_story.go` el campo
       `EverHadDefects bool` con la etiqueta `gorm:"type:boolean;not null;default:false"` (columna
       `ever_had_defects`), y extender el comentario del modelo: "pasa a true cuando la historia
       recibe su primer defecto —por alta o por revinculación— y nunca vuelve a false, aunque el
       defecto se revincule a otra historia o se descarte (RC-05, RN-19); solo la escribe la feature
       de defectos", igual que `EverCommitted` y `EverHadEffort`
-- [ ] T004 [P] Declarar los errores de dominio en `backend/internal/defects/domain/errors.go` con la
+- [X] T004 [P] Declarar los errores de dominio en `backend/internal/defects/domain/errors.go` con la
       tabla de data-model.md sección 8: `ErrDefectNotFound`, `ErrDefectsReadOnly`,
       `ErrNoDetectionSprint`, `ErrDefectDiscarded`, `ErrLinksFrozen`, `ErrDetectionSprintPlanned`,
       `ErrResolutionSprintRequired`, `ErrResolutionSprintPlanned`, `ErrResolutionBeforeDetection` e
@@ -153,7 +153,7 @@ estructuras y contratos, sin lógica de negocio.
       `InvalidTransitionError{Current, Requested DefectStatus; Allowed []DefectStatus}` e
       `InvalidFilterError{Field string}` (este con `Is(ErrInvalidFilter)`, como el de la 006). El
       texto visible para la persona lo define `delivery`, no estos mensajes — depende de T002
-- [ ] T005 Declarar en `backend/internal/defects/domain/repository.go` la interfaz `DefectRepository`
+- [X] T005 Declarar en `backend/internal/defects/domain/repository.go` la interfaz `DefectRepository`
       con **exactamente** las ocho operaciones de data-model.md sección 10 (`FindAccessible`,
       `Create`, `ChangeStatus`, `Update`, `FindView`, `ListForProject`, `ValidateFilter`,
       `HasProjectDefects`) con sus firmas, y los tipos de lectura de la sección 9: `DefectAccess`,
@@ -162,11 +162,11 @@ estructuras y contratos, sin lógica de negocio.
       `StatusChange` (`To`, `ResolvedSprintID *uuid.UUID`) y `DefectFilter` (`Statuses`,
       `Severities`, `StoryID *uuid.UUID`, `SprintID *uuid.UUID`). Las escrituras reciben el actor y,
       las que fijan `status_changed_at`, el instante `now` — depende de T001, T002, T004
-- [ ] T006 Agregar `Defect` al `AutoMigrate` de `backend/internal/platform/database/postgres.go`
+- [X] T006 Agregar `Defect` al `AutoMigrate` de `backend/internal/platform/database/postgres.go`
       **después** de `SprintStory` (apunta a `user_stories`, `sprints` y `users`) y actualizar el
       comentario del orden y de la columna nueva `ever_had_defects` de `UserStory` — depende de T001,
       T003
-- [ ] T007 Extender el vaciado del ayudante de pruebas en
+- [X] T007 Extender el vaciado del ayudante de pruebas en
       `backend/internal/platform/testsupport/database.go` para incluir `defects` en el
       `TRUNCATE ... CASCADE`, manteniendo la verificación de que la base es `smye_test` y el lock de
       la base de test — depende de T006

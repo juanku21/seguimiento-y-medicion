@@ -105,10 +105,10 @@ afterEach(() => {
   cleanup();
 });
 
-describe("006/US4 - Consultar el esfuerzo del proyecto con filtros", () => {
-  // Caso normal: sin filtros elegidos, cada selector ofrece la opción de no filtrar y las opciones
+describe("EffortFilters - estado inicial y limpieza de filtros", () => {
+  // Sin filtros elegidos, cada selector ofrece la opción de no filtrar y las opciones
   // recibidas, y nada está aplicado.
-  it("Caso normal — sin filtros, con todas las opciones disponibles", () => {
+  it("sin filtros, con todas las opciones disponibles", () => {
     renderFilters();
 
     expect(optionLabels("Integrante")).toEqual([
@@ -135,6 +135,24 @@ describe("006/US4 - Consultar el esfuerzo del proyecto con filtros", () => {
     expect(screen.getByLabelText<HTMLInputElement>("Hasta").value).toBe("");
   });
 
+  // Volver a "Todos" quita el filtro por integrante y conserva los demás.
+  it("al elegir Todos quita el filtro por integrante", () => {
+    const value: ProjectEffortFilter = {
+      ...noFilters,
+      userId: bruno.id,
+      sprintId: "none",
+    };
+    const onChange = renderFilters(value);
+    expect(select("Integrante").value).toBe(bruno.id);
+    expect(select("Sprint").value).toBe("none");
+
+    fireEvent.change(select("Integrante"), { target: { value: "" } });
+
+    expect(onlyChange(onChange)).toEqual({ ...value, userId: "" });
+  });
+});
+
+describe("006/US4 - Consultar el esfuerzo del proyecto con filtros", () => {
   // Caso alternativo: elegir un integrante entrega su id en userId sin tocar los demás filtros.
   it("Caso alternativo — filtro por un integrante concreto", () => {
     const onChange = renderFilters();
@@ -207,21 +225,5 @@ describe("006/US4 - Consultar el esfuerzo del proyecto con filtros", () => {
     fireEvent.change(select("Integrante"), { target: { value: carla.id } });
 
     expect(onlyChange(onChange)).toEqual({ ...noFilters, userId: carla.id });
-  });
-
-  // Volver a "Todos" quita el filtro por integrante y conserva los demás.
-  it("al elegir Todos quita el filtro por integrante", () => {
-    const value: ProjectEffortFilter = {
-      ...noFilters,
-      userId: bruno.id,
-      sprintId: "none",
-    };
-    const onChange = renderFilters(value);
-    expect(select("Integrante").value).toBe(bruno.id);
-    expect(select("Sprint").value).toBe("none");
-
-    fireEvent.change(select("Integrante"), { target: { value: "" } });
-
-    expect(onlyChange(onChange)).toEqual({ ...value, userId: "" });
   });
 });

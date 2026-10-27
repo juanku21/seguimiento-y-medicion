@@ -175,8 +175,11 @@ describe("006/US5 - Comparar el esfuerzo estimado con el real", () => {
     expect(valueOf("Diferencia")).toBe("0 h");
     expect(valueOf("Diferencia porcentual")).toBe(notCalculable);
   });
+});
 
-  it("Distinción visible entre 0 Story Points y sin estimar (FR-055)", () => {
+// Verificación de la distinción de FR-055 que contrasta dos escenarios; no corresponde a uno solo.
+describe("EffortComparisonCard - distinción entre 0 Story Points y sin estimar", () => {
+  it("distinción visible entre 0 Story Points y sin estimar (FR-055)", () => {
     // Las dos historias tienen las mismas horas reales; lo único que cambia es la estimación.
     const zero: EffortComparisonRow = {
       ...base,

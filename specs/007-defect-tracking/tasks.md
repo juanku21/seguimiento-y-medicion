@@ -139,7 +139,7 @@ estructuras y contratos, sin lógica de negocio.
       lectura `SprintAnchor` (`ID uuid.UUID`, `Status sprintsdomain.SprintStatus`,
       `StartDate time.Time`). Las funciones (`Valid`, `SeverityRank`, `AllowedTransitions`,
       `PlanTransition`) se implementan en las historias
-- [ ] T003 [P] Agregar a `UserStory` en `backend/internal/backlog/domain/user_story.go` el campo
+- [X] T003 [P] Agregar a `UserStory` en `backend/internal/backlog/domain/user_story.go` el campo
       `EverHadDefects bool` con la etiqueta `gorm:"type:boolean;not null;default:false"` (columna
       `ever_had_defects`), y extender el comentario del modelo: "pasa a true cuando la historia
       recibe su primer defecto —por alta o por revinculación— y nunca vuelve a false, aunque el

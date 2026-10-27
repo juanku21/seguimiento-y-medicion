@@ -25,23 +25,27 @@ import (
 // sprint (004, research.md sección 7). EverHadEffort (columna ever_had_effort, NOT NULL DEFAULT
 // false) registra si la historia tuvo alguna vez esfuerzo cargado: pasa a true con el primer registro
 // de esfuerzo y nunca vuelve a false, aunque se eliminen todos los registros (RC-05, RN-22); solo la
-// escribe la feature de esfuerzo (006). Los campos Project y CreatedBy existen solo para que
+// escribe la feature de esfuerzo (006). EverHadDefects (columna ever_had_defects, NOT NULL DEFAULT
+// false) pasa a true cuando la historia recibe su primer defecto —por alta o por revinculación— y
+// nunca vuelve a false, aunque el defecto se revincule a otra historia o se descarte (RC-05, RN-19);
+// solo la escribe la feature de defectos (007). Los campos Project y CreatedBy existen solo para que
 // AutoMigrate cree las claves foráneas hacia projects.id y users.id: no son columnas y nunca se
 // precargan. No hay columnas de lista para planificar, rango de prioridad, borrado lógico ni último
 // modificador (plan.md, reevaluación del Principio I), y CreatedAt y UpdatedAt los completa GORM.
 type UserStory struct {
-	ID            uuid.UUID               `gorm:"type:uuid;primaryKey;index:idx_user_stories_project_order,priority:4"`
-	ProjectID     uuid.UUID               `gorm:"type:uuid;not null;index:idx_user_stories_project_order,priority:1"`
-	Project       *projectsdomain.Project `gorm:"foreignKey:ProjectID;references:ID"`
-	Title         string                  `gorm:"type:varchar(150);not null"`
-	Description   *string                 `gorm:"type:varchar(2000)"`
-	Priority      StoryPriority           `gorm:"type:varchar(8);not null;index:idx_user_stories_project_order,priority:2"`
-	Status        StoryStatus             `gorm:"type:varchar(16);not null"`
-	StoryPoints   *int                    `gorm:"type:smallint"`
-	EverCommitted bool                    `gorm:"type:boolean;not null;default:false"`
-	EverHadEffort bool                    `gorm:"type:boolean;not null;default:false"`
-	CreatedByID   uuid.UUID               `gorm:"type:uuid;not null"`
-	CreatedBy     *authdomain.User        `gorm:"foreignKey:CreatedByID;references:ID"`
-	CreatedAt     time.Time               `gorm:"type:timestamptz;not null;index:idx_user_stories_project_order,priority:3"`
-	UpdatedAt     time.Time               `gorm:"type:timestamptz;not null"`
+	ID             uuid.UUID               `gorm:"type:uuid;primaryKey;index:idx_user_stories_project_order,priority:4"`
+	ProjectID      uuid.UUID               `gorm:"type:uuid;not null;index:idx_user_stories_project_order,priority:1"`
+	Project        *projectsdomain.Project `gorm:"foreignKey:ProjectID;references:ID"`
+	Title          string                  `gorm:"type:varchar(150);not null"`
+	Description    *string                 `gorm:"type:varchar(2000)"`
+	Priority       StoryPriority           `gorm:"type:varchar(8);not null;index:idx_user_stories_project_order,priority:2"`
+	Status         StoryStatus             `gorm:"type:varchar(16);not null"`
+	StoryPoints    *int                    `gorm:"type:smallint"`
+	EverCommitted  bool                    `gorm:"type:boolean;not null;default:false"`
+	EverHadEffort  bool                    `gorm:"type:boolean;not null;default:false"`
+	EverHadDefects bool                    `gorm:"type:boolean;not null;default:false"`
+	CreatedByID    uuid.UUID               `gorm:"type:uuid;not null"`
+	CreatedBy      *authdomain.User        `gorm:"foreignKey:CreatedByID;references:ID"`
+	CreatedAt      time.Time               `gorm:"type:timestamptz;not null;index:idx_user_stories_project_order,priority:3"`
+	UpdatedAt      time.Time               `gorm:"type:timestamptz;not null"`
 }

@@ -340,10 +340,11 @@ descartado, filtros y lista vacía).
 
 **Pruebas transversales sin etiqueta de escenario**: la prueba sin sesión de cada uno de los seis
 endpoints (SC-016), la comparación byte a byte de los `404` de proyecto, de historia, de sprint y de
-defecto, tanto en la ruta como en el cuerpo y en los filtros (SC-017), la de concurrencia
-(`TestDefectTransition_Concurrency`, SC-019: resolución y descarte simultáneos sobre un defecto En
-progreso, 10 intentos, y variantes con dos pasos a En progreso y con una modificación junto a un
-descarte), la de vínculos inmutables a lo largo del ciclo completo (`TestDefectLinks_Immutable`,
+defecto, tanto en la ruta como en el cuerpo y en los filtros (SC-017), las de concurrencia,
+con 10 intentos cada una (`TestDefectTransition_ConcurrentStart` en US2: dos pasos a En progreso
+sobre un defecto Abierto; `TestDefectTransition_Concurrency` en US6, SC-019: resolución y descarte
+simultáneos sobre un defecto En progreso; y `TestDefectTransition_ConcurrentUpdateAndDiscard` en US6:
+una modificación junto a un descarte), la de vínculos inmutables a lo largo del ciclo completo (`TestDefectLinks_Immutable`,
 SC-010), la de la carrera entre `HasDefects` y el borrado de la historia
 (`TestStoryDelete_DefectRace`, en `backlog/repository`) y la de autoría tras quitar a un integrante
 (`TestDefectAuthor_RemovedMember`, SC-018) se nombran sin `007/USn`, porque no derivan de un
@@ -377,7 +378,7 @@ máquina de estados), que cubren SC-020:
 | `PlanTransition` a `discarded` desde los cuatro estados | RN-21 |
 | `EnsureDefectEditable` con los cuatro estados; listado sin filtros con un descartado | RN-22 |
 | `PlanTransition` a `discarded`: sprint de resolución nulo | RN-23 |
-| `TestDefectTransition_Concurrency` | RN-24 |
+| `TestDefectTransition_ConcurrentStart`, `TestDefectTransition_Concurrency` y `TestDefectTransition_ConcurrentUpdateAndDiscard` | RN-24 |
 | Validación de filtros: estado y severidad inexistentes, UUID mal formado, historia y sprint ajenos | FR-046, FR-047 |
 | Validación de campos prohibidos en el `PATCH` y de `resolvedSprintId` fuera de la resolución | FR-035, FR-023 |
 

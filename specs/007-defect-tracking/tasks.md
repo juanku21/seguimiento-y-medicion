@@ -194,7 +194,7 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T008 [P] [US1] Pruebas unitarias **obligatorias** de `DefectSeverity.Valid() bool` y
+- [X] T008 [P] [US1] Pruebas unitarias **obligatorias** de `DefectSeverity.Valid() bool` y
       `SeverityRank(DefectSeverity) int` en `backend/internal/defects/domain/severity_test.go`,
       cubriendo RN-04: los cuatro valores válidos con rangos `critical` 0, `high` 1, `medium` 2,
       `low` 3; `"urgent"`, `""` y `"Critical"` inválidos — depende de T007

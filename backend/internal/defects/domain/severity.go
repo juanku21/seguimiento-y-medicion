@@ -12,3 +12,13 @@ const (
 	DefectSeverityMedium   DefectSeverity = "medium"
 	DefectSeverityLow      DefectSeverity = "low"
 )
+
+// Valid indica si la severidad es una de las cuatro admitidas (RN-04).
+func (s DefectSeverity) Valid() bool {
+	return false
+}
+
+// SeverityRank devuelve el orden de severidad: critical 0, high 1, medium 2, low 3.
+func SeverityRank(s DefectSeverity) int {
+	return -1
+}

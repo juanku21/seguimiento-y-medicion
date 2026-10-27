@@ -139,8 +139,8 @@ func run() error {
 	projectGroup, _ := projectsdelivery.RegisterRoutes(router, handler.RequireSession, projectsdelivery.NewHandler(projects, members, status), projectMembers, projectRepository)
 
 	// El módulo del backlog se compone sobre el repositorio de historias y los cinco puertos hacia
-	// otras features: defectos y sesiones de estimación, que todavía no existen y responden sin
-	// historial; el esfuerzo, que lee la marca ever_had_effort que deja el alta de la 006; las
+	// otras features: los defectos, que leen la marca ever_had_defects de la 007, y las sesiones de
+	// estimación, que todavía no existen y responden sin historial; el esfuerzo, que lee la marca ever_had_effort que deja el alta de la 006; las
 	// asignaciones a sprints, que leen los compromisos de la 004, y el directorio de proyectos, que
 	// lee el estado de la 002. Sus rutas
 	// cuelgan del subgrupo /api/v1/projects/:projectId, que ya exige sesión y membresía, recibido

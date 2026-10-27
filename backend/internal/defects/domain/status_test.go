@@ -219,3 +219,93 @@ func TestUS2_TransicionNoAdmitida(t *testing.T) {
 		})
 	}
 }
+
+// Escenario: Un defecto Resuelto solo admite reabrirse a Abierto, RN-15 (007/US5)
+func TestUS5_TransicionAdmitidaDesdeResuelto(t *testing.T) {
+	want := []DefectStatus{DefectStatusOpen}
+	if got := AllowedTransitions(DefectStatusResolved); !slices.Equal(got, want) {
+		t.Errorf("AllowedTransitions(%q) = %v, se esperaba %v", DefectStatusResolved, got, want)
+	}
+}
+
+// Escenario: Reabrir un defecto Resuelto lo devuelve a Abierto y borra el sprint de resolución, aunque no haya sprint Activo, RN-15 (007/US5)
+func TestUS5_ReabrirDefectoResuelto(t *testing.T) {
+	cases := []struct {
+		name     string
+		detected SprintAnchor
+	}{
+		{"sprint de detección activo", newAnchor(sprintsdomain.SprintStatusActive, detectionStart)},
+		{"único sprint del proyecto, cerrado", newAnchor(sprintsdomain.SprintStatusClosed, detectionStart)},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Reabrir no recibe sprint de resolución y el resultado nil indica que se borra.
+			got, err := PlanTransition(DefectStatusResolved, DefectStatusOpen, c.detected, nil)
+			if err != nil {
+				t.Fatalf("PlanTransition devolvió el error %v, se esperaba nil", err)
+			}
+			if got != nil {
+				t.Errorf("PlanTransition devolvió el sprint %s, se esperaba nil", *got)
+			}
+		})
+	}
+}
+
+// Escenario: Solo se reabre un defecto Resuelto; Abierto y En progreso se rechazan con el estado vigente y las permitidas, RN-15 (007/US5)
+func TestUS5_ReabrirDefectoNoResuelto(t *testing.T) {
+	detected := newAnchor(sprintsdomain.SprintStatusClosed, detectionStart)
+	cases := []struct {
+		name    string
+		current DefectStatus
+	}{
+		{"open a open", DefectStatusOpen},
+		{"in_progress a open", DefectStatusInProgress},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := PlanTransition(c.current, DefectStatusOpen, detected, nil)
+			var transitionErr *InvalidTransitionError
+			if !errors.As(err, &transitionErr) {
+				t.Fatalf("PlanTransition(%q, open) devolvió el error %v, se esperaba *InvalidTransitionError", c.current, err)
+			}
+			if got != nil {
+				t.Errorf("PlanTransition devolvió el sprint %s junto con el error, se esperaba nil", *got)
+			}
+			if transitionErr.Current != c.current || transitionErr.Requested != DefectStatusOpen {
+				t.Errorf("error con Current=%q y Requested=%q, se esperaba %q y open", transitionErr.Current, transitionErr.Requested, c.current)
+			}
+			if want := AllowedTransitions(c.current); !slices.Equal(transitionErr.Allowed, want) {
+				t.Errorf("Allowed = %v, se esperaba %v", transitionErr.Allowed, want)
+			}
+		})
+	}
+}
+
+// Escenario: Un defecto reabierto se vuelve a resolver cuantas veces haga falta y vale la última resolución, RN-17 (007/US5)
+func TestUS5_ResolverDeNuevoTrasReabrir(t *testing.T) {
+	detected := newAnchor(sprintsdomain.SprintStatusClosed, detectionStart)
+
+	// Un defecto reabierto vuelve a pasar por En progreso sin sprint de resolución.
+	t.Run("open a in_progress tras reabrir", func(t *testing.T) {
+		got, err := PlanTransition(DefectStatusOpen, DefectStatusInProgress, detected, nil)
+		if err != nil || got != nil {
+			t.Fatalf("PlanTransition devolvió (%v, %v), se esperaba (nil, nil)", got, err)
+		}
+	})
+
+	// La segunda resolución en un sprint posterior se acepta y registra el sprint nuevo.
+	t.Run("segunda resolución en sprint posterior", func(t *testing.T) {
+		second := newAnchor(sprintsdomain.SprintStatusActive, sprintLaterStart)
+		got, err := PlanTransition(DefectStatusInProgress, DefectStatusResolved, detected, &second)
+		assertResolvedSprint(t, got, err, second.ID)
+	})
+
+	// La regla compara contra el sprint de detección, que no cambió: resolver de nuevo en el
+	// mismo sprint de la primera resolución se acepta.
+	t.Run("segunda resolución en el mismo sprint que la primera", func(t *testing.T) {
+		first := newAnchor(sprintsdomain.SprintStatusClosed, sprintAfterStart)
+		again := first
+		got, err := PlanTransition(DefectStatusInProgress, DefectStatusResolved, detected, &again)
+		assertResolvedSprint(t, got, err, first.ID)
+	})
+}

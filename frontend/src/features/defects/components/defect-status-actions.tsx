@@ -20,9 +20,9 @@ export type DefectStatusActionsProps = {
   onChanged: (defect: Defect) => void;
 };
 
-// Acciones de estado del defecto (007/US2). Las ofrece según las transiciones admitidas desde el
-// estado vigente: "Pasar a En progreso" en un Abierto y "Resolver" en uno En progreso, que abre el
-// formulario del sprint de resolución. Con el 200 entrega el defecto recibido a la pantalla. El 400
+// Acciones de estado del defecto (007/US2 y US5). Las ofrece según las transiciones admitidas desde
+// el estado vigente: "Pasar a En progreso" en un Abierto, "Resolver" en uno En progreso, que abre el
+// formulario del sprint de resolución, y "Reabrir" en uno Resuelto. Con el 200 entrega el defecto recibido a la pantalla. El 400
 // del sprint de resolución se muestra junto al selector y los demás rechazos como mensaje general;
 // ante un 409 invalid_transition además entrega el defecto con el estado vigente informado, para que
 // la pantalla ofrezca las acciones que corresponden (FR-018, RN-24).
@@ -102,6 +102,20 @@ export function DefectStatusActions({
             className={primaryButtonClass}
           >
             Pasar a En progreso
+          </button>
+        </div>
+      )}
+
+      {/* Reapertura: solo en un defecto Resuelto; no pide datos, envía status open. */}
+      {allowed.includes("open") && (
+        <div>
+          <button
+            type="button"
+            onClick={() => void submit({ status: "open" })}
+            disabled={isSubmitting}
+            className={primaryButtonClass}
+          >
+            Reabrir
           </button>
         </div>
       )}

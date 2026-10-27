@@ -640,12 +640,12 @@ progreso devuelve `409 invalid_transition`.
 
 ### Pruebas de la Historia 5 ⚠️
 
-- [ ] T057 [P] [US5] Ampliar las pruebas unitarias **obligatorias** de
+- [X] T057 [P] [US5] Ampliar las pruebas unitarias **obligatorias** de
       `backend/internal/defects/domain/status_test.go`, cubriendo RN-15 y RN-17:
       `AllowedTransitions(resolved)` = `[open]`; `PlanTransition(resolved, open, …)` → `nil, nil`
       (sprint de resolución borrado); `PlanTransition(open, open, …)` e
       `PlanTransition(in_progress, open, …)` siguen siendo `InvalidTransitionError` — depende de T056
-- [ ] T058 [US5] Pruebas de integración en `backend/internal/defects/delivery/handler_test.go`, una
+- [X] T058 [US5] Pruebas de integración en `backend/internal/defects/delivery/handler_test.go`, una
       por escenario con `// Escenario: <nombre> (007/US5)`: `TestUS5_Reapertura` (`resolvedSprint:
       null`, detección y historia sin cambio; SC-009), `TestUS5_SegundaResolucion`,
       `TestUS5_VariasReaperturas` (vale la última resolución), `TestUS5_ResolucionEnElMismoSprint`
@@ -653,7 +653,7 @@ progreso devuelve `409 invalid_transition`.
       `TestUS5_SinSprintActivo` (único sprint Cerrado), `TestUS5_DefectoNoResuelto` (subtests Abierto y
       En progreso: `409` con "Solo se reabre un defecto Resuelto.") y `TestUS5_ProyectoFinalizado` —
       depende de T056
-- [ ] T059 [P] [US5] Pruebas de frontend en
+- [X] T059 [P] [US5] Pruebas de frontend en
       `frontend/src/features/defects/components/defect-status-actions.test.tsx` y
       `frontend/src/features/defects/transitions.test.ts`, con
       `describe("007/US5 - Reabrir un defecto resuelto")`: el botón "Reabrir" aparece solo en un
@@ -662,11 +662,11 @@ progreso devuelve `409 invalid_transition`.
 
 ### Implementación de la Historia 5
 
-- [ ] T060 [US5] Agregar `resolved: [open]` al mapa de `backend/internal/defects/domain/status.go` y,
+- [X] T060 [US5] Agregar `resolved: [open]` al mapa de `backend/internal/defects/domain/status.go` y,
       en la función de mensajes de `backend/internal/defects/delivery/handler.go`, el caso de
       reapertura de lo que no está Resuelto ("Solo se reabre un defecto Resuelto.") — depende de T057,
       T058
-- [ ] T061 [US5] Agregar la reapertura a `frontend/src/features/defects/transitions.ts` y el botón
+- [X] T061 [US5] Agregar la reapertura a `frontend/src/features/defects/transitions.ts` y el botón
       "Reabrir" a `DefectStatusActions` en
       `frontend/src/features/defects/components/defect-status-actions.tsx` — depende de T059, T060
 

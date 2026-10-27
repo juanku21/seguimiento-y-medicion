@@ -15,6 +15,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { useState } from "react";
+import { DefectDetail } from "@/features/defects/components/defect-detail";
 import { DefectStatusActions } from "@/features/defects/components/defect-status-actions";
 import { writeToken } from "@/lib/session-storage";
 import { SessionProvider } from "@/providers/session-provider";
@@ -553,5 +554,111 @@ describe("007/US2 - Seguir y resolver un defecto", () => {
       readOnlyMessage,
     );
     expect(onChanged).not.toHaveBeenCalled();
+  });
+});
+
+const reopenButtonName = /^reabrir$/i;
+
+// Backend simulado del detalle completo: el defecto Resuelto en el sprint Activo, las historias, los
+// sprints y el cambio de estado, que reabre el defecto y borra el sprint de resolución.
+function detailBackend() {
+  const base = backend("resolved", (body) =>
+    jsonResponse(200, defect(body.status as DefectStatus)),
+  );
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    const raw =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+    const url = new URL(raw, "http://localhost");
+    if (init?.method === undefined || init.method === "GET") {
+      if (url.pathname.endsWith(`/api/v1/defects/${defectId}`)) {
+        return jsonResponse(200, defect("resolved", sprintRef(activeSprint)));
+      }
+      if (url.pathname.endsWith("/stories")) {
+        return jsonResponse(200, {
+          stories: [],
+          appliedFilters: { status: [], priority: [] },
+          emptyReason: "no_matches",
+        });
+      }
+    }
+    return base(input, init);
+  };
+}
+
+describe("007/US5 - Reabrir un defecto resuelto", () => {
+  let fetchMock: FetchMock;
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    writeToken(sessionToken);
+    fetchMock = vi.fn<typeof fetch>(detailBackend());
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  // Escenario: el botón "Reabrir" aparece solo en un defecto Resuelto (US5, RN-15).
+  it("el botón Reabrir aparece solo en un defecto Resuelto", async () => {
+    renderActions(defect("resolved", sprintRef(activeSprint)));
+    expect(
+      await screen.findByRole("button", { name: reopenButtonName }),
+    ).toBeTruthy();
+    cleanup();
+
+    for (const status of ["open", "in_progress"] as const) {
+      renderActions(defect(status));
+      await screen.findByRole("button");
+      expect(
+        screen.queryByRole("button", { name: reopenButtonName }),
+      ).toBeNull();
+      cleanup();
+    }
+  });
+
+  // Escenario: al reabrir se envía status open y el detalle muestra el sprint de resolución vacío y
+  // los campos de vínculo habilitados otra vez (US5, SC-009).
+  it("después de reabrir, el detalle muestra el sprint de resolución vacío y habilita los vínculos", async () => {
+    render(
+      <SessionProvider>
+        <DefectDetail defectId={defectId} />
+      </SessionProvider>,
+    );
+
+    const resolutionTerm = await screen.findByText("Sprint de resolución");
+    await waitFor(() =>
+      expect(resolutionTerm.nextElementSibling?.textContent).toBe(
+        activeSprint.name,
+      ),
+    );
+    expect(
+      screen.getByLabelText<HTMLSelectElement>(/^historia/i).disabled,
+    ).toBe(true);
+    expect(
+      screen.getByLabelText<HTMLSelectElement>(/^sprint de detecci[oó]n/i)
+        .disabled,
+    ).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: reopenButtonName }));
+
+    await waitFor(() =>
+      expect(resolutionTerm.nextElementSibling?.textContent).toBe(
+        "Sin resolver",
+      ),
+    );
+    expect(statusRequests(fetchMock)[0]?.body).toEqual({ status: "open" });
+    expect(
+      screen.getByLabelText<HTMLSelectElement>(/^historia/i).disabled,
+    ).toBe(false);
+    expect(
+      screen.getByLabelText<HTMLSelectElement>(/^sprint de detecci[oó]n/i)
+        .disabled,
+    ).toBe(false);
   });
 });

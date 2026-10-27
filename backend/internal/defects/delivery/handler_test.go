@@ -562,7 +562,6 @@ const (
 	defectMsgResolutionBefore   = "El sprint de resolución no puede empezar antes que el de detección."
 	defectMsgResolutionPlanned  = "Un defecto solo se resuelve en un sprint Activo o Cerrado."
 	defectMsgSkipToResolved     = "Un defecto Abierto primero debe pasar a En progreso."
-	defectMsgBackToOpen         = "Para volver a Abierto, resolvé el defecto y después reabrilo."
 )
 
 // defectPath es la ruta del detalle de un defecto según contracts/openapi.yaml.
@@ -842,7 +841,7 @@ func TestUS2_SaltoAResuelto(t *testing.T) {
 	f.requireDefectRowUnchanged(t, before)
 }
 
-// Escenario: Dado un defecto En progreso, cuando un integrante intenta devolverlo a Abierto, entonces la acción se rechaza indicando las transiciones permitidas; para volver a Abierto hay que resolverlo y después reabrirlo (007/US2)
+// Escenario: Dado un defecto En progreso, cuando un integrante intenta devolverlo a Abierto, entonces la acción se rechaza indicando las transiciones permitidas; solo se reabre un defecto Resuelto (007/US2)
 func TestUS2_VueltaAAbierto(t *testing.T) {
 	f := newDefectFixture(t)
 	defectID := f.registerDefect(t, f.storyID, f.sprintID)
@@ -851,7 +850,7 @@ func TestUS2_VueltaAAbierto(t *testing.T) {
 
 	body := requireDefectConflict(t, f.env.putDefectStatus(t, f.ownerToken, defectID, "open", uuid.Nil), "invalid_transition")
 
-	assert.Equal(t, defectMsgBackToOpen, body.Error)
+	assert.Equal(t, defectMsgOnlyResolvedReopens, body.Error)
 	assert.Equal(t, `"in_progress"`, string(body.CurrentStatus), "currentStatus es el estado vigente")
 	assert.Contains(t, body.AllowedStatuses, "resolved", "desde En progreso se permite Resuelto")
 	assert.NotContains(t, body.AllowedStatuses, "open")
@@ -1689,6 +1688,154 @@ func TestUS4_ProyectoFinalizado(t *testing.T) {
 
 	body := requireDefectConflict(t, f.env.patchDefect(t, f.ownerToken, defectID,
 		map[string]any{"description": "Descripción corregida"}), "read_only")
+
+	assert.Equal(t, defectMsgReadOnly, body.Error)
+	assert.Equal(t, "null", string(body.CurrentStatus), "currentStatus es null con read_only")
+	f.requireDefectRowUnchanged(t, before)
+}
+
+// Pruebas de integración de la reapertura de un defecto Resuelto (T058, US5): PUT
+// /api/v1/defects/{defectId}/status con el estado open sobre el router de testenv_test.go.
+
+// Texto del contrato para la reapertura de un defecto que no está Resuelto.
+const defectMsgOnlyResolvedReopens = "Solo se reabre un defecto Resuelto."
+
+// reopenDefect reabre el defecto con el token del propietario y exige el 200 con el defecto Abierto.
+func (f defectFixture) reopenDefect(t *testing.T, defectID string) defectResponse {
+	t.Helper()
+	defect := requireDefectOK(t, f.env.putDefectStatus(t, f.ownerToken, defectID, "open", uuid.Nil))
+	require.Equal(t, "open", defect.Status, "la reapertura deja el defecto Abierto")
+	return defect
+}
+
+// resolveFromOpen pasa un defecto Abierto por En progreso y lo resuelve en el sprint indicado.
+func (f defectFixture) resolveFromOpen(t *testing.T, defectID string, resolvedSprintID uuid.UUID) defectResponse {
+	t.Helper()
+	f.startDefect(t, f.ownerToken, defectID)
+	return requireDefectOK(t, f.env.putDefectStatus(t, f.ownerToken, defectID, "resolved", resolvedSprintID))
+}
+
+// Escenario: Dado un defecto Resuelto con su sprint de resolución registrado, cuando un integrante lo reabre, entonces el defecto vuelve a Abierto, su sprint de resolución queda vacío y su sprint de detección no cambia (007/US5)
+func TestUS5_Reapertura(t *testing.T) {
+	f := newDefectFixture(t)
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	f.resolveFromOpen(t, defectID, f.sprintID)
+	resolvedRow := f.env.storedDefect(t, defectID)
+
+	defect := f.reopenDefect(t, defectID)
+
+	assert.Equal(t, "null", string(defect.Raw["resolvedSprint"]), "resolvedSprint debe serializarse null (SC-009)")
+	assert.Equal(t, f.sprintID.String(), defect.DetectedSprint.ID, "el sprint de detección no cambia (FR-027)")
+	assert.Equal(t, f.storyID.String(), defect.Story.ID, "la historia no cambia")
+	stored := f.env.storedDefect(t, defectID)
+	assert.Equal(t, "open", string(stored.Status))
+	assert.Nil(t, stored.ResolvedSprintID, "la fila no conserva el sprint de resolución")
+	assert.Equal(t, resolvedRow.DetectedSprintID, stored.DetectedSprintID)
+	assert.Equal(t, resolvedRow.StoryID, stored.StoryID)
+	detail := f.env.getDefect(t, f.ownerToken, defectID)
+	assert.Equal(t, "open", detail.Status)
+	assert.Equal(t, "null", string(detail.Raw["resolvedSprint"]))
+}
+
+// Escenario: Dado un defecto reabierto, cuando un integrante lo vuelve a pasar por En progreso y lo resuelve en un sprint posterior, entonces la segunda resolución se acepta y el sprint de resolución queda con el sprint nuevo (007/US5)
+func TestUS5_SegundaResolucion(t *testing.T) {
+	f := newDefectFixtureWithoutSprint(t)
+	firstID := f.env.closedSprint(t, f.ownerToken, f.projectID, "Sprint 1", "2026-10-05", "2026-10-09")
+	f.sprintID = f.env.activeSprint(t, f.ownerToken, f.projectID, "Sprint 2")
+	defectID := f.registerDefect(t, f.storyID, firstID)
+	f.resolveFromOpen(t, defectID, firstID)
+	f.reopenDefect(t, defectID)
+
+	resolved := f.resolveFromOpen(t, defectID, f.sprintID)
+
+	f.requireResolvedIn(t, resolved, firstID, f.sprintID)
+}
+
+// Escenario: Dado un defecto que se reabrió y se resolvió dos veces, cuando un integrante lo consulta, entonces ve su estado actual y el sprint de resolución vigente, que es siempre el de la última resolución (007/US5)
+func TestUS5_VariasReaperturas(t *testing.T) {
+	f := newDefectFixtureWithoutSprint(t)
+	firstID := f.env.closedSprint(t, f.ownerToken, f.projectID, "Sprint 1", "2026-10-05", "2026-10-09")
+	secondID := f.env.closedSprint(t, f.ownerToken, f.projectID, "Sprint 2", "2026-10-12", "2026-10-16")
+	f.sprintID = f.env.activeSprint(t, f.ownerToken, f.projectID, "Sprint 3")
+	defectID := f.registerDefect(t, f.storyID, firstID)
+	f.resolveFromOpen(t, defectID, secondID)
+	f.reopenDefect(t, defectID)
+	f.resolveFromOpen(t, defectID, f.sprintID)
+
+	detail := f.env.getDefect(t, f.ownerToken, defectID)
+
+	f.requireResolvedIn(t, detail, firstID, f.sprintID)
+	if assert.NotNil(t, detail.ResolvedSprint) {
+		assert.NotEqual(t, secondID.String(), detail.ResolvedSprint.ID, "vale la última resolución, no la primera")
+	}
+}
+
+// Escenario: Dado un defecto detectado en el primer sprint y resuelto en el segundo, cuando se lo reabre y se lo resuelve de nuevo en el segundo sprint, entonces la resolución se acepta, porque la regla compara contra el sprint de detección, que no cambió (007/US5)
+func TestUS5_ResolucionEnElMismoSprint(t *testing.T) {
+	f := newDefectFixtureWithoutSprint(t)
+	firstID := f.env.closedSprint(t, f.ownerToken, f.projectID, "Sprint 1", "2026-10-05", "2026-10-09")
+	f.sprintID = f.env.activeSprint(t, f.ownerToken, f.projectID, "Sprint 2")
+	defectID := f.registerDefect(t, f.storyID, firstID)
+	f.resolveFromOpen(t, defectID, f.sprintID)
+	f.reopenDefect(t, defectID)
+
+	resolved := f.resolveFromOpen(t, defectID, f.sprintID)
+
+	f.requireResolvedIn(t, resolved, firstID, f.sprintID)
+}
+
+// Escenario: Dado un defecto Resuelto en un proyecto cuyo único sprint ya está Cerrado, cuando un integrante lo reabre, entonces la reapertura se acepta y el defecto queda Abierto, aunque no haya ningún sprint Activo (007/US5)
+func TestUS5_SinSprintActivo(t *testing.T) {
+	f := newDefectFixtureWithoutSprint(t)
+	closedID := f.env.closedSprint(t, f.ownerToken, f.projectID, "Sprint 1", "2026-10-05", "2026-10-09")
+	defectID := f.registerDefect(t, f.storyID, closedID)
+	f.resolveFromOpen(t, defectID, closedID)
+
+	defect := f.reopenDefect(t, defectID)
+
+	assert.Equal(t, "open", defect.Status)
+	assert.Equal(t, "null", string(defect.Raw["resolvedSprint"]))
+	assert.Equal(t, closedID.String(), defect.DetectedSprint.ID)
+	assert.Equal(t, "open", string(f.env.storedDefect(t, defectID).Status))
+}
+
+// Escenario: Dado un defecto Abierto o En progreso, cuando un integrante intenta reabrirlo, entonces la acción se rechaza indicando que solo se reabre un defecto Resuelto (007/US5)
+func TestUS5_DefectoNoResuelto(t *testing.T) {
+	cases := []struct {
+		name    string
+		current string
+		prepare func(t *testing.T, f defectFixture, defectID string)
+	}{
+		{"Abierto", "open", func(t *testing.T, f defectFixture, defectID string) {}},
+		{"En progreso", "in_progress", func(t *testing.T, f defectFixture, defectID string) { f.startDefect(t, f.ownerToken, defectID) }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newDefectFixture(t)
+			defectID := f.registerDefect(t, f.storyID, f.sprintID)
+			tc.prepare(t, f, defectID)
+			before := f.env.storedDefect(t, defectID)
+
+			body := requireDefectConflict(t, f.env.putDefectStatus(t, f.ownerToken, defectID, "open", uuid.Nil), "invalid_transition")
+
+			assert.Equal(t, defectMsgOnlyResolvedReopens, body.Error)
+			assert.Equal(t, `"`+tc.current+`"`, string(body.CurrentStatus), "currentStatus es el estado vigente")
+			f.requireDefectRowUnchanged(t, before)
+		})
+	}
+}
+
+// Escenario: Dado un proyecto en estado Finalizado, cuando un integrante intenta reabrir un defecto, entonces la acción se rechaza porque el proyecto es de solo lectura (007/US5)
+func TestUS5_ProyectoFinalizado(t *testing.T) {
+	f := newDefectFixture(t)
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	f.resolveFromOpen(t, defectID, f.sprintID)
+	defectRequireStatus(t, f.env.do(t, http.MethodPost, "/api/v1/sprints/"+f.sprintID.String()+"/close", f.ownerToken, nil),
+		http.StatusOK, nil)
+	f.env.setProjectStatus(t, f.ownerToken, f.projectID, "finished")
+	before := f.env.storedDefect(t, defectID)
+
+	body := requireDefectConflict(t, f.env.putDefectStatus(t, f.ownerToken, defectID, "open", uuid.Nil), "read_only")
 
 	assert.Equal(t, defectMsgReadOnly, body.Error)
 	assert.Equal(t, "null", string(body.CurrentStatus), "currentStatus es null con read_only")

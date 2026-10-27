@@ -99,7 +99,8 @@ func (r *DefectRepository) Create(ctx context.Context, projectID, actorID uuid.U
 			return backlogdomain.ErrStoryNotFound
 		}
 
-		// Paso 5: se inserta el defecto abierto; CreatedAt y UpdatedAt los completa GORM.
+		// Paso 5: se inserta el defecto abierto. CreatedAt, UpdatedAt y StatusChangedAt llevan el mismo
+		// instante del reloj del servicio, para que el estado de un defecto nuevo date de su creación (FR-022).
 		defect := domain.Defect{
 			ID:                uuid.New(),
 			StoryID:           input.StoryID,
@@ -111,6 +112,8 @@ func (r *DefectRepository) Create(ctx context.Context, projectID, actorID uuid.U
 			UpdatedByID:       actorID,
 			StatusChangedByID: actorID,
 			StatusChangedAt:   now,
+			CreatedAt:         now,
+			UpdatedAt:         now,
 		}
 		if err := tx.Create(&defect).Error; err != nil {
 			return fmt.Errorf("insertar defecto: %w", err)

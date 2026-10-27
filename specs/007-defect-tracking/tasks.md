@@ -293,7 +293,7 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
       `currentStatus` anulable, `allowedStatuses` siempre arreglo, nunca `null`), reutilizando
       `ErrorResponse`, `FieldError` y `ValidationErrorResponse` de la 001. `resolvedSprint` se
       serializa `null` cuando no aplica — depende de T018
-- [ ] T020 [US1] Implementar el manejador `createDefect` en
+- [X] T020 [US1] Implementar el manejador `createDefect` en
       `backend/internal/defects/delivery/handler.go` con anotaciones `swag` en español, y la
       traducción de errores: `ErrDetectionSprintPlanned` → `400` con `field: detectedSprintId` ("Un
       defecto solo se detecta en un sprint Activo o Cerrado."); `backlogdomain.ErrStoryNotFound` →

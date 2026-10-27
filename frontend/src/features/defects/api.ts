@@ -11,6 +11,7 @@ import type {
   Defect,
   DefectFilterValues,
   DefectInput,
+  DefectPatch,
   DefectStatus,
   DefectStatusChange,
   ProjectDefects,
@@ -183,4 +184,15 @@ export function invalidTransitionStatus(error: ApiError): DefectStatus | null {
   return (
     DEFECT_STATUSES.find((status) => status === error.currentStatus) ?? null
   );
+}
+
+// Modifica los datos de un defecto con PATCH /api/v1/defects/{defectId} (007/US4). Solo viajan los
+// campos que cambian.
+export function updateDefect(
+  defectId: string,
+  patch: DefectPatch,
+): Promise<ApiResult<Defect>> {
+  void defectId;
+  void patch;
+  throw new Error("not implemented");
 }

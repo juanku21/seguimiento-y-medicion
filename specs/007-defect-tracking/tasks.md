@@ -585,7 +585,7 @@ sobre uno En progreso devuelve `409 links_frozen`; con `status` devuelve `400`.
       `open`, una corrección de su historia y un paso a `in_progress`; en 10 repeticiones el
       resultado es siempre uno de dos: la corrección se aplicó y después el paso, o el paso se aplicó
       y la corrección recibió `409 links_frozen`; ninguna `500` (FR-018, FR-038) — depende de T048
-- [ ] T050 [P] [US4] Pruebas de frontend en
+- [X] T050 [P] [US4] Pruebas de frontend en
       `frontend/src/features/defects/components/defect-edit-form.test.tsx`, con
       `describe("007/US4 - Corregir los datos de un defecto")`: descripción y severidad editables en
       Abierto, En progreso y Resuelto; historia y sprint de detección editables **solo** en Abierto;

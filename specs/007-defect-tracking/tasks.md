@@ -263,7 +263,7 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
       `backend/internal/defects/domain/severity.go` — depende de T008
 - [X] T015 [P] [US1] Implementar `EnsureSprintUsableForDetection` en
       `backend/internal/defects/domain/rules.go` — depende de T009
-- [ ] T016 [US1] Implementar en `backend/internal/defects/delivery/validation.go`
+- [X] T016 [US1] Implementar en `backend/internal/defects/delivery/validation.go`
       `ValidateDefectInput` (recorte, 1 a 2000 runas, severidad válida, identificadores obligatorios y
       bien formados) y declarar el DTO `DefectInput` en `backend/internal/defects/delivery/dto.go`
       (**sin** campo de autor), con los mensajes como constantes nombradas en un único lugar y todos

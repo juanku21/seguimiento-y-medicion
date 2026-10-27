@@ -5,8 +5,8 @@
 //	@version					1.0.0
 //	@description				API de Software Metrics & Estimation: autenticación y cuentas de usuario, gestión de
 //	@description				proyectos y de sus integrantes, Product Backlog de cada proyecto, planificación de sus
-//	@description				sprints, estimación de historias con Planning Poker y registro del esfuerzo trabajado
-//	@description				sobre cada historia.
+//	@description				sprints, estimación de historias con Planning Poker, registro del esfuerzo trabajado
+//	@description				sobre cada historia y gestión de los defectos de cada proyecto.
 //	@description				Las únicas operaciones públicas son el registro y el inicio de sesión; las demás exigen
 //	@description				la cabecera `Authorization: Bearer <token>`.
 //	@BasePath					/
@@ -42,6 +42,9 @@ import (
 	backlogdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/delivery"
 	backlogrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/repository"
 	backlogservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/service"
+	defectsdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/defects/delivery"
+	defectsrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/defects/repository"
+	defectsservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/defects/service"
 	effortdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/delivery"
 	effortrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/repository"
 	effortservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/service"
@@ -206,6 +209,13 @@ func run() error {
 	effortdelivery.RegisterStoryRoutes(router, handler.RequireSession, backlogdelivery.RequireStoryAccess(storyRepository), effortHandler)
 	effortdelivery.RegisterEntryRoutes(router, handler.RequireSession, effortRepository, effortHandler)
 	effortdelivery.RegisterProjectRoutes(projectGroup, effortHandler)
+
+	// El módulo de defectos se compone sobre su repositorio y el reloj del sistema. Sus rutas cuelgan
+	// del subgrupo /:projectId de la 002, que ya exige sesión y membresía vigente, recibido aquí para
+	// que defects/delivery no importe projects/delivery.
+	defectRepository := defectsrepository.NewDefectRepository(db)
+	defects := defectsservice.NewDefectService(defectRepository, time.Now)
+	defectsdelivery.RegisterProjectRoutes(projectGroup, defectsdelivery.NewHandler(defects))
 
 	// Ninguna conexión al canal de eventos sobrevive a un reinicio, así que antes de escuchar se
 	// marcan desconectados los participantes de las sesiones abiertas (research.md sección 9). El

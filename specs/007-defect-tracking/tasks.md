@@ -302,7 +302,7 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
       son de solo lectura."); `ErrNoDetectionSprint` → `409 no_detection_sprint` ("Todavía no hay
       ningún sprint Activo ni Cerrado que pueda ser sprint de detección."); cualquier otro → `500`
       genérico registrado con `slog` — depende de T016, T019
-- [ ] T021 [US1] Crear en `backend/internal/defects/delivery/routes.go`
+- [X] T021 [US1] Crear en `backend/internal/defects/delivery/routes.go`
       `RegisterProjectRoutes(projectGroup, handler)` con `POST /defects` sobre el subgrupo de la 002,
       sin importar `projects/delivery`; y componer el módulo en `backend/cmd/app/main.go`:
       repositorio, servicio con `time.Now`, registro sobre `projectGroup`, más el `@description`

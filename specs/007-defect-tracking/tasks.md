@@ -324,7 +324,7 @@ proyecto sin sprints iniciados devuelve `409 no_detection_sprint`.
       `any`; uniones literales para severidad, estado, `emptyReason` y `code`), implementar
       `frontend/src/utils/defect-labels.ts` y `frontend/src/features/defects/validation.ts` — depende
       de T013
-- [ ] T024 [US1] Implementar en `frontend/src/features/defects/api.ts` `createDefect` y
+- [X] T024 [US1] Implementar en `frontend/src/features/defects/api.ts` `createDefect` y
       `listDetectionSprints` (sobre `GET /api/v1/projects/{projectId}/sprints?status=active&status=closed`
       de la 004), `DefectForm` en `frontend/src/features/defects/components/defect-form.tsx`
       (descripción, severidad, historia, sprint propuesto; cinco pasos, cuatro si se llega desde la

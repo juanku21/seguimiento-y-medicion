@@ -689,7 +689,7 @@ exactamente una de las dos.
 
 ### Pruebas de la Historia 6 ⚠️
 
-- [ ] T062 [P] [US6] Completar las pruebas unitarias **obligatorias** de
+- [X] T062 [P] [US6] Completar las pruebas unitarias **obligatorias** de
       `backend/internal/defects/domain/status_test.go`, cubriendo RN-12, RN-21 a RN-23 y SC-005:
       `AllowedTransitions(open)` = `[in_progress, discarded]`, `AllowedTransitions(in_progress)` =
       `[resolved, discarded]` y `AllowedTransitions(discarded)` = `[]`; descarte desde `open` e

@@ -520,3 +520,27 @@ func TestUS1_ProyectoSinSprintIniciado(t *testing.T) {
 		f.requireNothingCreated(t, before)
 	})
 }
+
+// Verificación de punta a punta del puerto de defectos de la 003 (T022, RC-05): con los endpoints
+// reales se registra un defecto sobre una historia y se comprueba que eliminarla se rechaza con 409
+// y el motivo defects. No lleva etiqueta 007/USn porque no es un escenario de la spec.
+func TestDefectPorts_BloqueanEliminacion(t *testing.T) {
+	f := newDefectFixture(t)
+	requireDefectCreated(t, f.post(t, f.body(f.storyID, f.sprintID)))
+
+	rec := f.env.do(t, http.MethodDelete, "/api/v1/stories/"+f.storyID.String(), f.ownerToken, nil)
+
+	// El cuerpo es el DeletionBlockedResponse de la 003 con el código defects entre los motivos.
+	var blocked struct {
+		Error   string `json:"error"`
+		Reasons []struct {
+			Code string `json:"code"`
+		} `json:"reasons"`
+	}
+	defectRequireStatus(t, rec, http.StatusConflict, &blocked)
+	codes := make([]string, 0, len(blocked.Reasons))
+	for _, reason := range blocked.Reasons {
+		codes = append(codes, reason.Code)
+	}
+	assert.Contains(t, codes, "defects", "el 409 debe incluir el motivo defects")
+}

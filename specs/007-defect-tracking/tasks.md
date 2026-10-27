@@ -716,7 +716,7 @@ exactamente una de las dos.
       `TestDefectTransition_ConcurrentUpdateAndDiscard`: una modificación de la descripción y un
       descarte a la vez; si el descarte se aplicó primero, la modificación recibe `409
       defect_discarded` (FR-018, última oración) — depende de T063
-- [ ] T065 [P] [US6] Pruebas de frontend en
+- [X] T065 [P] [US6] Pruebas de frontend en
       `frontend/src/features/defects/components/defect-status-actions.test.tsx`,
       `frontend/src/features/defects/components/defect-detail.test.tsx` y
       `frontend/src/features/defects/transitions.test.ts`, con

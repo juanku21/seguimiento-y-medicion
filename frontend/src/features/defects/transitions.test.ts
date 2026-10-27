@@ -56,3 +56,32 @@ describe("007/US5 - Reabrir un defecto resuelto", () => {
     }
   });
 });
+
+describe("007/US6 - Descartar un defecto que no corresponde", () => {
+  // Las 16 combinaciones (origen, destino) del backend (RN-12): solo cinco están admitidas.
+  it("coincide con las 16 combinaciones de transición del backend", () => {
+    const statuses = ["open", "in_progress", "resolved", "discarded"] as const;
+    const admitted = new Set([
+      "open>in_progress",
+      "open>discarded",
+      "in_progress>resolved",
+      "in_progress>discarded",
+      "resolved>open",
+    ]);
+    let combinations = 0;
+    for (const from of statuses) {
+      for (const to of statuses) {
+        combinations++;
+        expect(allowedTransitions(from).includes(to), `${from}>${to}`).toBe(
+          admitted.has(`${from}>${to}`),
+        );
+      }
+    }
+    expect(combinations).toBe(16);
+  });
+
+  // Un Descartado es definitivo: no tiene destinos.
+  it("un defecto Descartado no admite ninguna transición", () => {
+    expect(allowedTransitions("discarded")).toEqual([]);
+  });
+});

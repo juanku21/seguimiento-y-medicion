@@ -662,3 +662,89 @@ describe("007/US5 - Reabrir un defecto resuelto", () => {
     ).toBe(false);
   });
 });
+
+const discardButtonName = /^descartar$/i;
+const confirmDiscardName = /confirmar descarte/i;
+const cancelButtonName = /^cancelar$/i;
+
+describe("007/US6 - Descartar un defecto que no corresponde", () => {
+  let fetchMock: FetchMock;
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    writeToken(sessionToken);
+    fetchMock = vi.fn<typeof fetch>(backend("open"));
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  // Escenario: "Descartar" aparece en un defecto Abierto y en uno En progreso, y no en un Resuelto
+  // ni en un Descartado (US6, RN-12).
+  it("el botón Descartar aparece en Abierto y En progreso", async () => {
+    for (const status of ["open", "in_progress"] as const) {
+      renderActions(defect(status));
+      expect(
+        await screen.findByRole("button", { name: discardButtonName }),
+      ).toBeTruthy();
+      cleanup();
+    }
+
+    renderActions(defect("resolved", sprintRef(activeSprint)));
+    await screen.findByRole("button", { name: reopenButtonName });
+    expect(
+      screen.queryByRole("button", { name: discardButtonName }),
+    ).toBeNull();
+    cleanup();
+
+    renderActions(defect("discarded"));
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  // Escenario: "Descartar" pide confirmación y no envía nada hasta confirmar (US6, FR-017).
+  it("Descartar pide confirmación antes de enviar el cambio", async () => {
+    const onChanged = renderActions(defect("open"));
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: discardButtonName }),
+    );
+    expect(
+      await screen.findByRole("button", { name: confirmDiscardName }),
+    ).toBeTruthy();
+    expect(statusRequests(fetchMock)).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: confirmDiscardName }));
+
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+    expect(statusRequests(fetchMock)).toHaveLength(1);
+    expect(statusRequests(fetchMock)[0]?.url).toContain(statusPath);
+    expect(statusRequests(fetchMock)[0]?.body).toEqual({
+      status: "discarded",
+    });
+    expect(onChanged.mock.calls[0]?.[0].status).toBe("discarded");
+  });
+
+  // Escenario: cancelar la confirmación no envía nada y deja el defecto como estaba (US6).
+  it("cancelar la confirmación no descarta el defecto", async () => {
+    const onChanged = renderActions(defect("in_progress"));
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: discardButtonName }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: cancelButtonName }),
+    );
+
+    expect(
+      screen.queryByRole("button", { name: confirmDiscardName }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: discardButtonName }),
+    ).toBeTruthy();
+    expect(statusRequests(fetchMock)).toHaveLength(0);
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+});

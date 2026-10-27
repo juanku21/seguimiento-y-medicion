@@ -360,3 +360,39 @@ describe("007/US3 - Consultar y filtrar los defectos", () => {
     expect(next.sprintId).toBe("");
   });
 });
+
+describe("007/US6 - Descartar un defecto que no corresponde", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    writeToken("eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJicnVubyJ9.firma");
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(fakeBackend(allDefects)));
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  // Escenario: el filtro de estado ofrece "Descartado" y al marcarlo lo comunica (US6, FR-040).
+  // Prueba de regresión: el filtro ya lo ofrecía desde US3, por lo que pasa desde el inicio.
+  it("el filtro de estado ofrece Descartado", () => {
+    const onChange = vi.fn<(next: DefectFilterValues) => void>();
+    render(
+      <SessionProvider>
+        <DefectFilters
+          projectId={projectId}
+          value={noFilters}
+          onChange={onChange}
+        />
+      </SessionProvider>,
+    );
+
+    const statusGroup = screen.getByRole("group", { name: /estado/i });
+    fireEvent.click(
+      within(statusGroup).getByRole("checkbox", { name: "Descartado" }),
+    );
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][0].status).toEqual(["discarded"]);
+  });
+});

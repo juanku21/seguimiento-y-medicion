@@ -662,7 +662,7 @@ progreso devuelve `409 invalid_transition`.
 
 ### Implementación de la Historia 5
 
-- [ ] T060 [US5] Agregar `resolved: [open]` al mapa de `backend/internal/defects/domain/status.go` y,
+- [X] T060 [US5] Agregar `resolved: [open]` al mapa de `backend/internal/defects/domain/status.go` y,
       en la función de mensajes de `backend/internal/defects/delivery/handler.go`, el caso de
       reapertura de lo que no está Resuelto ("Solo se reabre un defecto Resuelto.") — depende de T057,
       T058

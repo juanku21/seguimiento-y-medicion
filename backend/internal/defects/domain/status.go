@@ -34,6 +34,7 @@ type SprintAnchor struct {
 var allowedDefectTransitions = map[DefectStatus][]DefectStatus{
 	DefectStatusOpen:       {DefectStatusInProgress},
 	DefectStatusInProgress: {DefectStatusResolved},
+	DefectStatusResolved:   {DefectStatusOpen},
 }
 
 // Valid indica si el estado es uno de los cuatro admitidos (RN-11).

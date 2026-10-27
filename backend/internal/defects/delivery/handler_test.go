@@ -562,7 +562,6 @@ const (
 	defectMsgResolutionBefore   = "El sprint de resolución no puede empezar antes que el de detección."
 	defectMsgResolutionPlanned  = "Un defecto solo se resuelve en un sprint Activo o Cerrado."
 	defectMsgSkipToResolved     = "Un defecto Abierto primero debe pasar a En progreso."
-	defectMsgBackToOpen         = "Para volver a Abierto, resolvé el defecto y después reabrilo."
 )
 
 // defectPath es la ruta del detalle de un defecto según contracts/openapi.yaml.
@@ -842,7 +841,7 @@ func TestUS2_SaltoAResuelto(t *testing.T) {
 	f.requireDefectRowUnchanged(t, before)
 }
 
-// Escenario: Dado un defecto En progreso, cuando un integrante intenta devolverlo a Abierto, entonces la acción se rechaza indicando las transiciones permitidas; para volver a Abierto hay que resolverlo y después reabrirlo (007/US2)
+// Escenario: Dado un defecto En progreso, cuando un integrante intenta devolverlo a Abierto, entonces la acción se rechaza indicando las transiciones permitidas; solo se reabre un defecto Resuelto (007/US2)
 func TestUS2_VueltaAAbierto(t *testing.T) {
 	f := newDefectFixture(t)
 	defectID := f.registerDefect(t, f.storyID, f.sprintID)
@@ -851,7 +850,7 @@ func TestUS2_VueltaAAbierto(t *testing.T) {
 
 	body := requireDefectConflict(t, f.env.putDefectStatus(t, f.ownerToken, defectID, "open", uuid.Nil), "invalid_transition")
 
-	assert.Equal(t, defectMsgBackToOpen, body.Error)
+	assert.Equal(t, defectMsgOnlyResolvedReopens, body.Error)
 	assert.Equal(t, `"in_progress"`, string(body.CurrentStatus), "currentStatus es el estado vigente")
 	assert.Contains(t, body.AllowedStatuses, "resolved", "desde En progreso se permite Resuelto")
 	assert.NotContains(t, body.AllowedStatuses, "open")

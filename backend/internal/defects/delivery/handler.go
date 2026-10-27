@@ -42,7 +42,7 @@ const (
 	msgResolutionSprintPlanned   = "Un defecto solo se resuelve en un sprint Activo o Cerrado."
 	msgResolutionBeforeDetection = "El sprint de resolución no puede empezar antes que el de detección."
 	msgSkipToResolved            = "Un defecto Abierto primero debe pasar a En progreso."
-	msgBackToOpen                = "Para volver a Abierto, resolvé el defecto y después reabrilo."
+	msgOnlyResolvedReopens       = "Solo se reabre un defecto Resuelto."
 	codeInvalidTransition        = "invalid_transition"
 
 	msgDefectDiscarded  = "El defecto está Descartado y es de solo lectura."
@@ -471,14 +471,14 @@ func respondInvalidTransition(c *gin.Context, e *domain.InvalidTransitionError) 
 }
 
 // invalidTransitionMessage elige el mensaje del rechazo según el par (vigente, pedido): el salto de
-// Abierto a Resuelto y la vuelta de En progreso a Abierto tienen texto propio; el resto recibe el
-// genérico con las transiciones permitidas desde el estado vigente.
+// Abierto a Resuelto y el pedido de reabrir lo que no está Resuelto tienen texto propio; el resto
+// recibe el genérico con las transiciones permitidas desde el estado vigente.
 func invalidTransitionMessage(e *domain.InvalidTransitionError) string {
 	switch {
 	case e.Current == domain.DefectStatusOpen && e.Requested == domain.DefectStatusResolved:
 		return msgSkipToResolved
-	case e.Current == domain.DefectStatusInProgress && e.Requested == domain.DefectStatusOpen:
-		return msgBackToOpen
+	case e.Requested == domain.DefectStatusOpen:
+		return msgOnlyResolvedReopens
 	}
 
 	// El genérico nombra los estados en español; sin destinos admitidos lo dice explícitamente.

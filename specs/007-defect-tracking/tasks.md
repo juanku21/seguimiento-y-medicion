@@ -391,7 +391,7 @@ el sprint Activo devuelve `200` y deja el defecto `resolved` con ese sprint; `re
       y después reabrilo."), `TestUS2_SprintDeOtroProyecto` (`404` "El sprint no existe.", idéntico al
       de un UUID inexistente) y `TestUS2_ProyectoFinalizado` (`409 read_only`). En cada rechazo se
       verifica que la fila del defecto quedó idéntica — depende de T024
-- [ ] T029 [US2] Prueba de concurrencia `TestDefectTransition_ConcurrentStart` en
+- [X] T029 [US2] Prueba de concurrencia `TestDefectTransition_ConcurrentStart` en
       `backend/internal/defects/delivery/defect_concurrency_test.go`, **sin** etiqueta `007/USn`: dos
       integrantes envían a la vez `in_progress` sobre el mismo defecto `open`; exactamente uno recibe
       `200` y el otro `409 invalid_transition` con `currentStatus: in_progress`, ninguno `500`.

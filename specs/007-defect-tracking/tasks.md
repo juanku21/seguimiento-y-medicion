@@ -645,7 +645,7 @@ progreso devuelve `409 invalid_transition`.
       `AllowedTransitions(resolved)` = `[open]`; `PlanTransition(resolved, open, …)` → `nil, nil`
       (sprint de resolución borrado); `PlanTransition(open, open, …)` e
       `PlanTransition(in_progress, open, …)` siguen siendo `InvalidTransitionError` — depende de T056
-- [ ] T058 [US5] Pruebas de integración en `backend/internal/defects/delivery/handler_test.go`, una
+- [X] T058 [US5] Pruebas de integración en `backend/internal/defects/delivery/handler_test.go`, una
       por escenario con `// Escenario: <nombre> (007/US5)`: `TestUS5_Reapertura` (`resolvedSprint:
       null`, detección y historia sin cambio; SC-009), `TestUS5_SegundaResolucion`,
       `TestUS5_VariasReaperturas` (vale la última resolución), `TestUS5_ResolucionEnElMismoSprint`

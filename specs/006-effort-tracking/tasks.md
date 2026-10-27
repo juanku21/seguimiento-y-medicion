@@ -722,7 +722,7 @@ vulnerabilidades y verificación de las puertas de calidad.
       escriba `user_stories.ever_had_effort`; que ningún cálculo de horas o porcentajes use
       `float64`; que no haya dependencias nuevas en `go.mod` ni en `package.json`; y que ninguna
       respuesta incluya `password_hash` — depende de T071
-- [ ] T077 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluida la
+- [X] T077 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluida la
       validación manual de 16 pasos con `EFFORT_GRACE_PERIOD_HOURS=1`, las pruebas de concurrencia
       con `-count=5` y la verificación de que las pruebas corrieron contra `smye_test` en el puerto
       5433 y no contra desarrollo — depende de T072, T073, T076

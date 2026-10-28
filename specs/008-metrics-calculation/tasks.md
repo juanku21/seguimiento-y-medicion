@@ -321,7 +321,7 @@ con los mismos sprints Cerrados y el Activo, sin los Planificados.
       `backend/internal/metrics/domain/arithmetic_test.go`, cubriendo RN-10 y RN-19: (13, 1) → `1300`;
       (34, 2) → `1700`; (42, 3) → `1400`; (49, 3) → `1633`; (0, 3) → `0`; y que coincide con
       `RoundPercentHundredths(sum, 100 × count)` — depende de T015
-- [ ] T017 [P] [US2] Pruebas unitarias **obligatorias** en
+- [X] T017 [P] [US2] Pruebas unitarias **obligatorias** en
       `backend/internal/metrics/domain/sprint_test.go` de `CalculateSprint` y `SprintFinality` para
       sprints `active`, cubriendo RN-04 y RN-24: puntos y factor vigentes (no `FrozenFactorHundredths`),
       completadas por `Completed`, las **nueve** métricas `partial` y ningún `provisional`; los números

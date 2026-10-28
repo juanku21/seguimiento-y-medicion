@@ -220,7 +220,7 @@ sprint Cerrado de 21 puntos planificados, 13 completados, factor 6 y 142,5 horas
       `UPDATE projects SET name = name` ejecutado dentro de `fn` con un error de transacción de solo
       lectura (SQLSTATE `25006`), y la fila no cambia (prueba interna del paquete `repository`) —
       depende de T006
-- [ ] T010 [US1] Crear en `backend/internal/metrics/delivery/testenv_test.go` el entorno
+- [X] T010 [US1] Crear en `backend/internal/metrics/delivery/testenv_test.go` el entorno
       `newMetricsTestEnv` descripto arriba (router, reloj falso compartido, plazo de 48 horas,
       ayudantes para crear cuentas, proyectos con factor, integrantes, historias con puntos, sprints
       con sus historias, iniciarlos, completar historias, cerrarlos, cargar horas, cambiar el factor,

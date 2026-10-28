@@ -139,7 +139,7 @@ type ProjectDefects struct {
 	Defects []Defect `json:"defects" validate:"required"`
 	// Motivo del vacío: no_defects si el proyecto no tiene defectos, no_matches si los filtros no
 	// encuentran ninguno; null si la lista tiene elementos.
-	EmptyReason *string `json:"emptyReason" enums:"no_defects,no_matches" extensions:"x-nullable"`
+	EmptyReason *string `json:"emptyReason" validate:"required" enums:"no_defects,no_matches" extensions:"x-nullable"`
 }
 
 // StoryDefects es el listado de defectos de una historia, con el mismo orden y datos que el del
@@ -148,7 +148,7 @@ type StoryDefects struct {
 	// Defectos de la historia, de cualquier estado.
 	Defects []Defect `json:"defects" validate:"required"`
 	// no_defects si la historia no tiene defectos; null si la lista tiene elementos.
-	EmptyReason *string `json:"emptyReason" enums:"no_defects" extensions:"x-nullable"`
+	EmptyReason *string `json:"emptyReason" validate:"required" enums:"no_defects" extensions:"x-nullable"`
 }
 
 // DefectConflictResponse es el rechazo 409 por una regla de estado del defecto. AllowedStatuses se
@@ -159,7 +159,7 @@ type DefectConflictResponse struct {
 	// Mensaje en español dirigido a la persona.
 	Error string `json:"error" validate:"required"`
 	// Estado vigente del defecto; null con read_only y no_detection_sprint.
-	CurrentStatus *string `json:"currentStatus" enums:"open,in_progress,resolved,discarded" extensions:"x-nullable"`
+	CurrentStatus *string `json:"currentStatus" validate:"required" enums:"open,in_progress,resolved,discarded" extensions:"x-nullable"`
 	// Destinos admitidos desde currentStatus; vacío si no aplica o si está discarded.
 	AllowedStatuses []string `json:"allowedStatuses" validate:"required"`
 }

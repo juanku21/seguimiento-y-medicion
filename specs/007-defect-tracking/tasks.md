@@ -748,7 +748,7 @@ vulnerabilidades y verificación de las puertas de calidad.
 
 **Rama**: `fase/007-polish`
 
-- [ ] T068 Pruebas de integración de caracterización en
+- [X] T068 Pruebas de integración de caracterización en
       `backend/internal/defects/delivery/handler_test.go`, **sin** etiqueta `007/USn`:
       `TestDefectEndpoints_SinSesion`, con un subtest por cada uno de los **seis** endpoints sin
       cabecera y con token adulterado → `401` y ningún cambio (SC-016);
@@ -762,30 +762,30 @@ vulnerabilidades y verificación de las puertas de calidad.
       otro integrante los sigue trabajando (FR-055, SC-018); y una aserción de que ninguna respuesta
       contiene `password_hash` ni `passwordHash` (Principio VI). Caracterización: las reglas ya
       existen, así que no tiene RED; el commit lo justifica — depende de T067
-- [ ] T069 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
+- [X] T069 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
       `backend/docs/` coincida con [contracts/openapi.yaml](./contracts/openapi.yaml) en las **seis**
       operaciones, sus códigos de respuesta (todas declaran `500`), sus esquemas y los cinco `code` de
       `DefectConflictResponse`; corregir las anotaciones si difieren (Principio VIII) — depende de
       T068
-- [ ] T070 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona la
+- [X] T070 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona la
       gestión de defectos, y se agregan los seis endpoints, la sección "Defectos" del detalle de la
       historia y las páginas de defectos del proyecto, manteniendo el criterio de que alguien que no
       conoce el proyecto pueda ejecutarlo siguiendo el documento — depende de T068
-- [ ] T071 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
+- [X] T071 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
-- [ ] T072 [P] Ejecutar los comandos de cobertura de los dos lados —
+- [X] T072 [P] Ejecutar los comandos de cobertura de los dos lados —
       `go test -p 1 ./... -coverprofile=coverage.out` más `go tool cover -func=coverage.out` en
       `backend/`, y `npm run test:coverage` en `frontend/` — y revisar que `internal/defects/`,
       `frontend/src/features/defects/` y `frontend/src/utils/defect-labels.ts` estén cubiertos; correr
       además `go test -race -p 1 ./internal/defects/...` — depende de T068
-- [ ] T073 Verificar la trazabilidad y las puertas de seguridad recorriendo `backend/internal/defects/`
+- [X] T073 Verificar la trazabilidad y las puertas de seguridad recorriendo `backend/internal/defects/`
       y `frontend/src/features/defects/`: que buscar `007/US1` a `007/US6` en el código de pruebas
       devuelva los **73** escenarios; que las **24** reglas RN-01 a RN-24 tengan prueba asociada según
       la tabla de plan.md (SC-020); que los **seis** endpoints tengan su prueba de `401` (SC-016); que
       los `404` sean indistinguibles (SC-017); que fuera de `defects` esta feature solo escriba
       `user_stories.ever_had_defects`; que no haya dependencias nuevas en `go.mod` ni en
       `package.json`; y que ninguna respuesta incluya `password_hash` — depende de T068
-- [ ] T074 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluida la
+- [X] T074 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluida la
       validación manual de 19 pasos, la prueba de concurrencia con `-count=10` y la verificación de que
       las pruebas corrieron contra `smye_test` en el puerto 5433 y no contra desarrollo — depende de
       T069, T070, T073

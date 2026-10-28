@@ -771,7 +771,7 @@ vulnerabilidades y verificación de las puertas de calidad.
       gestión de defectos, y se agregan los seis endpoints, la sección "Defectos" del detalle de la
       historia y las páginas de defectos del proyecto, manteniendo el criterio de que alguien que no
       conoce el proyecto pueda ejecutarlo siguiendo el documento — depende de T068
-- [ ] T071 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
+- [X] T071 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
 - [ ] T072 [P] Ejecutar los comandos de cobertura de los dos lados —
       `go test -p 1 ./... -coverprofile=coverage.out` más `go tool cover -func=coverage.out` en

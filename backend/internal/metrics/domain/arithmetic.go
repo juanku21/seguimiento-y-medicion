@@ -14,5 +14,7 @@ func Percent(numerator, denominator int) Metric {
 
 // AverageHundredths devuelve el promedio de sum sobre count en centésimas de punto (RN-10, RN-19).
 func AverageHundredths(sum, count int) int {
-	return 0
+	// Es sum × 100 / count redondeado una sola vez (research.md sección 5): se reutiliza el
+	// redondeo de la spec 006 con denominador 100 × count.
+	return effortdomain.RoundPercentHundredths(sum, 100*count)
 }

@@ -377,7 +377,7 @@ con los mismos sprints Cerrados y el Activo, sin los Planificados.
       sprint agrupadas por `sprint_id`, extrayendo a funciones privadas las lecturas que comparte con
       `LoadSprint` (DRY). Esfuerzo sin sprint, backlog sin estimar y defectos se agregan en US3 y US5 —
       depende de T019, T013
-- [ ] T025 [US2] Agregar en `backend/internal/metrics/service/metrics_service.go` `ProjectMetrics`
+- [X] T025 [US2] Agregar en `backend/internal/metrics/service/metrics_service.go` `ProjectMetrics`
       (por ahora la velocidad y sus advertencias) y `ProjectSeries`, cada uno con un único `now`; en
       `backend/internal/metrics/delivery/dto.go` los esquemas `VelocityPoint`, `Velocity`,
       `SeriesPoint` (plano: `sprintId`, `sprintName`, `sprintStatus`, `status`, `value`, `finality`),

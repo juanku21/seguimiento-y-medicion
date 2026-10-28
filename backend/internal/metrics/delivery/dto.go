@@ -136,12 +136,6 @@ func newSprintMetric(metric domain.Metric, unit metricUnit) SprintMetric {
 
 // newSprintMetrics traduce el resultado del cálculo de un sprint y sus advertencias al contrato.
 func newSprintMetrics(metrics domain.SprintMetrics, warnings []domain.Warning) SprintMetrics {
-	var closedAt *string
-	if metrics.ClosedAt != nil {
-		formatted := metrics.ClosedAt.UTC().Format(time.RFC3339)
-		closedAt = &formatted
-	}
-
 	return SprintMetrics{
 		Sprint: SprintRef{
 			ID:        metrics.ID.String(),
@@ -149,7 +143,7 @@ func newSprintMetrics(metrics domain.SprintMetrics, warnings []domain.Warning) S
 			Status:    string(metrics.Status),
 			StartDate: metrics.StartDate.Format(time.DateOnly),
 			EndDate:   metrics.EndDate.Format(time.DateOnly),
-			ClosedAt:  closedAt,
+			ClosedAt:  formatClosedAt(metrics.ClosedAt),
 		},
 		PlannedStoryPoints:     newSprintMetric(metrics.PlannedStoryPoints, unitCount),
 		CompletedStoryPoints:   newSprintMetric(metrics.CompletedStoryPoints, unitCount),
@@ -239,30 +233,38 @@ type ProjectSeriesResponse struct {
 	Warnings []Warning `json:"warnings" validate:"required"`
 }
 
-// newProjectMetrics traduce el resultado del cálculo del proyecto al contrato.
-func newProjectMetrics(projectID uuid.UUID, metrics domain.ProjectMetrics) ProjectMetricsResponse {
-	// La serie nunca es nula: sin sprints Cerrados se serializa como [].
-	points := make([]VelocityPoint, 0, len(metrics.Velocity.Series))
-	for _, point := range metrics.Velocity.Series {
-		var closedAt *string
-		if point.ClosedAt != nil {
-			formatted := point.ClosedAt.UTC().Format(time.RFC3339)
-			closedAt = &formatted
-		}
-		points = append(points, VelocityPoint{
+// formatClosedAt formatea el momento de cierre en RFC 3339 UTC; es nil si el sprint no lo registra.
+func formatClosedAt(closedAt *time.Time) *string {
+	if closedAt == nil {
+		return nil
+	}
+	formatted := closedAt.UTC().Format(time.RFC3339)
+	return &formatted
+}
+
+// newVelocityPoints traduce la serie de velocidad; la lista nunca es nula: sin sprints Cerrados se
+// serializa como [].
+func newVelocityPoints(points []domain.VelocityPoint) []VelocityPoint {
+	items := make([]VelocityPoint, 0, len(points))
+	for _, point := range points {
+		items = append(items, VelocityPoint{
 			SprintID:             point.SprintID.String(),
 			SprintName:           point.SprintName,
-			ClosedAt:             closedAt,
+			ClosedAt:             formatClosedAt(point.ClosedAt),
 			CompletedStoryPoints: point.CompletedStoryPoints,
 		})
 	}
+	return items
+}
 
+// newProjectMetrics traduce el resultado del cálculo del proyecto al contrato.
+func newProjectMetrics(projectID uuid.UUID, metrics domain.ProjectMetrics) ProjectMetricsResponse {
 	return ProjectMetricsResponse{
 		ProjectID: projectID.String(),
 		Velocity: Velocity{
 			Value:             newMetric(metrics.Velocity.Value, unitHundredths),
 			SprintsConsidered: metrics.Velocity.SprintsConsidered,
-			Series:            points,
+			Series:            newVelocityPoints(metrics.Velocity.Series),
 		},
 		Warnings: newWarnings(metrics.Warnings),
 	}

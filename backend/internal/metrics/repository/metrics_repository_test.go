@@ -12,6 +12,7 @@ import (
 
 	authdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/domain"
 	backlogdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/domain"
+	defectsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/defects/domain"
 	effortdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/domain"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/metrics/domain"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/testsupport"
@@ -544,5 +545,131 @@ func TestUS4_LoadActiveSprintSinActivo(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Nil(t, got)
+	})
+}
+
+// seedDefect siembra un defecto de la historia con el estado, la severidad y los sprints indicados.
+func seedDefect(t *testing.T, f metricsFixture, storyID uuid.UUID, severity defectsdomain.DefectSeverity,
+	status defectsdomain.DefectStatus, detected uuid.UUID, resolved *uuid.UUID) {
+	t.Helper()
+	require.NoError(t, f.db.Create(&defectsdomain.Defect{
+		ID: uuid.New(), StoryID: storyID, Description: "Defecto de prueba", Severity: severity, Status: status,
+		DetectedSprintID: detected, ResolvedSprintID: resolved, CreatedByID: f.authorID, UpdatedByID: f.authorID,
+		StatusChangedByID: f.authorID, StatusChangedAt: time.Date(2026, 11, 6, 0, 0, 0, 0, time.UTC),
+	}).Error, "no se pudo sembrar el defecto")
+}
+
+// seedDefectsFixture siembra defectos en el sprint Cerrado del fixture (S1), en un sprint Activo (S2)
+// y en otro proyecto. Devuelve el ID del sprint Activo.
+//
+// Por sprint S1: detectados 3 (open, in_progress, resolved en S1), resueltos 2 (resolved en S1 y
+// resolved detectado en S2); los descartados no cuentan en ninguno. S2: detectados 1 (el resuelto
+// en S1 y detectado en S2 cuenta aquí como detectado), resueltos 0.
+func seedDefectsFixture(t *testing.T, f metricsFixture) uuid.UUID {
+	t.Helper()
+	activeID, _ := seedSprintWithStories(t, f, "Sprint 2", sprintsdomain.SprintStatusActive,
+		time.Date(2026, 11, 16, 0, 0, 0, 0, time.UTC), nil)
+	story := seedStory(t, f.db, f.authorID, f.projectID, "Historia con defectos", 5)
+	s1, s2 := f.sprintID, activeID
+
+	seedDefect(t, f, story, defectsdomain.DefectSeverityHigh, defectsdomain.DefectStatusOpen, s1, nil)
+	seedDefect(t, f, story, defectsdomain.DefectSeverityLow, defectsdomain.DefectStatusInProgress, s1, nil)
+	seedDefect(t, f, story, defectsdomain.DefectSeverityCritical, defectsdomain.DefectStatusResolved, s1, &s1)
+	// Detectado en S2 y resuelto en S1 (dato cruzado): cuenta como resuelto de S1 y detectado de S2.
+	seedDefect(t, f, story, defectsdomain.DefectSeverityHigh, defectsdomain.DefectStatusResolved, s2, &s1)
+	// Descartados: ni detectados ni resueltos, aunque tengan sprint de detección o de resolución.
+	seedDefect(t, f, story, defectsdomain.DefectSeverityHigh, defectsdomain.DefectStatusDiscarded, s1, nil)
+	seedDefect(t, f, story, defectsdomain.DefectSeverityMedium, defectsdomain.DefectStatusDiscarded, s2, &s1)
+
+	// Defectos de otro proyecto: no deben contarse en el proyecto del fixture.
+	other := newMetricsFixtureProject(t, f)
+	otherSprint, _ := seedSprintWithStories(t, other, "Sprint ajeno", sprintsdomain.SprintStatusActive,
+		time.Date(2026, 11, 16, 0, 0, 0, 0, time.UTC), nil)
+	otherStory := seedStory(t, f.db, f.authorID, other.projectID, "Historia ajena", 2)
+	seedDefect(t, f, otherStory, defectsdomain.DefectSeverityCritical, defectsdomain.DefectStatusOpen, otherSprint, nil)
+	seedDefect(t, f, otherStory, defectsdomain.DefectSeverityCritical, defectsdomain.DefectStatusResolved, otherSprint, &otherSprint)
+	return activeID
+}
+
+// Escenario: un defecto detectado en el sprint 1 y resuelto en el sprint 2 cuenta como detectado en el 1 y resuelto en el 2; los descartados no se cuentan (008/US5)
+func TestUS5_LoadSprintDefectos(t *testing.T) {
+	f := newMetricsFixture(t)
+	activeID := seedDefectsFixture(t, f)
+
+	t.Run("sprint_cerrado", func(t *testing.T) {
+		got, _, err := NewMetricsRepository(f.db).LoadSprint(context.Background(), f.projectID, f.sprintID)
+
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, 3, got.DefectsDetected, "detectados: sin descartados")
+		assert.Equal(t, 2, got.DefectsResolved, "resueltos: resolved_sprint_id y status resolved")
+	})
+
+	t.Run("sprint_activo", func(t *testing.T) {
+		got, _, err := NewMetricsRepository(f.db).LoadSprint(context.Background(), f.projectID, activeID)
+
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, 1, got.DefectsDetected)
+		assert.Equal(t, 0, got.DefectsResolved)
+	})
+}
+
+// Escenario: un defecto detectado y resuelto en el mismo sprint cuenta una vez como detectado y una como resuelto (008/US5)
+func TestUS5_LoadActiveSprintDefectos(t *testing.T) {
+	f := newMetricsFixture(t)
+	activeID := seedDefectsFixture(t, f)
+	story := seedStory(t, f.db, f.authorID, f.projectID, "Otra historia", 3)
+	// Un defecto detectado y resuelto en el Activo se suma a su detectado y a su resuelto.
+	seedDefect(t, f, story, defectsdomain.DefectSeverityMedium, defectsdomain.DefectStatusResolved, activeID, &activeID)
+
+	got, _, err := NewMetricsRepository(f.db).LoadActiveSprint(context.Background(), f.projectID)
+
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, 2, got.DefectsDetected)
+	assert.Equal(t, 1, got.DefectsResolved)
+}
+
+// Escenario: los descartados no se cuentan en detectados, resueltos ni abiertos del proyecto, que sin defectos da 0 (008/US5)
+func TestUS5_LoadProjectDefectos(t *testing.T) {
+	f := newMetricsFixture(t)
+	activeID := seedDefectsFixture(t, f)
+
+	t.Run("conteos_por_sprint", func(t *testing.T) {
+		got, err := NewMetricsRepository(f.db).LoadProject(context.Background(), f.projectID)
+
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		require.Len(t, got.Sprints, 2)
+		byID := map[uuid.UUID][2]int{}
+		for _, s := range got.Sprints {
+			byID[s.ID] = [2]int{s.DefectsDetected, s.DefectsResolved}
+		}
+		assert.Equal(t, [2]int{3, 2}, byID[f.sprintID])
+		assert.Equal(t, [2]int{1, 0}, byID[activeID])
+	})
+
+	t.Run("defect_counts_agrupa_por_estado_y_severidad", func(t *testing.T) {
+		got, err := NewMetricsRepository(f.db).LoadProject(context.Background(), f.projectID)
+
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.ElementsMatch(t, []domain.DefectCount{
+			{Status: defectsdomain.DefectStatusOpen, Severity: defectsdomain.DefectSeverityHigh, Count: 1},
+			{Status: defectsdomain.DefectStatusInProgress, Severity: defectsdomain.DefectSeverityLow, Count: 1},
+			{Status: defectsdomain.DefectStatusResolved, Severity: defectsdomain.DefectSeverityCritical, Count: 1},
+			{Status: defectsdomain.DefectStatusResolved, Severity: defectsdomain.DefectSeverityHigh, Count: 1},
+		}, got.DefectCounts, "sin descartados y sin defectos de otro proyecto")
+	})
+
+	t.Run("proyecto_sin_defectos_no_tiene_conteos", func(t *testing.T) {
+		empty := newMetricsFixtureProject(t, f)
+
+		got, err := NewMetricsRepository(f.db).LoadProject(context.Background(), empty.projectID)
+
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Empty(t, got.DefectCounts)
 	})
 }

@@ -556,7 +556,7 @@ Descartados más, `GET .../metrics` devuelve `defects.detected.total` `12`, `res
       si faltan; una fila `discarded` se ignora; sin filas → los tres en 0 y no `not_calculable`; en
       cada conteo Σ `BySeverity` = `Total`, y `Detected.Total` = `Resolved.Total + Open.Total` —
       depende de T038
-- [ ] T040 [P] [US5] Pruebas de integración del repositorio en
+- [X] T040 [P] [US5] Pruebas de integración del repositorio en
       `backend/internal/metrics/repository/metrics_repository_test.go`: en `LoadSprint`, `LoadActiveSprint`
       y `LoadProject`, `DefectsDetected` cuenta los `defects` con ese `detected_sprint_id` y
       `status <> 'discarded'`, y `DefectsResolved` los de ese `resolved_sprint_id` con

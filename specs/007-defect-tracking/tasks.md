@@ -785,7 +785,7 @@ vulnerabilidades y verificación de las puertas de calidad.
       los `404` sean indistinguibles (SC-017); que fuera de `defects` esta feature solo escriba
       `user_stories.ever_had_defects`; que no haya dependencias nuevas en `go.mod` ni en
       `package.json`; y que ninguna respuesta incluya `password_hash` — depende de T068
-- [ ] T074 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluida la
+- [X] T074 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluida la
       validación manual de 19 pasos, la prueba de concurrencia con `-count=10` y la verificación de que
       las pruebas corrieron contra `smye_test` en el puerto 5433 y no contra desarrollo — depende de
       T069, T070, T073

@@ -419,7 +419,7 @@ cantidad de historias del backlog sin estimar con su advertencia.
       `unestimated_backlog_stories` con `Count` solo si `UnestimatedBacklogStories > 0`, nunca
       producida por `CalculateSprint`; y las advertencias `data_inconsistency` de los sprints
       incluidos viajan junto a las de planificación sin quitar ninguna métrica — depende de T025
-- [ ] T027 [P] [US3] Pruebas de integración del repositorio en
+- [X] T027 [P] [US3] Pruebas de integración del repositorio en
       `backend/internal/metrics/repository/metrics_repository_test.go`: `LoadProject` devuelve
       `OutsideSprintsHundredths` con la suma de los registros con `sprint_id IS NULL` de historias del
       proyecto (no de otro) y `UnestimatedBacklogStories` con las historias del proyecto con

@@ -79,13 +79,11 @@ func CalculateProject(data ProjectData, now time.Time, grace time.Duration) Proj
 // calculateVelocity arma la serie de todos los Cerrados y el promedio de la ventana de los últimos 3.
 func calculateVelocity(data ProjectData, now time.Time, grace time.Duration) Velocity {
 	// La serie conserva el orden de Sprints y reutiliza CalculateSprint para el valor de cada punto.
-	closed := []SprintData{}
 	series := []VelocityPoint{}
 	for _, sprint := range data.Sprints {
 		if sprint.Status != sprintsdomain.SprintStatusClosed {
 			continue
 		}
-		closed = append(closed, sprint)
 		metrics, _ := CalculateSprint(sprint, data.FactorHundredths, now, grace)
 		series = append(series, VelocityPoint{
 			SprintID:             sprint.ID,
@@ -98,17 +96,13 @@ func calculateVelocity(data ProjectData, now time.Time, grace time.Duration) Vel
 		return Velocity{Value: NotCalculable(), Series: series}
 	}
 
-	// La ventana ordena por cierre descendente (sin cierre al final) y desempata por ID descendente.
-	slices.SortFunc(closed, compareByClosure)
-	window := closed[:min(velocityWindowSize, len(closed))]
+	// La ventana se toma de una copia ordenada por cierre, para no alterar el orden de la serie.
+	byClosure := slices.Clone(series)
+	slices.SortFunc(byClosure, compareByClosure)
+	window := byClosure[:min(velocityWindowSize, len(byClosure))]
 	sum := 0
-	for _, sprint := range window {
-		for _, point := range series {
-			if point.SprintID == sprint.ID {
-				sum += point.CompletedStoryPoints
-				break
-			}
-		}
+	for _, point := range window {
+		sum += point.CompletedStoryPoints
 	}
 	return Velocity{
 		Value:             Available(AverageHundredths(sum, len(window))),
@@ -118,7 +112,7 @@ func calculateVelocity(data ProjectData, now time.Time, grace time.Duration) Vel
 }
 
 // compareByClosure ordena por ClosedAt descendente con los nulos al final, y por ID descendente.
-func compareByClosure(a, b SprintData) int {
+func compareByClosure(a, b VelocityPoint) int {
 	switch {
 	case a.ClosedAt == nil && b.ClosedAt != nil:
 		return 1
@@ -129,5 +123,5 @@ func compareByClosure(a, b SprintData) int {
 			return c
 		}
 	}
-	return bytes.Compare(b.ID[:], a.ID[:])
+	return bytes.Compare(b.SprintID[:], a.SprintID[:])
 }

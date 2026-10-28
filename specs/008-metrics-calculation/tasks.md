@@ -364,7 +364,7 @@ con los mismos sprints Cerrados y el Activo, sin los Planificados.
 - [X] T022 [US2] Ampliar `CalculateSprint` y `SprintFinality` en
       `backend/internal/metrics/domain/sprint.go` con el estado `active`: factor vigente, las nueve
       `partial` — depende de T017, T021
-- [ ] T023 [US2] Implementar en `backend/internal/metrics/domain/project.go` la ventana y la serie
+- [X] T023 [US2] Implementar en `backend/internal/metrics/domain/project.go` la ventana y la serie
       de velocidad (Cerrados por `ClosedAt DESC NULLS LAST, ID DESC`, los 3 primeros;
       `AverageHundredths`; serie de todos los Cerrados en orden de `Sprints`) y en
       `backend/internal/metrics/domain/series.go` `BuildSeries(data ProjectData, now time.Time, grace

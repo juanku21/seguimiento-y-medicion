@@ -123,7 +123,7 @@ estructuras, constantes y contratos, sin lógica de negocio.
       *Finality}`, con el comentario de data-model.md sección 4 ("`Value` solo es significativo con
       `available`"; "`Finality` solo en métricas de sprint y en puntos de serie; `nil` en el
       Planificado"). Los constructores se implementan en US1
-- [ ] T003 [P] Declarar en `backend/internal/metrics/domain/warnings.go` el tipo `WarningKind string`
+- [X] T003 [P] Declarar en `backend/internal/metrics/domain/warnings.go` el tipo `WarningKind string`
       con `WarningPlanning = "planning"` y `WarningDataInconsistency = "data_inconsistency"`; el tipo
       `WarningCode string` con `CodeUnestimatedBacklogStories = "unestimated_backlog_stories"`,
       `CodeUnestimatedStoryInSprint = "unestimated_story_in_sprint"`,

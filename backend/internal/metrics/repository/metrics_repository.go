@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	defectsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/defects/domain"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/metrics/domain"
 	sprintsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
@@ -61,7 +62,11 @@ func (r *MetricsRepository) LoadProject(ctx context.Context, projectID uuid.UUID
 			if err != nil {
 				return err
 			}
-			sprintsData = append(sprintsData, newSprintData(sprint, stories, hours[sprint.ID]))
+			detected, resolved, err := loadSprintDefects(tx, sprint.ID)
+			if err != nil {
+				return err
+			}
+			sprintsData = append(sprintsData, newSprintData(sprint, stories, hours[sprint.ID], detected, resolved))
 		}
 
 		// Esfuerzo sin sprint de las historias del proyecto (FR-029).
@@ -79,7 +84,17 @@ func (r *MetricsRepository) LoadProject(ctx context.Context, projectID uuid.UUID
 			return fmt.Errorf("contar las historias sin estimar: %w", err)
 		}
 
+		// Defectos del proyecto por estado y severidad, sin descartados.
+		var defectCounts []domain.DefectCount
+		if err := tx.Raw(`SELECT d.status AS status, d.severity AS severity, COUNT(*) AS count
+			FROM defects d JOIN user_stories us ON us.id = d.story_id
+			WHERE us.project_id = ? AND d.status <> ? GROUP BY d.status, d.severity`,
+			projectID, defectsdomain.DefectStatusDiscarded).Scan(&defectCounts).Error; err != nil {
+			return fmt.Errorf("contar los defectos del proyecto: %w", err)
+		}
+
 		data = &domain.ProjectData{
+			DefectCounts:              defectCounts,
 			ProjectID:                 projectID,
 			FactorHundredths:          factor,
 			Sprints:                   sprintsData,
@@ -123,7 +138,7 @@ func loadProjectHours(tx *gorm.DB, projectID uuid.UUID) (map[uuid.UUID]int, erro
 }
 
 // newSprintData convierte un sprint persistido y sus lecturas en los datos de dominio.
-func newSprintData(sprint sprintsdomain.Sprint, stories []domain.SprintStoryData, actual int) domain.SprintData {
+func newSprintData(sprint sprintsdomain.Sprint, stories []domain.SprintStoryData, actual, detected, resolved int) domain.SprintData {
 	return domain.SprintData{
 		ID:                     sprint.ID,
 		Name:                   sprint.Name,
@@ -134,7 +149,8 @@ func newSprintData(sprint sprintsdomain.Sprint, stories []domain.SprintStoryData
 		FrozenFactorHundredths: sprint.HoursPerStoryPointHundredths,
 		Stories:                stories,
 		ActualHundredths:       actual,
-		// Los defectos se cargan en US5.
+		DefectsDetected:        detected,
+		DefectsResolved:        resolved,
 	}
 }
 
@@ -188,7 +204,31 @@ func loadSprintData(tx *gorm.DB, sprint sprintsdomain.Sprint) (domain.SprintData
 		Scan(&actual).Error; err != nil {
 		return domain.SprintData{}, fmt.Errorf("sumar el esfuerzo del sprint: %w", err)
 	}
-	return newSprintData(sprint, stories, actual), nil
+
+	detected, resolved, err := loadSprintDefects(tx, sprint.ID)
+	if err != nil {
+		return domain.SprintData{}, err
+	}
+	return newSprintData(sprint, stories, actual, detected, resolved), nil
+}
+
+// loadSprintDefects cuenta los defectos detectados en el sprint (sin descartados) y los resueltos
+// en él (resolved_sprint_id igual al sprint y estado resuelto).
+func loadSprintDefects(tx *gorm.DB, sprintID uuid.UUID) (int, int, error) {
+	var counts struct {
+		Detected int
+		Resolved int
+	}
+	if err := tx.Raw(`SELECT
+			COUNT(*) FILTER (WHERE detected_sprint_id = @sprint AND status <> @discarded) AS detected,
+			COUNT(*) FILTER (WHERE resolved_sprint_id = @sprint AND status = @resolved) AS resolved
+		FROM defects`,
+		sql.Named("sprint", sprintID),
+		sql.Named("discarded", defectsdomain.DefectStatusDiscarded),
+		sql.Named("resolved", defectsdomain.DefectStatusResolved)).Scan(&counts).Error; err != nil {
+		return 0, 0, fmt.Errorf("contar los defectos del sprint: %w", err)
+	}
+	return counts.Detected, counts.Resolved, nil
 }
 
 // storyRow es una fila de historia comprometida tal como la devuelve la consulta.

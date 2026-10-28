@@ -134,7 +134,7 @@ estructuras, constantes y contratos, sin lógica de negocio.
 - [X] T004 [P] Declarar en `backend/internal/metrics/domain/errors.go` el error
       `ErrSprintNotFound` ("el sprint no existe o es de otro proyecto"), con el comentario de que
       `delivery` lo traduce a `404` con el mismo cuerpo que la 004
-- [ ] T005 Declarar los tipos de datos y de resultado del dominio, sin funciones, con los campos de
+- [X] T005 Declarar los tipos de datos y de resultado del dominio, sin funciones, con los campos de
       data-model.md secciones 3 y 5 a 8: en `backend/internal/metrics/domain/sprint.go`
       `SprintData` (`ID`, `Name`, `Status sprintsdomain.SprintStatus`, `StartDate`, `EndDate`,
       `ClosedAt *time.Time`, `FrozenFactorHundredths *int`, `Stories []SprintStoryData`,

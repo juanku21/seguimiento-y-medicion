@@ -427,7 +427,10 @@ func TestUS3_LoadProjectHistoriasSinEstimar(t *testing.T) {
 	})
 
 	t.Run("sin_historias_sin_estimar_es_cero", func(t *testing.T) {
-		got, err := NewMetricsRepository(f.db).LoadProject(context.Background(), f.projectID)
+		// Se consulta un proyecto vacío: el del fixture ya tiene historias sin estimar del subtest anterior.
+		emptyProject := seedProject(t, f.db, f.authorID, "proyecto vacío", 700)
+
+		got, err := NewMetricsRepository(f.db).LoadProject(context.Background(), emptyProject)
 
 		require.NoError(t, err)
 		require.NotNil(t, got)

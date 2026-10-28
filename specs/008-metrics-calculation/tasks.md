@@ -438,7 +438,7 @@ cantidad de historias del backlog sin estimar con su advertencia.
       `TestUS3_BacklogSinEstimar` (`6` y la advertencia `planning`), `TestUS3_BacklogEstimado` (`0` y
       `warnings` sin `unestimated_backlog_stories`; SC-017) y `TestUS3_ProyectoInexistente` (`404`
       con el cuerpo de la 002) — depende de T025
-- [ ] T029 [US3] Pruebas de integración en `backend/internal/metrics/delivery/consistency_test.go`,
+- [X] T029 [US3] Pruebas de integración en `backend/internal/metrics/delivery/consistency_test.go`,
       **sin** etiqueta `008/USn`: `TestMetrics_NoInvisibleEffort` (SC-016, ampliada: con horas sin
       sprint, en Cerrados, en el Activo y en un Planificado, `cumulative.actualHours +
       effortOutsideSprintsHours + effortInPlannedSprintsHours` = Σ `hours_hundredths` del proyecto

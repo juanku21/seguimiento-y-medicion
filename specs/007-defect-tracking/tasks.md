@@ -767,7 +767,7 @@ vulnerabilidades y verificación de las puertas de calidad.
       operaciones, sus códigos de respuesta (todas declaran `500`), sus esquemas y los cinco `code` de
       `DefectConflictResponse`; corregir las anotaciones si difieren (Principio VIII) — depende de
       T068
-- [ ] T070 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona la
+- [X] T070 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona la
       gestión de defectos, y se agregan los seis endpoints, la sección "Defectos" del detalle de la
       historia y las páginas de defectos del proyecto, manteniendo el criterio de que alguien que no
       conoce el proyecto pueda ejecutarlo siguiendo el documento — depende de T068

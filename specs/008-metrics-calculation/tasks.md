@@ -579,7 +579,7 @@ Descartados más, `GET .../metrics` devuelve `defects.detected.total` `12`, `res
 - [X] T043 [US5] Ampliar las lecturas de `backend/internal/metrics/repository/metrics_repository.go`
       con los dos conteos por sprint (en la función privada que comparten las tres operaciones) y con
       `DefectCounts` en `LoadProject`, dentro de la misma transacción — depende de T040
-- [ ] T044 [US5] Agregar el bloque `Defects` a `CalculateProject` en
+- [X] T044 [US5] Agregar el bloque `Defects` a `CalculateProject` en
       `backend/internal/metrics/domain/project.go`, y en `backend/internal/metrics/delivery/dto.go` los
       esquemas `SeverityBreakdown`, `DefectTally` y `ProjectDefects` y el campo `defects` de
       `ProjectMetricsResponse`, actualizando las anotaciones `swag` — depende de T041, T042, T043

@@ -544,7 +544,7 @@ Descartados más, `GET .../metrics` devuelve `defects.detected.total` `12`, `res
 
 ### Pruebas de la Historia 5 ⚠️
 
-- [ ] T039 [P] [US5] Declarar en `backend/internal/metrics/domain/defects.go` `DefectCount`
+- [X] T039 [P] [US5] Declarar en `backend/internal/metrics/domain/defects.go` `DefectCount`
       (`Status defectsdomain.DefectStatus`, `Severity defectsdomain.DefectSeverity`, `Count int`),
       `DefectTally` (`Total`, `BySeverity map[defectsdomain.DefectSeverity]int`) y `ProjectDefects`
       (`Detected`, `Resolved`, `Open`), y agregar `DefectCounts []DefectCount` a `ProjectData` y

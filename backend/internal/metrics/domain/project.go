@@ -24,6 +24,8 @@ type ProjectData struct {
 	OutsideSprintsHundredths int
 	// UnestimatedBacklogStories cuenta las historias del proyecto sin estimar (FR-036).
 	UnestimatedBacklogStories int
+	// DefectCounts son los defectos del proyecto agrupados por estado y severidad.
+	DefectCounts []DefectCount
 }
 
 // VelocityPoint es la velocidad de un sprint Cerrado.
@@ -68,7 +70,9 @@ type ProjectMetrics struct {
 	EffortInPlannedSprintsHundredths int
 	// UnestimatedBacklogStories es siempre presente, 0 incluido.
 	UnestimatedBacklogStories int
-	Warnings                  []Warning
+	// Defects son los defectos del proyecto, siempre presentes.
+	Defects  ProjectDefects
+	Warnings []Warning
 }
 
 // CalculateProject calcula las métricas de un proyecto: velocidad, acumulados, esfuerzo separado,

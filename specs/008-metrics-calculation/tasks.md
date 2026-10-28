@@ -596,7 +596,7 @@ viva, cobertura, vulnerabilidades y verificación de las puertas de calidad.
 
 **Rama**: `fase/008-polish`
 
-- [ ] T045 Pruebas de integración de caracterización en
+- [X] T045 Pruebas de integración de caracterización en
       `backend/internal/metrics/delivery/handler_test.go`, **sin** etiqueta `008/USn`:
       `TestMetricsEndpoints_SinSesion`, con un subtest por cada uno de los **cuatro** endpoints sin
       cabecera y con token adulterado → `401 {"error":"Se requiere iniciar sesión."}` (SC-013);

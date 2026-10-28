@@ -32,9 +32,10 @@ type SprintAnchor struct {
 // allowedDefectTransitions es la fuente única de las transiciones admitidas: cada estado de origen
 // lista sus destinos posibles (RN-12). Un estado sin entrada no admite ninguna transición.
 var allowedDefectTransitions = map[DefectStatus][]DefectStatus{
-	DefectStatusOpen:       {DefectStatusInProgress},
-	DefectStatusInProgress: {DefectStatusResolved},
+	DefectStatusOpen:       {DefectStatusInProgress, DefectStatusDiscarded},
+	DefectStatusInProgress: {DefectStatusResolved, DefectStatusDiscarded},
 	DefectStatusResolved:   {DefectStatusOpen},
+	DefectStatusDiscarded:  {},
 }
 
 // Valid indica si el estado es uno de los cuatro admitidos (RN-11).

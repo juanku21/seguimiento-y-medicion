@@ -45,6 +45,8 @@ const (
 	msgOnlyResolvedReopens       = "Solo se reabre un defecto Resuelto."
 	codeInvalidTransition        = "invalid_transition"
 
+	msgOnlyOpenDiscards = "Solo se descarta un defecto Abierto o En progreso; para descartarlo, primero reabrilo."
+	msgDiscardedFinal   = "El defecto está Descartado, que es un estado definitivo."
 	msgDefectDiscarded  = "El defecto está Descartado y es de solo lectura."
 	msgLinksFrozen      = "La historia relacionada y el sprint de detección solo se corrigen mientras el defecto está Abierto."
 	codeDefectDiscarded = "defect_discarded"
@@ -475,6 +477,10 @@ func respondInvalidTransition(c *gin.Context, e *domain.InvalidTransitionError) 
 // recibe el genérico con las transiciones permitidas desde el estado vigente.
 func invalidTransitionMessage(e *domain.InvalidTransitionError) string {
 	switch {
+	case e.Current == domain.DefectStatusDiscarded:
+		return msgDiscardedFinal
+	case e.Current == domain.DefectStatusResolved && e.Requested == domain.DefectStatusDiscarded:
+		return msgOnlyOpenDiscards
 	case e.Current == domain.DefectStatusOpen && e.Requested == domain.DefectStatusResolved:
 		return msgSkipToResolved
 	case e.Requested == domain.DefectStatusOpen:

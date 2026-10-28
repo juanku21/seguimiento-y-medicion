@@ -9,6 +9,7 @@ import {
 import {
   primaryButtonClass,
   ResolveDefectForm,
+  secondaryButtonClass,
 } from "@/features/defects/components/resolve-defect-form";
 import { allowedTransitions } from "@/features/defects/transitions";
 import type { Defect, DefectStatusChange } from "@/types/defect";
@@ -22,7 +23,7 @@ export type DefectStatusActionsProps = {
 
 // Acciones de estado del defecto (007/US2 y US5). Las ofrece según las transiciones admitidas desde
 // el estado vigente: "Pasar a En progreso" en un Abierto, "Resolver" en uno En progreso, que abre el
-// formulario del sprint de resolución, y "Reabrir" en uno Resuelto. Con el 200 entrega el defecto recibido a la pantalla. El 400
+// formulario del sprint de resolución, y "Reabrir" en uno Resuelto; en 007/US6, "Descartar" con confirmación en uno Abierto o En progreso. Con el 200 entrega el defecto recibido a la pantalla. El 400
 // del sprint de resolución se muestra junto al selector y los demás rechazos como mensaje general;
 // ante un 409 invalid_transition además entrega el defecto con el estado vigente informado, para que
 // la pantalla ofrezca las acciones que corresponden (FR-018, RN-24).
@@ -33,6 +34,7 @@ export function DefectStatusActions({
   const [error, setError] = useState<string | null>(null);
   const [sprintError, setSprintError] = useState<string | undefined>();
   const [isResolving, setIsResolving] = useState(false);
+  const [isDiscarding, setIsDiscarding] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submittingRef = useRef(false);
   const allowed = allowedTransitions(defect.status);
@@ -53,6 +55,7 @@ export function DefectStatusActions({
 
     if (result.ok) {
       setIsResolving(false);
+      setIsDiscarding(false);
       onChanged(result.data);
       return;
     }
@@ -71,6 +74,7 @@ export function DefectStatusActions({
     const currentStatus = invalidTransitionStatus(result.error);
     if (currentStatus !== null) {
       setIsResolving(false);
+      setIsDiscarding(false);
       onChanged({ ...defect, status: currentStatus });
     }
   }
@@ -147,6 +151,48 @@ export function DefectStatusActions({
             setIsResolving(false);
           }}
         />
+      )}
+
+      {/* Descarte (007/US6): en un Abierto o En progreso; pide confirmación porque es definitivo y
+          no envía nada hasta confirmar. */}
+      {allowed.includes("discarded") && !isDiscarding && (
+        <div>
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setIsDiscarding(true);
+            }}
+            className={secondaryButtonClass}
+          >
+            Descartar
+          </button>
+        </div>
+      )}
+      {allowed.includes("discarded") && isDiscarding && (
+        <div className="flex flex-col gap-3 rounded-md border border-zinc-300 px-4 py-4 dark:border-zinc-700">
+          <p className="text-sm font-medium">
+            ¿Descartar este defecto? No se puede deshacer.
+          </p>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => void submit({ status: "discarded" })}
+              disabled={isSubmitting}
+              className={primaryButtonClass}
+            >
+              Confirmar descarte
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsDiscarding(false)}
+              disabled={isSubmitting}
+              className={secondaryButtonClass}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
       )}
     </section>
   );

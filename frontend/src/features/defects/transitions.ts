@@ -2,11 +2,11 @@ import type { DefectStatus } from "@/types/defect";
 
 // Copia en el cliente del mapa de transiciones del backend (research.md sección 8, RN-12), con las
 // transiciones de 007/US2 (Abierto → En progreso y En progreso → Resuelto) y de 007/US5 (Resuelto →
-// Abierto, la reapertura). La interfaz lo usa para
+// Abierto, la reapertura) y de 007/US6 (Abierto y En progreso → Descartado). La interfaz lo usa para
 // decidir qué acciones ofrecer; el backend lo vuelve a validar.
 const DEFECT_TRANSITIONS: Record<DefectStatus, DefectStatus[]> = {
-  open: ["in_progress"],
-  in_progress: ["resolved"],
+  open: ["in_progress", "discarded"],
+  in_progress: ["resolved", "discarded"],
   resolved: ["open"],
   discarded: [],
 };

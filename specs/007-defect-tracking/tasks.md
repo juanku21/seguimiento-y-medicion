@@ -689,7 +689,7 @@ exactamente una de las dos.
 
 ### Pruebas de la Historia 6 ⚠️
 
-- [ ] T062 [P] [US6] Completar las pruebas unitarias **obligatorias** de
+- [X] T062 [P] [US6] Completar las pruebas unitarias **obligatorias** de
       `backend/internal/defects/domain/status_test.go`, cubriendo RN-12, RN-21 a RN-23 y SC-005:
       `AllowedTransitions(open)` = `[in_progress, discarded]`, `AllowedTransitions(in_progress)` =
       `[resolved, discarded]` y `AllowedTransitions(discarded)` = `[]`; descarte desde `open` e
@@ -697,7 +697,7 @@ exactamente una de las dos.
       `InvalidTransitionError`; y una prueba de tabla con **las 16 combinaciones** de origen y
       destino: exactamente 5 válidas y 11 inválidas, incluidas las 4 salidas desde `discarded` —
       depende de T061
-- [ ] T063 [US6] Pruebas de integración en `backend/internal/defects/delivery/handler_test.go`, una
+- [X] T063 [US6] Pruebas de integración en `backend/internal/defects/delivery/handler_test.go`, una
       por escenario con `// Escenario: <nombre> (007/US6)`: `TestUS6_DescarteDesdeAbierto` (conserva
       la detección, `resolvedSprint: null`), `TestUS6_DescarteDesdeEnProgreso`,
       `TestUS6_ListadoConDescartados` (aparece en el listado sin filtros con `status: discarded`),
@@ -708,7 +708,7 @@ exactamente una de las dos.
       `TestUS6_DescartadoDefinitivo` (subtests descartar, pasar a En progreso, resolver y reabrir →
       `409 invalid_transition` con "El defecto está Descartado, que es un estado definitivo.", y
       modificar → `409 defect_discarded`; SC-012) y `TestUS6_ProyectoFinalizado` — depende de T061
-- [ ] T064 [US6] Agregar a `backend/internal/defects/delivery/defect_concurrency_test.go`
+- [X] T064 [US6] Agregar a `backend/internal/defects/delivery/defect_concurrency_test.go`
       `TestDefectTransition_Concurrency`, **sin** etiqueta: a la vez, sobre el mismo defecto
       `in_progress`, una resolución y un descarte de dos integrantes; en **10 de 10** repeticiones
       exactamente uno recibe `200` y el otro `409 invalid_transition` con el estado vigente, y el
@@ -716,7 +716,7 @@ exactamente una de las dos.
       `TestDefectTransition_ConcurrentUpdateAndDiscard`: una modificación de la descripción y un
       descarte a la vez; si el descarte se aplicó primero, la modificación recibe `409
       defect_discarded` (FR-018, última oración) — depende de T063
-- [ ] T065 [P] [US6] Pruebas de frontend en
+- [X] T065 [P] [US6] Pruebas de frontend en
       `frontend/src/features/defects/components/defect-status-actions.test.tsx`,
       `frontend/src/features/defects/components/defect-detail.test.tsx` y
       `frontend/src/features/defects/transitions.test.ts`, con
@@ -727,13 +727,15 @@ exactamente una de las dos.
 
 ### Implementación de la Historia 6
 
-- [ ] T066 [US6] Agregar `discarded` a los destinos de `open` y de `in_progress` y `discarded: []` al
+- [X] T066 [US6] Agregar `discarded` a los destinos de `open` y de `in_progress` y `discarded: []` al
       mapa de `backend/internal/defects/domain/status.go`, y en la función de mensajes de
       `backend/internal/defects/delivery/handler.go` los casos de descarte de un Resuelto y de
       cualquier acción sobre un Descartado — depende de T062, T063
-- [ ] T067 [US6] Agregar el descarte a `frontend/src/features/defects/transitions.ts`, el botón
+- [X] T067 [US6] Agregar el descarte a `frontend/src/features/defects/transitions.ts`, el botón
       "Descartar" con confirmación a `DefectStatusActions` y la vista de solo lectura del Descartado a
       `DefectDetail` en `frontend/src/features/defects/components/` — depende de T065, T066
+- [X] T074 [US6] Formatear con gofmt `backend/internal/defects/delivery/handler.go` y verificar que
+      el bloque de constantes (línea 50) queda alineado per Constitución VIII (contradicts)
 
 **Checkpoint**: las seis historias funcionan; un duplicado deja de contar sin borrar el registro.
 

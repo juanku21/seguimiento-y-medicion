@@ -139,3 +139,111 @@ func TestDefectLinks_ConcurrentCorrectionAndStart(t *testing.T) {
 		})
 	}
 }
+
+// Dos integrantes actúan a la vez sobre el mismo defecto En progreso, uno lo resuelve y el otro lo
+// descarta (T064; FR-018, RN-24, SC-019): en cada repetición exactamente uno recibe 200 y el otro 409
+// invalid_transition con el estado vigente, y el estado final es el de quien ganó, de modo que nunca
+// queda Resuelto después de Descartado. No lleva etiqueta de escenario porque verifica una regla de
+// concurrencia y no un escenario Given/When/Then.
+func TestDefectTransition_Concurrency(t *testing.T) {
+	f := newDefectFixture(t)
+	_, memberToken := f.env.signUp(t, "Beto Ruiz", "beto@example.com")
+	f.env.addMember(t, f.ownerToken, f.projectID, "beto@example.com")
+
+	// Cada repetición registra un defecto En progreso nuevo y lanza la resolución y el descarte a la vez.
+	for round := range defectConcurrentRounds {
+		t.Run(fmt.Sprintf("repeticion_%d", round+1), func(t *testing.T) {
+			defectID := f.registerDefect(t, f.storyID, f.sprintID)
+			f.startDefect(t, f.ownerToken, defectID)
+
+			// El índice 0 resuelve (Ana) y el 1 descarta (Beto).
+			recs := defectRequestsAtOnce([]string{f.ownerToken, memberToken}, func(token string) *httptest.ResponseRecorder {
+				if token == f.ownerToken {
+					return f.env.putDefectStatus(t, token, defectID, "resolved", f.sprintID)
+				}
+				return f.env.putDefectStatus(t, token, defectID, "discarded", uuid.Nil)
+			})
+
+			// Una respuesta es la transición aplicada y la otra el rechazo contra el estado ya cambiado.
+			targets := []string{"resolved", "discarded"}
+			winner := -1
+			rejected := 0
+			for i, rec := range recs {
+				switch rec.Code {
+				case http.StatusOK:
+					winner = i
+					var defect defectResponse
+					require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &defect), "cuerpo del 200: %s", rec.Body.String())
+					assert.Equal(t, targets[i], defect.Status, "la transición aceptada deja el estado pedido")
+				case http.StatusConflict:
+					rejected++
+					requireDefectConflict(t, rec, "invalid_transition")
+				default:
+					t.Errorf("solicitud %d: código %d inesperado; cuerpo: %s", i+1, rec.Code, rec.Body.String())
+				}
+			}
+			require.NotEqual(t, -1, winner, "exactamente una de las dos transiciones debe aceptarse")
+			require.Equal(t, 1, rejected, "exactamente una de las dos transiciones debe rechazarse")
+
+			// El rechazo informa el estado vigente, que es el que dejó quien ganó.
+			loser := 1 - winner
+			var conflict defectConflictResponse
+			require.NoError(t, json.Unmarshal(recs[loser].Body.Bytes(), &conflict))
+			assert.Equal(t, fmt.Sprintf("%q", targets[winner]), string(conflict.CurrentStatus), "currentStatus es el estado ya cambiado")
+
+			// La fila quedó en el estado del ganador: nunca Resuelto después de Descartado.
+			stored := f.env.storedDefect(t, defectID)
+			assert.Equal(t, targets[winner], string(stored.Status))
+			if targets[winner] == "discarded" {
+				assert.Nil(t, stored.ResolvedSprintID, "un defecto Descartado no lleva sprint de resolución")
+			}
+		})
+	}
+}
+
+// Un integrante modifica la descripción de un defecto En progreso mientras otro lo descarta (T064;
+// FR-018, última oración): el descarte siempre se acepta; la modificación se aplica antes (200) o, si
+// el descarte se aplicó primero, recibe 409 defect_discarded y la descripción no cambia. Ninguna
+// solicitud recibe 500. No lleva etiqueta de escenario porque verifica una regla de concurrencia.
+func TestDefectTransition_ConcurrentUpdateAndDiscard(t *testing.T) {
+	f := newDefectFixture(t)
+	_, memberToken := f.env.signUp(t, "Beto Ruiz", "beto@example.com")
+	f.env.addMember(t, f.ownerToken, f.projectID, "beto@example.com")
+	const newDescription = "Descripción corregida en simultáneo"
+
+	// Cada repetición registra un defecto En progreso nuevo y lanza la modificación y el descarte a la vez.
+	for round := range defectConcurrentRounds {
+		t.Run(fmt.Sprintf("repeticion_%d", round+1), func(t *testing.T) {
+			defectID := f.registerDefect(t, f.storyID, f.sprintID)
+			f.startDefect(t, f.ownerToken, defectID)
+			before := f.env.storedDefect(t, defectID)
+
+			// El índice 0 modifica la descripción (Ana) y el 1 descarta (Beto).
+			recs := defectRequestsAtOnce([]string{f.ownerToken, memberToken}, func(token string) *httptest.ResponseRecorder {
+				if token == f.ownerToken {
+					return f.env.patchDefect(t, token, defectID, map[string]any{"description": newDescription})
+				}
+				return f.env.putDefectStatus(t, token, defectID, "discarded", uuid.Nil)
+			})
+			update, discard := recs[0], recs[1]
+
+			// El descarte siempre se acepta: desde En progreso es una transición válida.
+			require.Equal(t, http.StatusOK, discard.Code, "el descarte; cuerpo: %s", discard.Body.String())
+
+			stored := f.env.storedDefect(t, defectID)
+			assert.Equal(t, "discarded", string(stored.Status), "el defecto termina Descartado")
+			switch update.Code {
+			case http.StatusOK:
+				// La modificación se aplicó antes del descarte.
+				assert.Equal(t, newDescription, stored.Description)
+			case http.StatusConflict:
+				// El descarte ganó: la modificación se rechazó y la descripción original no cambió.
+				body := requireDefectConflict(t, update, "defect_discarded")
+				assert.Equal(t, `"discarded"`, string(body.CurrentStatus))
+				assert.Equal(t, before.Description, stored.Description, "modificación rechazada: la descripción no cambia")
+			default:
+				t.Errorf("modificación: código %d inesperado; cuerpo: %s", update.Code, update.Body.String())
+			}
+		})
+	}
+}

@@ -76,12 +76,13 @@ func TestUS2_EstadoValido(t *testing.T) {
 
 // Escenario: Transiciones admitidas de Abierto a En progreso y de En progreso a Resuelto, RN-12 (007/US2)
 func TestUS2_TransicionesAdmitidas(t *testing.T) {
+	// Desde US6 ambos estados admiten además el descarte, listado después del avance.
 	cases := []struct {
 		current DefectStatus
 		want    []DefectStatus
 	}{
-		{DefectStatusOpen, []DefectStatus{DefectStatusInProgress}},
-		{DefectStatusInProgress, []DefectStatus{DefectStatusResolved}},
+		{DefectStatusOpen, []DefectStatus{DefectStatusInProgress, DefectStatusDiscarded}},
+		{DefectStatusInProgress, []DefectStatus{DefectStatusResolved, DefectStatusDiscarded}},
 	}
 	for _, c := range cases {
 		t.Run(string(c.current), func(t *testing.T) {
@@ -308,4 +309,100 @@ func TestUS5_ResolverDeNuevoTrasReabrir(t *testing.T) {
 		got, err := PlanTransition(DefectStatusInProgress, DefectStatusResolved, detected, &again)
 		assertResolvedSprint(t, got, err, first.ID)
 	})
+}
+
+// Escenario: Abierto y En progreso admiten descartarse; Descartado no admite ninguna transición, RN-12 y RN-22 (007/US6)
+func TestUS6_TransicionesAdmitidasConDescarte(t *testing.T) {
+	cases := []struct {
+		current DefectStatus
+		want    []DefectStatus
+	}{
+		{DefectStatusOpen, []DefectStatus{DefectStatusInProgress, DefectStatusDiscarded}},
+		{DefectStatusInProgress, []DefectStatus{DefectStatusResolved, DefectStatusDiscarded}},
+		{DefectStatusDiscarded, []DefectStatus{}},
+	}
+	for _, c := range cases {
+		t.Run(string(c.current), func(t *testing.T) {
+			got := AllowedTransitions(c.current)
+			if len(got) != len(c.want) || !slices.Equal(got, c.want) && len(c.want) > 0 {
+				t.Errorf("AllowedTransitions(%q) = %v, se esperaba %v", c.current, got, c.want)
+			}
+		})
+	}
+}
+
+// Escenario: Descartar un defecto Abierto o En progreso no registra sprint de resolución, RN-21 (007/US6)
+func TestUS6_DescartarDefecto(t *testing.T) {
+	detected := newAnchor(sprintsdomain.SprintStatusClosed, detectionStart)
+	for _, current := range []DefectStatus{DefectStatusOpen, DefectStatusInProgress} {
+		t.Run(string(current), func(t *testing.T) {
+			// Descartar no recibe sprint de resolución y el resultado nil indica que no hay ninguno.
+			got, err := PlanTransition(current, DefectStatusDiscarded, detected, nil)
+			if err != nil {
+				t.Fatalf("PlanTransition devolvió el error %v, se esperaba nil", err)
+			}
+			if got != nil {
+				t.Errorf("PlanTransition devolvió el sprint %s, se esperaba nil", *got)
+			}
+		})
+	}
+}
+
+// Escenario: Un defecto Resuelto o Descartado no se puede descartar, RN-22 (007/US6)
+func TestUS6_DescartarDefectoNoDescartable(t *testing.T) {
+	detected := newAnchor(sprintsdomain.SprintStatusClosed, detectionStart)
+	for _, current := range []DefectStatus{DefectStatusResolved, DefectStatusDiscarded} {
+		t.Run(string(current), func(t *testing.T) {
+			got, err := PlanTransition(current, DefectStatusDiscarded, detected, nil)
+			var transitionErr *InvalidTransitionError
+			if !errors.As(err, &transitionErr) {
+				t.Fatalf("PlanTransition(%q, discarded) devolvió el error %v, se esperaba *InvalidTransitionError", current, err)
+			}
+			if got != nil {
+				t.Errorf("PlanTransition devolvió el sprint %s junto con el error, se esperaba nil", *got)
+			}
+			if transitionErr.Current != current || transitionErr.Requested != DefectStatusDiscarded {
+				t.Errorf("error con Current=%q y Requested=%q, se esperaba %q y discarded", transitionErr.Current, transitionErr.Requested, current)
+			}
+		})
+	}
+}
+
+// Escenario: De las 16 combinaciones de origen y destino solo 5 son válidas y Descartado es terminal, RN-12, RN-23 y SC-005 (007/US6)
+func TestUS6_MatrizDeTransiciones(t *testing.T) {
+	statuses := []DefectStatus{DefectStatusOpen, DefectStatusInProgress, DefectStatusResolved, DefectStatusDiscarded}
+	valid := map[[2]DefectStatus]bool{
+		{DefectStatusOpen, DefectStatusInProgress}:      true,
+		{DefectStatusOpen, DefectStatusDiscarded}:       true,
+		{DefectStatusInProgress, DefectStatusResolved}:  true,
+		{DefectStatusInProgress, DefectStatusDiscarded}: true,
+		{DefectStatusResolved, DefectStatusOpen}:        true,
+	}
+	detected := newAnchor(sprintsdomain.SprintStatusClosed, detectionStart)
+	resolution := newAnchor(sprintsdomain.SprintStatusActive, sprintAfterStart)
+
+	validCount, invalidCount := 0, 0
+	for _, from := range statuses {
+		for _, to := range statuses {
+			t.Run(string(from)+" a "+string(to), func(t *testing.T) {
+				// Se envía siempre un sprint de resolución válido para que el rechazo dependa solo
+				// de la transición.
+				res := resolution
+				_, err := PlanTransition(from, to, detected, &res)
+				var transitionErr *InvalidTransitionError
+				rejected := errors.As(err, &transitionErr)
+				if want := valid[[2]DefectStatus{from, to}]; want == rejected {
+					t.Errorf("PlanTransition(%q, %q) devolvió el error %v, válida esperada: %v", from, to, err, want)
+				}
+			})
+			if valid[[2]DefectStatus{from, to}] {
+				validCount++
+			} else {
+				invalidCount++
+			}
+		}
+	}
+	if validCount != 5 || invalidCount != 11 {
+		t.Errorf("la matriz tiene %d válidas y %d inválidas, se esperaban 5 y 11", validCount, invalidCount)
+	}
 }

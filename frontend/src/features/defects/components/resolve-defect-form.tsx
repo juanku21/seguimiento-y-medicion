@@ -20,7 +20,7 @@ export type ResolveDefectFormProps = {
 // Clases del botón principal, compartida con las acciones de estado, y del secundario.
 export const primaryButtonClass =
   "rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300";
-const secondaryButtonClass =
+export const secondaryButtonClass =
   "rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800";
 
 // Formulario para elegir el sprint de resolución de un defecto (007/US2). Ofrece los sprints

@@ -496,7 +496,7 @@ devuelve `108.00`, `-68.00`, `-62.96` y las nueve métricas `partial`; sin Activ
       `unestimated_story_in_sprint`; y, para el Activo, los casos límite US4-5 (sin
       historias: totales 0, cocientes `not_calculable`, `partial`) y US4-6 (sin horas: reales 0,
       desviación = −estimadas) — depende de T032
-- [ ] T034 [P] [US4] Pruebas de integración del repositorio en
+- [X] T034 [P] [US4] Pruebas de integración del repositorio en
       `backend/internal/metrics/repository/metrics_repository_test.go`: `LoadActiveSprint` devuelve el
       sprint `active` del proyecto con sus compromisos abiertos y sus horas, y `nil` sin error cuando
       no hay ninguno — depende de T032

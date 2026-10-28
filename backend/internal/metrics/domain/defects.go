@@ -24,7 +24,40 @@ type ProjectDefects struct {
 	Open     DefectTally
 }
 
+// newDefectTally crea un conteo en 0 con las cuatro severidades presentes.
+func newDefectTally() DefectTally {
+	return DefectTally{BySeverity: map[defectsdomain.DefectSeverity]int{
+		defectsdomain.DefectSeverityCritical: 0,
+		defectsdomain.DefectSeverityHigh:     0,
+		defectsdomain.DefectSeverityMedium:   0,
+		defectsdomain.DefectSeverityLow:      0,
+	}}
+}
+
+// add suma una cantidad al total y a su severidad.
+func (t *DefectTally) add(severity defectsdomain.DefectSeverity, count int) {
+	t.Total += count
+	t.BySeverity[severity] += count
+}
+
 // TallyDefects agrupa los conteos por estado y severidad en detectados, resueltos y abiertos.
 func TallyDefects(counts []DefectCount) ProjectDefects {
-	return ProjectDefects{}
+	result := ProjectDefects{
+		Detected: newDefectTally(),
+		Resolved: newDefectTally(),
+		Open:     newDefectTally(),
+	}
+
+	// Los descartados se ignoran; los resueltos y los abiertos suman a detectados.
+	for _, c := range counts {
+		switch c.Status {
+		case defectsdomain.DefectStatusResolved:
+			result.Resolved.add(c.Severity, c.Count)
+			result.Detected.add(c.Severity, c.Count)
+		case defectsdomain.DefectStatusOpen, defectsdomain.DefectStatusInProgress:
+			result.Open.add(c.Severity, c.Count)
+			result.Detected.add(c.Severity, c.Count)
+		}
+	}
+	return result
 }

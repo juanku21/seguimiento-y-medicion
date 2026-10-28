@@ -361,7 +361,7 @@ con los mismos sprints Cerrados y el Activo, sin los Planificados.
 - [X] T021 [P] [US2] Implementar `AverageHundredths` en `backend/internal/metrics/domain/arithmetic.go`
       como `effortdomain.RoundPercentHundredths(sum, 100 × count)`, con el comentario de que es
       `sum × 100 / count` redondeado una sola vez (research.md sección 5) — depende de T016
-- [ ] T022 [US2] Ampliar `CalculateSprint` y `SprintFinality` en
+- [X] T022 [US2] Ampliar `CalculateSprint` y `SprintFinality` en
       `backend/internal/metrics/domain/sprint.go` con el estado `active`: factor vigente, las nueve
       `partial` — depende de T017, T021
 - [ ] T023 [US2] Implementar en `backend/internal/metrics/domain/project.go` la ventana y la serie

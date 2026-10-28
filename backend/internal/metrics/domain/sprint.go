@@ -163,11 +163,10 @@ func CalculateSprint(sprint SprintData, currentFactorHundredths int, now time.Ti
 
 	// Factor congelado solo en el cerrado; sin él se usa el vigente y se advierte. El activo usa el vigente.
 	factor := currentFactorHundredths
-	if !closed {
-		// Sin congelado ni plazo de gracia que evaluar.
-	} else if sprint.FrozenFactorHundredths != nil {
+	switch {
+	case closed && sprint.FrozenFactorHundredths != nil:
 		factor = *sprint.FrozenFactorHundredths
-	} else {
+	case closed:
 		warnings = append(warnings, Warning{
 			Kind:     WarningDataInconsistency,
 			Code:     CodeMissingFrozenFactor,
@@ -175,13 +174,12 @@ func CalculateSprint(sprint SprintData, currentFactorHundredths int, now time.Ti
 		})
 	}
 
-	// Plazo de gracia; sin fecha de cierre se lo considera vencido y se advierte.
+	// Plazo de gracia, solo en el cerrado; sin fecha de cierre se lo considera vencido y se advierte.
 	graceOpen := false
-	if !closed {
-		// El plazo de gracia no aplica fuera del sprint cerrado.
-	} else if sprint.ClosedAt != nil {
+	switch {
+	case closed && sprint.ClosedAt != nil:
 		graceOpen = effortdomain.GraceOpen(*sprint.ClosedAt, now, grace)
-	} else {
+	case closed:
 		warnings = append(warnings, Warning{
 			Kind:     WarningDataInconsistency,
 			Code:     CodeMissingCloseTime,

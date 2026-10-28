@@ -456,7 +456,7 @@ cantidad de historias del backlog sin estimar con su advertencia.
       desviaciones y el porcentaje sobre los totales con `Percent`, fija `Cumulative.Finality`, arma
       la velocidad de T023, las dos cifras de esfuerzo separado y el contador sin estimar con su
       advertencia, y reúne las advertencias — depende de T026, T023
-- [ ] T031 [US3] Ampliar `LoadProject` en
+- [X] T031 [US3] Ampliar `LoadProject` en
       `backend/internal/metrics/repository/metrics_repository.go`, dentro de la misma transacción, con
       `OutsideSprintsHundredths` (`effort_entries` con `sprint_id IS NULL` unido a `user_stories` del
       proyecto) y `UnestimatedBacklogStories` (`COUNT(*)` de `user_stories` del proyecto con

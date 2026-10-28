@@ -105,7 +105,7 @@ estructuras, constantes y contratos, sin lógica de negocio.
 
 **Rama**: `fase/008-foundational`
 
-- [ ] T001 [P] Mover sin cambios el tipo `Hundredths int` y su `MarshalJSON` desde
+- [X] T001 [P] Mover sin cambios el tipo `Hundredths int` y su `MarshalJSON` desde
       `backend/internal/effort/delivery/dto.go` a `backend/internal/platform/httpserver/hundredths.go`
       (comentario: "magnitud en centésimas (de hora o de punto porcentual) que la API serializa como
       número JSON con exactamente 2 decimales; un *Hundredths nulo se serializa null"), y dejar en
@@ -114,7 +114,7 @@ estructuras, constantes y contratos, sin lógica de negocio.
       `MarshalJSON`, moverlas a `backend/internal/platform/httpserver/hundredths_test.go`. Verificar
       con `go test -p 1 ./internal/effort/... ./internal/platform/...` que la salida de la 006 no
       cambió (research.md sección 5). Refactor sin cambio de comportamiento
-- [ ] T002 [P] Declarar en `backend/internal/metrics/domain/values.go` el comentario de paquete
+- [X] T002 [P] Declarar en `backend/internal/metrics/domain/values.go` el comentario de paquete
       ("declara los tipos de valor, las fórmulas puras y las interfaces del módulo de métricas; no
       depende de ninguna otra capa"), el tipo `ValueStatus string` con `ValueAvailable = "available"`,
       `ValueNotCalculable = "not_calculable"` y `ValueNotApplicable = "not_applicable"`; el tipo
@@ -123,7 +123,7 @@ estructuras, constantes y contratos, sin lógica de negocio.
       *Finality}`, con el comentario de data-model.md sección 4 ("`Value` solo es significativo con
       `available`"; "`Finality` solo en métricas de sprint y en puntos de serie; `nil` en el
       Planificado"). Los constructores se implementan en US1
-- [ ] T003 [P] Declarar en `backend/internal/metrics/domain/warnings.go` el tipo `WarningKind string`
+- [X] T003 [P] Declarar en `backend/internal/metrics/domain/warnings.go` el tipo `WarningKind string`
       con `WarningPlanning = "planning"` y `WarningDataInconsistency = "data_inconsistency"`; el tipo
       `WarningCode string` con `CodeUnestimatedBacklogStories = "unestimated_backlog_stories"`,
       `CodeUnestimatedStoryInSprint = "unestimated_story_in_sprint"`,
@@ -131,10 +131,10 @@ estructuras, constantes y contratos, sin lógica de negocio.
       "missing_close_time"`; y el struct `Warning{Kind; Code; SprintID *uuid.UUID; StoryID
       *uuid.UUID; Count *int}` (data-model.md sección 9). Sin textos de interfaz: los mensajes viven
       en `delivery`
-- [ ] T004 [P] Declarar en `backend/internal/metrics/domain/errors.go` el error
+- [X] T004 [P] Declarar en `backend/internal/metrics/domain/errors.go` el error
       `ErrSprintNotFound` ("el sprint no existe o es de otro proyecto"), con el comentario de que
       `delivery` lo traduce a `404` con el mismo cuerpo que la 004
-- [ ] T005 Declarar los tipos de datos y de resultado del dominio, sin funciones, con los campos de
+- [X] T005 Declarar los tipos de datos y de resultado del dominio, sin funciones, con los campos de
       data-model.md secciones 3 y 5 a 8: en `backend/internal/metrics/domain/sprint.go`
       `SprintData` (`ID`, `Name`, `Status sprintsdomain.SprintStatus`, `StartDate`, `EndDate`,
       `ClosedAt *time.Time`, `FrozenFactorHundredths *int`, `Stories []SprintStoryData`,
@@ -151,7 +151,7 @@ estructuras, constantes y contratos, sin lógica de negocio.
       `SprintStatus`, `Value Metric`) y `ProjectSeries` con sus seis listas. `ProjectMetrics` no
       lleva todavía el bloque de defectos: lo agrega US5 (T039), para que las fases 1 a 5 no importen
       `defectsdomain` — depende de T002, T003
-- [ ] T006 Declarar en `backend/internal/metrics/domain/repository.go` la interfaz
+- [X] T006 Declarar en `backend/internal/metrics/domain/repository.go` la interfaz
       `MetricsRepository` con **exactamente** las tres operaciones de data-model.md sección 10:
       `LoadProject(ctx, projectID uuid.UUID) (*ProjectData, error)`,
       `LoadSprint(ctx, projectID, sprintID uuid.UUID) (*SprintData, int, error)` (el `int` es el

@@ -517,7 +517,7 @@ devuelve `108.00`, `-68.00`, `-62.96` y las nueve métricas `partial`; sin Activ
 - [X] T037 [US4] Implementar `LoadActiveSprint` en
       `backend/internal/metrics/repository/metrics_repository.go` reutilizando las lecturas privadas de
       `LoadSprint`, en una transacción `REPEATABLE READ` de solo lectura — depende de T034
-- [ ] T038 [US4] Agregar `ActiveSprintMetrics` en `backend/internal/metrics/service/metrics_service.go`
+- [X] T038 [US4] Agregar `ActiveSprintMetrics` en `backend/internal/metrics/service/metrics_service.go`
       (devuelve `nil` sin error si no hay Activo), el esquema `ActiveSprintMetricsResponse` en
       `backend/internal/metrics/delivery/dto.go`, el manejador `getActiveSprintMetrics` con
       anotaciones `swag` en `backend/internal/metrics/delivery/handler.go` y la ruta

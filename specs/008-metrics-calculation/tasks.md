@@ -511,7 +511,7 @@ devuelve `108.00`, `-68.00`, `-62.96` y las nueve métricas `partial`; sin Activ
 
 ### Implementación de la Historia 4
 
-- [ ] T036 [US4] Ampliar `CalculateSprint` y `SprintFinality` en
+- [X] T036 [US4] Ampliar `CalculateSprint` y `SprintFinality` en
       `backend/internal/metrics/domain/sprint.go` con el estado `planned` (research.md sección 7 y
       aclaración del 2026-10-26: dos cifras sin estado de valor) — depende de T033
 - [ ] T037 [US4] Implementar `LoadActiveSprint` en

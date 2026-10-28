@@ -326,7 +326,7 @@ con los mismos sprints Cerrados y el Activo, sin los Planificados.
       sprints `active`, cubriendo RN-04 y RN-24: puntos y factor vigentes (no `FrozenFactorHundredths`),
       completadas por `Completed`, las **nueve** métricas `partial` y ningún `provisional`; los números
       de US4-1 (`10800`, `4000`, `-6800`, `-6296`) — depende de T015
-- [ ] T018 [P] [US2] Pruebas unitarias **obligatorias** en
+- [X] T018 [P] [US2] Pruebas unitarias **obligatorias** en
       `backend/internal/metrics/domain/project_test.go` y
       `backend/internal/metrics/domain/series_test.go`, cubriendo RN-06, RN-10 y RN-28: la ventana de
       velocidad con **0** (`not_calculable`, `sprintsConsidered` 0), **1**, **2**, **3** y **4**

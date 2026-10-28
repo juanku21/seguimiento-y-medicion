@@ -1,6 +1,8 @@
 package domain
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 
 	sprintsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
@@ -23,4 +25,9 @@ type ProjectSeries struct {
 	ActualHours          []SeriesPoint
 	DefectsDetected      []SeriesPoint
 	DefectsResolved      []SeriesPoint
+}
+
+// BuildSeries arma las seis series del proyecto con los sprints Cerrados y el Activo.
+func BuildSeries(data ProjectData, now time.Time, grace time.Duration) (ProjectSeries, []Warning) {
+	return ProjectSeries{}, nil
 }

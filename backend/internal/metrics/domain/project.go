@@ -63,3 +63,8 @@ type ProjectMetrics struct {
 	UnestimatedBacklogStories int
 	Warnings                  []Warning
 }
+
+// CalculateProject calcula las métricas de un proyecto: velocidad, acumulados y datos de apoyo.
+func CalculateProject(data ProjectData, now time.Time, grace time.Duration) ProjectMetrics {
+	return ProjectMetrics{}
+}

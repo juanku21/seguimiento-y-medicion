@@ -1,10 +1,17 @@
 package domain
 
 import (
+	"bytes"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
+
+	sprintsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
+
+// velocityWindowSize es la cantidad de sprints Cerrados que promedia la velocidad (RN-10).
+const velocityWindowSize = 3
 
 // ProjectData son los datos crudos de un proyecto que entrega el repositorio.
 type ProjectData struct {
@@ -62,4 +69,59 @@ type ProjectMetrics struct {
 	// UnestimatedBacklogStories es siempre presente, 0 incluido.
 	UnestimatedBacklogStories int
 	Warnings                  []Warning
+}
+
+// CalculateProject calcula las métricas de un proyecto. Por ahora resuelve la velocidad (US2).
+func CalculateProject(data ProjectData, now time.Time, grace time.Duration) ProjectMetrics {
+	return ProjectMetrics{Velocity: calculateVelocity(data, now, grace)}
+}
+
+// calculateVelocity arma la serie de todos los Cerrados y el promedio de la ventana de los últimos 3.
+func calculateVelocity(data ProjectData, now time.Time, grace time.Duration) Velocity {
+	// La serie conserva el orden de Sprints y reutiliza CalculateSprint para el valor de cada punto.
+	series := []VelocityPoint{}
+	for _, sprint := range data.Sprints {
+		if sprint.Status != sprintsdomain.SprintStatusClosed {
+			continue
+		}
+		metrics, _ := CalculateSprint(sprint, data.FactorHundredths, now, grace)
+		series = append(series, VelocityPoint{
+			SprintID:             sprint.ID,
+			SprintName:           sprint.Name,
+			ClosedAt:             sprint.ClosedAt,
+			CompletedStoryPoints: metrics.CompletedStoryPoints.Value,
+		})
+	}
+	if len(series) == 0 {
+		return Velocity{Value: NotCalculable(), Series: series}
+	}
+
+	// La ventana se toma de una copia ordenada por cierre, para no alterar el orden de la serie.
+	byClosure := slices.Clone(series)
+	slices.SortFunc(byClosure, compareByClosure)
+	window := byClosure[:min(velocityWindowSize, len(byClosure))]
+	sum := 0
+	for _, point := range window {
+		sum += point.CompletedStoryPoints
+	}
+	return Velocity{
+		Value:             Available(AverageHundredths(sum, len(window))),
+		SprintsConsidered: len(window),
+		Series:            series,
+	}
+}
+
+// compareByClosure ordena por ClosedAt descendente con los nulos al final, y por ID descendente.
+func compareByClosure(a, b VelocityPoint) int {
+	switch {
+	case a.ClosedAt == nil && b.ClosedAt != nil:
+		return 1
+	case a.ClosedAt != nil && b.ClosedAt == nil:
+		return -1
+	case a.ClosedAt != nil && b.ClosedAt != nil:
+		if c := b.ClosedAt.Compare(*a.ClosedAt); c != 0 {
+			return c
+		}
+	}
+	return bytes.Compare(b.SprintID[:], a.SprintID[:])
 }

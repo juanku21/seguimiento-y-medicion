@@ -317,16 +317,16 @@ con los mismos sprints Cerrados y el Activo, sin los Planificados.
 
 ### Pruebas de la Historia 2 ⚠️
 
-- [ ] T016 [P] [US2] Pruebas unitarias **obligatorias** de `AverageHundredths(sum, count int) int` en
+- [X] T016 [P] [US2] Pruebas unitarias **obligatorias** de `AverageHundredths(sum, count int) int` en
       `backend/internal/metrics/domain/arithmetic_test.go`, cubriendo RN-10 y RN-19: (13, 1) → `1300`;
       (34, 2) → `1700`; (42, 3) → `1400`; (49, 3) → `1633`; (0, 3) → `0`; y que coincide con
       `RoundPercentHundredths(sum, 100 × count)` — depende de T015
-- [ ] T017 [P] [US2] Pruebas unitarias **obligatorias** en
+- [X] T017 [P] [US2] Pruebas unitarias **obligatorias** en
       `backend/internal/metrics/domain/sprint_test.go` de `CalculateSprint` y `SprintFinality` para
       sprints `active`, cubriendo RN-04 y RN-24: puntos y factor vigentes (no `FrozenFactorHundredths`),
       completadas por `Completed`, las **nueve** métricas `partial` y ningún `provisional`; los números
       de US4-1 (`10800`, `4000`, `-6800`, `-6296`) — depende de T015
-- [ ] T018 [P] [US2] Pruebas unitarias **obligatorias** en
+- [X] T018 [P] [US2] Pruebas unitarias **obligatorias** en
       `backend/internal/metrics/domain/project_test.go` y
       `backend/internal/metrics/domain/series_test.go`, cubriendo RN-06, RN-10 y RN-28: la ventana de
       velocidad con **0** (`not_calculable`, `sprintsConsidered` 0), **1**, **2**, **3** y **4**
@@ -338,12 +338,12 @@ con los mismos sprints Cerrados y el Activo, sin los Planificados.
       el mismo orden `start_date ASC, id ASC`, solo Cerrados y Activo, cada punto igual al
       `SprintMetrics` de su sprint, puntos del Activo `partial`, un sprint sin datos con
       `Available(0)` en las seis, y seis listas vacías sin sprints Cerrados ni Activo — depende de T015
-- [ ] T019 [P] [US2] Pruebas de integración del repositorio en
+- [X] T019 [P] [US2] Pruebas de integración del repositorio en
       `backend/internal/metrics/repository/metrics_repository_test.go`: `LoadProject` devuelve
       **todos** los sprints del proyecto (`planned`, `active`, `closed`) en orden `start_date ASC, id
       ASC`, cada uno con sus historias según su estado y sus horas, el factor vigente, y ningún sprint
       de otro proyecto — depende de T015
-- [ ] T020 [US2] Pruebas de integración en `backend/internal/metrics/delivery/handler_test.go`, una
+- [X] T020 [US2] Pruebas de integración en `backend/internal/metrics/delivery/handler_test.go`, una
       por escenario con `// Escenario: <nombre> (008/US2)`: `TestUS2_VelocidadTresCerrados`
       (`14.00`), `TestUS2_VentanaDeTres` (`16.33`; SC-004), `TestUS2_UnSprintCerrado` (`13.00`),
       `TestUS2_DosSprintsCerrados` (`17.00`), `TestUS2_SerieDeVelocidad` (13, 21, 8 y 20 en orden),
@@ -358,26 +358,26 @@ con los mismos sprints Cerrados y el Activo, sin los Planificados.
 
 ### Implementación de la Historia 2
 
-- [ ] T021 [P] [US2] Implementar `AverageHundredths` en `backend/internal/metrics/domain/arithmetic.go`
+- [X] T021 [P] [US2] Implementar `AverageHundredths` en `backend/internal/metrics/domain/arithmetic.go`
       como `effortdomain.RoundPercentHundredths(sum, 100 × count)`, con el comentario de que es
       `sum × 100 / count` redondeado una sola vez (research.md sección 5) — depende de T016
-- [ ] T022 [US2] Ampliar `CalculateSprint` y `SprintFinality` en
+- [X] T022 [US2] Ampliar `CalculateSprint` y `SprintFinality` en
       `backend/internal/metrics/domain/sprint.go` con el estado `active`: factor vigente, las nueve
       `partial` — depende de T017, T021
-- [ ] T023 [US2] Implementar en `backend/internal/metrics/domain/project.go` la ventana y la serie
+- [X] T023 [US2] Implementar en `backend/internal/metrics/domain/project.go` la ventana y la serie
       de velocidad (Cerrados por `ClosedAt DESC NULLS LAST, ID DESC`, los 3 primeros;
       `AverageHundredths`; serie de todos los Cerrados en orden de `Sprints`) y en
       `backend/internal/metrics/domain/series.go` `BuildSeries(data ProjectData, now time.Time, grace
       time.Duration) (ProjectSeries, []Warning)`, que reutiliza `CalculateSprint` para cada Cerrado y
       el Activo, de modo que un punto y el detalle de su sprint nunca difieren — depende de T018, T022
-- [ ] T024 [US2] Implementar `LoadProject` en
+- [X] T024 [US2] Implementar `LoadProject` en
       `backend/internal/metrics/repository/metrics_repository.go` en una sola transacción
       `REPEATABLE READ` de solo lectura: factor vigente, todos los sprints del proyecto en orden
       `start_date ASC, id ASC`, sus historias con la misma regla que `LoadSprint` y las horas por
       sprint agrupadas por `sprint_id`, extrayendo a funciones privadas las lecturas que comparte con
       `LoadSprint` (DRY). Esfuerzo sin sprint, backlog sin estimar y defectos se agregan en US3 y US5 —
       depende de T019, T013
-- [ ] T025 [US2] Agregar en `backend/internal/metrics/service/metrics_service.go` `ProjectMetrics`
+- [X] T025 [US2] Agregar en `backend/internal/metrics/service/metrics_service.go` `ProjectMetrics`
       (por ahora la velocidad y sus advertencias) y `ProjectSeries`, cada uno con un único `now`; en
       `backend/internal/metrics/delivery/dto.go` los esquemas `VelocityPoint`, `Velocity`,
       `SeriesPoint` (plano: `sprintId`, `sprintName`, `sprintStatus`, `status`, `value`, `finality`),

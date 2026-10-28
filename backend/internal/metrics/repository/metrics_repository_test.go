@@ -204,3 +204,151 @@ func TestUS1_ReadOnlyRechazaEscrituras(t *testing.T) {
 	require.NoError(t, f.db.Raw("SELECT name FROM projects WHERE id = ?", f.projectID).Scan(&name).Error)
 	assert.Equal(t, "portal de clientes", name)
 }
+
+// seedSprintWithStories siembra un sprint del proyecto con las historias indicadas. En un Cerrado
+// las historias llevan la instantánea (puntos, título y resultado); en el resto, un compromiso
+// abierto cuyos datos vigentes viven en la historia. Devuelve el sprint y los ID de sus historias.
+func seedSprintWithStories(t *testing.T, f metricsFixture, name string, status sprintsdomain.SprintStatus,
+	start time.Time, stories []seedSprintStory) (uuid.UUID, []uuid.UUID) {
+	t.Helper()
+	sprint := sprintsdomain.Sprint{
+		ID:          uuid.New(),
+		ProjectID:   f.projectID,
+		Name:        name,
+		Goal:        "Objetivo",
+		StartDate:   start,
+		EndDate:     start.AddDate(0, 0, 11),
+		Status:      status,
+		CreatedByID: f.authorID,
+	}
+	if status == sprintsdomain.SprintStatusClosed {
+		closedAt := start.AddDate(0, 0, 11).Add(18 * time.Hour)
+		frozen := 600
+		sprint.ClosedAt = &closedAt
+		sprint.HoursPerStoryPointHundredths = &frozen
+	}
+	require.NoError(t, f.db.Create(&sprint).Error, "no se pudo sembrar el sprint")
+
+	var ids []uuid.UUID
+	for _, s := range stories {
+		storyID := seedStory(t, f.db, f.authorID, f.projectID, s.title, s.currentPoints)
+		require.NoError(t, f.db.Exec("UPDATE user_stories SET status = ? WHERE id = ?", s.status, storyID).Error)
+		ids = append(ids, storyID)
+		row := sprintsdomain.SprintStory{
+			ID:          uuid.New(),
+			SprintID:    sprint.ID,
+			StoryID:     storyID,
+			CommittedAt: start.Add(9 * time.Hour),
+		}
+		if status == sprintsdomain.SprintStatusClosed {
+			title, points, outcome := s.title, s.frozenPoints, s.outcome
+			row.TitleAtClose, row.StoryPointsAtClose, row.Outcome = &title, &points, &outcome
+		}
+		require.NoError(t, f.db.Create(&row).Error, "no se pudo sembrar el compromiso")
+	}
+	return sprint.ID, ids
+}
+
+// seedSprintStory describe una historia comprometida a sembrar.
+type seedSprintStory struct {
+	title         string
+	currentPoints int
+	frozenPoints  int
+	status        backlogdomain.StoryStatus
+	outcome       sprintsdomain.StoryOutcome
+}
+
+// Escenario: LoadProject devuelve todos los sprints ordenados, con historias, horas y factor (008/US2)
+func TestUS2_LoadProjectTodosLosSprints(t *testing.T) {
+	f := newMetricsFixture(t)
+	day := func(m time.Month, d int) time.Time { return time.Date(2026, m, d, 0, 0, 0, 0, time.UTC) }
+
+	// Sprint Activo y dos Planificados con la misma fecha de inicio (desempate por id), sembrados
+	// fuera de orden para detectar un orden accidental de inserción.
+	activeID, activeStories := seedSprintWithStories(t, f, "Sprint 2", sprintsdomain.SprintStatusActive, day(11, 16),
+		[]seedSprintStory{
+			{title: "Activa pendiente", currentPoints: 5, status: backlogdomain.StoryStatusInProgress},
+			{title: "Activa completada", currentPoints: 8, status: backlogdomain.StoryStatusCompleted},
+		})
+	plannedA, _ := seedSprintWithStories(t, f, "Sprint 3A", sprintsdomain.SprintStatusPlanned, day(12, 14),
+		[]seedSprintStory{{title: "Planificada A", currentPoints: 3, status: backlogdomain.StoryStatusPending}})
+	plannedB, _ := seedSprintWithStories(t, f, "Sprint 3B", sprintsdomain.SprintStatusPlanned, day(12, 14), nil)
+	require.NoError(t, f.db.Create(&effortdomain.EffortEntry{
+		ID: uuid.New(), StoryID: activeStories[0], UserID: f.authorID, SprintID: &activeID,
+		EntryDate: day(11, 17), Activity: "Desarrollo", HoursHundredths: 200,
+	}).Error)
+
+	// Sprint y esfuerzo de otro proyecto, que no deben aparecer.
+	otherProject := seedProject(t, f.db, f.authorID, "otro proyecto", 600)
+	otherSprint := sprintsdomain.Sprint{
+		ID: uuid.New(), ProjectID: otherProject, Name: "Ajeno", Goal: "x", StartDate: day(10, 1),
+		EndDate: day(10, 12), Status: sprintsdomain.SprintStatusPlanned, CreatedByID: f.authorID,
+	}
+	require.NoError(t, f.db.Create(&otherSprint).Error)
+
+	got, err := NewMetricsRepository(f.db).LoadProject(context.Background(), f.projectID)
+
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, f.projectID, got.ProjectID)
+	assert.Equal(t, 800, got.FactorHundredths, "factor vigente del proyecto")
+
+	// Orden start_date ASC, id ASC: Cerrado, Activo y los dos Planificados por id.
+	tied := []uuid.UUID{plannedA, plannedB}
+	if plannedB.String() < plannedA.String() {
+		tied = []uuid.UUID{plannedB, plannedA}
+	}
+	var gotIDs []uuid.UUID
+	for _, s := range got.Sprints {
+		gotIDs = append(gotIDs, s.ID)
+	}
+	assert.Equal(t, append([]uuid.UUID{f.sprintID, activeID}, tied...), gotIDs)
+	if len(got.Sprints) != 4 {
+		return
+	}
+
+	// Cerrado: instantánea congelada, factor congelado y horas del sprint.
+	closed := got.Sprints[0]
+	assert.Equal(t, sprintsdomain.SprintStatusClosed, closed.Status)
+	require.NotNil(t, closed.FrozenFactorHundredths)
+	assert.Equal(t, 600, *closed.FrozenFactorHundredths)
+	assert.Equal(t, 750, closed.ActualHundredths)
+	assert.Len(t, closed.Stories, 2)
+
+	// Activo: compromisos abiertos con puntos vigentes y estado actual de la historia.
+	active := got.Sprints[1]
+	assert.Equal(t, sprintsdomain.SprintStatusActive, active.Status)
+	assert.Nil(t, active.FrozenFactorHundredths)
+	assert.Equal(t, 200, active.ActualHundredths)
+	type story struct {
+		title     string
+		points    int
+		completed bool
+	}
+	var stories []story
+	for _, s := range active.Stories {
+		require.NotNil(t, s.StoryPoints)
+		stories = append(stories, story{s.Title, *s.StoryPoints, s.Completed})
+	}
+	assert.ElementsMatch(t, []story{{"Activa pendiente", 5, false}, {"Activa completada", 8, true}}, stories)
+
+	// Planificados: sus historias y sin horas.
+	for _, s := range got.Sprints[2:] {
+		assert.Equal(t, sprintsdomain.SprintStatusPlanned, s.Status)
+		assert.Equal(t, 0, s.ActualHundredths)
+		assert.NotEqual(t, otherSprint.ID, s.ID, "no debe incluir sprints de otro proyecto")
+	}
+}
+
+// Escenario: LoadProject de un proyecto sin sprints devuelve la lista vacía y el factor (008/US2)
+func TestUS2_LoadProjectSinSprints(t *testing.T) {
+	f := newMetricsFixture(t)
+	emptyProject := seedProject(t, f.db, f.authorID, "proyecto vacío", 700)
+
+	got, err := NewMetricsRepository(f.db).LoadProject(context.Background(), emptyProject)
+
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Empty(t, got.Sprints)
+	assert.Equal(t, 700, got.FactorHundredths)
+}

@@ -339,3 +339,102 @@ func TestUS1_SinFechaDeCierreGraciaVencida(t *testing.T) {
 		}
 	}
 }
+
+// activeSprint arma un sprint activo sin cierre; el factor congelado, si se pasa, no debe usarse.
+func activeSprint(st []domain.SprintStoryData, actual int) domain.SprintData {
+	return domain.SprintData{
+		ID:               uuid.New(),
+		Name:             "Sprint 2",
+		Status:           sprintsdomain.SprintStatusActive,
+		StartDate:        time.Date(2026, 10, 15, 0, 0, 0, 0, time.UTC),
+		EndDate:          time.Date(2026, 10, 28, 0, 0, 0, 0, time.UTC),
+		Stories:          st,
+		ActualHundredths: actual,
+	}
+}
+
+// Escenario: sprint activo con métricas parciales y números exactos (008/US4-1)
+func TestUS4_SprintActivoNumerosExactos(t *testing.T) {
+	// 18 puntos planificados, 5 completados, 40 h reales y factor vigente 6.
+	s := activeSprint(stories([]int{5, 8, 5}, 1), 4000)
+	s.DefectsDetected = 3
+	s.DefectsResolved = 2
+
+	m, warnings := domain.CalculateSprint(s, factorSix, fixedNow, testGrace)
+
+	assert.Equal(t, s.ID, m.ID)
+	assert.Equal(t, sprintsdomain.SprintStatusActive, m.Status)
+	assertMetric(t, "planned", m.PlannedStoryPoints, domain.Available(18), domain.FinalityPartial)
+	assertMetric(t, "completed", m.CompletedStoryPoints, domain.Available(5), domain.FinalityPartial)
+	assertMetric(t, "estimated", m.EstimatedHours, domain.Available(10800), domain.FinalityPartial)
+	assertMetric(t, "actual", m.ActualHours, domain.Available(4000), domain.FinalityPartial)
+	assertMetric(t, "deviation", m.DeviationHours, domain.Available(-6800), domain.FinalityPartial)
+	assertMetric(t, "deviationPct", m.DeviationPercent, domain.Available(-6296), domain.FinalityPartial)
+	assertMetric(t, "completion", m.StoryCompletionPercent, domain.Available(3333), domain.FinalityPartial)
+	assertMetric(t, "defectsDetected", m.DefectsDetected, domain.Available(3), domain.FinalityPartial)
+	assertMetric(t, "defectsResolved", m.DefectsResolved, domain.Available(2), domain.FinalityPartial)
+	assert.Empty(t, warnings)
+}
+
+// Escenario: el sprint activo usa el factor vigente y no el congelado (008/US4-3)
+func TestUS4_SprintActivoUsaFactorVigente(t *testing.T) {
+	s := activeSprint(stories([]int{5, 8, 5}, 1), 4000)
+	s.FrozenFactorHundredths = intPtr(factorSix)
+
+	m, warnings := domain.CalculateSprint(s, 800, fixedNow, testGrace)
+
+	assertMetric(t, "estimated", m.EstimatedHours, domain.Available(14400), domain.FinalityPartial)
+	assert.Empty(t, warnings)
+}
+
+// Escenario: el sprint activo se calcula con los datos actuales (008/US4-2)
+func TestUS4_SprintActivoUsaPuntosActuales(t *testing.T) {
+	s := activeSprint(stories([]int{5, 8, 5, 8}, 1), 4000)
+
+	m, _ := domain.CalculateSprint(s, factorSix, fixedNow, testGrace)
+
+	assertMetric(t, "planned", m.PlannedStoryPoints, domain.Available(26), domain.FinalityPartial)
+	assertMetric(t, "estimated", m.EstimatedHours, domain.Available(15600), domain.FinalityPartial)
+}
+
+// Escenario: sprint activo sin historias (008/US4-5)
+func TestUS4_SprintActivoSinHistorias(t *testing.T) {
+	m, _ := domain.CalculateSprint(activeSprint(nil, 0), factorSix, fixedNow, testGrace)
+
+	assertMetric(t, "planned", m.PlannedStoryPoints, domain.Available(0), domain.FinalityPartial)
+	assertMetric(t, "estimated", m.EstimatedHours, domain.Available(0), domain.FinalityPartial)
+	assert.Equal(t, domain.ValueNotCalculable, m.DeviationPercent.Status)
+	assert.Equal(t, finalityOf(domain.FinalityPartial), m.DeviationPercent.Finality)
+	assert.Equal(t, domain.ValueNotCalculable, m.StoryCompletionPercent.Status)
+	assert.Equal(t, finalityOf(domain.FinalityPartial), m.StoryCompletionPercent.Finality)
+}
+
+// Escenario: sprint activo sin horas registradas (008/US4-6)
+func TestUS4_SprintActivoSinHoras(t *testing.T) {
+	m, _ := domain.CalculateSprint(activeSprint(stories([]int{5, 8, 5}, 0), 0), factorSix, fixedNow, testGrace)
+
+	assertMetric(t, "actual", m.ActualHours, domain.Available(0), domain.FinalityPartial)
+	assertMetric(t, "deviation", m.DeviationHours, domain.Available(-10800), domain.FinalityPartial)
+}
+
+// Escenario: las nueve métricas de un sprint activo son parciales y ninguna provisoria (008/US4-1, RN-04, RN-24)
+func TestUS4_SprintFinalityActivo(t *testing.T) {
+	kinds := []domain.MetricKind{
+		domain.MetricPlannedStoryPoints, domain.MetricCompletedStoryPoints, domain.MetricEstimatedHours,
+		domain.MetricActualHours, domain.MetricDeviationHours, domain.MetricDeviationPercent,
+		domain.MetricStoryCompletionPercent, domain.MetricDefectsDetected, domain.MetricDefectsResolved,
+	}
+	for _, kind := range kinds {
+		for _, graceOpen := range []bool{true, false} {
+			name := string(kind) + "/gracia_vigente"
+			if !graceOpen {
+				name = string(kind) + "/gracia_vencida"
+			}
+			t.Run(name, func(t *testing.T) {
+				got := domain.SprintFinality(sprintsdomain.SprintStatusActive, kind, graceOpen)
+
+				assert.Equal(t, finalityOf(domain.FinalityPartial), got)
+			})
+		}
+	}
+}

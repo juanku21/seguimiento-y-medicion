@@ -45,3 +45,41 @@ func (s *MetricsService) SprintMetrics(ctx context.Context, projectID, sprintID 
 	metrics, warnings := domain.CalculateSprint(*data, factor, now, s.grace)
 	return metrics, warnings, nil
 }
+
+// ProjectMetrics devuelve las métricas del proyecto (por ahora, la velocidad y sus advertencias).
+func (s *MetricsService) ProjectMetrics(ctx context.Context, projectID uuid.UUID) (domain.ProjectMetrics, error) {
+	// Se toma el instante actual una sola vez para que toda la consulta sea consistente.
+	now := s.now()
+
+	data, err := s.loadProject(ctx, projectID)
+	if err != nil {
+		return domain.ProjectMetrics{}, err
+	}
+	return domain.CalculateProject(*data, now, s.grace), nil
+}
+
+// ProjectSeries devuelve las seis series por sprint del proyecto y las advertencias de sus sprints.
+func (s *MetricsService) ProjectSeries(ctx context.Context, projectID uuid.UUID) (domain.ProjectSeries, []domain.Warning, error) {
+	// Se toma el instante actual una sola vez para que toda la consulta sea consistente.
+	now := s.now()
+
+	data, err := s.loadProject(ctx, projectID)
+	if err != nil {
+		return domain.ProjectSeries{}, nil, err
+	}
+	series, warnings := domain.BuildSeries(*data, now, s.grace)
+	return series, warnings, nil
+}
+
+// loadProject carga los datos del proyecto y trata un resultado nil sin error como un fallo del
+// repositorio, porque la membresía ya garantizó que el proyecto existe.
+func (s *MetricsService) loadProject(ctx context.Context, projectID uuid.UUID) (*domain.ProjectData, error) {
+	data, err := s.repo.LoadProject(ctx, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("cargando el proyecto %s: %w", projectID, err)
+	}
+	if data == nil {
+		return nil, fmt.Errorf("cargando el proyecto %s: el repositorio no devolvió datos", projectID)
+	}
+	return data, nil
+}

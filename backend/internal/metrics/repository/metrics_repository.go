@@ -31,9 +31,91 @@ func (r *MetricsRepository) readOnly(ctx context.Context, fn func(tx *gorm.DB) e
 	return r.db.WithContext(ctx).Transaction(fn, opts)
 }
 
-// LoadProject carga los datos del proyecto (firma mínima, pendiente de la historia que la usa).
+// LoadProject carga el factor vigente y todos los sprints del proyecto, en orden start_date ASC,
+// id ASC, con sus historias y sus horas, todo en una misma instantánea.
 func (r *MetricsRepository) LoadProject(ctx context.Context, projectID uuid.UUID) (*domain.ProjectData, error) {
-	return nil, errors.New("not implemented")
+	var data *domain.ProjectData
+
+	err := r.readOnly(ctx, func(tx *gorm.DB) error {
+		factor, err := loadFactor(tx, projectID)
+		if err != nil {
+			return err
+		}
+
+		// Todos los sprints del proyecto en el orden de las series.
+		var sprints []sprintsdomain.Sprint
+		if err := tx.Raw("SELECT * FROM sprints WHERE project_id = ? ORDER BY start_date ASC, id ASC", projectID).
+			Scan(&sprints).Error; err != nil {
+			return fmt.Errorf("leer los sprints del proyecto: %w", err)
+		}
+
+		// Horas por sprint en una sola consulta agrupada.
+		hours, err := loadProjectHours(tx, projectID)
+		if err != nil {
+			return err
+		}
+
+		// Los sprints sin horas quedan en cero por el valor cero del mapa.
+		sprintsData := make([]domain.SprintData, 0, len(sprints))
+		for _, sprint := range sprints {
+			stories, err := loadSprintStories(tx, sprint)
+			if err != nil {
+				return err
+			}
+			sprintsData = append(sprintsData, newSprintData(sprint, stories, hours[sprint.ID]))
+		}
+
+		data = &domain.ProjectData{ProjectID: projectID, FactorHundredths: factor, Sprints: sprintsData}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// loadFactor lee el factor vigente del proyecto en centésimas de hora.
+func loadFactor(tx *gorm.DB, projectID uuid.UUID) (int, error) {
+	var factor int
+	if err := tx.Raw("SELECT hours_per_story_point_hundredths FROM projects WHERE id = ?", projectID).
+		Scan(&factor).Error; err != nil {
+		return 0, fmt.Errorf("leer el factor vigente del proyecto: %w", err)
+	}
+	return factor, nil
+}
+
+// loadProjectHours suma el esfuerzo anclado a sprints del proyecto, agrupado por sprint.
+func loadProjectHours(tx *gorm.DB, projectID uuid.UUID) (map[uuid.UUID]int, error) {
+	var rows []struct {
+		SprintID uuid.UUID
+		Hours    int
+	}
+	if err := tx.Raw(`SELECT e.sprint_id AS sprint_id, SUM(e.hours_hundredths) AS hours
+		FROM effort_entries e JOIN sprints s ON s.id = e.sprint_id
+		WHERE s.project_id = ? GROUP BY e.sprint_id`, projectID).Scan(&rows).Error; err != nil {
+		return nil, fmt.Errorf("sumar el esfuerzo por sprint: %w", err)
+	}
+	hours := make(map[uuid.UUID]int, len(rows))
+	for _, row := range rows {
+		hours[row.SprintID] = row.Hours
+	}
+	return hours, nil
+}
+
+// newSprintData convierte un sprint persistido y sus lecturas en los datos de dominio.
+func newSprintData(sprint sprintsdomain.Sprint, stories []domain.SprintStoryData, actual int) domain.SprintData {
+	return domain.SprintData{
+		ID:                     sprint.ID,
+		Name:                   sprint.Name,
+		Status:                 sprint.Status,
+		StartDate:              sprint.StartDate,
+		EndDate:                sprint.EndDate,
+		ClosedAt:               sprint.ClosedAt,
+		FrozenFactorHundredths: sprint.HoursPerStoryPointHundredths,
+		Stories:                stories,
+		ActualHundredths:       actual,
+		// Los defectos se cargan en US5.
+	}
 }
 
 // LoadSprint carga un sprint del proyecto con sus historias y su esfuerzo, y devuelve además el
@@ -44,10 +126,10 @@ func (r *MetricsRepository) LoadSprint(ctx context.Context, projectID, sprintID 
 	var factor int
 
 	err := r.readOnly(ctx, func(tx *gorm.DB) error {
-		// Factor vigente del proyecto.
-		if err := tx.Raw("SELECT hours_per_story_point_hundredths FROM projects WHERE id = ?", projectID).
-			Scan(&factor).Error; err != nil {
-			return fmt.Errorf("leer el factor vigente del proyecto: %w", err)
+		var err error
+		factor, err = loadFactor(tx, projectID)
+		if err != nil {
+			return err
 		}
 
 		// Sprint acotado al proyecto: otro proyecto equivale a inexistente.
@@ -72,18 +154,8 @@ func (r *MetricsRepository) LoadSprint(ctx context.Context, projectID, sprintID 
 			return fmt.Errorf("sumar el esfuerzo del sprint: %w", err)
 		}
 
-		data = &domain.SprintData{
-			ID:                     sprint.ID,
-			Name:                   sprint.Name,
-			Status:                 sprint.Status,
-			StartDate:              sprint.StartDate,
-			EndDate:                sprint.EndDate,
-			ClosedAt:               sprint.ClosedAt,
-			FrozenFactorHundredths: sprint.HoursPerStoryPointHundredths,
-			Stories:                stories,
-			ActualHundredths:       actual,
-			// Los defectos se cargan en US5.
-		}
+		sprintData := newSprintData(sprint, stories, actual)
+		data = &sprintData
 		return nil
 	})
 	if err != nil {

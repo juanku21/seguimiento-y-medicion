@@ -748,7 +748,7 @@ vulnerabilidades y verificación de las puertas de calidad.
 
 **Rama**: `fase/007-polish`
 
-- [ ] T068 Pruebas de integración de caracterización en
+- [X] T068 Pruebas de integración de caracterización en
       `backend/internal/defects/delivery/handler_test.go`, **sin** etiqueta `007/USn`:
       `TestDefectEndpoints_SinSesion`, con un subtest por cada uno de los **seis** endpoints sin
       cabecera y con token adulterado → `401` y ningún cambio (SC-016);

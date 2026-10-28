@@ -2038,3 +2038,250 @@ func TestUS6_ProyectoFinalizado(t *testing.T) {
 	assert.Equal(t, "null", string(body.CurrentStatus), "currentStatus es null con read_only")
 	f.requireDefectRowUnchanged(t, before)
 }
+
+// Pruebas de caracterización de la fase Polish (T068): fijan reglas transversales que ya cumple la
+// implementación (sesión, 404 indistinguibles, vínculos inmutables, autor removido, sin hash de
+// contraseña). No llevan etiqueta 007/USn porque no son escenarios de una historia, y por eso no
+// tienen RED: pasan desde el primer momento.
+
+// requireNoPasswordHash exige que el cuerpo no exponga el hash de contraseña (Principio VI).
+func requireNoPasswordHash(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	assert.NotContains(t, rec.Body.String(), "password_hash", "la respuesta no debe exponer password_hash")
+	assert.NotContains(t, rec.Body.String(), "passwordHash", "la respuesta no debe exponer passwordHash")
+}
+
+// tamperedToken devuelve el token con el último carácter de la firma cambiado.
+func tamperedToken(token string) string {
+	last := token[len(token)-1]
+	replacement := byte('A')
+	if last == 'A' {
+		replacement = 'B'
+	}
+	return token[:len(token)-1] + string(replacement)
+}
+
+// TestDefectEndpoints_SinSesion verifica que los seis endpoints rechazan con 401 la petición sin
+// cabecera de autorización y con token adulterado, sin modificar nada (SC-016).
+func TestDefectEndpoints_SinSesion(t *testing.T) {
+	f := newDefectFixture(t)
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	before := f.env.storedDefect(t, defectID)
+	count := f.env.defectCount(t)
+	endpoints := []struct {
+		name   string
+		method string
+		path   string
+		body   any
+	}{
+		{"alta", http.MethodPost, defectsPath(f.projectID), f.body(f.storyID, f.sprintID)},
+		{"listado del proyecto", http.MethodGet, defectsPath(f.projectID), nil},
+		{"listado de la historia", http.MethodGet, "/api/v1/stories/" + f.storyID.String() + "/defects", nil},
+		{"detalle", http.MethodGet, defectPath(defectID), nil},
+		{"modificación", http.MethodPatch, defectPath(defectID), map[string]any{"description": "Descripción adulterada"}},
+		{"cambio de estado", http.MethodPut, defectPath(defectID) + "/status", map[string]any{"status": "in_progress"}},
+	}
+	tokens := []struct{ name, value string }{
+		{"sin cabecera", ""},
+		{"token adulterado", tamperedToken(f.ownerToken)},
+	}
+	for _, ep := range endpoints {
+		for _, tk := range tokens {
+			t.Run(ep.name+" "+tk.name, func(t *testing.T) {
+				rec := f.env.do(t, ep.method, ep.path, tk.value, ep.body)
+
+				assert.Equal(t, http.StatusUnauthorized, rec.Code, "cuerpo: %s", rec.Body.String())
+				requireNoPasswordHash(t, rec)
+			})
+		}
+	}
+	assert.Equal(t, count, f.env.defectCount(t), "ningún rechazo crea defectos")
+	f.requireDefectRowUnchanged(t, before)
+}
+
+// TestDefectEndpoints_NotFoundIndistinguible compara byte a byte el 404 (y el 400 de filtro) de un
+// recurso ajeno con el de uno inexistente (SC-017).
+func TestDefectEndpoints_NotFoundIndistinguible(t *testing.T) {
+	f := newDefectFixture(t)
+	defectID := f.registerDefect(t, f.storyID, f.sprintID)
+	_, outsiderToken := f.env.signUp(t, "Carlos Gómez", "carlos@example.com")
+	missing := uuid.NewString()
+
+	// requireSame exige dos respuestas con el mismo código y el mismo cuerpo exacto.
+	requireSame := func(t *testing.T, code int, foreign, unknown *httptest.ResponseRecorder) {
+		t.Helper()
+		assert.Equal(t, code, unknown.Code, "precondición: el inexistente responde %d", code)
+		assert.Equal(t, code, foreign.Code, "cuerpo: %s", foreign.Body.String())
+		assert.Equal(t, unknown.Body.String(), foreign.Body.String(), "debe ser idéntico byte a byte")
+		requireNoPasswordHash(t, foreign)
+	}
+
+	t.Run("proyecto", func(t *testing.T) {
+		for _, method := range []string{http.MethodGet, http.MethodPost} {
+			var body any
+			if method == http.MethodPost {
+				body = f.body(f.storyID, f.sprintID)
+			}
+			foreign := f.env.do(t, method, defectsPath(f.projectID), outsiderToken, body)
+			unknown := f.env.do(t, method, "/api/v1/projects/"+missing+"/defects", outsiderToken, body)
+			requireSame(t, http.StatusNotFound, foreign, unknown)
+		}
+	})
+
+	t.Run("historia", func(t *testing.T) {
+		foreign := f.env.do(t, http.MethodGet, "/api/v1/stories/"+f.storyID.String()+"/defects", outsiderToken, nil)
+		unknown := f.env.do(t, http.MethodGet, "/api/v1/stories/"+missing+"/defects", outsiderToken, nil)
+		requireSame(t, http.StatusNotFound, foreign, unknown)
+	})
+
+	t.Run("defecto", func(t *testing.T) {
+		calls := []struct {
+			method, suffix string
+			body           any
+		}{
+			{http.MethodGet, "", nil},
+			{http.MethodPatch, "", map[string]any{"description": "Otra descripción"}},
+			{http.MethodPut, "/status", map[string]any{"status": "in_progress"}},
+		}
+		for _, call := range calls {
+			foreign := f.env.do(t, call.method, defectPath(defectID)+call.suffix, outsiderToken, call.body)
+			unknown := f.env.do(t, call.method, defectPath(missing)+call.suffix, outsiderToken, call.body)
+			requireSame(t, http.StatusNotFound, foreign, unknown)
+		}
+	})
+
+	t.Run("historia y sprint en el cuerpo", func(t *testing.T) {
+		otherProject := f.env.createProjectInProgress(t, f.ownerToken, "Otro proyecto")
+		otherStory := f.env.createStory(t, f.ownerToken, otherProject, "Historia ajena")
+		otherSprint := f.env.activeSprint(t, f.ownerToken, otherProject, "Sprint ajeno")
+		inProgressID := f.registerDefect(t, f.storyID, f.sprintID)
+		f.startDefect(t, f.ownerToken, inProgressID)
+		openID := f.registerDefect(t, f.storyID, f.sprintID)
+
+		// Alta: historia y sprint.
+		requireSame(t, http.StatusNotFound,
+			f.post(t, f.body(otherStory, f.sprintID)), f.post(t, f.body(uuid.New(), f.sprintID)))
+		requireSame(t, http.StatusNotFound,
+			f.post(t, f.body(f.storyID, otherSprint)), f.post(t, f.body(f.storyID, uuid.New())))
+		// Cambio de estado: sprint de resolución.
+		requireSame(t, http.StatusNotFound,
+			f.env.putDefectStatus(t, f.ownerToken, inProgressID, "resolved", otherSprint),
+			f.env.putDefectStatus(t, f.ownerToken, inProgressID, "resolved", uuid.New()))
+		// Modificación: historia y sprint de detección de un defecto Abierto.
+		requireSame(t, http.StatusNotFound,
+			f.env.patchDefect(t, f.ownerToken, openID, map[string]any{"storyId": otherStory.String()}),
+			f.env.patchDefect(t, f.ownerToken, openID, map[string]any{"storyId": uuid.NewString()}))
+		requireSame(t, http.StatusNotFound,
+			f.env.patchDefect(t, f.ownerToken, openID, map[string]any{"detectedSprintId": otherSprint.String()}),
+			f.env.patchDefect(t, f.ownerToken, openID, map[string]any{"detectedSprintId": uuid.NewString()}))
+	})
+
+	t.Run("filtro ajeno e inexistente", func(t *testing.T) {
+		otherProject := f.env.createProjectInProgress(t, f.ownerToken, "Otro proyecto B")
+		foreign := map[string]uuid.UUID{
+			"storyId":  f.env.createStory(t, f.ownerToken, otherProject, "Historia ajena B"),
+			"sprintId": f.env.activeSprint(t, f.ownerToken, otherProject, "Sprint ajeno B"),
+		}
+		for field, id := range foreign {
+			rec := f.listProject(t, "?"+field+"="+id.String())
+			unknown := f.listProject(t, "?"+field+"="+uuid.NewString())
+			requireSame(t, http.StatusBadRequest, rec, unknown)
+		}
+	})
+}
+
+// TestDefectLinks_Immutable recorre en progreso, resolución, reapertura, segunda resolución y
+// descarte, y verifica que la historia y el sprint de detección no cambian (SC-010).
+func TestDefectLinks_Immutable(t *testing.T) {
+	f := newDefectFixtureWithoutSprint(t)
+	detectedID := f.env.closedSprint(t, f.ownerToken, f.projectID, "Sprint 1", "2026-10-05", "2026-10-09")
+	f.sprintID = f.env.activeSprint(t, f.ownerToken, f.projectID, "Sprint 2")
+	defectID := f.registerDefect(t, f.storyID, detectedID)
+	first := f.env.getDefect(t, f.ownerToken, defectID)
+
+	// requireLinks exige que el defecto conserve la historia y el sprint de detección del alta.
+	requireLinks := func(step string, defect defectResponse) {
+		assert.Equal(t, first.Story.ID, defect.Story.ID, "historia tras %s", step)
+		assert.Equal(t, first.DetectedSprint.ID, defect.DetectedSprint.ID, "sprint de detección tras %s", step)
+	}
+
+	requireLinks("pasar a En progreso", f.startDefect(t, f.ownerToken, defectID))
+	requireLinks("la resolución", requireDefectOK(t, f.env.putDefectStatus(t, f.ownerToken, defectID, "resolved", f.sprintID)))
+	requireLinks("la reapertura", f.reopenDefect(t, defectID))
+	requireLinks("la segunda resolución", f.resolveFromOpen(t, defectID, f.sprintID))
+	f.reopenDefect(t, defectID)
+	requireLinks("el descarte", f.discardDefect(t, defectID))
+
+	requireLinks("la consulta final", f.env.getDefect(t, f.ownerToken, defectID))
+	stored := f.env.storedDefect(t, defectID)
+	assert.Equal(t, f.storyID, stored.StoryID)
+	assert.Equal(t, detectedID, stored.DetectedSprintID)
+}
+
+// TestDefectAuthor_RemovedMember verifica que los defectos de quien dejó el proyecto siguen en el
+// listado y el detalle con su nombre, y que otro integrante los sigue trabajando (FR-055, SC-018).
+func TestDefectAuthor_RemovedMember(t *testing.T) {
+	f := newDefectFixture(t)
+	removedID, removedToken := f.env.signUp(t, "Beto Gómez", "beto@example.com")
+	f.env.addMember(t, f.ownerToken, f.projectID, "beto@example.com")
+	otherID, otherToken := f.env.signUp(t, "Carla Ruiz", "carla@example.com")
+	f.env.addMember(t, f.ownerToken, f.projectID, "carla@example.com")
+
+	// Beto registra tres defectos.
+	registered := make([]string, 0, 3)
+	for i := 0; i < 3; i++ {
+		registered = append(registered, requireDefectCreated(t, f.env.postDefect(t, removedToken, f.projectID, f.body(f.storyID, f.sprintID))).ID)
+	}
+
+	// La propietaria lo quita con la 002.
+	rec := f.env.do(t, http.MethodDelete, "/api/v1/projects/"+f.projectID.String()+"/members/"+removedID.String(), f.ownerToken, nil)
+	require.Equal(t, http.StatusNoContent, rec.Code, "cuerpo: %s", rec.Body.String())
+
+	// El listado conserva todos, con su nombre como autor.
+	listRec := f.listProject(t, "")
+	requireNoPasswordHash(t, listRec)
+	list := requireDefectList(t, listRec)
+	assert.ElementsMatch(t, registered, defectIDs(list))
+	for _, d := range list.Defects {
+		assert.Equal(t, removedID.String(), d.CreatedBy.ID)
+		assert.Equal(t, "Beto Gómez", d.CreatedBy.FullName)
+	}
+
+	// El detalle también, y otro integrante los trabaja.
+	for _, id := range registered {
+		detail := f.env.getDefect(t, f.ownerToken, id)
+		assert.Equal(t, "Beto Gómez", detail.CreatedBy.FullName)
+		assert.Equal(t, removedID.String(), detail.CreatedBy.ID)
+	}
+	started := requireDefectOK(t, f.env.putDefectStatus(t, otherToken, registered[0], "in_progress", uuid.Nil))
+	assert.Equal(t, "in_progress", started.Status)
+	assert.Equal(t, otherID.String(), started.StatusChangedBy.ID)
+	assert.Equal(t, "Beto Gómez", started.CreatedBy.FullName, "el autor no cambia")
+	edited := requireDefectOK(t, f.env.patchDefect(t, otherToken, registered[1], map[string]any{"description": "Corregida por Carla"}))
+	assert.Equal(t, "Corregida por Carla", edited.Description)
+	assert.Equal(t, "Beto Gómez", edited.CreatedBy.FullName)
+
+	// Quien fue removido ya no accede.
+	gone := f.env.do(t, http.MethodGet, defectPath(registered[0]), removedToken, nil)
+	assert.Equal(t, http.StatusNotFound, gone.Code)
+}
+
+// TestDefectEndpoints_SinPasswordHash verifica que ninguna respuesta exitosa de los seis endpoints
+// contiene password_hash ni passwordHash (Principio VI).
+func TestDefectEndpoints_SinPasswordHash(t *testing.T) {
+	f := newDefectFixture(t)
+	created := f.post(t, f.body(f.storyID, f.sprintID))
+	defectID := requireDefectCreated(t, created).ID
+	responses := []*httptest.ResponseRecorder{
+		created,
+		f.listProject(t, ""),
+		f.listStory(t, f.storyID),
+		f.env.do(t, http.MethodGet, defectPath(defectID), f.ownerToken, nil),
+		f.env.patchDefect(t, f.ownerToken, defectID, map[string]any{"description": "Otra descripción"}),
+		f.env.putDefectStatus(t, f.ownerToken, defectID, "in_progress", uuid.Nil),
+	}
+	for i, rec := range responses {
+		assert.Less(t, rec.Code, 300, "respuesta %d: %s", i, rec.Body.String())
+		requireNoPasswordHash(t, rec)
+	}
+}

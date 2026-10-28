@@ -252,7 +252,7 @@ sprint Cerrado de 21 puntos planificados, 13 completados, factor 6 y 142,5 horas
       que devuelve `NotCalculable()` con denominador 0 y, si no,
       `Available(effortdomain.RoundPercentHundredths(numerator, denominator))`, sin ningún otro
       redondeo (FR-033, RC-13 de la 006) — depende de T007
-- [ ] T012 [US1] Implementar en `backend/internal/metrics/domain/sprint.go`
+- [X] T012 [US1] Implementar en `backend/internal/metrics/domain/sprint.go`
       `SprintFinality(status sprintsdomain.SprintStatus, kind MetricKind, graceOpen bool) *Finality`
       con las filas `closed` de research.md sección 7, y
       `CalculateSprint(sprint SprintData, currentFactorHundredths int, now time.Time, grace

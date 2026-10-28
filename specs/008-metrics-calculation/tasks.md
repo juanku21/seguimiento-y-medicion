@@ -151,7 +151,7 @@ estructuras, constantes y contratos, sin lógica de negocio.
       `SprintStatus`, `Value Metric`) y `ProjectSeries` con sus seis listas. `ProjectMetrics` no
       lleva todavía el bloque de defectos: lo agrega US5 (T039), para que las fases 1 a 5 no importen
       `defectsdomain` — depende de T002, T003
-- [ ] T006 Declarar en `backend/internal/metrics/domain/repository.go` la interfaz
+- [X] T006 Declarar en `backend/internal/metrics/domain/repository.go` la interfaz
       `MetricsRepository` con **exactamente** las tres operaciones de data-model.md sección 10:
       `LoadProject(ctx, projectID uuid.UUID) (*ProjectData, error)`,
       `LoadSprint(ctx, projectID, sprintID uuid.UUID) (*SprintData, int, error)` (el `int` es el

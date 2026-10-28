@@ -114,7 +114,7 @@ estructuras, constantes y contratos, sin lógica de negocio.
       `MarshalJSON`, moverlas a `backend/internal/platform/httpserver/hundredths_test.go`. Verificar
       con `go test -p 1 ./internal/effort/... ./internal/platform/...` que la salida de la 006 no
       cambió (research.md sección 5). Refactor sin cambio de comportamiento
-- [ ] T002 [P] Declarar en `backend/internal/metrics/domain/values.go` el comentario de paquete
+- [X] T002 [P] Declarar en `backend/internal/metrics/domain/values.go` el comentario de paquete
       ("declara los tipos de valor, las fórmulas puras y las interfaces del módulo de métricas; no
       depende de ninguna otra capa"), el tipo `ValueStatus string` con `ValueAvailable = "available"`,
       `ValueNotCalculable = "not_calculable"` y `ValueNotApplicable = "not_applicable"`; el tipo

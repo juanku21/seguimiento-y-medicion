@@ -65,11 +65,8 @@ func NewHandler(metrics *service.MetricsService) *Handler {
 //	@Failure		500			{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
 //	@Router			/api/v1/projects/{projectId}/metrics/sprints/{sprintId} [get]
 func (h *Handler) getSprintMetrics(c *gin.Context) {
-	// RequireMembership ya validó el proyecto; si su identificador no es UUID es un error de
-	// composición de la ruta y responde 500.
-	projectID, err := uuid.Parse(c.Param("projectId"))
-	if err != nil {
-		respondInternalError(c, "getSprintMetrics con un projectId inválido", "error", err)
+	projectID, ok := parseProjectID(c, "getSprintMetrics")
+	if !ok {
 		return
 	}
 
@@ -94,6 +91,91 @@ func (h *Handler) getSprintMetrics(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, newSprintMetrics(metrics, warnings))
+}
+
+// parseProjectID obtiene el identificador del proyecto de la ruta. RequireMembership ya lo validó;
+// si no es UUID es un error de composición de la ruta y responde 500.
+func parseProjectID(c *gin.Context, handlerName string) (uuid.UUID, bool) {
+	projectID, err := uuid.Parse(c.Param("projectId"))
+	if err != nil {
+		respondInternalError(c, handlerName+" con un projectId inválido", "error", err)
+		return uuid.Nil, false
+	}
+	return projectID, true
+}
+
+// getProjectMetrics godoc
+//
+//	@Summary		Métricas del proyecto
+//	@Description	Devuelve la velocidad del equipo con su serie (US2). La velocidad promedia los Story
+//	@Description	Points completados de los últimos 3 sprints Cerrados por momento real de cierre, o de
+//	@Description	todos si hay menos; sin sprints Cerrados es not_calculable (FR-020, FR-021, FR-031).
+//	@Description	Nunca lleva finality porque solo mira sprints Cerrados (RN-28). La serie trae un punto
+//	@Description	por sprint Cerrado en orden cronológico, sin promediar ni recortar. Horas y porcentajes
+//	@Description	se expresan con exactamente 2 decimales.
+//	@Tags			Métricas
+//	@ID				getProjectMetrics
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			projectId	path		string					true	"Identificador del proyecto"	format(uuid)
+//	@Success		200			{object}	ProjectMetricsResponse	"Métricas del proyecto."
+//	@Failure		401			{object}	delivery.ErrorResponse	"Se requiere iniciar sesión."
+//	@Failure		404			{object}	delivery.ErrorResponse	"El proyecto no existe o quien pide no es integrante."
+//	@Failure		500			{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/projects/{projectId}/metrics [get]
+func (h *Handler) getProjectMetrics(c *gin.Context) {
+	projectID, ok := parseProjectID(c, "getProjectMetrics")
+	if !ok {
+		return
+	}
+
+	// Cualquier error del servicio se traduce a un 500 genérico registrado en el log.
+	metrics, err := h.metrics.ProjectMetrics(c.Request.Context(), projectID)
+	if err != nil {
+		respondInternalError(c, "no se pudieron calcular las métricas del proyecto",
+			"projectId", projectID, "error", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, newProjectMetrics(projectID, metrics))
+}
+
+// getProjectSeries godoc
+//
+//	@Summary		Series del proyecto por sprint
+//	@Description	Devuelve las seis series por sprint que grafica el dashboard, en una única respuesta
+//	@Description	(US2, FR-022): Story Points planificados y completados, horas estimadas y reales, y
+//	@Description	defectos detectados y resueltos. Las seis contienen los mismos sprints, en orden
+//	@Description	cronológico ascendente por fecha de inicio: los Cerrados y el Activo si existe; los
+//	@Description	Planificados no aparecen. Cada punto identifica su sprint y conserva el finality de la
+//	@Description	métrica en ese sprint (partial en el Activo; definitive o provisional en un Cerrado).
+//	@Description	Un 0 es un dato real (status available). Sin sprints Cerrados ni Activo, las seis
+//	@Description	series vienen vacías.
+//	@Tags			Métricas
+//	@ID				getProjectSeries
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			projectId	path		string					true	"Identificador del proyecto"	format(uuid)
+//	@Success		200			{object}	ProjectSeriesResponse	"Series del proyecto."
+//	@Failure		401			{object}	delivery.ErrorResponse	"Se requiere iniciar sesión."
+//	@Failure		404			{object}	delivery.ErrorResponse	"El proyecto no existe o quien pide no es integrante."
+//	@Failure		500			{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/projects/{projectId}/metrics/series [get]
+func (h *Handler) getProjectSeries(c *gin.Context) {
+	projectID, ok := parseProjectID(c, "getProjectSeries")
+	if !ok {
+		return
+	}
+
+	// Cualquier error del servicio se traduce a un 500 genérico registrado en el log.
+	series, warnings, err := h.metrics.ProjectSeries(c.Request.Context(), projectID)
+	if err != nil {
+		respondInternalError(c, "no se pudieron calcular las series del proyecto",
+			"projectId", projectID, "error", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, newProjectSeries(series, warnings))
 }
 
 // respondInternalError registra en el log el mensaje y los atributos recibidos y responde el 500

@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/metrics/domain"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/httpserver"
 )
@@ -140,12 +142,6 @@ func newSprintMetrics(metrics domain.SprintMetrics, warnings []domain.Warning) S
 		closedAt = &formatted
 	}
 
-	// La lista nunca es nula: sin advertencias se serializa como [].
-	items := make([]Warning, 0, len(warnings))
-	for _, warning := range warnings {
-		items = append(items, newWarning(warning))
-	}
-
 	return SprintMetrics{
 		Sprint: SprintRef{
 			ID:        metrics.ID.String(),
@@ -164,7 +160,140 @@ func newSprintMetrics(metrics domain.SprintMetrics, warnings []domain.Warning) S
 		StoryCompletionPercent: newSprintMetric(metrics.StoryCompletionPercent, unitHundredths),
 		DefectsDetected:        newSprintMetric(metrics.DefectsDetected, unitCount),
 		DefectsResolved:        newSprintMetric(metrics.DefectsResolved, unitCount),
-		Warnings:               items,
+		Warnings:               newWarnings(warnings),
+	}
+}
+
+// newWarnings traduce una lista de advertencias; nunca es nula: sin advertencias se serializa como [].
+func newWarnings(warnings []domain.Warning) []Warning {
+	items := make([]Warning, 0, len(warnings))
+	for _, warning := range warnings {
+		items = append(items, newWarning(warning))
+	}
+	return items
+}
+
+// VelocityPoint es la velocidad de un sprint Cerrado (contracts/openapi.yaml, VelocityPoint).
+type VelocityPoint struct {
+	// Identificador del sprint Cerrado.
+	SprintID string `json:"sprintId" validate:"required" format:"uuid" example:"0c6e3f1a-91b2-4d7e-a5c8-2f4b6d8e1a30"`
+	// Nombre del sprint.
+	SprintName string `json:"sprintName" validate:"required" example:"Sprint 1"`
+	// Momento real de cierre; null si el sprint cerrado no lo registra.
+	ClosedAt *string `json:"closedAt" validate:"required" format:"date-time" extensions:"x-nullable" example:"2026-09-12T18:30:00Z"`
+	// Story Points completados en el sprint.
+	CompletedStoryPoints int `json:"completedStoryPoints" validate:"required" minimum:"0" example:"13"`
+}
+
+// Velocity es la velocidad del equipo; nunca lleva finalidad porque solo mira sprints Cerrados.
+type Velocity struct {
+	// Promedio de Story Points completados de los últimos 3 sprints Cerrados, con 2 decimales.
+	Value Metric `json:"value" validate:"required"`
+	// Cantidad de sprints Cerrados que entraron en el promedio.
+	SprintsConsidered int `json:"sprintsConsidered" validate:"required" minimum:"0" maximum:"3" example:"3"`
+	// Story Points completados de cada sprint Cerrado, en orden cronológico, sin promediar ni recortar.
+	Series []VelocityPoint `json:"series" validate:"required"`
+}
+
+// ProjectMetricsResponse es la respuesta de las métricas del proyecto; por ahora incluye la velocidad
+// y las advertencias.
+type ProjectMetricsResponse struct {
+	// Identificador del proyecto.
+	ProjectID string `json:"projectId" validate:"required" format:"uuid" example:"6b1f0d4e-2a7c-4e19-9d3b-8f5a2c1e7d40"`
+	// Velocidad del equipo y su serie.
+	Velocity Velocity `json:"velocity" validate:"required"`
+	// Advertencias de planificación y de inconsistencia de datos.
+	Warnings []Warning `json:"warnings" validate:"required"`
+}
+
+// SeriesPoint es el valor de una métrica en un sprint; plano: identifica su sprint y conserva la
+// finalidad de la métrica en ese sprint.
+type SeriesPoint struct {
+	// Identificador del sprint.
+	SprintID string `json:"sprintId" validate:"required" format:"uuid" example:"0c6e3f1a-91b2-4d7e-a5c8-2f4b6d8e1a30"`
+	// Nombre del sprint.
+	SprintName string `json:"sprintName" validate:"required" example:"Sprint 1"`
+	// Estado del sprint: active o closed.
+	SprintStatus string `json:"sprintStatus" validate:"required" enums:"active,closed" example:"closed"`
+	Metric
+	// Finalidad del valor: definitive, provisional o partial.
+	Finality *string `json:"finality" validate:"required" enums:"definitive,provisional,partial" extensions:"x-nullable" example:"definitive"`
+}
+
+// ProjectSeriesResponse son las seis series por sprint del proyecto, con los mismos sprints en el
+// mismo orden cronológico.
+type ProjectSeriesResponse struct {
+	// Story Points planificados por sprint.
+	PlannedStoryPoints []SeriesPoint `json:"plannedStoryPoints" validate:"required"`
+	// Story Points completados por sprint (velocidad por sprint).
+	CompletedStoryPoints []SeriesPoint `json:"completedStoryPoints" validate:"required"`
+	// Horas estimadas por sprint.
+	EstimatedHours []SeriesPoint `json:"estimatedHours" validate:"required"`
+	// Horas reales por sprint.
+	ActualHours []SeriesPoint `json:"actualHours" validate:"required"`
+	// Defectos detectados por sprint.
+	DefectsDetected []SeriesPoint `json:"defectsDetected" validate:"required"`
+	// Defectos resueltos por sprint.
+	DefectsResolved []SeriesPoint `json:"defectsResolved" validate:"required"`
+	// Advertencias de inconsistencia de datos de los sprints incluidos.
+	Warnings []Warning `json:"warnings" validate:"required"`
+}
+
+// newProjectMetrics traduce el resultado del cálculo del proyecto al contrato.
+func newProjectMetrics(projectID uuid.UUID, metrics domain.ProjectMetrics) ProjectMetricsResponse {
+	// La serie nunca es nula: sin sprints Cerrados se serializa como [].
+	points := make([]VelocityPoint, 0, len(metrics.Velocity.Series))
+	for _, point := range metrics.Velocity.Series {
+		var closedAt *string
+		if point.ClosedAt != nil {
+			formatted := point.ClosedAt.UTC().Format(time.RFC3339)
+			closedAt = &formatted
+		}
+		points = append(points, VelocityPoint{
+			SprintID:             point.SprintID.String(),
+			SprintName:           point.SprintName,
+			ClosedAt:             closedAt,
+			CompletedStoryPoints: point.CompletedStoryPoints,
+		})
+	}
+
+	return ProjectMetricsResponse{
+		ProjectID: projectID.String(),
+		Velocity: Velocity{
+			Value:             newMetric(metrics.Velocity.Value, unitHundredths),
+			SprintsConsidered: metrics.Velocity.SprintsConsidered,
+			Series:            points,
+		},
+		Warnings: newWarnings(metrics.Warnings),
+	}
+}
+
+// newSeriesPoints traduce una serie del dominio; la lista nunca es nula.
+func newSeriesPoints(points []domain.SeriesPoint, unit metricUnit) []SeriesPoint {
+	items := make([]SeriesPoint, 0, len(points))
+	for _, point := range points {
+		sprintMetric := newSprintMetric(point.Value, unit)
+		items = append(items, SeriesPoint{
+			SprintID:     point.SprintID.String(),
+			SprintName:   point.SprintName,
+			SprintStatus: string(point.SprintStatus),
+			Metric:       sprintMetric.Metric,
+			Finality:     sprintMetric.Finality,
+		})
+	}
+	return items
+}
+
+// newProjectSeries traduce las seis series y las advertencias al contrato.
+func newProjectSeries(series domain.ProjectSeries, warnings []domain.Warning) ProjectSeriesResponse {
+	return ProjectSeriesResponse{
+		PlannedStoryPoints:   newSeriesPoints(series.PlannedStoryPoints, unitCount),
+		CompletedStoryPoints: newSeriesPoints(series.CompletedStoryPoints, unitCount),
+		EstimatedHours:       newSeriesPoints(series.EstimatedHours, unitHundredths),
+		ActualHours:          newSeriesPoints(series.ActualHours, unitHundredths),
+		DefectsDetected:      newSeriesPoints(series.DefectsDetected, unitCount),
+		DefectsResolved:      newSeriesPoints(series.DefectsResolved, unitCount),
+		Warnings:             newWarnings(warnings),
 	}
 }
 

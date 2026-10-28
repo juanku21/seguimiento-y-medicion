@@ -317,7 +317,7 @@ con los mismos sprints Cerrados y el Activo, sin los Planificados.
 
 ### Pruebas de la Historia 2 ⚠️
 
-- [ ] T016 [P] [US2] Pruebas unitarias **obligatorias** de `AverageHundredths(sum, count int) int` en
+- [X] T016 [P] [US2] Pruebas unitarias **obligatorias** de `AverageHundredths(sum, count int) int` en
       `backend/internal/metrics/domain/arithmetic_test.go`, cubriendo RN-10 y RN-19: (13, 1) → `1300`;
       (34, 2) → `1700`; (42, 3) → `1400`; (49, 3) → `1633`; (0, 3) → `0`; y que coincide con
       `RoundPercentHundredths(sum, 100 × count)` — depende de T015

@@ -11,3 +11,8 @@ func Percent(numerator, denominator int) Metric {
 	}
 	return Available(effortdomain.RoundPercentHundredths(numerator, denominator))
 }
+
+// AverageHundredths devuelve el promedio de sum sobre count en centésimas de punto (RN-10, RN-19).
+func AverageHundredths(sum, count int) int {
+	return 0
+}

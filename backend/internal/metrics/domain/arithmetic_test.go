@@ -61,3 +61,24 @@ func TestUS1_PorcentajeEmpateLejosDeCero(t *testing.T) {
 		})
 	}
 }
+
+// Escenario: promedio de velocidad en centésimas con un único redondeo (008/US2, RN-10, RN-19)
+func TestUS2_PromedioEnCentesimas(t *testing.T) {
+	cases := []struct {
+		sum, count, want int
+	}{
+		{13, 1, 1300},
+		{34, 2, 1700},
+		{42, 3, 1400},
+		{49, 3, 1633},
+		{0, 3, 0},
+	}
+	for _, c := range cases {
+		t.Run(fmt.Sprintf("%d_sobre_%d", c.sum, c.count), func(t *testing.T) {
+			got := domain.AverageHundredths(c.sum, c.count)
+			assert.Equal(t, c.want, got)
+			// Debe coincidir con el redondeo único del módulo de esfuerzo.
+			assert.Equal(t, effortdomain.RoundPercentHundredths(c.sum, 100*c.count), got)
+		})
+	}
+}

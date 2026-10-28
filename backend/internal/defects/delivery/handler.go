@@ -47,7 +47,7 @@ const (
 
 	msgOnlyOpenDiscards = "Solo se descarta un defecto Abierto o En progreso; para descartarlo, primero reabrilo."
 	msgDiscardedFinal   = "El defecto está Descartado, que es un estado definitivo."
-	msgDefectDiscarded  ="El defecto está Descartado y es de solo lectura."
+	msgDefectDiscarded  = "El defecto está Descartado y es de solo lectura."
 	msgLinksFrozen      = "La historia relacionada y el sprint de detección solo se corrigen mientras el defecto está Abierto."
 	codeDefectDiscarded = "defect_discarded"
 	codeLinksFrozen     = "links_frozen"

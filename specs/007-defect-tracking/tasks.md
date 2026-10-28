@@ -734,7 +734,7 @@ exactamente una de las dos.
 - [X] T067 [US6] Agregar el descarte a `frontend/src/features/defects/transitions.ts`, el botón
       "Descartar" con confirmación a `DefectStatusActions` y la vista de solo lectura del Descartado a
       `DefectDetail` en `frontend/src/features/defects/components/` — depende de T065, T066
-- [ ] T074 [US6] Formatear con gofmt `backend/internal/defects/delivery/handler.go` y verificar que
+- [X] T074 [US6] Formatear con gofmt `backend/internal/defects/delivery/handler.go` y verificar que
       el bloque de constantes (línea 50) queda alineado per Constitución VIII (contradicts)
 
 **Checkpoint**: las seis historias funcionan; un duplicado deja de contar sin borrar el registro.

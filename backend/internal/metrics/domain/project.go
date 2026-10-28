@@ -71,9 +71,69 @@ type ProjectMetrics struct {
 	Warnings                  []Warning
 }
 
-// CalculateProject calcula las métricas de un proyecto. Por ahora resuelve la velocidad (US2).
+// CalculateProject calcula las métricas de un proyecto: velocidad, acumulados, esfuerzo separado,
+// contador de historias sin estimar y advertencias.
 func CalculateProject(data ProjectData, now time.Time, grace time.Duration) ProjectMetrics {
-	return ProjectMetrics{Velocity: calculateVelocity(data, now, grace)}
+	result := ProjectMetrics{
+		Velocity:                       calculateVelocity(data, now, grace),
+		EffortOutsideSprintsHundredths: data.OutsideSprintsHundredths,
+		UnestimatedBacklogStories:      data.UnestimatedBacklogStories,
+		Warnings:                       []Warning{},
+	}
+
+	// La advertencia de planificación depende solo del contador del backlog (RN-26).
+	if data.UnestimatedBacklogStories > 0 {
+		count := data.UnestimatedBacklogStories
+		result.Warnings = append(result.Warnings, Warning{
+			Kind:  WarningPlanning,
+			Code:  CodeUnestimatedBacklogStories,
+			Count: &count,
+		})
+	}
+
+	// Se acumulan los Cerrados y el Activo; los Planificados solo aportan su esfuerzo aparte.
+	var planned, completed, estimated, actual, stories, completedStories int
+	includesActive := false
+	for _, sprint := range data.Sprints {
+		if sprint.Status == sprintsdomain.SprintStatusPlanned {
+			result.EffortInPlannedSprintsHundredths += sprint.ActualHundredths
+			continue
+		}
+		metrics, warnings := CalculateSprint(sprint, data.FactorHundredths, now, grace)
+		result.Warnings = append(result.Warnings, warnings...)
+		planned += metrics.PlannedStoryPoints.Value
+		completed += metrics.CompletedStoryPoints.Value
+		estimated += metrics.EstimatedHours.Value
+		actual += metrics.ActualHours.Value
+		stories += len(sprint.Stories)
+		for _, story := range sprint.Stories {
+			if story.Completed {
+				completedStories++
+			}
+		}
+		if sprint.Status == sprintsdomain.SprintStatusActive {
+			includesActive = true
+		}
+	}
+
+	// Los cocientes salen de los totales, nunca del promedio de los porcentajes de cada sprint (RN-11).
+	deviation := actual - estimated
+	finality := FinalityDefinitive
+	if includesActive {
+		finality = FinalityPartial
+	}
+	result.Cumulative = Cumulative{
+		Finality:               finality,
+		IncludesActiveSprint:   includesActive,
+		PlannedStoryPoints:     Available(planned),
+		CompletedStoryPoints:   Available(completed),
+		EstimatedHours:         Available(estimated),
+		ActualHours:            Available(actual),
+		DeviationHours:         Available(deviation),
+		DeviationPercent:       Percent(deviation, estimated),
+		StoryCompletionPercent: Percent(completedStories, stories),
+	}
+	return result
 }
 
 // calculateVelocity arma la serie de todos los Cerrados y el promedio de la ventana de los últimos 3.

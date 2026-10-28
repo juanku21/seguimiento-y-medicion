@@ -450,7 +450,7 @@ cantidad de historias del backlog sin estimar con su advertencia.
 
 ### Implementación de la Historia 3
 
-- [ ] T030 [US3] Implementar en `backend/internal/metrics/domain/project.go`
+- [X] T030 [US3] Implementar en `backend/internal/metrics/domain/project.go`
       `CalculateProject(data ProjectData, now time.Time, grace time.Duration) ProjectMetrics`:
       calcula cada Cerrado y el Activo con `CalculateSprint`, suma los totales, calcula las
       desviaciones y el porcentaje sobre los totales con `Percent`, fija `Cumulative.Finality`, arma

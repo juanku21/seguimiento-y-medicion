@@ -184,7 +184,7 @@ sprint Cerrado de 21 puntos planificados, 13 completados, factor 6 y 142,5 horas
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T007 [P] [US1] Pruebas unitarias **obligatorias** en
+- [X] T007 [P] [US1] Pruebas unitarias **obligatorias** en
       `backend/internal/metrics/domain/values_test.go` y
       `backend/internal/metrics/domain/arithmetic_test.go`, cubriendo RN-17, RN-19 y RN-20:
       `Available(0)` tiene `status: available` y es distinto de `NotCalculable()` y de
@@ -193,7 +193,7 @@ sprint Cerrado de 21 puntos planificados, 13 completados, factor 6 y 142,5 horas
       `Percent(1, 3)` → `3333`; `Percent(2, 3)` → `6667`; `Percent(7, 11)` → `6364`;
       `Percent(-6550, 37800)` → `-1733`; y empates en ,005 que redondean lejos de cero en ambos
       signos, con el mismo resultado que `effortdomain.RoundPercentHundredths` — depende de T006
-- [ ] T008 [P] [US1] Pruebas unitarias **obligatorias** de `CalculateSprint` y `SprintFinality` para
+- [X] T008 [P] [US1] Pruebas unitarias **obligatorias** de `CalculateSprint` y `SprintFinality` para
       sprints `closed` en `backend/internal/metrics/domain/sprint_test.go`, con datos armados en
       memoria y un `now` fijo, cubriendo RN-03, RN-07 a RN-09, RN-12, RN-17, RN-18, RN-23, RN-24 y
       RN-30: los números exactos de US1-1, US1-2, US1-8 (todas en 0 puntos: desviación porcentual
@@ -208,7 +208,7 @@ sprint Cerrado de 21 puntos planificados, 13 completados, factor 6 y 142,5 horas
       `FrozenFactorHundredths` se usa el factor vigente y se produce `missing_frozen_factor`; sin
       `ClosedAt` el plazo se toma como vencido y se produce `missing_close_time`; en los tres casos
       las nueve métricas se devuelven igual — depende de T006
-- [ ] T009 [P] [US1] Pruebas de integración del repositorio contra `smye_test` en
+- [X] T009 [P] [US1] Pruebas de integración del repositorio contra `smye_test` en
       `backend/internal/metrics/repository/metrics_repository_test.go`, preparando filas con GORM:
       `LoadSprint` de un sprint Cerrado devuelve las filas de `sprint_stories` con
       `story_points_at_close` y `outcome = completed` como `Completed`, `closed_at`, el factor
@@ -220,7 +220,7 @@ sprint Cerrado de 21 puntos planificados, 13 completados, factor 6 y 142,5 horas
       `UPDATE projects SET name = name` ejecutado dentro de `fn` con un error de transacción de solo
       lectura (SQLSTATE `25006`), y la fila no cambia (prueba interna del paquete `repository`) —
       depende de T006
-- [ ] T010 [US1] Crear en `backend/internal/metrics/delivery/testenv_test.go` el entorno
+- [X] T010 [US1] Crear en `backend/internal/metrics/delivery/testenv_test.go` el entorno
       `newMetricsTestEnv` descripto arriba (router, reloj falso compartido, plazo de 48 horas,
       ayudantes para crear cuentas, proyectos con factor, integrantes, historias con puntos, sprints
       con sus historias, iniciarlos, completar historias, cerrarlos, cargar horas, cambiar el factor,
@@ -246,13 +246,13 @@ sprint Cerrado de 21 puntos planificados, 13 completados, factor 6 y 142,5 horas
 
 ### Implementación de la Historia 1
 
-- [ ] T011 [P] [US1] Implementar en `backend/internal/metrics/domain/values.go` los constructores
+- [X] T011 [P] [US1] Implementar en `backend/internal/metrics/domain/values.go` los constructores
       `Available(value int) Metric`, `NotCalculable() Metric` y `NotApplicable() Metric`, y en
       `backend/internal/metrics/domain/arithmetic.go` `Percent(numerator, denominator int) Metric`,
       que devuelve `NotCalculable()` con denominador 0 y, si no,
       `Available(effortdomain.RoundPercentHundredths(numerator, denominator))`, sin ningún otro
       redondeo (FR-033, RC-13 de la 006) — depende de T007
-- [ ] T012 [US1] Implementar en `backend/internal/metrics/domain/sprint.go`
+- [X] T012 [US1] Implementar en `backend/internal/metrics/domain/sprint.go`
       `SprintFinality(status sprintsdomain.SprintStatus, kind MetricKind, graceOpen bool) *Finality`
       con las filas `closed` de research.md sección 7, y
       `CalculateSprint(sprint SprintData, currentFactorHundredths int, now time.Time, grace
@@ -263,7 +263,7 @@ sprint Cerrado de 21 puntos planificados, 13 completados, factor 6 y 142,5 horas
       `Percent(completadas, planificadas)` por cantidad, y los dos conteos; la gracia con
       `effortdomain.GraceOpen(*ClosedAt, now, grace)`, o vencida con `missing_close_time`. Los estados
       `active` y `planned` todavía no se implementan — depende de T008, T011
-- [ ] T013 [US1] Implementar `LoadSprint` en
+- [X] T013 [US1] Implementar `LoadSprint` en
       `backend/internal/metrics/repository/metrics_repository.go` con `NewMetricsRepository(db
       *gorm.DB)`: la función privada `readOnly`, que abre la transacción con
       `&sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true}` y que reutilizan
@@ -274,13 +274,13 @@ sprint Cerrado de 21 puntos planificados, 13 completados, factor 6 y 142,5 horas
       (research.md sección 8); (4) `COALESCE(SUM(hours_hundredths), 0)` de `effort_entries` con ese
       `sprint_id`. `DefectsDetected` y `DefectsResolved` quedan en 0 hasta US5. Los errores de GORM se
       envuelven con `fmt.Errorf` y contexto en español (Principio VII) — depende de T009
-- [ ] T014 [US1] Implementar en `backend/internal/metrics/service/metrics_service.go` el constructor
+- [X] T014 [US1] Implementar en `backend/internal/metrics/service/metrics_service.go` el constructor
       `NewMetricsService(repo domain.MetricsRepository, grace time.Duration, now func() time.Time)`,
       con la firma definitiva para que no cambie en las historias siguientes, y
       `SprintMetrics(ctx, projectID, sprintID)`, que toma `now` **una sola vez** por consulta, llama a
       `LoadSprint` y a `CalculateSprint`. El servicio es también el punto de entrada que reutilizará
       la 010 dentro del proceso — depende de T012, T013
-- [ ] T015 [US1] Declarar en `backend/internal/metrics/delivery/dto.go` los esquemas de
+- [X] T015 [US1] Declarar en `backend/internal/metrics/delivery/dto.go` los esquemas de
       contracts/openapi.yaml `Metric` y `SprintMetric` (con `value` como número JSON: Story Points y
       conteos enteros, horas y porcentajes con `httpserver.Hundredths`; `value: null` si y solo si
       `status` no es `available`; `finality` anulable), `SprintRef` (`closedAt` anulable),

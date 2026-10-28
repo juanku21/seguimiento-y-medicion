@@ -35,3 +35,18 @@ type Metric struct {
 	// Finality solo se informa en métricas de sprint y en puntos de serie; es nil en el Planificado.
 	Finality *Finality
 }
+
+// Available devuelve una métrica con valor y sin finalidad informada.
+func Available(value int) Metric {
+	return Metric{Status: ValueAvailable, Value: value}
+}
+
+// NotCalculable devuelve una métrica sin valor porque su denominador es 0 (FR-030).
+func NotCalculable() Metric {
+	return Metric{Status: ValueNotCalculable}
+}
+
+// NotApplicable devuelve una métrica que no aplica al estado del sprint (FR-015).
+func NotApplicable() Metric {
+	return Metric{Status: ValueNotApplicable}
+}

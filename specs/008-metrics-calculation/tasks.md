@@ -343,7 +343,7 @@ con los mismos sprints Cerrados y el Activo, sin los Planificados.
       **todos** los sprints del proyecto (`planned`, `active`, `closed`) en orden `start_date ASC, id
       ASC`, cada uno con sus historias según su estado y sus horas, el factor vigente, y ningún sprint
       de otro proyecto — depende de T015
-- [ ] T020 [US2] Pruebas de integración en `backend/internal/metrics/delivery/handler_test.go`, una
+- [X] T020 [US2] Pruebas de integración en `backend/internal/metrics/delivery/handler_test.go`, una
       por escenario con `// Escenario: <nombre> (008/US2)`: `TestUS2_VelocidadTresCerrados`
       (`14.00`), `TestUS2_VentanaDeTres` (`16.33`; SC-004), `TestUS2_UnSprintCerrado` (`13.00`),
       `TestUS2_DosSprintsCerrados` (`17.00`), `TestUS2_SerieDeVelocidad` (13, 21, 8 y 20 en orden),

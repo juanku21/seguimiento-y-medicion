@@ -3,7 +3,9 @@ package delivery
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"regexp"
+	"strconv"
 	"testing"
 	"time"
 
@@ -443,4 +445,393 @@ func TestUS1_NoIntegrante(t *testing.T) {
 	// Quien no es integrante recibe la respuesta de proyecto inexistente, sin ningún dato del sprint.
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 	assert.Equal(t, projectNotFoundBody, rec.Body.String())
+}
+
+// ---------------------------------------------------------------------------------------------
+// US2: velocidad del equipo y series del proyecto (008/US2)
+// ---------------------------------------------------------------------------------------------
+
+// velocityPoint es un punto de velocity.series: los Story Points completados de un sprint Cerrado.
+type velocityPoint struct {
+	SprintID             string  `json:"sprintId"`
+	SprintName           string  `json:"sprintName"`
+	ClosedAt             *string `json:"closedAt"`
+	CompletedStoryPoints int     `json:"completedStoryPoints"`
+}
+
+// projectMetricsBody es la parte de GET /metrics que cubre US2: la velocidad (contracts/openapi.yaml).
+type projectMetricsBody struct {
+	ProjectID string `json:"projectId"`
+	Velocity  struct {
+		Value             metricValue     `json:"value"`
+		SprintsConsidered int             `json:"sprintsConsidered"`
+		Series            []velocityPoint `json:"series"`
+	} `json:"velocity"`
+}
+
+// seriesPoint es un punto de las series: plano, con el sprint al que corresponde.
+type seriesPoint struct {
+	SprintID     string          `json:"sprintId"`
+	SprintName   string          `json:"sprintName"`
+	SprintStatus string          `json:"sprintStatus"`
+	Status       string          `json:"status"`
+	Value        json.RawMessage `json:"value"`
+	Finality     *string         `json:"finality"`
+}
+
+// projectSeriesBody es la respuesta de GET /metrics/series: las seis listas de puntos.
+type projectSeriesBody struct {
+	PlannedStoryPoints   []seriesPoint `json:"plannedStoryPoints"`
+	CompletedStoryPoints []seriesPoint `json:"completedStoryPoints"`
+	EstimatedHours       []seriesPoint `json:"estimatedHours"`
+	ActualHours          []seriesPoint `json:"actualHours"`
+	DefectsDetected      []seriesPoint `json:"defectsDetected"`
+	DefectsResolved      []seriesPoint `json:"defectsResolved"`
+}
+
+// lists devuelve las seis series con su nombre, para recorrerlas juntas.
+func (b projectSeriesBody) lists() map[string][]seriesPoint {
+	return map[string][]seriesPoint{
+		"plannedStoryPoints":   b.PlannedStoryPoints,
+		"completedStoryPoints": b.CompletedStoryPoints,
+		"estimatedHours":       b.EstimatedHours,
+		"actualHours":          b.ActualHours,
+		"defectsDetected":      b.DefectsDetected,
+		"defectsResolved":      b.DefectsResolved,
+	}
+}
+
+// getProjectMetrics envía GET /api/v1/projects/{projectId}/metrics con el token.
+func (e *metricsTestEnv) getProjectMetrics(t *testing.T, token, projectID string) *httptest.ResponseRecorder {
+	t.Helper()
+	return e.do(t, http.MethodGet, "/api/v1/projects/"+projectID+"/metrics", token, nil)
+}
+
+// getProjectSeries envía GET /api/v1/projects/{projectId}/metrics/series con el token.
+func (e *metricsTestEnv) getProjectSeries(t *testing.T, token, projectID string) *httptest.ResponseRecorder {
+	t.Helper()
+	return e.do(t, http.MethodGet, "/api/v1/projects/"+projectID+"/metrics/series", token, nil)
+}
+
+// startedSprintN arma el sprint número n (desde 0) del proyecto, de dos semanas y sin solaparse con
+// los anteriores: una historia por cada valor de done (completadas) y de notDone (sin completar),
+// lo inicia, completa las primeras y carga hours horas sobre la primera historia. Devuelve el sprint
+// y su cierre real, el viernes de su último día a las 18:00.
+func (f metricsFixture) startedSprintN(t *testing.T, n int, done, notDone []int, hours float64) (uuid.UUID, time.Time) {
+	t.Helper()
+	start := time.Date(2026, time.October, 12, 0, 0, 0, 0, time.UTC).AddDate(0, 0, 14*n)
+	end := start.AddDate(0, 0, 11)
+	points := append(append([]int{}, done...), notDone...)
+	stories := make([]uuid.UUID, 0, len(points))
+	for i, p := range points {
+		stories = append(stories, f.env.createStory(t, f.ownerToken, f.projectID, "Historia "+strconv.Itoa(n)+string(rune('A'+i)), p))
+	}
+	sprintID := f.env.createSprint(t, f.ownerToken, f.projectID, "Sprint "+strconv.Itoa(n+1),
+		start.Format(time.DateOnly), end.Format(time.DateOnly), stories...)
+	f.env.startSprint(t, f.ownerToken, sprintID)
+	for _, storyID := range stories[:len(done)] {
+		f.env.completeStory(t, f.ownerToken, storyID)
+	}
+	if hours > 0 {
+		f.env.logHours(t, f.ownerToken, stories[0], hours)
+	}
+	return sprintID, f.env.at(end.Year(), end.Month(), end.Day(), 18, 0)
+}
+
+// closedSprintN arma y cierra el sprint número n con startedSprintN.
+func (f metricsFixture) closedSprintN(t *testing.T, n int, done, notDone []int, hours float64) uuid.UUID {
+	t.Helper()
+	sprintID, closeAt := f.startedSprintN(t, n, done, notDone, hours)
+	f.env.closeSprintAt(t, f.ownerToken, sprintID, closeAt)
+	return sprintID
+}
+
+// velocitySprints cierra en orden un sprint por cada valor de completados, descompuesto en historias
+// de la escala de Story Points (13, 21 = 13 + 8, 8 y 20), y devuelve sus identificadores.
+func (f metricsFixture) velocitySprints(t *testing.T, completed ...int) []uuid.UUID {
+	t.Helper()
+	split := map[int][]int{0: nil, 8: {8}, 13: {13}, 20: {20}, 21: {13, 8}}
+	ids := make([]uuid.UUID, 0, len(completed))
+	for n, c := range completed {
+		parts, ok := split[c]
+		require.True(t, ok, "valor de velocidad %d sin descomposición de prueba", c)
+		// Un sprint sin nada completado necesita al menos una historia sin completar.
+		var notDone []int
+		if c == 0 {
+			notDone = []int{3}
+		}
+		ids = append(ids, f.closedSprintN(t, n, parts, notDone, 0))
+	}
+	return ids
+}
+
+// projectMetrics consulta GET /metrics con la sesión de Ana y exige un 200.
+func (f metricsFixture) projectMetrics(t *testing.T) projectMetricsBody {
+	t.Helper()
+	var body projectMetricsBody
+	metricsRequireStatus(t, f.env.getProjectMetrics(t, f.ownerToken, f.projectID.String()), http.StatusOK, &body)
+	return body
+}
+
+// projectSeries consulta GET /metrics/series con la sesión de Ana y exige un 200.
+func (f metricsFixture) projectSeries(t *testing.T) projectSeriesBody {
+	t.Helper()
+	var body projectSeriesBody
+	metricsRequireStatus(t, f.env.getProjectSeries(t, f.ownerToken, f.projectID.String()), http.StatusOK, &body)
+	return body
+}
+
+// seriesValues devuelve el texto del value de cada punto, en el orden de la serie.
+func seriesValues(points []seriesPoint) []string {
+	values := make([]string, 0, len(points))
+	for _, p := range points {
+		values = append(values, string(p.Value))
+	}
+	return values
+}
+
+// requireVelocity exige el valor, el estado y la cantidad de sprints considerados de la velocidad.
+func requireVelocity(t *testing.T, body projectMetricsBody, want string, considered int) {
+	t.Helper()
+	requireValue(t, "velocity", body.Velocity.Value, want)
+	assert.Equal(t, considered, body.Velocity.SprintsConsidered, "sprintsConsidered")
+}
+
+// Escenario: Caso normal — tres sprints cerrados que completaron 13, 21 y 8 Story Points (008/US2)
+func TestUS2_VelocidadTresCerrados(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.velocitySprints(t, 13, 21, 8)
+
+	body := f.projectMetrics(t)
+
+	// (13 + 21 + 8) / 3 = 14,00.
+	requireVelocity(t, body, "14.00", 3)
+}
+
+// Escenario: Caso normal — cuatro sprints cerrados que completaron 13, 21, 8 y 20 Story Points (008/US2)
+func TestUS2_VentanaDeTres(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.velocitySprints(t, 13, 21, 8, 20)
+
+	body := f.projectMetrics(t)
+
+	// Solo cuentan los 3 últimos: (21 + 8 + 20) / 3 = 16,33 y el primero queda fuera (SC-004).
+	requireVelocity(t, body, "16.33", 3)
+}
+
+// Escenario: Caso alternativo — exactamente un sprint cerrado que completó 13 Story Points (008/US2)
+func TestUS2_UnSprintCerrado(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.velocitySprints(t, 13)
+
+	body := f.projectMetrics(t)
+
+	requireVelocity(t, body, "13.00", 1)
+}
+
+// Escenario: Caso alternativo — exactamente dos sprints cerrados que completaron 13 y 21 Story Points (008/US2)
+func TestUS2_DosSprintsCerrados(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.velocitySprints(t, 13, 21)
+
+	body := f.projectMetrics(t)
+
+	// (13 + 21) / 2 = 17,00.
+	requireVelocity(t, body, "17.00", 2)
+}
+
+// Escenario: Caso alternativo — la serie de velocidad de cuatro sprints cerrados (008/US2)
+func TestUS2_SerieDeVelocidad(t *testing.T) {
+	f := newMetricsFixture(t)
+	ids := f.velocitySprints(t, 13, 21, 8, 20)
+
+	body := f.projectMetrics(t)
+
+	// Los cuatro valores en orden cronológico, sin promediar y sin recortar a los últimos 3.
+	require.Len(t, body.Velocity.Series, 4)
+	for i, want := range []int{13, 21, 8, 20} {
+		point := body.Velocity.Series[i]
+		assert.Equal(t, want, point.CompletedStoryPoints, "completedStoryPoints del punto %d", i)
+		assert.Equal(t, ids[i].String(), point.SprintID, "sprintId del punto %d", i)
+		assert.Equal(t, "Sprint "+strconv.Itoa(i+1), point.SprintName, "sprintName del punto %d", i)
+		assert.NotNil(t, point.ClosedAt, "closedAt del punto %d", i)
+	}
+}
+
+// Escenario: Caso normal — las seis series del proyecto en una sola respuesta (008/US2)
+func TestUS2_SeisSeries(t *testing.T) {
+	f := newMetricsFixture(t)
+	// Cuatro cerrados con 13, 21, 8 y 20 completados más una historia de 3 sin completar, y 10 horas
+	// reales en el segundo.
+	ids := make([]uuid.UUID, 0, 4)
+	for n, done := range [][]int{{13}, {13, 8}, {8}, {20}} {
+		hours := 0.0
+		if n == 1 {
+			hours = 10
+		}
+		ids = append(ids, f.closedSprintN(t, n, done, []int{3}, hours))
+	}
+
+	body := f.projectSeries(t)
+
+	want := map[string][]string{
+		"plannedStoryPoints":   {"16", "24", "11", "23"},
+		"completedStoryPoints": {"13", "21", "8", "20"},
+		"estimatedHours":       {"96.00", "144.00", "66.00", "138.00"},
+		"actualHours":          {"0.00", "10.00", "0.00", "0.00"},
+		"defectsDetected":      {"0", "0", "0", "0"},
+		"defectsResolved":      {"0", "0", "0", "0"},
+	}
+	for name, points := range body.lists() {
+		require.Len(t, points, 4, "puntos de %s", name)
+		assert.Equal(t, want[name], seriesValues(points), "valores de %s", name)
+		for i, point := range points {
+			assert.Equal(t, ids[i].String(), point.SprintID, "sprintId de %s[%d]", name, i)
+			assert.Equal(t, "Sprint "+strconv.Itoa(i+1), point.SprintName, "sprintName de %s[%d]", name, i)
+			assert.Equal(t, "closed", point.SprintStatus, "sprintStatus de %s[%d]", name, i)
+			assert.Equal(t, "available", point.Status, "status de %s[%d]", name, i)
+		}
+	}
+}
+
+// Escenario: Caso alternativo — tres sprints cerrados y uno Activo (008/US2)
+func TestUS2_SeriesConSprintActivo(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.velocitySprints(t, 13, 21, 8)
+	activeID, _ := f.startedSprintN(t, 3, []int{5}, []int{3}, 4)
+
+	body := f.projectSeries(t)
+
+	// Las seis incluyen los 4 sprints y los puntos del Activo vienen marcados como parciales.
+	for name, points := range body.lists() {
+		require.Len(t, points, 4, "puntos de %s", name)
+		assert.Equal(t, activeID.String(), points[3].SprintID, "sprintId del último punto de %s", name)
+		assert.Equal(t, "active", points[3].SprintStatus, "sprintStatus del Activo en %s", name)
+		if assert.NotNil(t, points[3].Finality, "finality del Activo en %s", name) {
+			assert.Equal(t, "partial", *points[3].Finality, "finality del Activo en %s", name)
+		}
+		assert.Equal(t, "closed", points[0].SprintStatus, "sprintStatus del primero en %s", name)
+	}
+	assert.Equal(t, []string{"13", "21", "8", "5"}, seriesValues(body.CompletedStoryPoints))
+}
+
+// Escenario: Caso alternativo — un sprint Planificado además de los cerrados (008/US2)
+func TestUS2_SeriesSinPlanificados(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.velocitySprints(t, 13, 21)
+	storyID := f.env.createStory(t, f.ownerToken, f.projectID, "Historia futura", 5)
+	plannedID := f.env.createSprint(t, f.ownerToken, f.projectID, "Sprint 3", "2026-11-09", "2026-11-20", storyID)
+
+	body := f.projectSeries(t)
+
+	// El Planificado no aparece en ninguna de las seis.
+	for name, points := range body.lists() {
+		require.Len(t, points, 2, "puntos de %s", name)
+		for _, point := range points {
+			assert.NotEqual(t, plannedID.String(), point.SprintID, "el Planificado aparece en %s", name)
+		}
+	}
+}
+
+// Escenario: Caso límite — un sprint sin Story Points completados ni horas registradas (008/US2)
+func TestUS2_ValorCeroEnSeries(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.closedSprintN(t, 0, nil, []int{5}, 0)
+
+	body := f.projectSeries(t)
+
+	// El sprint aparece con valor 0 disponible, distinguible de la ausencia de dato.
+	for name, want := range map[string]string{
+		"completedStoryPoints": "0",
+		"actualHours":          "0.00",
+		"defectsDetected":      "0",
+		"defectsResolved":      "0",
+	} {
+		points := body.lists()[name]
+		require.Len(t, points, 1, "puntos de %s", name)
+		assert.Equal(t, "available", points[0].Status, "status de %s", name)
+		assert.Equal(t, want, string(points[0].Value), "value de %s", name)
+	}
+}
+
+// Escenario: Caso límite — proyecto sin sprints cerrados ni activo (008/US2)
+func TestUS2_SeriesVacias(t *testing.T) {
+	f := newMetricsFixture(t)
+
+	body := f.projectSeries(t)
+
+	// Las seis vienen como lista vacía y no como null, sin que sea un error.
+	for name, points := range body.lists() {
+		assert.NotNil(t, points, "%s debe ser [] y no null", name)
+		assert.Empty(t, points, "%s debe estar vacía", name)
+	}
+}
+
+// Escenario: Caso límite — tres sprints cerrados que no completaron ninguna historia (008/US2)
+func TestUS2_VelocidadCero(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.velocitySprints(t, 0, 0, 0)
+
+	body := f.projectMetrics(t)
+
+	// 0,00 es un promedio válido y distinto de "no calculable".
+	requireVelocity(t, body, "0.00", 3)
+}
+
+// Escenario: Caso límite — ningún sprint cerrado y un sprint Activo (008/US2)
+func TestUS2_SoloSprintActivo(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.startedSprintN(t, 0, []int{5}, []int{3}, 4)
+
+	body := f.projectMetrics(t)
+
+	// La velocidad solo mira sprints cerrados: no calculable y serie vacía.
+	requireVelocity(t, body, notCalculable, 0)
+	assert.NotNil(t, body.Velocity.Series, "velocity.series debe ser [] y no null")
+	assert.Empty(t, body.Velocity.Series)
+}
+
+// Escenario: Caso límite — proyecto sin ningún sprint (008/US2)
+func TestUS2_ProyectoSinSprints(t *testing.T) {
+	f := newMetricsFixture(t)
+
+	body := f.projectMetrics(t)
+
+	// Responde 200 y no es un error: velocidad no calculable y serie vacía.
+	requireVelocity(t, body, notCalculable, 0)
+	assert.NotNil(t, body.Velocity.Series, "velocity.series debe ser [] y no null")
+	assert.Empty(t, body.Velocity.Series)
+}
+
+// Escenario: Caso límite — tres sprints cerrados y se cierra un cuarto (008/US2)
+func TestUS2_VentanaQueSeDesplaza(t *testing.T) {
+	f := newMetricsFixture(t)
+	ids := f.velocitySprints(t, 13, 21, 8)
+	requireVelocity(t, f.projectMetrics(t), "14.00", 3)
+	firstBefore := f.get(t, ids[0])
+
+	f.closedSprintN(t, 3, []int{20}, nil, 0)
+	body := f.projectMetrics(t)
+
+	// El valor cambia porque la ventana se desplaza y el sprint que sale conserva sus métricas.
+	requireVelocity(t, body, "16.33", 3)
+	assert.Equal(t, firstBefore, f.get(t, ids[0]), "el primer sprint debe conservar sus métricas")
+}
+
+// Escenario: Caso de error — usuario que no es integrante del proyecto (008/US2)
+func TestUS2_NoIntegrante(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.velocitySprints(t, 13)
+	_, brunoToken := f.env.signUp(t, "Bruno Díaz", "bruno@example.com")
+
+	for name, rec := range map[string]*httptest.ResponseRecorder{
+		"velocidad": f.env.getProjectMetrics(t, brunoToken, f.projectID.String()),
+		"series":    f.env.getProjectSeries(t, brunoToken, f.projectID.String()),
+	} {
+		t.Run(name, func(t *testing.T) {
+			// Quien no es integrante recibe la respuesta de proyecto inexistente, sin ningún dato.
+			assert.Equal(t, http.StatusNotFound, rec.Code)
+			assert.Equal(t, projectNotFoundBody, rec.Body.String())
+		})
+	}
 }

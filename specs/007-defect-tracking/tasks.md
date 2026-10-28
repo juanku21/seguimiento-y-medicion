@@ -762,7 +762,7 @@ vulnerabilidades y verificación de las puertas de calidad.
       otro integrante los sigue trabajando (FR-055, SC-018); y una aserción de que ninguna respuesta
       contiene `password_hash` ni `passwordHash` (Principio VI). Caracterización: las reglas ya
       existen, así que no tiene RED; el commit lo justifica — depende de T067
-- [ ] T069 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
+- [X] T069 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
       `backend/docs/` coincida con [contracts/openapi.yaml](./contracts/openapi.yaml) en las **seis**
       operaciones, sus códigos de respuesta (todas declaran `500`), sus esquemas y los cinco `code` de
       `DefectConflictResponse`; corregir las anotaciones si difieren (Principio VIII) — depende de

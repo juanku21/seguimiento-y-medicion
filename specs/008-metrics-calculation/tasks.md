@@ -263,7 +263,7 @@ sprint Cerrado de 21 puntos planificados, 13 completados, factor 6 y 142,5 horas
       `Percent(completadas, planificadas)` por cantidad, y los dos conteos; la gracia con
       `effortdomain.GraceOpen(*ClosedAt, now, grace)`, o vencida con `missing_close_time`. Los estados
       `active` y `planned` todavía no se implementan — depende de T008, T011
-- [ ] T013 [US1] Implementar `LoadSprint` en
+- [X] T013 [US1] Implementar `LoadSprint` en
       `backend/internal/metrics/repository/metrics_repository.go` con `NewMetricsRepository(db
       *gorm.DB)`: la función privada `readOnly`, que abre la transacción con
       `&sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true}` y que reutilizan

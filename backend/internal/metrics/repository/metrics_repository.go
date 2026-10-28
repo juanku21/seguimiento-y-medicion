@@ -14,12 +14,12 @@ import (
 	sprintsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
 
-// MetricsRepository lee los datos crudos de métricas .
+// MetricsRepository lee los datos crudos de métricas.
 type MetricsRepository struct {
 	db *gorm.DB
 }
 
-// NewMetricsRepository crea el repositorio sobre la conexión indicada .
+// NewMetricsRepository crea el repositorio sobre la conexión indicada.
 func NewMetricsRepository(db *gorm.DB) *MetricsRepository {
 	return &MetricsRepository{db: db}
 }
@@ -119,6 +119,7 @@ func loadSprintStories(tx *gorm.DB, sprint sprintsdomain.Sprint) ([]domain.Sprin
 		return nil, fmt.Errorf("leer las historias del sprint: %w", err)
 	}
 
+	// Conversión de las filas a los datos de dominio.
 	stories := make([]domain.SprintStoryData, 0, len(rows))
 	for _, row := range rows {
 		stories = append(stories, domain.SprintStoryData{

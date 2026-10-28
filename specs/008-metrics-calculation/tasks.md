@@ -649,6 +649,17 @@ viva, cobertura, vulnerabilidades y verificación de las puertas de calidad.
 
 ---
 
+## Phase 8: Convergence and Security
+
+Propósito: ajustes transversales detectados por /speckit-converge y /revisar-seguridad.
+
+- [ ] T052 Eliminar en backend/internal/metrics/domain/project.go el recálculo de CalculateSprint
+      en calculateVelocity, reutilizando las métricas de cada Cerrado ya calculadas en
+      CalculateProject per Constitución I (partial) — origen: converge, detectado en
+      hu/008-us3-metricas-acumuladas-del-proyecto
+
+---
+
 ## Dependencias y Orden de Ejecución
 
 ### Dependencias entre fases

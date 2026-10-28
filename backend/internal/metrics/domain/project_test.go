@@ -18,10 +18,12 @@ func day(d int) time.Time { return time.Date(2026, 10, d, 0, 0, 0, 0, time.UTC) 
 // closedWith arma un sprint Cerrado que completó los puntos dados, con inicio y cierre indicados.
 // Un cierre nulo representa un Cerrado sin ClosedAt.
 func closedWith(name string, completedPoints int, start int, closedAt *time.Time) domain.SprintData {
-	// Con 0 puntos completados la única historia queda sin completar.
+	// Con 0 puntos completados la única historia queda sin completar y vale 5 (valor válido de la escala).
 	completedCount := 1
+	storyPoints := completedPoints
 	if completedPoints == 0 {
 		completedCount = 0
+		storyPoints = 5
 	}
 	return domain.SprintData{
 		ID:                     uuid.New(),
@@ -31,7 +33,7 @@ func closedWith(name string, completedPoints int, start int, closedAt *time.Time
 		EndDate:                day(start + 1),
 		ClosedAt:               closedAt,
 		FrozenFactorHundredths: intPtr(factorSix),
-		Stories:                stories([]int{max(completedPoints, 5)}, completedCount),
+		Stories:                stories([]int{storyPoints}, completedCount),
 	}
 }
 

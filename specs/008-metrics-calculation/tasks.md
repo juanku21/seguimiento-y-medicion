@@ -629,7 +629,7 @@ viva, cobertura, vulnerabilidades y verificación de las puertas de calidad.
       `available`/`not_calculable`/`not_applicable` y `definitive`/`provisional`/`partial`, manteniendo
       el criterio de que alguien que no conoce el proyecto pueda ejecutarlo siguiendo el documento —
       depende de T045
-- [ ] T048 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
+- [X] T048 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
 - [ ] T049 [P] Ejecutar `go test -p 1 ./... -coverprofile=coverage.out` y
       `go tool cover -func=coverage.out` en `backend/`, y revisar que `internal/metrics/domain/` tenga

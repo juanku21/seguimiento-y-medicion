@@ -6,7 +6,8 @@
 //	@description				API de Software Metrics & Estimation: autenticación y cuentas de usuario, gestión de
 //	@description				proyectos y de sus integrantes, Product Backlog de cada proyecto, planificación de sus
 //	@description				sprints, estimación de historias con Planning Poker, registro del esfuerzo trabajado
-//	@description				sobre cada historia y gestión de los defectos de cada proyecto.
+//	@description				sobre cada historia, gestión de los defectos de cada proyecto y cálculo de las métricas
+//	@description				de estimación, seguimiento y calidad de cada sprint.
 //	@description				Las únicas operaciones públicas son el registro y el inicio de sesión; las demás exigen
 //	@description				la cabecera `Authorization: Bearer <token>`.
 //	@BasePath					/
@@ -48,6 +49,9 @@ import (
 	effortdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/delivery"
 	effortrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/repository"
 	effortservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/service"
+	metricsdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/metrics/delivery"
+	metricsrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/metrics/repository"
+	metricsservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/metrics/service"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/config"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/database"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/httpserver"
@@ -220,6 +224,12 @@ func run() error {
 	defectsdelivery.RegisterProjectRoutes(projectGroup, defectHandler)
 	defectsdelivery.RegisterDefectRoutes(router, handler.RequireSession, defectRepository, defectHandler)
 	defectsdelivery.RegisterStoryRoutes(router, handler.RequireSession, backlogdelivery.RequireStoryAccess(storyRepository), defectHandler)
+
+	// El módulo de métricas se compone sobre su repositorio, con el plazo de gracia configurado y el
+	// reloj del sistema. Sus rutas cuelgan del subgrupo /:projectId de la 002, que ya exige sesión y
+	// membresía vigente, recibido aquí para que metrics/delivery no importe projects/delivery.
+	metricsCalculator := metricsservice.NewMetricsService(metricsrepository.NewMetricsRepository(db), cfg.EffortGracePeriod, time.Now)
+	metricsdelivery.RegisterRoutes(projectGroup, metricsdelivery.NewHandler(metricsCalculator))
 
 	// Ninguna conexión al canal de eventos sobrevive a un reinicio, así que antes de escuchar se
 	// marcan desconectados los participantes de las sesiones abiertas (research.md sección 9). El

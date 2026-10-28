@@ -65,7 +65,28 @@ func (r *MetricsRepository) LoadProject(ctx context.Context, projectID uuid.UUID
 			sprintsData = append(sprintsData, newSprintData(sprint, stories, hours[sprint.ID]))
 		}
 
-		data = &domain.ProjectData{ProjectID: projectID, FactorHundredths: factor, Sprints: sprintsData}
+		// Esfuerzo sin sprint de las historias del proyecto (FR-029).
+		var outside int
+		if err := tx.Raw(`SELECT COALESCE(SUM(e.hours_hundredths), 0)
+			FROM effort_entries e JOIN user_stories us ON us.id = e.story_id
+			WHERE e.sprint_id IS NULL AND us.project_id = ?`, projectID).Scan(&outside).Error; err != nil {
+			return fmt.Errorf("sumar el esfuerzo sin sprint: %w", err)
+		}
+
+		// Historias del proyecto sin estimar (FR-036).
+		var unestimated int
+		if err := tx.Raw("SELECT COUNT(*) FROM user_stories WHERE project_id = ? AND story_points IS NULL", projectID).
+			Scan(&unestimated).Error; err != nil {
+			return fmt.Errorf("contar las historias sin estimar: %w", err)
+		}
+
+		data = &domain.ProjectData{
+			ProjectID:                 projectID,
+			FactorHundredths:          factor,
+			Sprints:                   sprintsData,
+			OutsideSprintsHundredths:  outside,
+			UnestimatedBacklogStories: unestimated,
+		}
 		return nil
 	})
 	if err != nil {

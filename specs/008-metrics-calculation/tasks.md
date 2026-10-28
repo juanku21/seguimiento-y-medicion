@@ -406,7 +406,7 @@ cantidad de historias del backlog sin estimar con su advertencia.
 
 ### Pruebas de la Historia 3 ⚠️
 
-- [ ] T026 [P] [US3] Pruebas unitarias **obligatorias** de `CalculateProject` en
+- [X] T026 [P] [US3] Pruebas unitarias **obligatorias** de `CalculateProject` en
       `backend/internal/metrics/domain/project_test.go`, cubriendo RN-06, RN-11, RN-12, RN-25 a RN-27 y
       RN-31: los totales exactos de US3-1 y el `6364` de US3-2; los cocientes salen de los totales y
       no del promedio de los porcentajes por sprint (dos sprints con porcentajes distintos); una
@@ -419,12 +419,12 @@ cantidad de historias del backlog sin estimar con su advertencia.
       `unestimated_backlog_stories` con `Count` solo si `UnestimatedBacklogStories > 0`, nunca
       producida por `CalculateSprint`; y las advertencias `data_inconsistency` de los sprints
       incluidos viajan junto a las de planificación sin quitar ninguna métrica — depende de T025
-- [ ] T027 [P] [US3] Pruebas de integración del repositorio en
+- [X] T027 [P] [US3] Pruebas de integración del repositorio en
       `backend/internal/metrics/repository/metrics_repository_test.go`: `LoadProject` devuelve
       `OutsideSprintsHundredths` con la suma de los registros con `sprint_id IS NULL` de historias del
       proyecto (no de otro) y `UnestimatedBacklogStories` con las historias del proyecto con
       `story_points IS NULL` — depende de T025
-- [ ] T028 [US3] Pruebas de integración en `backend/internal/metrics/delivery/handler_test.go`, una
+- [X] T028 [US3] Pruebas de integración en `backend/internal/metrics/delivery/handler_test.go`, una
       por escenario con `// Escenario: <nombre> (008/US3)`: `TestUS3_AcumuladosCasoNormal`,
       `TestUS3_PorcentajeAcumulado` (`63.64`), `TestUS3_SinPlanificados`, `TestUS3_AcumuladoParcial`
       (`cumulative.finality: partial` y `velocity` sin `finality`), `TestUS3_AcumuladoDefinitivo`
@@ -438,7 +438,7 @@ cantidad de historias del backlog sin estimar con su advertencia.
       `TestUS3_BacklogSinEstimar` (`6` y la advertencia `planning`), `TestUS3_BacklogEstimado` (`0` y
       `warnings` sin `unestimated_backlog_stories`; SC-017) y `TestUS3_ProyectoInexistente` (`404`
       con el cuerpo de la 002) — depende de T025
-- [ ] T029 [US3] Pruebas de integración en `backend/internal/metrics/delivery/consistency_test.go`,
+- [X] T029 [US3] Pruebas de integración en `backend/internal/metrics/delivery/consistency_test.go`,
       **sin** etiqueta `008/USn`: `TestMetrics_NoInvisibleEffort` (SC-016, ampliada: con horas sin
       sprint, en Cerrados, en el Activo y en un Planificado, `cumulative.actualHours +
       effortOutsideSprintsHours + effortInPlannedSprintsHours` = Σ `hours_hundredths` del proyecto
@@ -450,18 +450,18 @@ cantidad de historias del backlog sin estimar con su advertencia.
 
 ### Implementación de la Historia 3
 
-- [ ] T030 [US3] Implementar en `backend/internal/metrics/domain/project.go`
+- [X] T030 [US3] Implementar en `backend/internal/metrics/domain/project.go`
       `CalculateProject(data ProjectData, now time.Time, grace time.Duration) ProjectMetrics`:
       calcula cada Cerrado y el Activo con `CalculateSprint`, suma los totales, calcula las
       desviaciones y el porcentaje sobre los totales con `Percent`, fija `Cumulative.Finality`, arma
       la velocidad de T023, las dos cifras de esfuerzo separado y el contador sin estimar con su
       advertencia, y reúne las advertencias — depende de T026, T023
-- [ ] T031 [US3] Ampliar `LoadProject` en
+- [X] T031 [US3] Ampliar `LoadProject` en
       `backend/internal/metrics/repository/metrics_repository.go`, dentro de la misma transacción, con
       `OutsideSprintsHundredths` (`effort_entries` con `sprint_id IS NULL` unido a `user_stories` del
       proyecto) y `UnestimatedBacklogStories` (`COUNT(*)` de `user_stories` del proyecto con
       `story_points IS NULL`) — depende de T027
-- [ ] T032 [US3] Hacer que `ProjectMetrics` de `backend/internal/metrics/service/metrics_service.go`
+- [X] T032 [US3] Hacer que `ProjectMetrics` de `backend/internal/metrics/service/metrics_service.go`
       use `CalculateProject`, y agregar en `backend/internal/metrics/delivery/dto.go` el esquema
       `Cumulative` y los campos `cumulative`, `effortOutsideSprintsHours`,
       `effortInPlannedSprintsHours` y `unestimatedBacklogStories` de `ProjectMetricsResponse`, con el
@@ -646,6 +646,17 @@ viva, cobertura, vulnerabilidades y verificación de las puertas de calidad.
       validación manual de la sección 4, la prueba de coherencia con `-count=5` y la verificación de
       que las pruebas corrieron contra `smye_test` en el puerto 5433 y no contra desarrollo — depende
       de T046, T047, T050
+
+---
+
+## Phase 8: Convergence and Security
+
+Propósito: ajustes transversales detectados por /speckit-converge y /revisar-seguridad.
+
+- [ ] T052 Eliminar en backend/internal/metrics/domain/project.go el recálculo de CalculateSprint
+      en calculateVelocity, reutilizando las métricas de cada Cerrado ya calculadas en
+      CalculateProject per Constitución I (partial) — origen: converge, detectado en
+      hu/008-us3-metricas-acumuladas-del-proyecto
 
 ---
 

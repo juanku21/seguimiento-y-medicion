@@ -352,3 +352,88 @@ func TestUS2_LoadProjectSinSprints(t *testing.T) {
 	assert.Empty(t, got.Sprints)
 	assert.Equal(t, 700, got.FactorHundredths)
 }
+
+// seedUnestimatedStory siembra una historia del proyecto sin estimar (story_points NULL).
+func seedUnestimatedStory(t *testing.T, db *gorm.DB, authorID, projectID uuid.UUID, title string) uuid.UUID {
+	t.Helper()
+	story := backlogdomain.UserStory{
+		ID:          uuid.New(),
+		ProjectID:   projectID,
+		Title:       title,
+		Priority:    backlogdomain.StoryPriorityMedium,
+		Status:      backlogdomain.StoryStatusPending,
+		CreatedByID: authorID,
+	}
+	require.NoError(t, db.Create(&story).Error, "no se pudo sembrar la historia sin estimar")
+	return story.ID
+}
+
+// seedEffort siembra un registro de esfuerzo de la historia, con o sin sprint.
+func seedEffort(t *testing.T, db *gorm.DB, authorID, storyID uuid.UUID, sprintID *uuid.UUID, hours int) {
+	t.Helper()
+	require.NoError(t, db.Create(&effortdomain.EffortEntry{
+		ID: uuid.New(), StoryID: storyID, UserID: authorID, SprintID: sprintID,
+		EntryDate: time.Date(2026, 11, 6, 0, 0, 0, 0, time.UTC), Activity: "Desarrollo", HoursHundredths: hours,
+	}).Error, "no se pudo sembrar el esfuerzo")
+}
+
+// Escenario: LoadProject suma el esfuerzo sin sprint solo de historias del proyecto (008/US3)
+func TestUS3_LoadProjectEsfuerzoFueraDeSprints(t *testing.T) {
+	f := newMetricsFixture(t)
+
+	t.Run("suma_los_registros_sin_sprint_del_proyecto", func(t *testing.T) {
+		// El fixture ya aporta 999 sin sprint; se suma otro registro del proyecto y uno anclado
+		// (que no cuenta) y se agrega esfuerzo sin sprint de otro proyecto (que tampoco).
+		story := seedStory(t, f.db, f.authorID, f.projectID, "Otra historia", 3)
+		seedEffort(t, f.db, f.authorID, story, nil, 250)
+		seedEffort(t, f.db, f.authorID, story, &f.sprintID, 70)
+		otherProject := seedProject(t, f.db, f.authorID, "otro proyecto", 600)
+		otherStory := seedStory(t, f.db, f.authorID, otherProject, "Historia ajena", 2)
+		seedEffort(t, f.db, f.authorID, otherStory, nil, 5000)
+
+		got, err := NewMetricsRepository(f.db).LoadProject(context.Background(), f.projectID)
+
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, 1249, got.OutsideSprintsHundredths)
+	})
+
+	t.Run("sin_registros_sin_sprint_es_cero", func(t *testing.T) {
+		emptyProject := seedProject(t, f.db, f.authorID, "proyecto vacío", 700)
+
+		got, err := NewMetricsRepository(f.db).LoadProject(context.Background(), emptyProject)
+
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, 0, got.OutsideSprintsHundredths)
+	})
+}
+
+// Escenario: LoadProject cuenta las historias del proyecto sin estimar (008/US3)
+func TestUS3_LoadProjectHistoriasSinEstimar(t *testing.T) {
+	f := newMetricsFixture(t)
+
+	t.Run("cuenta_solo_las_del_proyecto_con_story_points_nulo", func(t *testing.T) {
+		seedUnestimatedStory(t, f.db, f.authorID, f.projectID, "Sin estimar 1")
+		seedUnestimatedStory(t, f.db, f.authorID, f.projectID, "Sin estimar 2")
+		otherProject := seedProject(t, f.db, f.authorID, "otro proyecto", 600)
+		seedUnestimatedStory(t, f.db, f.authorID, otherProject, "Sin estimar ajena")
+
+		got, err := NewMetricsRepository(f.db).LoadProject(context.Background(), f.projectID)
+
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, 2, got.UnestimatedBacklogStories)
+	})
+
+	t.Run("sin_historias_sin_estimar_es_cero", func(t *testing.T) {
+		// Se consulta un proyecto vacío: el del fixture ya tiene historias sin estimar del subtest anterior.
+		emptyProject := seedProject(t, f.db, f.authorID, "proyecto vacío", 700)
+
+		got, err := NewMetricsRepository(f.db).LoadProject(context.Background(), emptyProject)
+
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, 0, got.UnestimatedBacklogStories)
+	})
+}

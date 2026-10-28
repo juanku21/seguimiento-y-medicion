@@ -107,12 +107,21 @@ func parseProjectID(c *gin.Context, handlerName string) (uuid.UUID, bool) {
 // getProjectMetrics godoc
 //
 //	@Summary		Métricas del proyecto
-//	@Description	Devuelve la velocidad del equipo con su serie (US2). La velocidad promedia los Story
+//	@Description	Devuelve la velocidad del equipo con su serie (US2) y las métricas acumuladas (US3).
+//	@Description	La velocidad promedia los Story
 //	@Description	Points completados de los últimos 3 sprints Cerrados por momento real de cierre, o de
 //	@Description	todos si hay menos; sin sprints Cerrados es not_calculable (FR-020, FR-021, FR-031).
 //	@Description	Nunca lleva finality porque solo mira sprints Cerrados (RN-28). La serie trae un punto
 //	@Description	por sprint Cerrado en orden cronológico, sin promediar ni recortar. Horas y porcentajes
 //	@Description	se expresan con exactamente 2 decimales.
+//	@Description	El bloque cumulative suma los sprints Cerrados y el Activo; los Planificados no entran.
+//	@Description	Su finality califica al bloque entero: partial si incluye el Activo (includesActiveSprint
+//	@Description	true) y definitive si no. Los porcentajes salen de los totales y no del promedio de los
+//	@Description	de cada sprint (RN-11). effortOutsideSprintsHours es el esfuerzo sin sprint asociado
+//	@Description	(FR-029) y effortInPlannedSprintsHours el anclado a sprints Planificados; ambos con
+//	@Description	2 decimales y siempre presentes, 0 incluido. unestimatedBacklogStories cuenta las
+//	@Description	historias sin estimar (FR-036) y, si es mayor que 0, se agrega la advertencia de
+//	@Description	planificación unestimated_backlog_stories.
 //	@Tags			Métricas
 //	@ID				getProjectMetrics
 //	@Produce		json

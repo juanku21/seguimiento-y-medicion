@@ -835,3 +835,371 @@ func TestUS2_NoIntegrante(t *testing.T) {
 		})
 	}
 }
+
+// ---------------------------------------------------------------------------------------------
+// US3: métricas acumuladas del proyecto (008/US3)
+// ---------------------------------------------------------------------------------------------
+
+// cumulativeBlock es el bloque cumulative de GET /metrics: la suma de los sprints Cerrados y del
+// Activo, con una sola marca de finalidad para todo el bloque (contracts/openapi.yaml, Cumulative).
+type cumulativeBlock struct {
+	Finality               string      `json:"finality"`
+	IncludesActiveSprint   bool        `json:"includesActiveSprint"`
+	PlannedStoryPoints     metricValue `json:"plannedStoryPoints"`
+	CompletedStoryPoints   metricValue `json:"completedStoryPoints"`
+	EstimatedHours         metricValue `json:"estimatedHours"`
+	ActualHours            metricValue `json:"actualHours"`
+	DeviationHours         metricValue `json:"deviationHours"`
+	DeviationPercent       metricValue `json:"deviationPercent"`
+	StoryCompletionPercent metricValue `json:"storyCompletionPercent"`
+}
+
+// projectWarning es una advertencia de la respuesta del proyecto.
+type projectWarning struct {
+	Kind  string `json:"kind"`
+	Code  string `json:"code"`
+	Count *int   `json:"count"`
+}
+
+// cumulativeBody es la parte de GET /metrics que cubre US3. Las tres cifras sueltas quedan como
+// texto JSON crudo: si el campo falta, el texto queda vacío y la prueba falla, en vez de leerse 0.
+type cumulativeBody struct {
+	Velocity struct {
+		Value metricValue `json:"value"`
+	} `json:"velocity"`
+	Cumulative                  cumulativeBlock  `json:"cumulative"`
+	EffortOutsideSprintsHours   json.RawMessage  `json:"effortOutsideSprintsHours"`
+	EffortInPlannedSprintsHours json.RawMessage  `json:"effortInPlannedSprintsHours"`
+	UnestimatedBacklogStories   json.RawMessage  `json:"unestimatedBacklogStories"`
+	Warnings                    []projectWarning `json:"warnings"`
+}
+
+// cumulative consulta GET /metrics con la sesión de Ana, exige un 200 y verifica el formato de las
+// cifras del bloque acumulado.
+func (f metricsFixture) cumulative(t *testing.T) cumulativeBody {
+	t.Helper()
+	var body cumulativeBody
+	metricsRequireStatus(t, f.env.getProjectMetrics(t, f.ownerToken, f.projectID.String()), http.StatusOK, &body)
+	c := body.Cumulative
+	for name, check := range map[string]struct {
+		m      metricValue
+		format *regexp.Regexp
+	}{
+		"plannedStoryPoints":     {c.PlannedStoryPoints, integerFormat},
+		"completedStoryPoints":   {c.CompletedStoryPoints, integerFormat},
+		"estimatedHours":         {c.EstimatedHours, decimalFormat},
+		"actualHours":            {c.ActualHours, decimalFormat},
+		"deviationHours":         {c.DeviationHours, decimalFormat},
+		"deviationPercent":       {c.DeviationPercent, decimalFormat},
+		"storyCompletionPercent": {c.StoryCompletionPercent, decimalFormat},
+	} {
+		if check.m.Status == "available" {
+			assert.Regexp(t, check.format, string(check.m.Value), "formato de cumulative.%s", name)
+		} else {
+			assert.Equal(t, "null", string(check.m.Value), "cumulative.%s no disponible debe llevar value null", name)
+		}
+	}
+	return body
+}
+
+// requireCumulative compara las siete métricas del bloque acumulado con las esperadas.
+func requireCumulative(t *testing.T, c cumulativeBlock, want expectedValues) {
+	t.Helper()
+	requireValue(t, "cumulative.plannedStoryPoints", c.PlannedStoryPoints, want.planned)
+	requireValue(t, "cumulative.completedStoryPoints", c.CompletedStoryPoints, want.completed)
+	requireValue(t, "cumulative.estimatedHours", c.EstimatedHours, want.estimated)
+	requireValue(t, "cumulative.actualHours", c.ActualHours, want.actual)
+	requireValue(t, "cumulative.deviationHours", c.DeviationHours, want.deviationHours)
+	requireValue(t, "cumulative.deviationPercent", c.DeviationPercent, want.deviationPercent)
+	requireValue(t, "cumulative.storyCompletionPercent", c.StoryCompletionPercent, want.completion)
+}
+
+// requireEffortFigures exige las tres cifras sueltas de la respuesta del proyecto.
+func requireEffortFigures(t *testing.T, body cumulativeBody, outside, inPlanned, unestimated string) {
+	t.Helper()
+	assert.Equal(t, outside, string(body.EffortOutsideSprintsHours), "effortOutsideSprintsHours")
+	assert.Equal(t, inPlanned, string(body.EffortInPlannedSprintsHours), "effortInPlannedSprintsHours")
+	assert.Equal(t, unestimated, string(body.UnestimatedBacklogStories), "unestimatedBacklogStories")
+}
+
+// hasWarning indica si la lista trae una advertencia con ese código.
+func hasWarning(warnings []projectWarning, code string) bool {
+	for _, w := range warnings {
+		if w.Code == code {
+			return true
+		}
+	}
+	return false
+}
+
+// accumulatedValues son los valores de US3-1: 63, 39, 378, 312,5, -65,5, -17,33 % y 63,64 %.
+var accumulatedValues = expectedValues{
+	planned: "63", completed: "39", estimated: "378.00", actual: "312.50",
+	deviationHours: "-65.50", deviationPercent: "-17.33", completion: "63.64",
+}
+
+// accumulatedProject arma el "Dado" de US3: dos sprints Cerrados (21 planificados y 13 completados
+// con 142,5 horas; 24 y 21 con 130 horas) y uno Activo (18 y 5 con 40 horas), con 11 historias
+// planificadas y 7 completadas en total. Devuelve el sprint Activo y su cierre real.
+func (f metricsFixture) accumulatedProject(t *testing.T) (uuid.UUID, time.Time) {
+	t.Helper()
+	f.closedSprintN(t, 0, []int{5, 5, 3}, []int{8}, 142.5)
+	f.closedSprintN(t, 1, []int{8, 8, 5}, []int{3}, 130)
+	return f.startedSprintN(t, 2, []int{5}, []int{8, 5}, 40)
+}
+
+// plannedSprintWith crea un sprint Planificado de diciembre con una historia de 5 puntos y, si
+// hours es mayor que 0, le carga esas horas. Devuelve la historia.
+func (f metricsFixture) plannedSprintWith(t *testing.T, hours float64) uuid.UUID {
+	t.Helper()
+	storyID := f.env.createStory(t, f.ownerToken, f.projectID, "Historia futura", 5)
+	f.env.createSprint(t, f.ownerToken, f.projectID, "Sprint futuro", "2026-12-07", "2026-12-18", storyID)
+	if hours > 0 {
+		f.env.logHours(t, f.ownerToken, storyID, hours)
+	}
+	return storyID
+}
+
+// createUnestimatedStory crea en el backlog una historia sin Story Points.
+func (f metricsFixture) createUnestimatedStory(t *testing.T, title string) {
+	t.Helper()
+	metricsRequireStatus(t, f.env.do(t, http.MethodPost, "/api/v1/projects/"+f.projectID.String()+"/stories", f.ownerToken, map[string]any{
+		"title":              title,
+		"priority":           "high",
+		"storyPoints":        nil,
+		"acceptanceCriteria": []string{metricsCriterion},
+	}), http.StatusCreated, nil)
+}
+
+// Escenario: Caso normal — dos sprints cerrados y uno Activo suman 63, 39, 378, 312,5 y desviaciones (008/US3)
+func TestUS3_AcumuladosCasoNormal(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.accumulatedProject(t)
+
+	body := f.cumulative(t)
+
+	// -65,5 / 378 x 100 = -17,3280... y se redondea a -17,33.
+	requireCumulative(t, body.Cumulative, accumulatedValues)
+}
+
+// Escenario: Caso alternativo — 11 historias planificadas y 7 completadas en total (008/US3)
+func TestUS3_PorcentajeAcumulado(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.accumulatedProject(t)
+
+	body := f.cumulative(t)
+
+	// 7 / 11 x 100 = 63,6363... sale de los totales y no del promedio de los porcentajes por sprint.
+	requireValue(t, "cumulative.storyCompletionPercent", body.Cumulative.StoryCompletionPercent, "63.64")
+}
+
+// Escenario: Caso alternativo — un sprint Planificado además de los anteriores (008/US3)
+func TestUS3_SinPlanificados(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.accumulatedProject(t)
+	f.plannedSprintWith(t, 0)
+
+	body := f.cumulative(t)
+
+	// El Planificado no aporta nada: los acumulados son los mismos.
+	requireCumulative(t, body.Cumulative, accumulatedValues)
+}
+
+// Escenario: Caso alternativo — el proyecto tiene un sprint Activo (008/US3)
+func TestUS3_AcumuladoParcial(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.accumulatedProject(t)
+
+	body := f.cumulative(t)
+
+	// El bloque es parcial porque incluye un sprint a mitad de camino, y la velocidad (17,00) no
+	// lleva marca porque solo mira sprints cerrados.
+	assert.Equal(t, "partial", body.Cumulative.Finality, "cumulative.finality")
+	assert.True(t, body.Cumulative.IncludesActiveSprint, "cumulative.includesActiveSprint")
+	requireValue(t, "velocity", body.Velocity.Value, "17.00")
+	assert.Nil(t, body.Velocity.Value.Finality, "velocity no debe llevar finality")
+}
+
+// Escenario: Caso alternativo — el sprint activo se cierra y no se inicia ninguno nuevo (008/US3)
+func TestUS3_AcumuladoDefinitivo(t *testing.T) {
+	f := newMetricsFixture(t)
+	activeID, closeAt := f.accumulatedProject(t)
+	f.env.closeSprintAt(t, f.ownerToken, activeID, closeAt)
+
+	body := f.cumulative(t)
+
+	// Sin sprint en curso el conjunto pasa a definitivo (SC-018) y los totales no cambian.
+	assert.Equal(t, "definitive", body.Cumulative.Finality, "cumulative.finality")
+	assert.False(t, body.Cumulative.IncludesActiveSprint, "cumulative.includesActiveSprint")
+	requireCumulative(t, body.Cumulative, accumulatedValues)
+}
+
+// Escenario: Caso alternativo — historia de 5 puntos planificada en dos sprints y completada en el segundo (008/US3)
+func TestUS3_HistoriaEnDosSprints(t *testing.T) {
+	f := newMetricsFixture(t)
+	storyID := f.env.createStory(t, f.ownerToken, f.projectID, "Alta de clientes", 5)
+	first := f.env.createSprint(t, f.ownerToken, f.projectID, "Sprint 1", "2026-10-12", "2026-10-23", storyID)
+	f.env.startSprint(t, f.ownerToken, first)
+	f.env.closeSprintAt(t, f.ownerToken, first, f.fridayClose())
+	second := f.env.createSprint(t, f.ownerToken, f.projectID, "Sprint 2", "2026-10-26", "2026-11-06", storyID)
+	f.env.startSprint(t, f.ownerToken, second)
+	f.env.completeStory(t, f.ownerToken, storyID)
+	f.env.closeSprintAt(t, f.ownerToken, second, f.env.at(2026, time.November, 6, 18, 0))
+
+	body := f.cumulative(t)
+
+	// Se cuenta una vez por cada sprint en que estuvo planificada.
+	requireValue(t, "cumulative.plannedStoryPoints", body.Cumulative.PlannedStoryPoints, "10")
+	requireValue(t, "cumulative.completedStoryPoints", body.Cumulative.CompletedStoryPoints, "5")
+}
+
+// Escenario: Caso límite — los únicos sprints del proyecto están Planificados (008/US3)
+func TestUS3_SoloSprintsPlanificados(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.plannedSprintWith(t, 0)
+
+	body := f.cumulative(t)
+
+	// Totales en 0; los cocientes con denominador cero no son calculables.
+	requireCumulative(t, body.Cumulative, expectedValues{
+		planned: "0", completed: "0", estimated: "0.00", actual: "0.00",
+		deviationHours: "0.00", deviationPercent: notCalculable, completion: notCalculable,
+	})
+	assert.False(t, body.Cumulative.IncludesActiveSprint, "cumulative.includesActiveSprint")
+}
+
+// Escenario: Caso límite — proyecto sin ningún sprint (008/US3)
+func TestUS3_ProyectoSinSprints(t *testing.T) {
+	f := newMetricsFixture(t)
+
+	body := f.cumulative(t)
+
+	// Responde 200 con totales en 0 y desviaciones no calculables, sin que sea un error.
+	requireCumulative(t, body.Cumulative, expectedValues{
+		planned: "0", completed: "0", estimated: "0.00", actual: "0.00",
+		deviationHours: "0.00", deviationPercent: notCalculable, completion: notCalculable,
+	})
+}
+
+// Escenario: Caso límite — sprints cerrados con 0 horas estimadas y horas reales registradas (008/US3)
+func TestUS3_EstimadasEnCero(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.closedSprint(t, []int{0, 0, 0}, 0, 12)
+
+	body := f.cumulative(t)
+
+	// La desviación absoluta es igual a las reales y la porcentual no es calculable.
+	requireCumulative(t, body.Cumulative, expectedValues{
+		planned: "0", completed: "0", estimated: "0.00", actual: "12.00",
+		deviationHours: "12.00", deviationPercent: notCalculable, completion: "0.00",
+	})
+}
+
+// Escenario: Caso alternativo — 18 horas registradas sobre historias solo del backlog (008/US3)
+func TestUS3_EsfuerzoFueraDeSprint(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.accumulatedProject(t)
+	backlogStory := f.env.createStory(t, f.ownerToken, f.projectID, "Historia del backlog", 5)
+	f.env.logHours(t, f.ownerToken, backlogStory, 18)
+
+	body := f.cumulative(t)
+
+	// Las 18 horas van aparte y las reales acumuladas siguen cuadrando con la suma de los sprints.
+	requireValue(t, "cumulative.actualHours", body.Cumulative.ActualHours, "312.50")
+	assert.Equal(t, "18.00", string(body.EffortOutsideSprintsHours), "effortOutsideSprintsHours")
+}
+
+// Escenario: Caso límite — todo el esfuerzo se cargó dentro de sprints (008/US3)
+func TestUS3_EsfuerzoFueraDeSprintEnCero(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.accumulatedProject(t)
+
+	body := f.cumulative(t)
+
+	// La cifra se informa como 0.00 y no se omite.
+	assert.Equal(t, "0.00", string(body.EffortOutsideSprintsHours), "effortOutsideSprintsHours")
+}
+
+// Escenario: Caso alternativo — 9 horas registradas sobre historias de un sprint Planificado (008/US3)
+func TestUS3_EsfuerzoEnSprintsPlanificados(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.accumulatedProject(t)
+
+	t.Run("sin horas en Planificados", func(t *testing.T) {
+		body := f.cumulative(t)
+
+		// Si no hay horas en sprints Planificados la cifra se informa como 0.00 y no se omite.
+		assert.Equal(t, "0.00", string(body.EffortInPlannedSprintsHours), "effortInPlannedSprintsHours")
+	})
+
+	t.Run("con 9 horas en un Planificado", func(t *testing.T) {
+		f.plannedSprintWith(t, 9)
+		backlogStory := f.env.createStory(t, f.ownerToken, f.projectID, "Historia del backlog", 5)
+		f.env.logHours(t, f.ownerToken, backlogStory, 18)
+
+		body := f.cumulative(t)
+
+		// Las reales siguen en 312,5 y las tres cifras suman el total de horas registradas (SC-016):
+		// 312,5 + 18 + 9 = 339,5.
+		requireValue(t, "cumulative.actualHours", body.Cumulative.ActualHours, "312.50")
+		assert.Equal(t, "9.00", string(body.EffortInPlannedSprintsHours), "effortInPlannedSprintsHours")
+		assert.Equal(t, "18.00", string(body.EffortOutsideSprintsHours), "effortOutsideSprintsHours")
+		actual, err := strconv.ParseFloat(string(body.Cumulative.ActualHours.Value), 64)
+		require.NoError(t, err)
+		outside, err := strconv.ParseFloat(string(body.EffortOutsideSprintsHours), 64)
+		require.NoError(t, err)
+		planned, err := strconv.ParseFloat(string(body.EffortInPlannedSprintsHours), 64)
+		require.NoError(t, err)
+		assert.InDelta(t, 339.5, actual+outside+planned, 0.001, "suma de las tres cifras")
+	})
+}
+
+// Escenario: Caso alternativo — el backlog tiene 6 historias sin estimar (008/US3)
+func TestUS3_BacklogSinEstimar(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.accumulatedProject(t)
+	for i := range 6 {
+		f.createUnestimatedStory(t, "Sin estimar "+strconv.Itoa(i))
+	}
+
+	body := f.cumulative(t)
+
+	// El contador es 6 y viene la advertencia de planificación con la cantidad.
+	assert.Equal(t, "6", string(body.UnestimatedBacklogStories), "unestimatedBacklogStories")
+	var found *projectWarning
+	for i := range body.Warnings {
+		if body.Warnings[i].Code == "unestimated_backlog_stories" {
+			found = &body.Warnings[i]
+		}
+	}
+	if assert.NotNil(t, found, "falta la advertencia unestimated_backlog_stories") {
+		assert.Equal(t, "planning", found.Kind)
+		if assert.NotNil(t, found.Count, "count de la advertencia") {
+			assert.Equal(t, 6, *found.Count)
+		}
+	}
+}
+
+// Escenario: Caso límite — el backlog no tiene historias sin estimar (008/US3)
+func TestUS3_BacklogEstimado(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.accumulatedProject(t)
+
+	body := f.cumulative(t)
+
+	// El contador es 0 y no hay advertencia de backlog (SC-017).
+	assert.Equal(t, "0", string(body.UnestimatedBacklogStories), "unestimatedBacklogStories")
+	assert.NotNil(t, body.Warnings, "warnings debe existir")
+	assert.False(t, hasWarning(body.Warnings, "unestimated_backlog_stories"))
+}
+
+// Escenario: Caso de error — identificador de proyecto que no existe (008/US3)
+func TestUS3_ProyectoInexistente(t *testing.T) {
+	f := newMetricsFixture(t)
+
+	rec := f.env.getProjectMetrics(t, f.ownerToken, uuid.NewString())
+
+	// Mismo 404 y mismo cuerpo que la 002.
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+	assert.Equal(t, projectNotFoundBody, rec.Body.String())
+}

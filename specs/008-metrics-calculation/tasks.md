@@ -105,7 +105,7 @@ estructuras, constantes y contratos, sin lógica de negocio.
 
 **Rama**: `fase/008-foundational`
 
-- [ ] T001 [P] Mover sin cambios el tipo `Hundredths int` y su `MarshalJSON` desde
+- [X] T001 [P] Mover sin cambios el tipo `Hundredths int` y su `MarshalJSON` desde
       `backend/internal/effort/delivery/dto.go` a `backend/internal/platform/httpserver/hundredths.go`
       (comentario: "magnitud en centésimas (de hora o de punto porcentual) que la API serializa como
       número JSON con exactamente 2 decimales; un *Hundredths nulo se serializa null"), y dejar en

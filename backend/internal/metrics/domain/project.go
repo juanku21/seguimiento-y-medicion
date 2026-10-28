@@ -82,6 +82,7 @@ func CalculateProject(data ProjectData, now time.Time, grace time.Duration) Proj
 		Velocity:                       calculateVelocity(data, now, grace),
 		EffortOutsideSprintsHundredths: data.OutsideSprintsHundredths,
 		UnestimatedBacklogStories:      data.UnestimatedBacklogStories,
+		Defects:                        TallyDefects(data.DefectCounts),
 		Warnings:                       []Warning{},
 	}
 

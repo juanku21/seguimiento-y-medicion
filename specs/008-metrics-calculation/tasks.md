@@ -370,7 +370,7 @@ con los mismos sprints Cerrados y el Activo, sin los Planificados.
       `backend/internal/metrics/domain/series.go` `BuildSeries(data ProjectData, now time.Time, grace
       time.Duration) (ProjectSeries, []Warning)`, que reutiliza `CalculateSprint` para cada Cerrado y
       el Activo, de modo que un punto y el detalle de su sprint nunca difieren — depende de T018, T022
-- [ ] T024 [US2] Implementar `LoadProject` en
+- [X] T024 [US2] Implementar `LoadProject` en
       `backend/internal/metrics/repository/metrics_repository.go` en una sola transacción
       `REPEATABLE READ` de solo lectura: factor vigente, todos los sprints del proyecto en orden
       `start_date ASC, id ASC`, sus historias con la misma regla que `LoadSprint` y las horas por

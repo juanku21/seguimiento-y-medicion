@@ -727,7 +727,7 @@ exactamente una de las dos.
 
 ### Implementación de la Historia 6
 
-- [ ] T066 [US6] Agregar `discarded` a los destinos de `open` y de `in_progress` y `discarded: []` al
+- [X] T066 [US6] Agregar `discarded` a los destinos de `open` y de `in_progress` y `discarded: []` al
       mapa de `backend/internal/defects/domain/status.go`, y en la función de mensajes de
       `backend/internal/defects/delivery/handler.go` los casos de descarte de un Resuelto y de
       cualquier acción sobre un Descartado — depende de T062, T063

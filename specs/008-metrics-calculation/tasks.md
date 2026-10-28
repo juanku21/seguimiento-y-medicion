@@ -338,7 +338,7 @@ con los mismos sprints Cerrados y el Activo, sin los Planificados.
       el mismo orden `start_date ASC, id ASC`, solo Cerrados y Activo, cada punto igual al
       `SprintMetrics` de su sprint, puntos del Activo `partial`, un sprint sin datos con
       `Available(0)` en las seis, y seis listas vacías sin sprints Cerrados ni Activo — depende de T015
-- [ ] T019 [P] [US2] Pruebas de integración del repositorio en
+- [X] T019 [P] [US2] Pruebas de integración del repositorio en
       `backend/internal/metrics/repository/metrics_repository_test.go`: `LoadProject` devuelve
       **todos** los sprints del proyecto (`planned`, `active`, `closed`) en orden `start_date ASC, id
       ASC`, cada uno con sus historias según su estado y sus horas, el factor vigente, y ningún sprint

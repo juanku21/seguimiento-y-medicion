@@ -274,7 +274,7 @@ sprint Cerrado de 21 puntos planificados, 13 completados, factor 6 y 142,5 horas
       (research.md sección 8); (4) `COALESCE(SUM(hours_hundredths), 0)` de `effort_entries` con ese
       `sprint_id`. `DefectsDetected` y `DefectsResolved` quedan en 0 hasta US5. Los errores de GORM se
       envuelven con `fmt.Errorf` y contexto en español (Principio VII) — depende de T009
-- [ ] T014 [US1] Implementar en `backend/internal/metrics/service/metrics_service.go` el constructor
+- [X] T014 [US1] Implementar en `backend/internal/metrics/service/metrics_service.go` el constructor
       `NewMetricsService(repo domain.MetricsRepository, grace time.Duration, now func() time.Time)`,
       con la firma definitiva para que no cambie en las historias siguientes, y
       `SprintMetrics(ctx, projectID, sprintID)`, que toma `now` **una sola vez** por consulta, llama a

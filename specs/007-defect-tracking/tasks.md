@@ -731,7 +731,7 @@ exactamente una de las dos.
       mapa de `backend/internal/defects/domain/status.go`, y en la función de mensajes de
       `backend/internal/defects/delivery/handler.go` los casos de descarte de un Resuelto y de
       cualquier acción sobre un Descartado — depende de T062, T063
-- [ ] T067 [US6] Agregar el descarte a `frontend/src/features/defects/transitions.ts`, el botón
+- [X] T067 [US6] Agregar el descarte a `frontend/src/features/defects/transitions.ts`, el botón
       "Descartar" con confirmación a `DefectStatusActions` y la vista de solo lectura del Descartado a
       `DefectDetail` en `frontend/src/features/defects/components/` — depende de T065, T066
 

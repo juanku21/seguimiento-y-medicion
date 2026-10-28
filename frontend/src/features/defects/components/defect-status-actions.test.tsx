@@ -614,7 +614,9 @@ describe("007/US5 - Reabrir un defecto resuelto", () => {
 
     for (const status of ["open", "in_progress"] as const) {
       renderActions(defect(status));
-      await screen.findByRole("button");
+      await screen.findByRole("button", {
+        name: status === "open" ? startButtonName : resolveButtonName,
+      });
       expect(
         screen.queryByRole("button", { name: reopenButtonName }),
       ).toBeNull();

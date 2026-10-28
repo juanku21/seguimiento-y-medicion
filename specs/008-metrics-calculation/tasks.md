@@ -624,7 +624,7 @@ viva, cobertura, vulnerabilidades y verificación de las puertas de calidad.
       enums `ValueStatus` y `Finality`, los cuatro `code` de `Warning` y la anulabilidad de `value`,
       `finality`, `closedAt` y `metrics`; corregir las anotaciones si difieren (Principio VIII) —
       depende de T045
-- [ ] T047 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona el
+- [X] T047 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona el
       cálculo de métricas, y se agregan los cuatro endpoints y una explicación breve de los estados
       `available`/`not_calculable`/`not_applicable` y `definitive`/`provisional`/`partial`, manteniendo
       el criterio de que alguien que no conoce el proyecto pueda ejecutarlo siguiendo el documento —

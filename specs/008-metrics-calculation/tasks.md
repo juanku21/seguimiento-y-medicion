@@ -500,7 +500,7 @@ devuelve `108.00`, `-68.00`, `-62.96` y las nueve métricas `partial`; sin Activ
       `backend/internal/metrics/repository/metrics_repository_test.go`: `LoadActiveSprint` devuelve el
       sprint `active` del proyecto con sus compromisos abiertos y sus horas, y `nil` sin error cuando
       no hay ninguno — depende de T032
-- [ ] T035 [US4] Pruebas de integración en `backend/internal/metrics/delivery/handler_test.go`, una
+- [X] T035 [US4] Pruebas de integración en `backend/internal/metrics/delivery/handler_test.go`, una
       por escenario con `// Escenario: <nombre> (008/US4)`: `TestUS4_SprintActivoCasoNormal` (las
       nueve `partial`; SC-007), `TestUS4_HistoriaAgregada` (26 puntos y `156.00`),
       `TestUS4_FactorVigente` (factor 6 → 8: `144.00`), `TestUS4_SprintPlanificado` (por

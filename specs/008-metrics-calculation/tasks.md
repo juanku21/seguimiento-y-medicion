@@ -208,7 +208,7 @@ sprint Cerrado de 21 puntos planificados, 13 completados, factor 6 y 142,5 horas
       `FrozenFactorHundredths` se usa el factor vigente y se produce `missing_frozen_factor`; sin
       `ClosedAt` el plazo se toma como vencido y se produce `missing_close_time`; en los tres casos
       las nueve métricas se devuelven igual — depende de T006
-- [ ] T009 [P] [US1] Pruebas de integración del repositorio contra `smye_test` en
+- [X] T009 [P] [US1] Pruebas de integración del repositorio contra `smye_test` en
       `backend/internal/metrics/repository/metrics_repository_test.go`, preparando filas con GORM:
       `LoadSprint` de un sprint Cerrado devuelve las filas de `sprint_stories` con
       `story_points_at_close` y `outcome = completed` como `Completed`, `closed_at`, el factor

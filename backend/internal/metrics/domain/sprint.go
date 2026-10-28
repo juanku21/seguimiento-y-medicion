@@ -82,3 +82,13 @@ type SprintMetrics struct {
 	DefectsDetected        Metric
 	DefectsResolved        Metric
 }
+
+// SprintFinality decide el estado de valor de una métrica según el estado del sprint (firma mínima, pendiente de T012).
+func SprintFinality(status sprintsdomain.SprintStatus, kind MetricKind, graceOpen bool) *Finality {
+	return nil
+}
+
+// CalculateSprint calcula las nueve métricas de un sprint (firma mínima, pendiente de T012).
+func CalculateSprint(sprint SprintData, currentFactorHundredths int, now time.Time, grace time.Duration) (SprintMetrics, []Warning) {
+	return SprintMetrics{}, nil
+}

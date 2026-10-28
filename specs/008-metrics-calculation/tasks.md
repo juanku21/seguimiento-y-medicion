@@ -193,7 +193,7 @@ sprint Cerrado de 21 puntos planificados, 13 completados, factor 6 y 142,5 horas
       `Percent(1, 3)` → `3333`; `Percent(2, 3)` → `6667`; `Percent(7, 11)` → `6364`;
       `Percent(-6550, 37800)` → `-1733`; y empates en ,005 que redondean lejos de cero en ambos
       signos, con el mismo resultado que `effortdomain.RoundPercentHundredths` — depende de T006
-- [ ] T008 [P] [US1] Pruebas unitarias **obligatorias** de `CalculateSprint` y `SprintFinality` para
+- [X] T008 [P] [US1] Pruebas unitarias **obligatorias** de `CalculateSprint` y `SprintFinality` para
       sprints `closed` en `backend/internal/metrics/domain/sprint_test.go`, con datos armados en
       memoria y un `now` fijo, cubriendo RN-03, RN-07 a RN-09, RN-12, RN-17, RN-18, RN-23, RN-24 y
       RN-30: los números exactos de US1-1, US1-2, US1-8 (todas en 0 puntos: desviación porcentual

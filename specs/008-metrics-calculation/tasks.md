@@ -562,7 +562,7 @@ Descartados más, `GET .../metrics` devuelve `defects.detected.total` `12`, `res
       `status <> 'discarded'`, y `DefectsResolved` los de ese `resolved_sprint_id` con
       `status = 'resolved'`; `LoadProject.DefectCounts` agrupa por `(status, severity)` los defectos de
       historias del proyecto sin `discarded` y sin defectos de otro proyecto — depende de T038
-- [ ] T041 [US5] Pruebas de integración en `backend/internal/metrics/delivery/handler_test.go`, una
+- [X] T041 [US5] Pruebas de integración en `backend/internal/metrics/delivery/handler_test.go`, una
       por escenario con `// Escenario: <nombre> (008/US5)`, preparando los defectos con los endpoints
       de la 007 (el entorno de T010 agrega sus rutas): `TestUS5_DefectosDelSprint` (7 y 4),
       `TestUS5_DefectosDelProyecto` (12, 5, 7 y sus desgloses), `TestUS5_DeteccionYResolucionEnDistintosSprints`,

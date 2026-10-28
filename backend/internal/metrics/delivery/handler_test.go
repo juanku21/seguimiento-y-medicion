@@ -1380,3 +1380,295 @@ func TestUS4_SinSprintActivo(t *testing.T) {
 	metricsRequireStatus(t, rec, http.StatusOK, nil)
 	assert.JSONEq(t, `{"activeSprint": false, "metrics": null}`, rec.Body.String())
 }
+
+// ---------------------------------------------------------------------------------------------
+// US5: métricas de defectos (008/US5)
+// ---------------------------------------------------------------------------------------------
+
+// defectTally es un conteo de defectos con su desglose por severidad (contracts/openapi.yaml).
+type defectTally struct {
+	Total      int `json:"total"`
+	BySeverity struct {
+		Critical int `json:"critical"`
+		High     int `json:"high"`
+		Medium   int `json:"medium"`
+		Low      int `json:"low"`
+	} `json:"bySeverity"`
+}
+
+// projectDefectsBody es la parte de GET /metrics que cubre US5: los defectos del proyecto.
+type projectDefectsBody struct {
+	Defects json.RawMessage `json:"defects"`
+}
+
+// projectDefects son los tres conteos de defectos ya decodificados.
+type projectDefects struct {
+	Detected defectTally `json:"detected"`
+	Resolved defectTally `json:"resolved"`
+	Open     defectTally `json:"open"`
+}
+
+// defectsStory crea la historia estimada sobre la que se registran los defectos de la prueba.
+func (f metricsFixture) defectsStory(t *testing.T) uuid.UUID {
+	t.Helper()
+	return f.env.createStory(t, f.ownerToken, f.projectID, "Historia con defectos", 5)
+}
+
+// reportDefect registra con POST /api/v1/projects/{id}/defects de la 007 un defecto de la severidad
+// indicada sobre la historia, con el sprint de detección dado, y devuelve su identificador.
+func (f metricsFixture) reportDefect(t *testing.T, storyID, sprintID uuid.UUID, severity string) uuid.UUID {
+	t.Helper()
+	var created struct {
+		ID string `json:"id"`
+	}
+	metricsRequireStatus(t, f.env.do(t, http.MethodPost, "/api/v1/projects/"+f.projectID.String()+"/defects", f.ownerToken, map[string]any{
+		"description":      "Defecto de severidad " + severity,
+		"severity":         severity,
+		"storyId":          storyID.String(),
+		"detectedSprintId": sprintID.String(),
+	}), http.StatusCreated, &created)
+	return metricsParseID(t, created.ID)
+}
+
+// changeDefectStatus cambia el estado del defecto con PUT /api/v1/defects/{id}/status de la 007.
+func (f metricsFixture) changeDefectStatus(t *testing.T, defectID uuid.UUID, body map[string]any) {
+	t.Helper()
+	metricsRequireStatus(t, f.env.do(t, http.MethodPut, "/api/v1/defects/"+defectID.String()+"/status", f.ownerToken, body),
+		http.StatusOK, nil)
+}
+
+// resolveDefect lleva el defecto Abierto a En progreso y a Resuelto en el sprint indicado.
+func (f metricsFixture) resolveDefect(t *testing.T, defectID, sprintID uuid.UUID) {
+	t.Helper()
+	f.changeDefectStatus(t, defectID, map[string]any{"status": "in_progress"})
+	f.changeDefectStatus(t, defectID, map[string]any{"status": "resolved", "resolvedSprintId": sprintID.String()})
+}
+
+// reopenDefect reabre el defecto Resuelto.
+func (f metricsFixture) reopenDefect(t *testing.T, defectID uuid.UUID) {
+	t.Helper()
+	f.changeDefectStatus(t, defectID, map[string]any{"status": "open"})
+}
+
+// discardDefect descarta el defecto Abierto.
+func (f metricsFixture) discardDefect(t *testing.T, defectID uuid.UUID) {
+	t.Helper()
+	f.changeDefectStatus(t, defectID, map[string]any{"status": "discarded"})
+}
+
+// projectDefects consulta GET /metrics, exige un 200 con el bloque defects presente y lo decodifica.
+func (f metricsFixture) projectDefects(t *testing.T) projectDefects {
+	t.Helper()
+	var body projectDefectsBody
+	metricsRequireStatus(t, f.env.getProjectMetrics(t, f.ownerToken, f.projectID.String()), http.StatusOK, &body)
+	require.NotEmpty(t, body.Defects, "la respuesta del proyecto debe incluir el bloque defects")
+	var defects projectDefects
+	require.NoError(t, json.Unmarshal(body.Defects, &defects), "defects no tiene la forma del contrato: %s", string(body.Defects))
+	return defects
+}
+
+// requireTally verifica el total de un conteo, su desglose por severidad y que el desglose sume el
+// total (SC-010).
+func requireTally(t *testing.T, name string, got defectTally, total, critical, high, medium, low int) {
+	t.Helper()
+	assert.Equal(t, total, got.Total, "total de %s", name)
+	assert.Equal(t, critical, got.BySeverity.Critical, "críticos de %s", name)
+	assert.Equal(t, high, got.BySeverity.High, "altos de %s", name)
+	assert.Equal(t, medium, got.BySeverity.Medium, "medios de %s", name)
+	assert.Equal(t, low, got.BySeverity.Low, "bajos de %s", name)
+	sum := got.BySeverity.Critical + got.BySeverity.High + got.BySeverity.Medium + got.BySeverity.Low
+	assert.Equal(t, got.Total, sum, "el desglose de %s debe sumar su total", name)
+}
+
+// requireSprintDefects verifica los defectos detectados y resueltos de un sprint y su finalidad.
+func requireSprintDefects(t *testing.T, body sprintMetricsBody, detected, resolved, finality string) {
+	t.Helper()
+	requireValue(t, "defectsDetected", body.DefectsDetected, detected)
+	requireValue(t, "defectsResolved", body.DefectsResolved, resolved)
+	requireFinality(t, "defectsDetected", body.DefectsDetected, finality)
+	requireFinality(t, "defectsResolved", body.DefectsResolved, finality)
+}
+
+// twelveDefects arma los 12 defectos de US5-2 detectados en el sprint —3 Críticos, 4 Altos, 3 Medios
+// y 2 Bajos— y resuelve 5 en el mismo sprint: 2 Críticos, 1 Alto, 1 Medio y 1 Bajo. Devuelve sus
+// identificadores en el orden de alta.
+func (f metricsFixture) twelveDefects(t *testing.T, storyID, sprintID uuid.UUID) []uuid.UUID {
+	t.Helper()
+	severities := []string{
+		"critical", "critical", "critical",
+		"high", "high", "high", "high",
+		"medium", "medium", "medium",
+		"low", "low",
+	}
+	ids := make([]uuid.UUID, 0, len(severities))
+	for _, severity := range severities {
+		ids = append(ids, f.reportDefect(t, storyID, sprintID, severity))
+	}
+	// Se resuelven los primeros dos críticos, el primer alto, el primer medio y el primer bajo.
+	for _, i := range []int{0, 1, 3, 7, 10} {
+		f.resolveDefect(t, ids[i], sprintID)
+	}
+	return ids
+}
+
+// requireTwelveDefects verifica los tres conteos de US5-2: 12 detectados, 5 resueltos y 7 abiertos.
+func requireTwelveDefects(t *testing.T, defects projectDefects) {
+	t.Helper()
+	requireTally(t, "detected", defects.Detected, 12, 3, 4, 3, 2)
+	requireTally(t, "resolved", defects.Resolved, 5, 2, 1, 1, 1)
+	requireTally(t, "open", defects.Open, 7, 1, 3, 2, 1)
+}
+
+// Escenario: Dado un sprint con 7 defectos cuyo sprint de detección es ese sprint y 4 defectos Resueltos cuyo sprint de resolución es ese mismo sprint, cuando un integrante consulta sus métricas de defectos, entonces obtiene detectados 7 y resueltos 4 (008/US5)
+func TestUS5_DefectosDelSprint(t *testing.T) {
+	f := newMetricsFixture(t)
+	sprintID, _ := f.startedSprintN(t, 0, []int{5}, []int{3}, 0)
+	storyID := f.defectsStory(t)
+	severities := []string{"critical", "high", "high", "medium", "medium", "low", "low"}
+	ids := make([]uuid.UUID, 0, len(severities))
+	for _, severity := range severities {
+		ids = append(ids, f.reportDefect(t, storyID, sprintID, severity))
+	}
+	for _, id := range ids[:4] {
+		f.resolveDefect(t, id, sprintID)
+	}
+
+	body := f.get(t, sprintID)
+
+	requireSprintDefects(t, body, "7", "4", "partial")
+	// Los mismos defectos, vistos en el proyecto: 7 detectados, 4 resueltos y 3 abiertos.
+	defects := f.projectDefects(t)
+	requireTally(t, "detected", defects.Detected, 7, 1, 2, 2, 2)
+	requireTally(t, "resolved", defects.Resolved, 4, 1, 2, 1, 0)
+	requireTally(t, "open", defects.Open, 3, 0, 0, 1, 2)
+}
+
+// Escenario: Dado un proyecto con 12 defectos en total —3 Críticos, 4 Altos, 3 Medios y 2 Bajos—, de los cuales 5 están Resueltos, cuando un integrante consulta las métricas de defectos del proyecto, entonces obtiene detectados 12, resueltos 5, abiertos 7, y el desglose por severidad de cada uno de los tres conteos (008/US5)
+func TestUS5_DefectosDelProyecto(t *testing.T) {
+	f := newMetricsFixture(t)
+	sprintID, _ := f.startedSprintN(t, 0, []int{5}, []int{3}, 0)
+	f.twelveDefects(t, f.defectsStory(t), sprintID)
+
+	defects := f.projectDefects(t)
+
+	requireTwelveDefects(t, defects)
+}
+
+// Escenario: Dado un defecto detectado en el sprint 1 y resuelto en el sprint 2, cuando un integrante consulta ambos sprints, entonces cuenta como detectado en el 1 y como resuelto en el 2, nunca en los dos (008/US5)
+func TestUS5_DeteccionYResolucionEnDistintosSprints(t *testing.T) {
+	f := newMetricsFixture(t)
+	first := f.closedSprintN(t, 0, []int{5}, []int{3}, 0)
+	second, _ := f.startedSprintN(t, 1, []int{5}, []int{3}, 0)
+	defectID := f.reportDefect(t, f.defectsStory(t), first, "high")
+	f.resolveDefect(t, defectID, second)
+
+	// Cuenta como detectado en el 1 y como resuelto en el 2, nunca en los dos.
+	requireSprintDefects(t, f.get(t, first), "1", "0", "provisional")
+	requireSprintDefects(t, f.get(t, second), "0", "1", "partial")
+	defects := f.projectDefects(t)
+	requireTally(t, "detected", defects.Detected, 1, 0, 1, 0, 0)
+	requireTally(t, "resolved", defects.Resolved, 1, 0, 1, 0, 0)
+	requireTally(t, "open", defects.Open, 0, 0, 0, 0, 0)
+}
+
+// Escenario: Dado un defecto detectado y resuelto en el mismo sprint, cuando un integrante consulta ese sprint, entonces cuenta una vez como detectado y una vez como resuelto (008/US5)
+func TestUS5_MismoSprint(t *testing.T) {
+	f := newMetricsFixture(t)
+	sprintID, _ := f.startedSprintN(t, 0, []int{5}, []int{3}, 0)
+	defectID := f.reportDefect(t, f.defectsStory(t), sprintID, "medium")
+	f.resolveDefect(t, defectID, sprintID)
+
+	// Cuenta una vez como detectado y una vez como resuelto.
+	requireSprintDefects(t, f.get(t, sprintID), "1", "1", "partial")
+	defects := f.projectDefects(t)
+	requireTally(t, "detected", defects.Detected, 1, 0, 0, 1, 0)
+	requireTally(t, "resolved", defects.Resolved, 1, 0, 0, 1, 0)
+	requireTally(t, "open", defects.Open, 0, 0, 0, 0, 0)
+}
+
+// Escenario: Dado un defecto que estaba Resuelto en el sprint 2 y después se reabre, cuando un integrante vuelve a consultar las métricas, entonces deja de contar como resuelto en el sprint 2 y sigue contando como detectado en su sprint de detección (008/US5)
+func TestUS5_DefectoReabierto(t *testing.T) {
+	f := newMetricsFixture(t)
+	first := f.closedSprintN(t, 0, []int{5}, []int{3}, 0)
+	second, _ := f.startedSprintN(t, 1, []int{5}, []int{3}, 0)
+	defectID := f.reportDefect(t, f.defectsStory(t), first, "critical")
+	f.resolveDefect(t, defectID, second)
+	requireSprintDefects(t, f.get(t, second), "0", "1", "partial")
+
+	f.reopenDefect(t, defectID)
+
+	// Sale de los resueltos del sprint 2 y sigue detectado en el sprint 1 (SC-009).
+	requireSprintDefects(t, f.get(t, second), "0", "0", "partial")
+	requireSprintDefects(t, f.get(t, first), "1", "0", "provisional")
+	defects := f.projectDefects(t)
+	requireTally(t, "detected", defects.Detected, 1, 1, 0, 0, 0)
+	requireTally(t, "resolved", defects.Resolved, 0, 0, 0, 0, 0)
+	requireTally(t, "open", defects.Open, 1, 1, 0, 0, 0)
+}
+
+// Escenario: Dado un proyecto con 3 defectos Descartados además de los 12 anteriores, cuando un integrante consulta las métricas de defectos, entonces los descartados no se cuentan en detectados, resueltos ni abiertos y el total sigue siendo 12 (008/US5)
+func TestUS5_DefectosDescartados(t *testing.T) {
+	f := newMetricsFixture(t)
+	sprintID, _ := f.startedSprintN(t, 0, []int{5}, []int{3}, 0)
+	storyID := f.defectsStory(t)
+	f.twelveDefects(t, storyID, sprintID)
+
+	t.Run("antes de descartar", func(t *testing.T) {
+		requireTwelveDefects(t, f.projectDefects(t))
+	})
+
+	// Se registran 3 defectos más y se descartan: no entran en ningún conteo (SC-008).
+	for _, severity := range []string{"critical", "high", "low"} {
+		f.discardDefect(t, f.reportDefect(t, storyID, sprintID, severity))
+	}
+
+	t.Run("después de descartar", func(t *testing.T) {
+		requireTwelveDefects(t, f.projectDefects(t))
+		requireSprintDefects(t, f.get(t, sprintID), "12", "5", "partial")
+	})
+}
+
+// Escenario: Dado un proyecto sin ningún defecto, cuando un integrante consulta sus métricas de defectos, entonces obtiene 0 en los tres conteos y 0 en cada severidad; el resultado es 0 y no "no calculable" (008/US5)
+func TestUS5_ProyectoSinDefectos(t *testing.T) {
+	f := newMetricsFixture(t)
+
+	var body projectDefectsBody
+	metricsRequireStatus(t, f.env.getProjectMetrics(t, f.ownerToken, f.projectID.String()), http.StatusOK, &body)
+
+	// Los tres conteos y cada severidad valen 0, sin ninguna marca de no calculable.
+	require.NotEmpty(t, body.Defects, "la respuesta del proyecto debe incluir el bloque defects")
+	zero := `{"total":0,"bySeverity":{"critical":0,"high":0,"medium":0,"low":0}}`
+	assert.JSONEq(t, `{"detected":`+zero+`,"resolved":`+zero+`,"open":`+zero+`}`, string(body.Defects))
+	assert.NotContains(t, string(body.Defects), notCalculable)
+}
+
+// Escenario: Dado un defecto cuyo sprint de detección es un sprint ya Cerrado, registrado después del cierre, cuando un integrante consulta ese sprint, entonces el defecto cuenta como detectado en él (008/US5)
+func TestUS5_DeteccionEnSprintCerrado(t *testing.T) {
+	f := newMetricsFixture(t)
+	closed := f.closedSprintN(t, 0, []int{5}, []int{3}, 0)
+	// El defecto se registra después del cierre del sprint.
+	f.env.clock.Advance(time.Hour)
+	f.reportDefect(t, f.defectsStory(t), closed, "low")
+
+	// Cuenta como detectado en el sprint Cerrado, con finalidad provisional.
+	requireSprintDefects(t, f.get(t, closed), "1", "0", "provisional")
+	defects := f.projectDefects(t)
+	requireTally(t, "detected", defects.Detected, 1, 0, 0, 0, 1)
+}
+
+// Escenario: Dado un usuario que no es integrante del proyecto, cuando intenta consultar sus métricas de defectos, entonces la respuesta es de proyecto inexistente (008/US5)
+func TestUS5_NoIntegrante(t *testing.T) {
+	f := newMetricsFixture(t)
+	sprintID, _ := f.startedSprintN(t, 0, []int{5}, []int{3}, 0)
+	f.reportDefect(t, f.defectsStory(t), sprintID, "high")
+	_, brunoToken := f.env.signUp(t, "Bruno Díaz", "bruno@example.com")
+
+	// Tanto las métricas del proyecto como las del sprint responden proyecto inexistente.
+	for name, rec := range map[string]*httptest.ResponseRecorder{
+		"proyecto": f.env.getProjectMetrics(t, brunoToken, f.projectID.String()),
+		"sprint":   f.env.getSprintMetrics(t, brunoToken, f.projectID.String(), sprintID.String()),
+	} {
+		assert.Equal(t, http.StatusNotFound, rec.Code, name)
+		assert.Equal(t, projectNotFoundBody, rec.Body.String(), name)
+	}
+}

@@ -24,6 +24,9 @@ import (
 	backlogdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/delivery"
 	backlogrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/repository"
 	backlogservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/backlog/service"
+	defectsdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/defects/delivery"
+	defectsrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/defects/repository"
+	defectsservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/defects/service"
 	effortdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/delivery"
 	effortrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/repository"
 	effortservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/effort/service"
@@ -42,7 +45,7 @@ import (
 
 // Entorno de las pruebas de integración del cálculo de métricas (T010). Compone el router como
 // cmd/app —sesión de la 001, proyectos de la 002, backlog de la 003, sprints de la 004, esfuerzo de la
-// 006 y métricas— sobre la base smye_test, con un único reloj falso que comparten los servicios de
+// 006, defectos de la 007 y métricas— sobre la base smye_test, con un único reloj falso que comparten los servicios de
 // cambio de estado del proyecto, de sprints, de esfuerzo y de métricas, y un plazo de gracia de 48
 // horas. Así el cierre de un sprint y el plazo de gracia se fijan sin esperar tiempo real. Los
 // ayudantes llevan el prefijo "metrics" para no chocar con los de otros archivos de prueba.
@@ -185,6 +188,13 @@ func newMetricsRouter(db *gorm.DB, cfg config.Config, clock *metricsClock, locat
 	effortdelivery.RegisterStoryRoutes(router, authHandler.RequireSession, backlogdelivery.RequireStoryAccess(storyRepository), effortHandler)
 	effortdelivery.RegisterEntryRoutes(router, authHandler.RequireSession, effortRepository, effortHandler)
 	effortdelivery.RegisterProjectRoutes(projectGroup, effortHandler)
+
+	// Módulo de defectos de la 007 con el reloj falso, para registrar, resolver, reabrir y descartar
+	// defectos con sus endpoints reales.
+	defectRepository := defectsrepository.NewDefectRepository(db)
+	defectHandler := defectsdelivery.NewHandler(defectsservice.NewDefectService(defectRepository, clock.Now))
+	defectsdelivery.RegisterProjectRoutes(projectGroup, defectHandler)
+	defectsdelivery.RegisterDefectRoutes(router, authHandler.RequireSession, defectRepository, defectHandler)
 
 	// Módulo de métricas con el reloj falso y el plazo de gracia, sobre el subgrupo /:projectId.
 	metrics := metricsservice.NewMetricsService(metricsrepository.NewMetricsRepository(db), metricsGrace, clock.Now)

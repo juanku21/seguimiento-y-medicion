@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	defectsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/defects/domain"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/metrics/domain"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/httpserver"
 )
@@ -221,6 +222,38 @@ type Cumulative struct {
 	StoryCompletionPercent Metric `json:"storyCompletionPercent" validate:"required"`
 }
 
+// SeverityBreakdown es el desglose de un conteo de defectos por severidad (contracts/openapi.yaml,
+// SeverityBreakdown); las cuatro severidades están siempre presentes, 0 incluido.
+type SeverityBreakdown struct {
+	// Defectos de severidad crítica.
+	Critical int `json:"critical" validate:"required" minimum:"0" example:"3"`
+	// Defectos de severidad alta.
+	High int `json:"high" validate:"required" minimum:"0" example:"4"`
+	// Defectos de severidad media.
+	Medium int `json:"medium" validate:"required" minimum:"0" example:"3"`
+	// Defectos de severidad baja.
+	Low int `json:"low" validate:"required" minimum:"0" example:"2"`
+}
+
+// DefectTally es un conteo de defectos con su desglose por severidad; el total es la suma del desglose.
+type DefectTally struct {
+	// Cantidad total de defectos.
+	Total int `json:"total" validate:"required" minimum:"0" example:"12"`
+	// Cantidad de defectos por severidad.
+	BySeverity SeverityBreakdown `json:"bySeverity" validate:"required"`
+}
+
+// ProjectDefects son los defectos del proyecto: detectados, resueltos y abiertos (contracts/openapi.yaml,
+// ProjectDefects).
+type ProjectDefects struct {
+	// Defectos detectados: resueltos más abiertos; los descartados no cuentan.
+	Detected DefectTally `json:"detected" validate:"required"`
+	// Defectos resueltos.
+	Resolved DefectTally `json:"resolved" validate:"required"`
+	// Defectos abiertos o en progreso.
+	Open DefectTally `json:"open" validate:"required"`
+}
+
 // ProjectMetricsResponse es la respuesta de las métricas del proyecto: la velocidad, los acumulados,
 // el esfuerzo fuera de los sprints Cerrados y Activo, el contador del backlog sin estimar y las
 // advertencias.
@@ -237,6 +270,8 @@ type ProjectMetricsResponse struct {
 	EffortInPlannedSprintsHours httpserver.Hundredths `json:"effortInPlannedSprintsHours" validate:"required" swaggertype:"number" example:"0.00"`
 	// Historias del proyecto sin estimar (FR-036).
 	UnestimatedBacklogStories int `json:"unestimatedBacklogStories" validate:"required" minimum:"0" example:"6"`
+	// Defectos del proyecto: detectados, resueltos y abiertos, con su desglose por severidad.
+	Defects ProjectDefects `json:"defects" validate:"required"`
 	// Advertencias de planificación y de inconsistencia de datos.
 	Warnings []Warning `json:"warnings" validate:"required"`
 }
@@ -311,7 +346,30 @@ func newProjectMetrics(projectID uuid.UUID, metrics domain.ProjectMetrics) Proje
 		EffortOutsideSprintsHours:   httpserver.Hundredths(metrics.EffortOutsideSprintsHundredths),
 		EffortInPlannedSprintsHours: httpserver.Hundredths(metrics.EffortInPlannedSprintsHundredths),
 		UnestimatedBacklogStories:   metrics.UnestimatedBacklogStories,
+		Defects:                     newProjectDefects(metrics.Defects),
 		Warnings:                    newWarnings(metrics.Warnings),
+	}
+}
+
+// newProjectDefects traduce los tres conteos de defectos del proyecto al contrato.
+func newProjectDefects(defects domain.ProjectDefects) ProjectDefects {
+	return ProjectDefects{
+		Detected: newDefectTally(defects.Detected),
+		Resolved: newDefectTally(defects.Resolved),
+		Open:     newDefectTally(defects.Open),
+	}
+}
+
+// newDefectTally traduce un conteo de defectos y su desglose por severidad.
+func newDefectTally(tally domain.DefectTally) DefectTally {
+	return DefectTally{
+		Total: tally.Total,
+		BySeverity: SeverityBreakdown{
+			Critical: tally.BySeverity[defectsdomain.DefectSeverityCritical],
+			High:     tally.BySeverity[defectsdomain.DefectSeverityHigh],
+			Medium:   tally.BySeverity[defectsdomain.DefectSeverityMedium],
+			Low:      tally.BySeverity[defectsdomain.DefectSeverityLow],
+		},
 	}
 }
 

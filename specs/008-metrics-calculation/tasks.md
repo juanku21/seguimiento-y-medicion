@@ -544,7 +544,7 @@ Descartados más, `GET .../metrics` devuelve `defects.detected.total` `12`, `res
 
 ### Pruebas de la Historia 5 ⚠️
 
-- [ ] T039 [P] [US5] Declarar en `backend/internal/metrics/domain/defects.go` `DefectCount`
+- [X] T039 [P] [US5] Declarar en `backend/internal/metrics/domain/defects.go` `DefectCount`
       (`Status defectsdomain.DefectStatus`, `Severity defectsdomain.DefectSeverity`, `Count int`),
       `DefectTally` (`Total`, `BySeverity map[defectsdomain.DefectSeverity]int`) y `ProjectDefects`
       (`Detected`, `Resolved`, `Open`), y agregar `DefectCounts []DefectCount` a `ProjectData` y
@@ -556,13 +556,13 @@ Descartados más, `GET .../metrics` devuelve `defects.detected.total` `12`, `res
       si faltan; una fila `discarded` se ignora; sin filas → los tres en 0 y no `not_calculable`; en
       cada conteo Σ `BySeverity` = `Total`, y `Detected.Total` = `Resolved.Total + Open.Total` —
       depende de T038
-- [ ] T040 [P] [US5] Pruebas de integración del repositorio en
+- [X] T040 [P] [US5] Pruebas de integración del repositorio en
       `backend/internal/metrics/repository/metrics_repository_test.go`: en `LoadSprint`, `LoadActiveSprint`
       y `LoadProject`, `DefectsDetected` cuenta los `defects` con ese `detected_sprint_id` y
       `status <> 'discarded'`, y `DefectsResolved` los de ese `resolved_sprint_id` con
       `status = 'resolved'`; `LoadProject.DefectCounts` agrupa por `(status, severity)` los defectos de
       historias del proyecto sin `discarded` y sin defectos de otro proyecto — depende de T038
-- [ ] T041 [US5] Pruebas de integración en `backend/internal/metrics/delivery/handler_test.go`, una
+- [X] T041 [US5] Pruebas de integración en `backend/internal/metrics/delivery/handler_test.go`, una
       por escenario con `// Escenario: <nombre> (008/US5)`, preparando los defectos con los endpoints
       de la 007 (el entorno de T010 agrega sus rutas): `TestUS5_DefectosDelSprint` (7 y 4),
       `TestUS5_DefectosDelProyecto` (12, 5, 7 y sus desgloses), `TestUS5_DeteccionYResolucionEnDistintosSprints`,
@@ -574,12 +574,12 @@ Descartados más, `GET .../metrics` devuelve `defects.detected.total` `12`, `res
 
 ### Implementación de la Historia 5
 
-- [ ] T042 [P] [US5] Implementar `TallyDefects` en `backend/internal/metrics/domain/defects.go` con las
+- [X] T042 [P] [US5] Implementar `TallyDefects` en `backend/internal/metrics/domain/defects.go` con las
       constantes de `defectsdomain`, sin repetir los valores como cadenas — depende de T039
-- [ ] T043 [US5] Ampliar las lecturas de `backend/internal/metrics/repository/metrics_repository.go`
+- [X] T043 [US5] Ampliar las lecturas de `backend/internal/metrics/repository/metrics_repository.go`
       con los dos conteos por sprint (en la función privada que comparten las tres operaciones) y con
       `DefectCounts` en `LoadProject`, dentro de la misma transacción — depende de T040
-- [ ] T044 [US5] Agregar el bloque `Defects` a `CalculateProject` en
+- [X] T044 [US5] Agregar el bloque `Defects` a `CalculateProject` en
       `backend/internal/metrics/domain/project.go`, y en `backend/internal/metrics/delivery/dto.go` los
       esquemas `SeverityBreakdown`, `DefectTally` y `ProjectDefects` y el campo `defects` de
       `ProjectMetricsResponse`, actualizando las anotaciones `swag` — depende de T041, T042, T043

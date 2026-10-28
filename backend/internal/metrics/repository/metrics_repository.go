@@ -94,12 +94,12 @@ func (r *MetricsRepository) LoadProject(ctx context.Context, projectID uuid.UUID
 		}
 
 		data = &domain.ProjectData{
-			DefectCounts:              defectCounts,
 			ProjectID:                 projectID,
 			FactorHundredths:          factor,
 			Sprints:                   sprintsData,
 			OutsideSprintsHundredths:  outside,
 			UnestimatedBacklogStories: unestimated,
+			DefectCounts:              defectCounts,
 		}
 		return nil
 	})

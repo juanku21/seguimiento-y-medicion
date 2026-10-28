@@ -576,7 +576,7 @@ Descartados más, `GET .../metrics` devuelve `defects.detected.total` `12`, `res
 
 - [X] T042 [P] [US5] Implementar `TallyDefects` en `backend/internal/metrics/domain/defects.go` con las
       constantes de `defectsdomain`, sin repetir los valores como cadenas — depende de T039
-- [ ] T043 [US5] Ampliar las lecturas de `backend/internal/metrics/repository/metrics_repository.go`
+- [X] T043 [US5] Ampliar las lecturas de `backend/internal/metrics/repository/metrics_repository.go`
       con los dos conteos por sprint (en la función privada que comparten las tres operaciones) y con
       `DefectCounts` en `LoadProject`, dentro de la misma transacción — depende de T040
 - [ ] T044 [US5] Agregar el bloque `Defects` a `CalculateProject` en

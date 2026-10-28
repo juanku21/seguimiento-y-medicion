@@ -184,7 +184,7 @@ sprint Cerrado de 21 puntos planificados, 13 completados, factor 6 y 142,5 horas
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T007 [P] [US1] Pruebas unitarias **obligatorias** en
+- [X] T007 [P] [US1] Pruebas unitarias **obligatorias** en
       `backend/internal/metrics/domain/values_test.go` y
       `backend/internal/metrics/domain/arithmetic_test.go`, cubriendo RN-17, RN-19 y RN-20:
       `Available(0)` tiene `status: available` y es distinto de `NotCalculable()` y de

@@ -4,7 +4,6 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -163,19 +162,10 @@ func (r *MetricsRepository) LoadSprint(ctx context.Context, projectID, sprintID 
 			return domain.ErrSprintNotFound
 		}
 
-		stories, err := loadSprintStories(tx, sprint)
+		sprintData, err := loadSprintData(tx, sprint)
 		if err != nil {
 			return err
 		}
-
-		// Esfuerzo anclado al sprint, en centésimas de hora.
-		var actual int
-		if err := tx.Raw("SELECT COALESCE(SUM(hours_hundredths), 0) FROM effort_entries WHERE sprint_id = ?", sprintID).
-			Scan(&actual).Error; err != nil {
-			return fmt.Errorf("sumar el esfuerzo del sprint: %w", err)
-		}
-
-		sprintData := newSprintData(sprint, stories, actual)
 		data = &sprintData
 		return nil
 	})
@@ -183,6 +173,22 @@ func (r *MetricsRepository) LoadSprint(ctx context.Context, projectID, sprintID 
 		return nil, 0, err
 	}
 	return data, factor, nil
+}
+
+// loadSprintData completa un sprint persistido con sus historias y su esfuerzo anclado.
+func loadSprintData(tx *gorm.DB, sprint sprintsdomain.Sprint) (domain.SprintData, error) {
+	stories, err := loadSprintStories(tx, sprint)
+	if err != nil {
+		return domain.SprintData{}, err
+	}
+
+	// Esfuerzo anclado al sprint, en centésimas de hora.
+	var actual int
+	if err := tx.Raw("SELECT COALESCE(SUM(hours_hundredths), 0) FROM effort_entries WHERE sprint_id = ?", sprint.ID).
+		Scan(&actual).Error; err != nil {
+		return domain.SprintData{}, fmt.Errorf("sumar el esfuerzo del sprint: %w", err)
+	}
+	return newSprintData(sprint, stories, actual), nil
 }
 
 // storyRow es una fila de historia comprometida tal como la devuelve la consulta.
@@ -225,7 +231,39 @@ func loadSprintStories(tx *gorm.DB, sprint sprintsdomain.Sprint) ([]domain.Sprin
 	return stories, nil
 }
 
-// LoadActiveSprint carga el sprint Activo (firma mínima, pendiente de la historia que la usa).
+// LoadActiveSprint carga el sprint Activo del proyecto con sus historias y su esfuerzo, y devuelve
+// además el factor vigente en centésimas de hora. Sin sprint Activo devuelve nil sin error.
 func (r *MetricsRepository) LoadActiveSprint(ctx context.Context, projectID uuid.UUID) (*domain.SprintData, int, error) {
-	return nil, 0, errors.New("not implemented")
+	var data *domain.SprintData
+	var factor int
+
+	err := r.readOnly(ctx, func(tx *gorm.DB) error {
+		var err error
+		factor, err = loadFactor(tx, projectID)
+		if err != nil {
+			return err
+		}
+
+		// A lo sumo un sprint Activo por proyecto; ninguna fila equivale a no tener Activo.
+		var sprint sprintsdomain.Sprint
+		result := tx.Raw("SELECT * FROM sprints WHERE project_id = ? AND status = ?", projectID, sprintsdomain.SprintStatusActive).
+			Scan(&sprint)
+		if result.Error != nil {
+			return fmt.Errorf("leer el sprint activo: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return nil
+		}
+
+		sprintData, err := loadSprintData(tx, sprint)
+		if err != nil {
+			return err
+		}
+		data = &sprintData
+		return nil
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	return data, factor, nil
 }

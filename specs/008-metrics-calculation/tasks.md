@@ -514,7 +514,7 @@ devuelve `108.00`, `-68.00`, `-62.96` y las nueve métricas `partial`; sin Activ
 - [X] T036 [US4] Ampliar `CalculateSprint` y `SprintFinality` en
       `backend/internal/metrics/domain/sprint.go` con el estado `planned` (research.md sección 7 y
       aclaración del 2026-10-26: dos cifras sin estado de valor) — depende de T033
-- [ ] T037 [US4] Implementar `LoadActiveSprint` en
+- [X] T037 [US4] Implementar `LoadActiveSprint` en
       `backend/internal/metrics/repository/metrics_repository.go` reutilizando las lecturas privadas de
       `LoadSprint`, en una transacción `REPEATABLE READ` de solo lectura — depende de T034
 - [ ] T038 [US4] Agregar `ActiveSprintMetrics` en `backend/internal/metrics/service/metrics_service.go`

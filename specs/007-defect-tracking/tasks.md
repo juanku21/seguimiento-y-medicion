@@ -778,7 +778,7 @@ vulnerabilidades y verificación de las puertas de calidad.
       `backend/`, y `npm run test:coverage` en `frontend/` — y revisar que `internal/defects/`,
       `frontend/src/features/defects/` y `frontend/src/utils/defect-labels.ts` estén cubiertos; correr
       además `go test -race -p 1 ./internal/defects/...` — depende de T068
-- [ ] T073 Verificar la trazabilidad y las puertas de seguridad recorriendo `backend/internal/defects/`
+- [X] T073 Verificar la trazabilidad y las puertas de seguridad recorriendo `backend/internal/defects/`
       y `frontend/src/features/defects/`: que buscar `007/US1` a `007/US6` en el código de pruebas
       devuelva los **73** escenarios; que las **24** reglas RN-01 a RN-24 tengan prueba asociada según
       la tabla de plan.md (SC-020); que los **seis** endpoints tengan su prueba de `401` (SC-016); que

@@ -36,17 +36,17 @@ type Metric struct {
 	Finality *Finality
 }
 
-// Available devuelve una métrica con valor (firma mínima, pendiente de implementar en T011).
+// Available devuelve una métrica con valor y sin finalidad informada.
 func Available(value int) Metric {
-	return Metric{Status: "unimplemented_available", Value: -1}
+	return Metric{Status: ValueAvailable, Value: value}
 }
 
-// NotCalculable devuelve una métrica con denominador 0 (firma mínima, pendiente de T011).
+// NotCalculable devuelve una métrica sin valor porque su denominador es 0 (FR-030).
 func NotCalculable() Metric {
-	return Metric{Status: "unimplemented_not_calculable", Value: -1}
+	return Metric{Status: ValueNotCalculable}
 }
 
-// NotApplicable devuelve una métrica que no aplica al estado del sprint (firma mínima, pendiente de T011).
+// NotApplicable devuelve una métrica que no aplica al estado del sprint (FR-015).
 func NotApplicable() Metric {
-	return Metric{Status: "unimplemented_not_applicable", Value: -1}
+	return Metric{Status: ValueNotApplicable}
 }

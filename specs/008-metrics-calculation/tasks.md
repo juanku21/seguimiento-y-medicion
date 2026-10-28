@@ -424,7 +424,7 @@ cantidad de historias del backlog sin estimar con su advertencia.
       `OutsideSprintsHundredths` con la suma de los registros con `sprint_id IS NULL` de historias del
       proyecto (no de otro) y `UnestimatedBacklogStories` con las historias del proyecto con
       `story_points IS NULL` — depende de T025
-- [ ] T028 [US3] Pruebas de integración en `backend/internal/metrics/delivery/handler_test.go`, una
+- [X] T028 [US3] Pruebas de integración en `backend/internal/metrics/delivery/handler_test.go`, una
       por escenario con `// Escenario: <nombre> (008/US3)`: `TestUS3_AcumuladosCasoNormal`,
       `TestUS3_PorcentajeAcumulado` (`63.64`), `TestUS3_SinPlanificados`, `TestUS3_AcumuladoParcial`
       (`cumulative.finality: partial` y `velocity` sin `finality`), `TestUS3_AcumuladoDefinitivo`

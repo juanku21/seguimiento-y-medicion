@@ -189,13 +189,45 @@ type Velocity struct {
 	Series []VelocityPoint `json:"series" validate:"required"`
 }
 
-// ProjectMetricsResponse es la respuesta de las métricas del proyecto; por ahora incluye la velocidad
-// y las advertencias.
+// Cumulative es la suma de los sprints Cerrados y del Activo (contracts/openapi.yaml, Cumulative). La
+// marca de finalidad califica al bloque entero y no a cada métrica (FR-023).
+type Cumulative struct {
+	// Finalidad del bloque: partial si incluye el sprint Activo; definitive si solo hay Cerrados.
+	Finality string `json:"finality" validate:"required" enums:"definitive,partial" example:"partial"`
+	// Indica si la suma incluye el sprint Activo.
+	IncludesActiveSprint bool `json:"includesActiveSprint" validate:"required" example:"true"`
+	// Story Points planificados acumulados.
+	PlannedStoryPoints Metric `json:"plannedStoryPoints" validate:"required"`
+	// Story Points completados acumulados.
+	CompletedStoryPoints Metric `json:"completedStoryPoints" validate:"required"`
+	// Horas estimadas acumuladas.
+	EstimatedHours Metric `json:"estimatedHours" validate:"required"`
+	// Horas reales acumuladas.
+	ActualHours Metric `json:"actualHours" validate:"required"`
+	// Horas reales menos horas estimadas acumuladas (RN-08).
+	DeviationHours Metric `json:"deviationHours" validate:"required"`
+	// Desviación sobre las horas estimadas acumuladas por 100; sale de los totales (RN-11).
+	DeviationPercent Metric `json:"deviationPercent" validate:"required"`
+	// Historias completadas sobre planificadas acumuladas por 100 (RN-09, RN-11).
+	StoryCompletionPercent Metric `json:"storyCompletionPercent" validate:"required"`
+}
+
+// ProjectMetricsResponse es la respuesta de las métricas del proyecto: la velocidad, los acumulados,
+// el esfuerzo fuera de los sprints Cerrados y Activo, el contador del backlog sin estimar y las
+// advertencias.
 type ProjectMetricsResponse struct {
 	// Identificador del proyecto.
 	ProjectID string `json:"projectId" validate:"required" format:"uuid" example:"6b1f0d4e-2a7c-4e19-9d3b-8f5a2c1e7d40"`
 	// Velocidad del equipo y su serie.
 	Velocity Velocity `json:"velocity" validate:"required"`
+	// Métricas acumuladas de los sprints Cerrados y el Activo.
+	Cumulative Cumulative `json:"cumulative" validate:"required"`
+	// Horas de registros sin sprint asociado, con 2 decimales; 0 incluido (FR-029).
+	EffortOutsideSprintsHours httpserver.Hundredths `json:"effortOutsideSprintsHours" validate:"required" swaggertype:"number" example:"18.00"`
+	// Horas de registros anclados a sprints Planificados, con 2 decimales; 0 incluido.
+	EffortInPlannedSprintsHours httpserver.Hundredths `json:"effortInPlannedSprintsHours" validate:"required" swaggertype:"number" example:"0.00"`
+	// Historias del proyecto sin estimar (FR-036).
+	UnestimatedBacklogStories int `json:"unestimatedBacklogStories" validate:"required" minimum:"0" example:"6"`
 	// Advertencias de planificación y de inconsistencia de datos.
 	Warnings []Warning `json:"warnings" validate:"required"`
 }
@@ -266,7 +298,27 @@ func newProjectMetrics(projectID uuid.UUID, metrics domain.ProjectMetrics) Proje
 			SprintsConsidered: metrics.Velocity.SprintsConsidered,
 			Series:            newVelocityPoints(metrics.Velocity.Series),
 		},
-		Warnings: newWarnings(metrics.Warnings),
+		Cumulative:                  newCumulative(metrics.Cumulative),
+		EffortOutsideSprintsHours:   httpserver.Hundredths(metrics.EffortOutsideSprintsHundredths),
+		EffortInPlannedSprintsHours: httpserver.Hundredths(metrics.EffortInPlannedSprintsHundredths),
+		UnestimatedBacklogStories:   metrics.UnestimatedBacklogStories,
+		Warnings:                    newWarnings(metrics.Warnings),
+	}
+}
+
+// newCumulative traduce el bloque acumulado: enteros para Story Points y 2 decimales para horas y
+// porcentajes.
+func newCumulative(cumulative domain.Cumulative) Cumulative {
+	return Cumulative{
+		Finality:               string(cumulative.Finality),
+		IncludesActiveSprint:   cumulative.IncludesActiveSprint,
+		PlannedStoryPoints:     newMetric(cumulative.PlannedStoryPoints, unitCount),
+		CompletedStoryPoints:   newMetric(cumulative.CompletedStoryPoints, unitCount),
+		EstimatedHours:         newMetric(cumulative.EstimatedHours, unitHundredths),
+		ActualHours:            newMetric(cumulative.ActualHours, unitHundredths),
+		DeviationHours:         newMetric(cumulative.DeviationHours, unitHundredths),
+		DeviationPercent:       newMetric(cumulative.DeviationPercent, unitHundredths),
+		StoryCompletionPercent: newMetric(cumulative.StoryCompletionPercent, unitHundredths),
 	}
 }
 

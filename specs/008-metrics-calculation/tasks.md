@@ -461,7 +461,7 @@ cantidad de historias del backlog sin estimar con su advertencia.
       `OutsideSprintsHundredths` (`effort_entries` con `sprint_id IS NULL` unido a `user_stories` del
       proyecto) y `UnestimatedBacklogStories` (`COUNT(*)` de `user_stories` del proyecto con
       `story_points IS NULL`) — depende de T027
-- [ ] T032 [US3] Hacer que `ProjectMetrics` de `backend/internal/metrics/service/metrics_service.go`
+- [X] T032 [US3] Hacer que `ProjectMetrics` de `backend/internal/metrics/service/metrics_service.go`
       use `CalculateProject`, y agregar en `backend/internal/metrics/delivery/dto.go` el esquema
       `Cumulative` y los campos `cumulative`, `effortOutsideSprintsHours`,
       `effortInPlannedSprintsHours` y `unestimatedBacklogStories` de `ProjectMetricsResponse`, con el

@@ -7,5 +7,6 @@ import "github.com/gin-gonic/gin"
 func RegisterRoutes(projectGroup *gin.RouterGroup, handler *Handler) {
 	projectGroup.GET("/metrics", handler.getProjectMetrics)
 	projectGroup.GET("/metrics/series", handler.getProjectSeries)
+	projectGroup.GET("/metrics/active-sprint", handler.getActiveSprintMetrics)
 	projectGroup.GET("/metrics/sprints/:sprintId", handler.getSprintMetrics)
 }

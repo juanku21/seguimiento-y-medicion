@@ -437,3 +437,112 @@ func TestUS3_LoadProjectHistoriasSinEstimar(t *testing.T) {
 		assert.Equal(t, 0, got.UnestimatedBacklogStories)
 	})
 }
+
+// Escenario: LoadActiveSprint devuelve el sprint Activo con sus compromisos abiertos y sus horas (008/US4)
+func TestUS4_LoadActiveSprintConCompromisosYHoras(t *testing.T) {
+	f := newMetricsFixture(t)
+	start := time.Date(2026, 11, 16, 0, 0, 0, 0, time.UTC)
+	activeID, storyIDs := seedSprintWithStories(t, f, "Sprint 2", sprintsdomain.SprintStatusActive, start, []seedSprintStory{
+		{title: "Listado de clientes", currentPoints: 8, status: backlogdomain.StoryStatusCompleted},
+		{title: "Filtro de clientes", currentPoints: 5, status: backlogdomain.StoryStatusInProgress},
+	})
+	seedEffort(t, f.db, f.authorID, storyIDs[0], &activeID, 1200)
+	seedEffort(t, f.db, f.authorID, storyIDs[1], &activeID, 300)
+	// Esfuerzo sin sprint y de un sprint Cerrado: no cuentan para el Activo.
+	seedEffort(t, f.db, f.authorID, storyIDs[0], nil, 777)
+
+	// Un Planificado del mismo proyecto no debe confundirse con el Activo.
+	seedSprintWithStories(t, f, "Sprint 3", sprintsdomain.SprintStatusPlanned, start.AddDate(0, 0, 14), []seedSprintStory{
+		{title: "Reporte de clientes", currentPoints: 13, status: backlogdomain.StoryStatusPending},
+	})
+
+	t.Run("devuelve_el_activo_con_sus_datos", func(t *testing.T) {
+		got, currentFactor, err := NewMetricsRepository(f.db).LoadActiveSprint(context.Background(), f.projectID)
+
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, activeID, got.ID)
+		assert.Equal(t, "Sprint 2", got.Name)
+		assert.Equal(t, sprintsdomain.SprintStatusActive, got.Status)
+		assert.Nil(t, got.ClosedAt)
+		assert.Nil(t, got.FrozenFactorHundredths, "un Activo no tiene factor congelado")
+		assert.Equal(t, 1500, got.ActualHundredths, "solo suma el esfuerzo anclado al Activo")
+		assert.Equal(t, 800, currentFactor, "factor vigente del proyecto")
+	})
+
+	t.Run("sus_compromisos_son_los_abiertos_con_datos_vigentes", func(t *testing.T) {
+		got, _, err := NewMetricsRepository(f.db).LoadActiveSprint(context.Background(), f.projectID)
+
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		type story struct {
+			title     string
+			points    int
+			completed bool
+		}
+		var stories []story
+		for _, s := range got.Stories {
+			require.NotNil(t, s.StoryPoints)
+			stories = append(stories, story{s.Title, *s.StoryPoints, s.Completed})
+		}
+		assert.ElementsMatch(t, []story{{"Listado de clientes", 8, true}, {"Filtro de clientes", 5, false}}, stories)
+	})
+
+	t.Run("un_compromiso_sin_puntos_llega_con_puntos_nulos", func(t *testing.T) {
+		project := newMetricsFixtureProject(t, f)
+		sprintID, _ := seedSprintWithStories(t, project, "Sprint sin puntos", sprintsdomain.SprintStatusActive, start, nil)
+		storyID := seedUnestimatedStory(t, f.db, f.authorID, project.projectID, "Sin estimar")
+		require.NoError(t, f.db.Create(&sprintsdomain.SprintStory{
+			ID: uuid.New(), SprintID: sprintID, StoryID: storyID, CommittedAt: start.Add(9 * time.Hour),
+		}).Error)
+
+		got, _, err := NewMetricsRepository(f.db).LoadActiveSprint(context.Background(), project.projectID)
+
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		require.Len(t, got.Stories, 1)
+		assert.Nil(t, got.Stories[0].StoryPoints)
+	})
+}
+
+// newMetricsFixtureProject siembra un proyecto vacío del mismo autor y lo devuelve como fixture.
+func newMetricsFixtureProject(t *testing.T, f metricsFixture) metricsFixture {
+	t.Helper()
+	f.projectID = seedProject(t, f.db, f.authorID, "proyecto "+uuid.NewString(), 800)
+	return f
+}
+
+// Escenario: LoadActiveSprint devuelve nil sin error cuando no hay sprint Activo (008/US4)
+func TestUS4_LoadActiveSprintSinActivo(t *testing.T) {
+	f := newMetricsFixture(t)
+	start := time.Date(2026, 11, 16, 0, 0, 0, 0, time.UTC)
+
+	t.Run("solo_hay_un_cerrado", func(t *testing.T) {
+		// El fixture solo tiene un sprint Cerrado.
+		got, _, err := NewMetricsRepository(f.db).LoadActiveSprint(context.Background(), f.projectID)
+
+		require.NoError(t, err)
+		assert.Nil(t, got)
+	})
+
+	t.Run("solo_hay_un_planificado", func(t *testing.T) {
+		project := newMetricsFixtureProject(t, f)
+		seedSprintWithStories(t, project, "Sprint planificado", sprintsdomain.SprintStatusPlanned, start, nil)
+
+		got, _, err := NewMetricsRepository(f.db).LoadActiveSprint(context.Background(), project.projectID)
+
+		require.NoError(t, err)
+		assert.Nil(t, got)
+	})
+
+	t.Run("el_activo_es_de_otro_proyecto", func(t *testing.T) {
+		other := newMetricsFixtureProject(t, f)
+		seedSprintWithStories(t, other, "Activo ajeno", sprintsdomain.SprintStatusActive, start, nil)
+		empty := newMetricsFixtureProject(t, f)
+
+		got, _, err := NewMetricsRepository(f.db).LoadActiveSprint(context.Background(), empty.projectID)
+
+		require.NoError(t, err)
+		assert.Nil(t, got)
+	})
+}

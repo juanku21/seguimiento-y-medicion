@@ -46,6 +46,26 @@ func (s *MetricsService) SprintMetrics(ctx context.Context, projectID, sprintID 
 	return metrics, warnings, nil
 }
 
+// ActiveSprintMetrics devuelve las métricas del sprint Activo del proyecto, calculadas con los datos
+// y el factor vigentes. Devuelve nil sin error si el proyecto no tiene un sprint Activo (FR-016).
+func (s *MetricsService) ActiveSprintMetrics(ctx context.Context, projectID uuid.UUID) (*domain.SprintMetrics, []domain.Warning, error) {
+	// Se toma el instante actual una sola vez para que toda la consulta sea consistente.
+	now := s.now()
+
+	data, factor, err := s.repo.LoadActiveSprint(ctx, projectID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cargando el sprint activo del proyecto %s: %w", projectID, err)
+	}
+	// Sin sprint Activo no hay nada que calcular.
+	if data == nil {
+		return nil, nil, nil
+	}
+
+	// El cálculo es una función pura del dominio sobre los datos ya cargados.
+	metrics, warnings := domain.CalculateSprint(*data, factor, now, s.grace)
+	return &metrics, warnings, nil
+}
+
 // ProjectMetrics devuelve las métricas del proyecto (por ahora, la velocidad y sus advertencias).
 func (s *MetricsService) ProjectMetrics(ctx context.Context, projectID uuid.UUID) (domain.ProjectMetrics, error) {
 	// Se toma el instante actual una sola vez para que toda la consulta sea consistente.

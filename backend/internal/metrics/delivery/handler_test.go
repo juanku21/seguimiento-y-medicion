@@ -1203,3 +1203,180 @@ func TestUS3_ProyectoInexistente(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 	assert.Equal(t, projectNotFoundBody, rec.Body.String())
 }
+
+// activeSprintBody es la respuesta de GET /metrics/active-sprint (contracts/openapi.yaml): metrics es
+// un puntero para distinguir el null de "no hay sprint activo" de un objeto vacío.
+type activeSprintBody struct {
+	ActiveSprint bool               `json:"activeSprint"`
+	Metrics      *sprintMetricsBody `json:"metrics"`
+}
+
+// getActiveSprint envía GET /api/v1/projects/{projectId}/metrics/active-sprint con el token.
+func (e *metricsTestEnv) getActiveSprint(t *testing.T, token, projectID string) *httptest.ResponseRecorder {
+	t.Helper()
+	return e.do(t, http.MethodGet, "/api/v1/projects/"+projectID+"/metrics/active-sprint", token, nil)
+}
+
+// active consulta las métricas del sprint Activo con la sesión de Ana, exige un 200 con
+// activeSprint true y verifica el formato de todas las cifras.
+func (f metricsFixture) active(t *testing.T) sprintMetricsBody {
+	t.Helper()
+	var body activeSprintBody
+	metricsRequireStatus(t, f.env.getActiveSprint(t, f.ownerToken, f.projectID.String()), http.StatusOK, &body)
+	require.True(t, body.ActiveSprint, "activeSprint debe ser true con un sprint Activo")
+	require.NotNil(t, body.Metrics, "metrics no debe ser null con un sprint Activo")
+	requireWellFormed(t, *body.Metrics)
+	return *body.Metrics
+}
+
+// requireAllPartial exige que las nueve métricas lleven la marca partial (FR-014), incluso las que
+// no son calculables.
+func requireAllPartial(t *testing.T, body sprintMetricsBody) {
+	t.Helper()
+	requireFinality(t, "plannedStoryPoints", body.PlannedStoryPoints, "partial")
+	requireFinality(t, "completedStoryPoints", body.CompletedStoryPoints, "partial")
+	requireFinality(t, "estimatedHours", body.EstimatedHours, "partial")
+	requireFinality(t, "actualHours", body.ActualHours, "partial")
+	requireFinality(t, "deviationHours", body.DeviationHours, "partial")
+	requireFinality(t, "deviationPercent", body.DeviationPercent, "partial")
+	requireFinality(t, "storyCompletionPercent", body.StoryCompletionPercent, "partial")
+	requireFinality(t, "defectsDetected", body.DefectsDetected, "partial")
+	requireFinality(t, "defectsResolved", body.DefectsResolved, "partial")
+}
+
+// activeSprint arma el "Dado" de US4-1: sprint Activo de 18 Story Points planificados (8, 5 y 5), 5
+// completados y 40 horas reales, con factor 6. Devuelve el sprint y sus historias.
+func (f metricsFixture) activeSprint(t *testing.T) (uuid.UUID, []uuid.UUID) {
+	t.Helper()
+	points := []int{5, 8, 5}
+	stories := make([]uuid.UUID, 0, len(points))
+	for i, p := range points {
+		stories = append(stories, f.env.createStory(t, f.ownerToken, f.projectID, "Historia activa "+string(rune('A'+i)), p))
+	}
+	sprintID := f.env.createSprint(t, f.ownerToken, f.projectID, "Sprint 1", "2026-10-12", "2026-10-23", stories...)
+	f.env.startSprint(t, f.ownerToken, sprintID)
+	f.env.completeStory(t, f.ownerToken, stories[0])
+	f.env.logHours(t, f.ownerToken, stories[0], 40)
+	return sprintID, stories
+}
+
+// Escenario: Caso normal — sprint Activo de 18 puntos planificados, 5 completados y 40 horas (008/US4)
+func TestUS4_SprintActivoCasoNormal(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.activeSprint(t)
+
+	body := f.active(t)
+
+	assert.Equal(t, "active", body.Sprint.Status)
+	requireValues(t, body, expectedValues{
+		planned: "18", completed: "5", estimated: "108.00", actual: "40.00",
+		deviationHours: "-68.00", deviationPercent: "-62.96", completion: "33.33",
+	})
+	requireValue(t, "defectsDetected", body.DefectsDetected, "0")
+	requireValue(t, "defectsResolved", body.DefectsResolved, "0")
+	requireAllPartial(t, body)
+}
+
+// Escenario: Caso alternativo — al sprint Activo se le suma una historia de 8 Story Points (008/US4)
+func TestUS4_HistoriaAgregada(t *testing.T) {
+	f := newMetricsFixture(t)
+	sprintID, _ := f.activeSprint(t)
+	extra := f.env.createStory(t, f.ownerToken, f.projectID, "Historia agregada", 8)
+	metricsRequireStatus(t, f.env.do(t, http.MethodPost, "/api/v1/sprints/"+sprintID.String()+"/stories", f.ownerToken,
+		map[string]any{"storyIds": []string{extra.String()}}), http.StatusOK, nil)
+
+	body := f.active(t)
+
+	requireValue(t, "plannedStoryPoints", body.PlannedStoryPoints, "26")
+	requireValue(t, "estimatedHours", body.EstimatedHours, "156.00")
+	requireAllPartial(t, body)
+}
+
+// Escenario: Caso alternativo — el propietario cambia el factor de 6 a 8 con un sprint Activo (008/US4)
+func TestUS4_FactorVigente(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.activeSprint(t)
+	f.env.changeFactor(t, f.ownerToken, f.projectID, metricsProjectName, 8)
+
+	body := f.active(t)
+
+	requireValue(t, "plannedStoryPoints", body.PlannedStoryPoints, "18")
+	requireValue(t, "estimatedHours", body.EstimatedHours, "144.00")
+	requireAllPartial(t, body)
+}
+
+// Escenario: Caso alternativo — sprint Planificado de 15 Story Points con factor 6 (008/US4)
+func TestUS4_SprintPlanificado(t *testing.T) {
+	f := newMetricsFixture(t)
+	stories := []uuid.UUID{
+		f.env.createStory(t, f.ownerToken, f.projectID, "Historia futura A", 8),
+		f.env.createStory(t, f.ownerToken, f.projectID, "Historia futura B", 5),
+		f.env.createStory(t, f.ownerToken, f.projectID, "Historia futura C", 2),
+	}
+	sprintID := f.env.createSprint(t, f.ownerToken, f.projectID, "Sprint futuro", "2026-12-07", "2026-12-18", stories...)
+
+	body := f.get(t, sprintID)
+
+	// Las dos cifras disponibles no llevan estado de valor y las otras siete no aplican.
+	assert.Equal(t, "planned", body.Sprint.Status)
+	requireValue(t, "plannedStoryPoints", body.PlannedStoryPoints, "15")
+	requireValue(t, "estimatedHours", body.EstimatedHours, "90.00")
+	assert.Nil(t, body.PlannedStoryPoints.Finality, "plannedStoryPoints debe llevar finality null")
+	assert.Nil(t, body.EstimatedHours.Finality, "estimatedHours debe llevar finality null")
+	notApplicable := map[string]metricValue{
+		"completedStoryPoints":   body.CompletedStoryPoints,
+		"actualHours":            body.ActualHours,
+		"deviationHours":         body.DeviationHours,
+		"deviationPercent":       body.DeviationPercent,
+		"storyCompletionPercent": body.StoryCompletionPercent,
+		"defectsDetected":        body.DefectsDetected,
+		"defectsResolved":        body.DefectsResolved,
+	}
+	for name, m := range notApplicable {
+		assert.Equal(t, "not_applicable", m.Status, "status de %s", name)
+		assert.Equal(t, "null", string(m.Value), "value de %s", name)
+		assert.Nil(t, m.Finality, "finality de %s", name)
+	}
+}
+
+// Escenario: Caso límite — sprint Activo sin ninguna historia (008/US4)
+func TestUS4_ActivoSinHistorias(t *testing.T) {
+	f := newMetricsFixture(t)
+	sprintID := f.env.createSprint(t, f.ownerToken, f.projectID, "Sprint 1", "2026-10-12", "2026-10-23")
+	f.env.startSprint(t, f.ownerToken, sprintID)
+
+	body := f.active(t)
+
+	requireValues(t, body, expectedValues{
+		planned: "0", completed: "0", estimated: "0.00", actual: "0.00",
+		deviationHours: "0.00", deviationPercent: notCalculable, completion: notCalculable,
+	})
+	requireAllPartial(t, body)
+}
+
+// Escenario: Caso límite — sprint Activo sin ninguna hora registrada todavía (008/US4)
+func TestUS4_ActivoSinHoras(t *testing.T) {
+	f := newMetricsFixture(t)
+	f.startedSprintN(t, 0, []int{5}, []int{8, 5}, 0)
+
+	body := f.active(t)
+
+	// La desviación absoluta es las horas estimadas en negativo y la porcentual, -100,00 %.
+	requireValues(t, body, expectedValues{
+		planned: "18", completed: "5", estimated: "108.00", actual: "0.00",
+		deviationHours: "-108.00", deviationPercent: "-100.00", completion: "33.33",
+	})
+	requireAllPartial(t, body)
+}
+
+// Escenario: Caso de error — proyecto sin sprint Activo (008/US4)
+func TestUS4_SinSprintActivo(t *testing.T) {
+	f := newMetricsFixture(t)
+	// Un sprint Planificado no cuenta como activo.
+	f.plannedSprintWith(t, 0)
+
+	rec := f.env.getActiveSprint(t, f.ownerToken, f.projectID.String())
+
+	metricsRequireStatus(t, rec, http.StatusOK, nil)
+	assert.JSONEq(t, `{"activeSprint": false, "metrics": null}`, rec.Body.String())
+}

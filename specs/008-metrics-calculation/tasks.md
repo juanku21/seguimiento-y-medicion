@@ -488,7 +488,7 @@ devuelve `108.00`, `-68.00`, `-62.96` y las nueve métricas `partial`; sin Activ
 
 ### Pruebas de la Historia 4 ⚠️
 
-- [ ] T033 [P] [US4] Pruebas unitarias **obligatorias** en
+- [X] T033 [P] [US4] Pruebas unitarias **obligatorias** en
       `backend/internal/metrics/domain/sprint_test.go` de `CalculateSprint` y `SprintFinality` para
       sprints `planned`, cubriendo RN-05 y FR-015: planificados y estimadas `available` con el factor
       vigente y `Finality` nil; las otras siete `NotApplicable()` con `Finality` nil, distintas de
@@ -496,11 +496,11 @@ devuelve `108.00`, `-68.00`, `-62.96` y las nueve métricas `partial`; sin Activ
       `unestimated_story_in_sprint`; y, para el Activo, los casos límite US4-5 (sin
       historias: totales 0, cocientes `not_calculable`, `partial`) y US4-6 (sin horas: reales 0,
       desviación = −estimadas) — depende de T032
-- [ ] T034 [P] [US4] Pruebas de integración del repositorio en
+- [X] T034 [P] [US4] Pruebas de integración del repositorio en
       `backend/internal/metrics/repository/metrics_repository_test.go`: `LoadActiveSprint` devuelve el
       sprint `active` del proyecto con sus compromisos abiertos y sus horas, y `nil` sin error cuando
       no hay ninguno — depende de T032
-- [ ] T035 [US4] Pruebas de integración en `backend/internal/metrics/delivery/handler_test.go`, una
+- [X] T035 [US4] Pruebas de integración en `backend/internal/metrics/delivery/handler_test.go`, una
       por escenario con `// Escenario: <nombre> (008/US4)`: `TestUS4_SprintActivoCasoNormal` (las
       nueve `partial`; SC-007), `TestUS4_HistoriaAgregada` (26 puntos y `156.00`),
       `TestUS4_FactorVigente` (factor 6 → 8: `144.00`), `TestUS4_SprintPlanificado` (por
@@ -511,13 +511,13 @@ devuelve `108.00`, `-68.00`, `-62.96` y las nueve métricas `partial`; sin Activ
 
 ### Implementación de la Historia 4
 
-- [ ] T036 [US4] Ampliar `CalculateSprint` y `SprintFinality` en
+- [X] T036 [US4] Ampliar `CalculateSprint` y `SprintFinality` en
       `backend/internal/metrics/domain/sprint.go` con el estado `planned` (research.md sección 7 y
       aclaración del 2026-10-26: dos cifras sin estado de valor) — depende de T033
-- [ ] T037 [US4] Implementar `LoadActiveSprint` en
+- [X] T037 [US4] Implementar `LoadActiveSprint` en
       `backend/internal/metrics/repository/metrics_repository.go` reutilizando las lecturas privadas de
       `LoadSprint`, en una transacción `REPEATABLE READ` de solo lectura — depende de T034
-- [ ] T038 [US4] Agregar `ActiveSprintMetrics` en `backend/internal/metrics/service/metrics_service.go`
+- [X] T038 [US4] Agregar `ActiveSprintMetrics` en `backend/internal/metrics/service/metrics_service.go`
       (devuelve `nil` sin error si no hay Activo), el esquema `ActiveSprintMetricsResponse` en
       `backend/internal/metrics/delivery/dto.go`, el manejador `getActiveSprintMetrics` con
       anotaciones `swag` en `backend/internal/metrics/delivery/handler.go` y la ruta

@@ -96,6 +96,15 @@ type SprintMetrics struct {
 	Warnings []Warning `json:"warnings" validate:"required"`
 }
 
+// ActiveSprintMetricsResponse es la respuesta de las métricas del sprint Activo: Metrics es null y
+// ActiveSprint false si el proyecto no tiene sprint Activo (FR-016).
+type ActiveSprintMetricsResponse struct {
+	// false si el proyecto no tiene sprint Activo.
+	ActiveSprint bool `json:"activeSprint" validate:"required" example:"true"`
+	// Métricas del sprint Activo, todas partial; null si no hay sprint Activo.
+	Metrics *SprintMetrics `json:"metrics" validate:"required" extensions:"x-nullable"`
+}
+
 // metricUnit distingue cómo se serializa el valor de una métrica: entero o centésimas con 2 decimales.
 type metricUnit int
 

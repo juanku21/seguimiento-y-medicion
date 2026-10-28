@@ -93,6 +93,46 @@ func (h *Handler) getSprintMetrics(c *gin.Context) {
 	c.JSON(http.StatusOK, newSprintMetrics(metrics, warnings))
 }
 
+// getActiveSprintMetrics godoc
+//
+//	@Summary		Métricas del sprint Activo
+//	@Description	Devuelve las métricas del sprint Activo, calculadas con los datos y el factor vigentes
+//	@Description	y todas marcadas partial (FR-014, US4). Si el proyecto no tiene sprint Activo responde
+//	@Description	200 con activeSprint false y metrics null: no es un error ni un conjunto de ceros
+//	@Description	(FR-016).
+//	@Tags			Métricas
+//	@ID				getActiveSprintMetrics
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			projectId	path		string						true	"Identificador del proyecto"	format(uuid)
+//	@Success		200			{object}	ActiveSprintMetricsResponse	"Métricas del sprint Activo o indicación de que no hay ninguno."
+//	@Failure		401			{object}	delivery.ErrorResponse		"Se requiere iniciar sesión."
+//	@Failure		404			{object}	delivery.ErrorResponse		"El proyecto no existe o quien pide no es integrante."
+//	@Failure		500			{object}	delivery.ErrorResponse		"Error interno sin detalles expuestos."
+//	@Router			/api/v1/projects/{projectId}/metrics/active-sprint [get]
+func (h *Handler) getActiveSprintMetrics(c *gin.Context) {
+	projectID, ok := parseProjectID(c, "getActiveSprintMetrics")
+	if !ok {
+		return
+	}
+
+	// Cualquier error del servicio se traduce a un 500 genérico registrado en el log.
+	metrics, warnings, err := h.metrics.ActiveSprintMetrics(c.Request.Context(), projectID)
+	if err != nil {
+		respondInternalError(c, "no se pudieron calcular las métricas del sprint activo",
+			"projectId", projectID, "error", err)
+		return
+	}
+
+	// Sin sprint Activo se responde 200 con la indicación explícita, no un error.
+	if metrics == nil {
+		c.JSON(http.StatusOK, ActiveSprintMetricsResponse{ActiveSprint: false})
+		return
+	}
+	response := newSprintMetrics(*metrics, warnings)
+	c.JSON(http.StatusOK, ActiveSprintMetricsResponse{ActiveSprint: true, Metrics: &response})
+}
+
 // parseProjectID obtiene el identificador del proyecto de la ruta. RequireMembership ya lo validó;
 // si no es UUID es un error de composición de la ruta y responde 500.
 func parseProjectID(c *gin.Context, handlerName string) (uuid.UUID, bool) {

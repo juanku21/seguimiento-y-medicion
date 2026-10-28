@@ -85,7 +85,7 @@ type SprintMetrics struct {
 }
 
 // SprintFinality decide el estado de valor de una métrica según el estado del sprint
-// (research.md sección 7). El sprint planificado devuelve nil hasta T024.
+// (research.md sección 7). El sprint planificado no lleva estado de valor: devuelve nil.
 func SprintFinality(status sprintsdomain.SprintStatus, kind MetricKind, graceOpen bool) *Finality {
 	// En un sprint activo las nueve métricas son parciales.
 	if status == sprintsdomain.SprintStatusActive {
@@ -120,8 +120,8 @@ func withFinality(m Metric, status sprintsdomain.SprintStatus, kind MetricKind, 
 	return m
 }
 
-// CalculateSprint calcula las nueve métricas de un sprint. Implementa el sprint cerrado y el activo;
-// el planificado queda pendiente de T024.
+// CalculateSprint calcula las métricas de un sprint. El cerrado y el activo informan las nueve;
+// el planificado informa solo Story Points planificados y horas estimadas, sin estado de valor.
 func CalculateSprint(sprint SprintData, currentFactorHundredths int, now time.Time, grace time.Duration) (SprintMetrics, []Warning) {
 	result := SprintMetrics{
 		ID:        sprint.ID,
@@ -132,7 +132,8 @@ func CalculateSprint(sprint SprintData, currentFactorHundredths int, now time.Ti
 		ClosedAt:  sprint.ClosedAt,
 	}
 	closed := sprint.Status == sprintsdomain.SprintStatusClosed
-	if !closed && sprint.Status != sprintsdomain.SprintStatusActive {
+	planned := sprint.Status == sprintsdomain.SprintStatusPlanned
+	if !closed && !planned && sprint.Status != sprintsdomain.SprintStatusActive {
 		return result, nil
 	}
 
@@ -140,7 +141,7 @@ func CalculateSprint(sprint SprintData, currentFactorHundredths int, now time.Ti
 	sprintID := sprint.ID
 
 	// Suma de puntos: una historia sin puntos cuenta como 0 y genera una advertencia (FR-037).
-	planned, completed, completedCount := 0, 0, 0
+	plannedPoints, completed, completedCount := 0, 0, 0
 	for _, story := range sprint.Stories {
 		points := 0
 		if story.StoryPoints == nil {
@@ -154,11 +155,26 @@ func CalculateSprint(sprint SprintData, currentFactorHundredths int, now time.Ti
 		} else {
 			points = *story.StoryPoints
 		}
-		planned += points
+		plannedPoints += points
 		if story.Completed {
 			completed += points
 			completedCount++
 		}
+	}
+
+	// El planificado informa dos cifras con el factor vigente y marca las otras siete como no aplicables.
+	if planned {
+		na := NotApplicable()
+		result.PlannedStoryPoints = Available(plannedPoints)
+		result.EstimatedHours = Available(plannedPoints * currentFactorHundredths)
+		result.CompletedStoryPoints = na
+		result.ActualHours = na
+		result.DeviationHours = na
+		result.DeviationPercent = na
+		result.StoryCompletionPercent = na
+		result.DefectsDetected = na
+		result.DefectsResolved = na
+		return result, warnings
 	}
 
 	// Factor congelado solo en el cerrado; sin él se usa el vigente y se advierte. El activo usa el vigente.
@@ -187,11 +203,11 @@ func CalculateSprint(sprint SprintData, currentFactorHundredths int, now time.Ti
 		})
 	}
 
-	estimated := planned * factor
+	estimated := plannedPoints * factor
 	deviation := sprint.ActualHundredths - estimated
 	status := sprint.Status
 
-	result.PlannedStoryPoints = withFinality(Available(planned), status, MetricPlannedStoryPoints, graceOpen)
+	result.PlannedStoryPoints = withFinality(Available(plannedPoints), status, MetricPlannedStoryPoints, graceOpen)
 	result.CompletedStoryPoints = withFinality(Available(completed), status, MetricCompletedStoryPoints, graceOpen)
 	result.EstimatedHours = withFinality(Available(estimated), status, MetricEstimatedHours, graceOpen)
 	result.ActualHours = withFinality(Available(sprint.ActualHundredths), status, MetricActualHours, graceOpen)

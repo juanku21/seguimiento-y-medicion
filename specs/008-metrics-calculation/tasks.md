@@ -406,7 +406,7 @@ cantidad de historias del backlog sin estimar con su advertencia.
 
 ### Pruebas de la Historia 3 ⚠️
 
-- [ ] T026 [P] [US3] Pruebas unitarias **obligatorias** de `CalculateProject` en
+- [X] T026 [P] [US3] Pruebas unitarias **obligatorias** de `CalculateProject` en
       `backend/internal/metrics/domain/project_test.go`, cubriendo RN-06, RN-11, RN-12, RN-25 a RN-27 y
       RN-31: los totales exactos de US3-1 y el `6364` de US3-2; los cocientes salen de los totales y
       no del promedio de los porcentajes por sprint (dos sprints con porcentajes distintos); una

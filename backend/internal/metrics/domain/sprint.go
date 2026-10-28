@@ -84,9 +84,14 @@ type SprintMetrics struct {
 	DefectsResolved        Metric
 }
 
-// SprintFinality decide el estado de valor de una métrica según el estado del sprint. Por ahora solo
-// resuelve el sprint cerrado (research.md sección 7); los demás estados devuelven nil hasta T013.
+// SprintFinality decide el estado de valor de una métrica según el estado del sprint
+// (research.md sección 7). El sprint planificado devuelve nil hasta T024.
 func SprintFinality(status sprintsdomain.SprintStatus, kind MetricKind, graceOpen bool) *Finality {
+	// En un sprint activo las nueve métricas son parciales.
+	if status == sprintsdomain.SprintStatusActive {
+		f := FinalityPartial
+		return &f
+	}
 	if status != sprintsdomain.SprintStatusClosed {
 		return nil
 	}
@@ -115,8 +120,8 @@ func withFinality(m Metric, status sprintsdomain.SprintStatus, kind MetricKind, 
 	return m
 }
 
-// CalculateSprint calcula las nueve métricas de un sprint. Por ahora solo implementa el sprint
-// cerrado; los estados activo y planificado quedan pendientes de T013 y T014.
+// CalculateSprint calcula las nueve métricas de un sprint. Implementa el sprint cerrado y el activo;
+// el planificado queda pendiente de T024.
 func CalculateSprint(sprint SprintData, currentFactorHundredths int, now time.Time, grace time.Duration) (SprintMetrics, []Warning) {
 	result := SprintMetrics{
 		ID:        sprint.ID,
@@ -126,7 +131,8 @@ func CalculateSprint(sprint SprintData, currentFactorHundredths int, now time.Ti
 		EndDate:   sprint.EndDate,
 		ClosedAt:  sprint.ClosedAt,
 	}
-	if sprint.Status != sprintsdomain.SprintStatusClosed {
+	closed := sprint.Status == sprintsdomain.SprintStatusClosed
+	if !closed && sprint.Status != sprintsdomain.SprintStatusActive {
 		return result, nil
 	}
 
@@ -155,9 +161,11 @@ func CalculateSprint(sprint SprintData, currentFactorHundredths int, now time.Ti
 		}
 	}
 
-	// Factor congelado; sin él se usa el vigente y se advierte.
+	// Factor congelado solo en el cerrado; sin él se usa el vigente y se advierte. El activo usa el vigente.
 	factor := currentFactorHundredths
-	if sprint.FrozenFactorHundredths != nil {
+	if !closed {
+		// Sin congelado ni plazo de gracia que evaluar.
+	} else if sprint.FrozenFactorHundredths != nil {
 		factor = *sprint.FrozenFactorHundredths
 	} else {
 		warnings = append(warnings, Warning{
@@ -169,7 +177,9 @@ func CalculateSprint(sprint SprintData, currentFactorHundredths int, now time.Ti
 
 	// Plazo de gracia; sin fecha de cierre se lo considera vencido y se advierte.
 	graceOpen := false
-	if sprint.ClosedAt != nil {
+	if !closed {
+		// El plazo de gracia no aplica fuera del sprint cerrado.
+	} else if sprint.ClosedAt != nil {
 		graceOpen = effortdomain.GraceOpen(*sprint.ClosedAt, now, grace)
 	} else {
 		warnings = append(warnings, Warning{

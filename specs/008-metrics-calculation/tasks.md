@@ -280,7 +280,7 @@ sprint Cerrado de 21 puntos planificados, 13 completados, factor 6 y 142,5 horas
       `SprintMetrics(ctx, projectID, sprintID)`, que toma `now` **una sola vez** por consulta, llama a
       `LoadSprint` y a `CalculateSprint`. El servicio es también el punto de entrada que reutilizará
       la 010 dentro del proceso — depende de T012, T013
-- [ ] T015 [US1] Declarar en `backend/internal/metrics/delivery/dto.go` los esquemas de
+- [X] T015 [US1] Declarar en `backend/internal/metrics/delivery/dto.go` los esquemas de
       contracts/openapi.yaml `Metric` y `SprintMetric` (con `value` como número JSON: Story Points y
       conteos enteros, horas y porcentajes con `httpserver.Hundredths`; `value: null` si y solo si
       `status` no es `available`; `finality` anulable), `SprintRef` (`closedAt` anulable),

@@ -246,7 +246,7 @@ sprint Cerrado de 21 puntos planificados, 13 completados, factor 6 y 142,5 horas
 
 ### Implementación de la Historia 1
 
-- [ ] T011 [P] [US1] Implementar en `backend/internal/metrics/domain/values.go` los constructores
+- [X] T011 [P] [US1] Implementar en `backend/internal/metrics/domain/values.go` los constructores
       `Available(value int) Metric`, `NotCalculable() Metric` y `NotApplicable() Metric`, y en
       `backend/internal/metrics/domain/arithmetic.go` `Percent(numerator, denominator int) Metric`,
       que devuelve `NotCalculable()` con denominador 0 y, si no,

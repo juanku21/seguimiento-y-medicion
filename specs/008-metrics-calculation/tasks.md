@@ -358,7 +358,7 @@ con los mismos sprints Cerrados y el Activo, sin los Planificados.
 
 ### Implementación de la Historia 2
 
-- [ ] T021 [P] [US2] Implementar `AverageHundredths` en `backend/internal/metrics/domain/arithmetic.go`
+- [X] T021 [P] [US2] Implementar `AverageHundredths` en `backend/internal/metrics/domain/arithmetic.go`
       como `effortdomain.RoundPercentHundredths(sum, 100 × count)`, con el comentario de que es
       `sum × 100 / count` redondeado una sola vez (research.md sección 5) — depende de T016
 - [ ] T022 [US2] Ampliar `CalculateSprint` y `SprintFinality` en

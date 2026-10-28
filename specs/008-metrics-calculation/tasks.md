@@ -488,7 +488,7 @@ devuelve `108.00`, `-68.00`, `-62.96` y las nueve métricas `partial`; sin Activ
 
 ### Pruebas de la Historia 4 ⚠️
 
-- [ ] T033 [P] [US4] Pruebas unitarias **obligatorias** en
+- [X] T033 [P] [US4] Pruebas unitarias **obligatorias** en
       `backend/internal/metrics/domain/sprint_test.go` de `CalculateSprint` y `SprintFinality` para
       sprints `planned`, cubriendo RN-05 y FR-015: planificados y estimadas `available` con el factor
       vigente y `Finality` nil; las otras siete `NotApplicable()` con `Finality` nil, distintas de

@@ -438,3 +438,111 @@ func TestUS4_SprintFinalityActivo(t *testing.T) {
 		}
 	}
 }
+
+// plannedSprintUS4 arma un sprint planificado; no tiene cierre ni factor congelado.
+func plannedSprintUS4(st []domain.SprintStoryData) domain.SprintData {
+	return domain.SprintData{
+		ID:        uuid.New(),
+		Name:      "Sprint 3",
+		Status:    sprintsdomain.SprintStatusPlanned,
+		StartDate: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 11, 14, 0, 0, 0, 0, time.UTC),
+		Stories:   st,
+	}
+}
+
+// Escenario: sprint planificado informa solo dos métricas, sin estado de valor (008/US4-4)
+func TestUS4_SprintPlanificadoSoloDosMetricas(t *testing.T) {
+	// 15 puntos planificados y factor vigente 6; los datos de esfuerzo y defectos se ignoran.
+	s := plannedSprintUS4(stories([]int{5, 5, 5}, 0))
+	s.ActualHundredths = 1000
+	s.DefectsDetected = 2
+	s.DefectsResolved = 1
+
+	m, warnings := domain.CalculateSprint(s, factorSix, fixedNow, testGrace)
+
+	assert.Equal(t, s.ID, m.ID)
+	assert.Equal(t, sprintsdomain.SprintStatusPlanned, m.Status)
+	assert.Equal(t, domain.Available(15), m.PlannedStoryPoints)
+	assert.Nil(t, m.PlannedStoryPoints.Finality)
+	assert.Equal(t, domain.Available(9000), m.EstimatedHours)
+	assert.Nil(t, m.EstimatedHours.Finality)
+	assert.Empty(t, warnings)
+
+	others := map[string]domain.Metric{
+		"completed":       m.CompletedStoryPoints,
+		"actual":          m.ActualHours,
+		"deviation":       m.DeviationHours,
+		"deviationPct":    m.DeviationPercent,
+		"completion":      m.StoryCompletionPercent,
+		"defectsDetected": m.DefectsDetected,
+		"defectsResolved": m.DefectsResolved,
+	}
+	for name, metric := range others {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, domain.NotApplicable(), metric)
+			assert.Equal(t, domain.ValueNotApplicable, metric.Status)
+			assert.Nil(t, metric.Finality)
+			assert.NotEqual(t, domain.Available(0), metric)
+		})
+	}
+}
+
+// Escenario: el sprint planificado usa el factor vigente (008/US4-4)
+func TestUS4_SprintPlanificadoUsaFactorVigente(t *testing.T) {
+	s := plannedSprintUS4(stories([]int{5, 5, 5}, 0))
+
+	m, _ := domain.CalculateSprint(s, 800, fixedNow, testGrace)
+
+	assert.Equal(t, domain.Available(12000), m.EstimatedHours)
+	assert.Nil(t, m.EstimatedHours.Finality)
+}
+
+// Escenario: sprint planificado sin historias (008/US4-4, FR-015)
+func TestUS4_SprintPlanificadoSinHistorias(t *testing.T) {
+	m, warnings := domain.CalculateSprint(plannedSprintUS4(nil), factorSix, fixedNow, testGrace)
+
+	assert.Equal(t, domain.Available(0), m.PlannedStoryPoints)
+	assert.Equal(t, domain.Available(0), m.EstimatedHours)
+	assert.Nil(t, m.PlannedStoryPoints.Finality)
+	assert.Equal(t, domain.NotApplicable(), m.StoryCompletionPercent)
+	assert.Empty(t, warnings)
+}
+
+// Escenario: un compromiso sin puntos en un sprint planificado cuenta como 0 y advierte (008/US4-4, RN-05)
+func TestUS4_SprintPlanificadoHistoriaSinPuntos(t *testing.T) {
+	st := stories([]int{5, 5}, 0)
+	unestimated := domain.SprintStoryData{StoryID: uuid.New(), Title: "sin estimar"}
+	s := plannedSprintUS4(append(st, unestimated))
+
+	m, warnings := domain.CalculateSprint(s, factorSix, fixedNow, testGrace)
+
+	assert.Equal(t, domain.Available(10), m.PlannedStoryPoints)
+	assert.Equal(t, domain.Available(6000), m.EstimatedHours)
+	if assert.Len(t, warnings, 1) {
+		assert.Equal(t, domain.CodeUnestimatedStoryInSprint, warnings[0].Code)
+		assert.Equal(t, domain.WarningDataInconsistency, warnings[0].Kind)
+		if assert.NotNil(t, warnings[0].SprintID) {
+			assert.Equal(t, s.ID, *warnings[0].SprintID)
+		}
+		if assert.NotNil(t, warnings[0].StoryID) {
+			assert.Equal(t, unestimated.StoryID, *warnings[0].StoryID)
+		}
+	}
+}
+
+// Escenario: el sprint planificado no tiene estado de valor en ninguna métrica (008/US4-4, FR-015)
+func TestUS4_SprintFinalityPlanificado(t *testing.T) {
+	kinds := []domain.MetricKind{
+		domain.MetricPlannedStoryPoints, domain.MetricCompletedStoryPoints, domain.MetricEstimatedHours,
+		domain.MetricActualHours, domain.MetricDeviationHours, domain.MetricDeviationPercent,
+		domain.MetricStoryCompletionPercent, domain.MetricDefectsDetected, domain.MetricDefectsResolved,
+	}
+	for _, kind := range kinds {
+		for _, graceOpen := range []bool{true, false} {
+			t.Run(string(kind)+"/"+map[bool]string{true: "gracia_vigente", false: "gracia_vencida"}[graceOpen], func(t *testing.T) {
+				assert.Nil(t, domain.SprintFinality(sprintsdomain.SprintStatusPlanned, kind, graceOpen))
+			})
+		}
+	}
+}

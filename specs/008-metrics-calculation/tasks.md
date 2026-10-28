@@ -131,7 +131,7 @@ estructuras, constantes y contratos, sin lógica de negocio.
       "missing_close_time"`; y el struct `Warning{Kind; Code; SprintID *uuid.UUID; StoryID
       *uuid.UUID; Count *int}` (data-model.md sección 9). Sin textos de interfaz: los mensajes viven
       en `delivery`
-- [ ] T004 [P] Declarar en `backend/internal/metrics/domain/errors.go` el error
+- [X] T004 [P] Declarar en `backend/internal/metrics/domain/errors.go` el error
       `ErrSprintNotFound` ("el sprint no existe o es de otro proyecto"), con el comentario de que
       `delivery` lo traduce a `404` con el mismo cuerpo que la 004
 - [ ] T005 Declarar los tipos de datos y de resultado del dominio, sin funciones, con los campos de

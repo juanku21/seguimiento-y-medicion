@@ -414,7 +414,7 @@ las 4 filas en el orden recibido; con un sprint Activo más, la tabla sigue teni
       evolución que comparar." (RN-09); con cero puntos no hay SVG ni tabla y se muestra el
       `emptyMessage` (RN-10); dos series con sprints distintos o en distinto orden muestran el
       `errorMessage` en lugar del gráfico, sin reordenar — depende de T016
-- [ ] T021 [US3] Pruebas de escenario en
+- [X] T021 [US3] Pruebas de escenario en
       `frontend/src/features/dashboard/components/velocity-chart.test.tsx`, montando `DashboardView`
       con `renderDashboard` e `installResizeObserverStub()`, con
       `describe("009/US3 - Ver la evolución de la velocidad")` y un `it` por escenario según plan.md,

@@ -580,7 +580,7 @@ el dashboard." y, al pulsar "Reintentar" con el backend ya respondiendo, el dash
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T031 [P] [US6] Pruebas unitarias en `frontend/src/hooks/use-authorized-query.test.tsx`: con
+- [X] T031 [P] [US6] Pruebas unitarias en `frontend/src/hooks/use-authorized-query.test.tsx`: con
       una carga que devuelve un error con `status: 500`, el estado de error trae `httpStatus: 500` y el
       `message`; con `status: 0` (red caída), trae `httpStatus: 0`; con datos, `loaded` como hoy
       (research.md sección 4) — sin dependencias

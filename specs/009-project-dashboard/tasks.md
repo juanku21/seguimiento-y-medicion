@@ -342,7 +342,7 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
       "storyPoints" | "storyCompletionPercent" | "hours" | "deviationHours" | "deviationPercent" |
       "defects"`) y `explainNotCalculable(kind: MetricKind): string` con los textos de research.md
       sección 6 — depende de T010
-- [ ] T015 [P] [US2] Implementar en `frontend/src/features/dashboard/api.ts` los reconocedores
+- [X] T015 [P] [US2] Implementar en `frontend/src/features/dashboard/api.ts` los reconocedores
       `isMetric`, `isSprintMetric`, `isActiveSprintMetricsResponse` e `isProjectMetricsResponse` de
       data-model.md sección 3, sobre `isRecord` de `lib/api-client.ts` y sin `any`, y las consultas
       `getProjectMetrics(projectId)` y `getActiveSprintMetrics(projectId)` con `getJson` sobre

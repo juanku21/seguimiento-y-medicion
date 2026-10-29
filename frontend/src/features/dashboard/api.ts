@@ -10,6 +10,8 @@ import type {
 
 const VALUE_STATUSES = ["available", "not_calculable", "not_applicable"];
 const FINALITIES = ["definitive", "provisional", "partial"];
+// El acumulado nunca es provisional: se excluye de las finalidades válidas.
+const CUMULATIVE_FINALITIES = FINALITIES.filter((f) => f !== "provisional");
 const WARNING_KINDS = ["planning", "data_inconsistency"];
 const SEVERITIES = ["critical", "high", "medium", "low"];
 const METRIC_KEYS = [
@@ -39,11 +41,13 @@ export function isMetric(value: unknown): value is Metric {
 
 // Reconoce una métrica de sprint con finalidad válida o null.
 export function isSprintMetric(value: unknown): value is SprintMetric {
-  if (!isMetric(value)) {
+  if (!isRecord(value)) {
     return false;
   }
-  const finality = (value as Record<string, unknown>).finality;
-  return finality === null || isOneOf(finality, FINALITIES);
+  const finality = value.finality;
+  return (
+    isMetric(value) && (finality === null || isOneOf(finality, FINALITIES))
+  );
 }
 
 // Reconoce la respuesta de las métricas del sprint activo.
@@ -77,7 +81,7 @@ function isWarning(value: unknown): value is MetricsWarning {
 function isCumulative(value: unknown): boolean {
   return (
     isRecord(value) &&
-    isOneOf(value.finality, ["definitive", "partial"]) &&
+    isOneOf(value.finality, CUMULATIVE_FINALITIES) &&
     METRIC_KEYS.every((key) => isMetric(value[key]))
   );
 }

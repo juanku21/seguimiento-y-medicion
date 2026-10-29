@@ -584,7 +584,7 @@ el dashboard." y, al pulsar "Reintentar" con el backend ya respondiendo, el dash
       una carga que devuelve un error con `status: 500`, el estado de error trae `httpStatus: 500` y el
       `message`; con `status: 0` (red caída), trae `httpStatus: 0`; con datos, `loaded` como hoy
       (research.md sección 4) — sin dependencias
-- [ ] T032 [P] [US6] Pruebas unitarias **obligatorias** de `DashboardWarnings` en
+- [X] T032 [P] [US6] Pruebas unitarias **obligatorias** de `DashboardWarnings` en
       `frontend/src/features/dashboard/components/dashboard-warnings.test.tsx`, cubriendo RN-21:
       con una advertencia `planning` y una `data_inconsistency`, la región "Advertencias" tiene la
       lista "Avisos de planificación" con `role="status"` y la lista "Datos que hay que revisar" con

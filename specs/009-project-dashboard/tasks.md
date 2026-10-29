@@ -103,7 +103,7 @@ del resumen.
 
 **Rama**: `fase/009-foundational`, la misma que la Fase 2: las dos forman un único pull request.
 
-- [ ] T001 Instalar en `frontend/` las dependencias autorizadas con versión exacta:
+- [X] T001 Instalar en `frontend/` las dependencias autorizadas con versión exacta:
       `npm install --save-exact recharts@3.10.1 react-is@19.3.0`. Verificar que
       `frontend/package.json` las lista en `dependencies` **sin** `^` ni `~` y que
       `frontend/package-lock.json` quedó actualizado. Verificar también que no se agregó ninguna

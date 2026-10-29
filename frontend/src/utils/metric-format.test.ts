@@ -21,10 +21,15 @@ describe("009/US2 - Formato de métricas del dashboard", () => {
   });
 
   // El texto leído de vuelta es exactamente el número recibido (ningún redondeo).
-  it.each([14, 27.78, 13.1, 0])("el texto de %s vuelve al mismo número", (value) => {
-    const decimal = Number(formatDecimal(value).replace(",", "."));
-    const share = Number(formatShare(value).replace(" %", "").replace(",", "."));
-    expect(decimal).toBe(value);
-    expect(share).toBe(value);
-  });
+  it.each([14, 27.78, 13.1, 0])(
+    "el texto de %s vuelve al mismo número",
+    (value) => {
+      const decimal = Number(formatDecimal(value).replace(",", "."));
+      const share = Number(
+        formatShare(value).replace(" %", "").replace(",", "."),
+      );
+      expect(decimal).toBe(value);
+      expect(share).toBe(value);
+    },
+  );
 });

@@ -6,16 +6,24 @@ import { explainNotCalculable } from "@/utils/metric-explanations";
 describe("009/US2 - Explicación de métricas no calculables", () => {
   // Cada métrica con causa propia explica su motivo.
   it("explica el motivo de las métricas con causa propia", () => {
-    expect(explainNotCalculable("velocity")).toBe("Todavía no hay sprints cerrados.");
-    expect(explainNotCalculable("deviationPercent")).toBe("Las horas estimadas son 0.");
-    expect(explainNotCalculable("storyCompletionPercent")).toBe("No hay historias planificadas.");
+    expect(explainNotCalculable("velocity")).toBe(
+      "Todavía no hay sprints cerrados.",
+    );
+    expect(explainNotCalculable("deviationPercent")).toBe(
+      "Las horas estimadas son 0.",
+    );
+    expect(explainNotCalculable("storyCompletionPercent")).toBe(
+      "No hay historias planificadas.",
+    );
   });
 
   // Cualquier otra clave usa el texto genérico.
   it.each(["storyPoints", "hours", "deviationHours", "defects"] as const)(
     "usa el texto genérico para %s",
     (kind) => {
-      expect(explainNotCalculable(kind)).toBe("No se puede calcular con los datos actuales.");
+      expect(explainNotCalculable(kind)).toBe(
+        "No se puede calcular con los datos actuales.",
+      );
     },
   );
 });

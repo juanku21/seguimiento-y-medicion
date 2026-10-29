@@ -11,8 +11,13 @@ import type { MetricKind } from "@/utils/metric-explanations";
 const format = (value: number) => `#${value}#`;
 
 // Renderiza una métrica y devuelve el texto visible del contenedor.
-function textOf(metric: Metric | SprintMetric, kind: MetricKind = "hours"): string {
-  const { container } = render(<MetricValue metric={metric} kind={kind} format={format} />);
+function textOf(
+  metric: Metric | SprintMetric,
+  kind: MetricKind = "hours",
+): string {
+  const { container } = render(
+    <MetricValue metric={metric} kind={kind} format={format} />,
+  );
   return container.textContent ?? "";
 }
 
@@ -27,19 +32,24 @@ describe("009/US2 - Ver los indicadores clave del momento (MetricValue)", () => 
     ["velocity", "Todavía no hay sprints cerrados."],
     ["deviationPercent", "Las horas estimadas son 0."],
     ["storyCompletionPercent", "No hay historias planificadas."],
-  ] as const)("muestra No calculable y la explicación para %s", (kind, explanation) => {
-    const text = textOf({ status: "not_calculable", value: null }, kind);
-    expect(text).toContain("No calculable");
-    expect(text).toContain(explanation);
-    for (const forbidden of ["0", "—", "-", ""]) {
-      expect(text.trim()).not.toBe(forbidden);
-    }
-    expect(text).not.toContain("#0#");
-  });
+  ] as const)(
+    "muestra No calculable y la explicación para %s",
+    (kind, explanation) => {
+      const text = textOf({ status: "not_calculable", value: null }, kind);
+      expect(text).toContain("No calculable");
+      expect(text).toContain(explanation);
+      for (const forbidden of ["0", "—", "-", ""]) {
+        expect(text.trim()).not.toBe(forbidden);
+      }
+      expect(text).not.toContain("#0#");
+    },
+  );
 
   // Escenario: métrica no aplicable (009/US2, RN-06)
   it("muestra No aplica para not_applicable", () => {
-    expect(textOf({ status: "not_applicable", value: null })).toContain("No aplica");
+    expect(textOf({ status: "not_applicable", value: null })).toContain(
+      "No aplica",
+    );
   });
 
   // Escenario: los tres estados se distinguen entre sí (009/US2, RN-06)
@@ -59,30 +69,44 @@ describe("009/US2 - Ver los indicadores clave del momento (MetricValue)", () => 
 
   // Escenario: marca Provisoria distinta de Parcial (009/US2, RN-05)
   it("muestra Provisoria y no Parcial cuando la finalidad es provisional", () => {
-    const text = textOf({ status: "available", value: 5, finality: "provisional" });
+    const text = textOf({
+      status: "available",
+      value: 5,
+      finality: "provisional",
+    });
     expect(text).toContain("Provisoria");
     expect(text).not.toContain("Parcial");
   });
 
   // Escenario: finalidad definitiva o nula sin marca (009/US2, RN-04)
-  it.each(["definitive", null] as const)("no muestra marca con finalidad %s", (finality) => {
-    const text = textOf({ status: "available", value: 5, finality });
-    expect(text).toBe("#5#");
-  });
+  it.each(["definitive", null] as const)(
+    "no muestra marca con finalidad %s",
+    (finality) => {
+      const text = textOf({ status: "available", value: 5, finality });
+      expect(text).toBe("#5#");
+    },
+  );
 });
 
 describe("009/US2 - Ver los indicadores clave del momento (FinalityBadge)", () => {
   // Escenario: Parcial y Provisoria producen textos distintos (009/US2, RN-05)
   it("produce textos distintos para partial y provisional", () => {
-    const partial = render(<FinalityBadge finality="partial" />).container.textContent;
-    const provisional = render(<FinalityBadge finality="provisional" />).container.textContent;
+    const partial = render(<FinalityBadge finality="partial" />).container
+      .textContent;
+    const provisional = render(<FinalityBadge finality="provisional" />)
+      .container.textContent;
     expect(partial).toBe("Parcial");
     expect(provisional).toBe("Provisoria");
     expect(partial).not.toBe(provisional);
   });
 
   // Escenario: sin marca para definitive y null (009/US2, RN-04)
-  it.each(["definitive", null] as const)("no renderiza texto con finalidad %s", (finality) => {
-    expect(render(<FinalityBadge finality={finality} />).container.textContent).toBe("");
-  });
+  it.each(["definitive", null] as const)(
+    "no renderiza texto con finalidad %s",
+    (finality) => {
+      expect(
+        render(<FinalityBadge finality={finality} />).container.textContent,
+      ).toBe("");
+    },
+  );
 });

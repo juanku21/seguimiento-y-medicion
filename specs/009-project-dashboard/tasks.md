@@ -292,7 +292,7 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
       `("deviationPercent")` → "Las horas estimadas son 0.", `("storyCompletionPercent")` → "No hay
       historias planificadas." y cualquier otra clave → "No se puede calcular con los datos
       actuales." (research.md secciones 5 y 6)
-- [ ] T011 [P] [US2] Pruebas unitarias **obligatorias** de `MetricValue` y `FinalityBadge` en
+- [X] T011 [P] [US2] Pruebas unitarias **obligatorias** de `MetricValue` y `FinalityBadge` en
       `frontend/src/features/dashboard/components/metric-value.test.tsx`, cubriendo RN-03 a RN-06:
       `{status: "available", value: 0}` muestra "0" con el formateador recibido;
       `{status: "not_calculable", value: null}` con `kind` `velocity`, `deviationPercent` y

@@ -440,7 +440,7 @@ las 4 filas en el orden recibido; con un sprint Activo más, la tabla sigue teni
       (solo verifica que el cuerpo es un objeto), el reconocedor de `SeriesPoint`,
       `readSeries(envelope, key): SeriesPoint[] | null` y `getProjectSeries(projectId)` con `getJson`
       sobre `.../metrics/series`, según data-model.md sección 3 — depende de T019
-- [ ] T024 [US3] Implementar en `frontend/src/features/dashboard/components/sprint-series-chart.tsx`
+- [X] T024 [US3] Implementar en `frontend/src/features/dashboard/components/sprint-series-chart.tsx`
       el componente común de los tres gráficos (research.md sección 9): propiedades `title`,
       `yAxisLabel`, `kind` (para `MetricValue`), `format`, `emptyMessage`, `errorMessage` y
       `series: [SeriesInput, SeriesInput]` con `name` y `points`. Si las dos series no tienen los

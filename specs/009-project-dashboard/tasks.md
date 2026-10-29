@@ -631,7 +631,7 @@ el dashboard." y, al pulsar "Reintentar" con el backend ya respondiendo, el dash
       `frontend/src/features/dashboard/components/dashboard-warnings.tsx`
       `DashboardWarnings({ warnings }: { warnings: MetricsWarning[] })` según research.md sección 11,
       sin cambiar ningún `message` — depende de T032
-- [ ] T036 [P] [US6] Implementar en
+- [X] T036 [P] [US6] Implementar en
       `frontend/src/features/dashboard/components/dashboard-empty-state.tsx` `DashboardEmptyState()`:
       región "Sin datos todavía" con el texto de contracts/ui-contract.md, sin enlaces (la
       navegación hacia los módulos está fuera de alcance) — depende de T033

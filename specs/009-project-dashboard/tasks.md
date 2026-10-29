@@ -356,7 +356,7 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
       `available` → `format(value)`, `not_calculable` → "No calculable" más
       `explainNotCalculable(kind)`, `not_applicable` → "No aplica", y `FinalityBadge` si la métrica
       tiene `finality` — depende de T011, T014
-- [ ] T017 [US2] Implementar en `frontend/src/features/dashboard/components/section-error.tsx`
+- [X] T017 [US2] Implementar en `frontend/src/features/dashboard/components/section-error.tsx`
       `SectionError({ message }: { message: string })`, que muestra el mensaje con `Alert`
       (`role="alert"`), y declarar en el mismo archivo las constantes de los ocho mensajes de falla
       de contracts/ui-contract.md, en un único lugar — depende de T013

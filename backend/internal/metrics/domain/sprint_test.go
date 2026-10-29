@@ -20,8 +20,10 @@ var (
 	closedNear = fixedNow.Add(-10 * time.Hour)  // gracia vigente
 )
 
+// intPtr devuelve un puntero al entero dado.
 func intPtr(v int) *int { return &v }
 
+// timePtr devuelve un puntero al instante dado.
 func timePtr(v time.Time) *time.Time { return &v }
 
 // stories arma historias con los puntos dados; las primeras "completed" quedan Completed.
@@ -53,6 +55,7 @@ func closedSprint(st []domain.SprintStoryData, actual int, closedAt time.Time) d
 	}
 }
 
+// finalityOf devuelve un puntero a la finality dada.
 func finalityOf(f domain.Finality) *domain.Finality { return &f }
 
 // assertMetric verifica estado, valor y finality de una métrica.
@@ -115,7 +118,7 @@ func TestUS1_SprintCerradoUsaPuntosCongelados(t *testing.T) {
 	assertMetric(t, "estimated", m.EstimatedHours, domain.Available(12600), domain.FinalityDefinitive)
 }
 
-// Escenario: factores con dos decimales (008/US1, RN-12)
+// Escenario: factores con dos decimales (008/US1, RN-07)
 func TestUS1_SprintCerradoFactorConDosDecimales(t *testing.T) {
 	s := closedSprint(stories([]int{8, 5, 5, 3}, 0), 0, closedLong)
 	s.FrozenFactorHundredths = intPtr(625)
@@ -172,7 +175,7 @@ func TestUS1_SprintCerradoUnaDeTresCompletada(t *testing.T) {
 	assertMetric(t, "completion", m.StoryCompletionPercent, domain.Available(3333), domain.FinalityDefinitive)
 }
 
-// Escenario: el porcentaje se calcula por cantidad de historias y no por puntos (008/US1, RN-07)
+// Escenario: el porcentaje se calcula por cantidad de historias y no por puntos (008/US1, RN-09)
 func TestUS1_PorcentajePorCantidadNoPorPuntos(t *testing.T) {
 	// Una historia de 13 puntos completada y tres de 1 punto sin completar: 25 % por cantidad.
 	s := closedSprint(stories([]int{13, 1, 1, 1}, 1), 0, closedLong)
@@ -545,4 +548,31 @@ func TestUS4_SprintFinalityPlanificado(t *testing.T) {
 			})
 		}
 	}
+}
+
+// Guarda defensiva (sin escenario en spec.md): un estado de sprint desconocido devuelve solo la
+// identificación, sin métricas calculadas ni advertencias.
+func TestCalculateSprint_EstadoDesconocidoSoloIdentificacion(t *testing.T) {
+	closedAt := time.Date(2026, 10, 14, 0, 0, 0, 0, time.UTC)
+	s := domain.SprintData{
+		ID:        uuid.New(),
+		Name:      "Sprint X",
+		Status:    sprintsdomain.SprintStatus("unknown"),
+		StartDate: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 10, 14, 0, 0, 0, 0, time.UTC),
+		ClosedAt:  &closedAt,
+		Stories:   stories([]int{5, 5}, 1),
+	}
+
+	m, warnings := domain.CalculateSprint(s, factorSix, fixedNow, testGrace)
+
+	assert.Equal(t, domain.SprintMetrics{
+		ID:        s.ID,
+		Name:      s.Name,
+		Status:    s.Status,
+		StartDate: s.StartDate,
+		EndDate:   s.EndDate,
+		ClosedAt:  s.ClosedAt,
+	}, m)
+	assert.Nil(t, warnings)
 }

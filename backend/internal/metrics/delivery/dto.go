@@ -287,7 +287,7 @@ type SeriesPoint struct {
 	SprintStatus string `json:"sprintStatus" validate:"required" enums:"active,closed" example:"closed"`
 	Metric
 	// Finalidad del valor: definitive, provisional o partial.
-	Finality *string `json:"finality" validate:"required" enums:"definitive,provisional,partial" extensions:"x-nullable" example:"definitive"`
+	Finality *string `json:"finality" validate:"required" enums:"definitive,provisional,partial" example:"definitive"`
 }
 
 // ProjectSeriesResponse son las seis series por sprint del proyecto, con los mismos sprints en el

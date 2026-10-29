@@ -207,7 +207,7 @@ describe("009/US3 - Ver la evolución de la velocidad", () => {
     // Cada nombre aparece exactamente una vez como rótulo del eje X.
     const ticks = Array.from(
       container.querySelectorAll(
-        ".recharts-xAxis .recharts-cartesian-axis-tick-value",
+        ".recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value",
       ),
     ).map((tick) => tick.textContent);
     names.forEach((name) => {

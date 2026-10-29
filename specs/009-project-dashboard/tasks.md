@@ -635,7 +635,7 @@ el dashboard." y, al pulsar "Reintentar" con el backend ya respondiendo, el dash
       `frontend/src/features/dashboard/components/dashboard-empty-state.tsx` `DashboardEmptyState()`:
       región "Sin datos todavía" con el texto de contracts/ui-contract.md, sin enlaces (la
       navegación hacia los módulos está fuera de alcance) — depende de T033
-- [ ] T037 [US6] Completar `frontend/src/features/dashboard/components/dashboard-view.tsx`: la
+- [X] T037 [US6] Completar `frontend/src/features/dashboard/components/dashboard-view.tsx`: la
       consulta del listado de sprints con `listSprints(projectId)` sin filtros; con
       `emptyReason === "no_sprints"`, `DashboardEmptyState` en lugar de los indicadores, los tres
       gráficos y la distribución (FR-027); mientras esa consulta carga, en lugar de esas secciones se

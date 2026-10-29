@@ -55,6 +55,8 @@ function DashboardSections({ project }: { project: ProjectDetail }) {
   const sprints = useAuthorizedQuery(loadSprints);
   const hasNoSprints =
     sprints.status === "loaded" && sprints.data.emptyReason === "no_sprints";
+  // Con sprints, o si el listado falló, se muestran las secciones de métricas.
+  const showMetrics = sprints.status !== "loading" && !hasNoSprints;
 
   return (
     <div className="flex flex-col gap-8">
@@ -72,8 +74,7 @@ function DashboardSections({ project }: { project: ProjectDetail }) {
         </p>
       )}
       {hasNoSprints && <DashboardEmptyState />}
-      {sprints.status !== "loading" && !hasNoSprints && (
-        // Con sprints, o si el listado falló, se muestran las secciones de métricas.
+      {showMetrics && (
         <>
           <KeyIndicators
             projectMetrics={projectMetrics}
@@ -89,9 +90,9 @@ function DashboardSections({ project }: { project: ProjectDetail }) {
   );
 }
 
-// Vista cliente del dashboard (009/US1 y US2). Consulta el resumen del proyecto con una carga
+// Vista cliente del dashboard (009/US1 a US6). Consulta el resumen del proyecto con una carga
 // estabilizada por el id; solo cuando el resumen llega monta las demás secciones, para que un error
-// (por ejemplo un 404) no dispare otras consultas. Más adelante suma los gráficos.
+// (por ejemplo un 404) no dispare otras consultas. Los errores del resumen permiten reintentar.
 export function DashboardView({ projectId }: DashboardViewProps) {
   // El contador fuerza una nueva carga del resumen al reintentar.
   const [attempt, setAttempt] = useState(0);

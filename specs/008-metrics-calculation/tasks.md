@@ -635,7 +635,7 @@ viva, cobertura, vulnerabilidades y verificación de las puertas de calidad.
       `go tool cover -func=coverage.out` en `backend/`, y revisar que `internal/metrics/domain/` tenga
       cubiertas todas sus ramas y que `internal/metrics/` en conjunto esté cubierto; correr además
       `go test -race -p 1 ./internal/metrics/...` — depende de T045
-- [ ] T050 Verificar la trazabilidad y las puertas de calidad recorriendo `backend/internal/metrics/`:
+- [X] T050 Verificar la trazabilidad y las puertas de calidad recorriendo `backend/internal/metrics/`:
       que buscar `008/US1` a `008/US5` en el código de pruebas devuelva los **61** escenarios; que las
       **31** reglas RN-01 a RN-31 tengan prueba asociada según la tabla de plan.md (SC-021); que los
       **cuatro** endpoints tengan su prueba de `401` (SC-013) y los `404` sean indistinguibles

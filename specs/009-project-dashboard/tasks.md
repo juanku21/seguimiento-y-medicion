@@ -207,7 +207,7 @@ proyecto no existe." y no hace ninguna otra consulta.
       `formatDate`, y "10 días restantes"; con `remainingDays: 0`, "0 días restantes"; con
       `overdueDays: 3`, "Vencido hace 3 días", y el texto de la región no contiene "−3" ni "-3"; con
       un `500` muestra "No se pudo cargar el sprint activo." con `role="alert"` — depende de T004
-- [ ] T006 [US1] Pruebas de escenario en
+- [X] T006 [US1] Pruebas de escenario en
       `frontend/src/features/dashboard/components/project-summary.test.tsx`, montando
       `DashboardView` con `renderDashboard`, con
       `describe("009/US1 - Ver el estado del proyecto y del sprint en curso")` y un `it` por escenario

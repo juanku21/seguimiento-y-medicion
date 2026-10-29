@@ -7,7 +7,7 @@ import {
   vi,
   type Mock,
 } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { ProjectOverview } from "@/features/projects/components/project-overview";
 import { writeToken } from "@/lib/session-storage";
 import { SessionProvider } from "@/providers/session-provider";
@@ -202,5 +202,38 @@ describe("004 - Navegación de la vista del proyecto a los sprints", () => {
       expect(link.getAttribute("href")).toBe(`/projects/${project.id}/sprints`);
       cleanup();
     }
+  });
+});
+
+describe("009 - Navegación de la vista del proyecto al dashboard", () => {
+  let fetchMock: FetchMock;
+
+  // Cada prueba arranca con una sesión válida en la pestaña y un fetch sustituido.
+  beforeEach(() => {
+    sessionStorage.clear();
+    writeToken(sessionToken);
+    fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  // Desmonta lo renderizado y restaura fetch para no contaminar otras pruebas.
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  // La navegación "Secciones del proyecto" ofrece el enlace al dashboard como primer elemento.
+  it("ofrece el enlace al dashboard", async () => {
+    const project = projectWith(membersWithEmail);
+    await renderOverview(fetchMock, project);
+
+    const nav = screen.getByRole("navigation", {
+      name: "Secciones del proyecto",
+    });
+    const links = within(nav).getAllByRole("link");
+    expect(links[0].textContent).toBe("Dashboard");
+    expect(links[0].getAttribute("href")).toBe(
+      `/projects/${project.id}/dashboard`,
+    );
   });
 });

@@ -103,7 +103,7 @@ del resumen.
 
 **Rama**: `fase/009-foundational`, la misma que la Fase 2: las dos forman un único pull request.
 
-- [ ] T001 Instalar en `frontend/` las dependencias autorizadas con versión exacta:
+- [X] T001 Instalar en `frontend/` las dependencias autorizadas con versión exacta:
       `npm install --save-exact recharts@3.10.1 react-is@19.3.0`. Verificar que
       `frontend/package.json` las lista en `dependencies` **sin** `^` ni `~` y que
       `frontend/package-lock.json` quedó actualizado. Verificar también que no se agregó ninguna
@@ -123,7 +123,7 @@ lógica de presentación.
 
 **Rama**: `fase/009-foundational`
 
-- [ ] T002 [P] Declarar en `frontend/src/types/metrics.ts` los tipos de data-model.md sección 1, con
+- [X] T002 [P] Declarar en `frontend/src/types/metrics.ts` los tipos de data-model.md sección 1, con
       un comentario de cabecera ("Tipos de las respuestas de cálculo de métricas, según
       specs/008-metrics-calculation/contracts/openapi.yaml; solo los campos que usa el dashboard"):
       `ValueStatus = "available" | "not_calculable" | "not_applicable"`;
@@ -145,7 +145,7 @@ lógica de presentación.
       con las seis listas `plannedStoryPoints`, `completedStoryPoints`, `estimatedHours`,
       `actualHours`, `defectsDetected` y `defectsResolved` de `SeriesPoint[]`. Sin `any` y sin
       campos que el dashboard no muestra
-- [ ] T003 [P] Leer antes `frontend/node_modules/next/dist/docs/01-app/01-getting-started/03-layouts-and-pages.md`
+- [X] T003 [P] Leer antes `frontend/node_modules/next/dist/docs/01-app/01-getting-started/03-layouts-and-pages.md`
       y `05-server-and-client-components.md` (CLAUDE.md). Crear
       `frontend/src/app/projects/[projectId]/dashboard/page.tsx`, un Server Component con
       `metadata.title = "Dashboard | Software Metrics & Estimation"` que lee `params` como `Promise`,
@@ -155,7 +155,7 @@ lógica de presentación.
       `frontend/src/features/dashboard/components/dashboard-view.tsx` con `"use client"`, la
       exportación `DashboardView({ projectId }: DashboardViewProps)` y un cuerpo que todavía no
       muestra nada (`return null`), con el comentario de qué va a componer
-- [ ] T004 Crear en `frontend/src/features/dashboard/components/dashboard-test-backend.ts` el
+- [X] T004 Crear en `frontend/src/features/dashboard/components/dashboard-test-backend.ts` el
       ayudante de pruebas compartido, que importan **solo** archivos `*.test.tsx`:
       `installDashboardBackend(overrides?)` reemplaza `globalThis.fetch` con `vi.fn` y responde por
       método y ruta las seis operaciones de contracts/consumed-api.md
@@ -687,6 +687,15 @@ verificación de las puertas de calidad.
 - [ ] T042 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluida la
       validación manual de la sección 2 contra el backend de desarrollo y la comparación de cada
       cifra con Swagger (SC-004) — depende de T039, T040, T041
+
+---
+
+## Phase 10: Convergence and Security
+
+Propósito: ajustes transversales detectados por /speckit-converge y /revisar-seguridad.
+
+- [ ] T043 Actualizar `undici` a 8.12.2 o superior en `frontend/package.json` y `frontend/package-lock.json` (con `npm audit fix` o subiendo `jsdom`) y confirmar que `npm test` sigue en verde per hallazgo de seguridad: undici vulnerable en dependencia de desarrollo (security) — origen: seguridad, detectado en 009/fase-foundational
+- [ ] T044 Actualizar `zod` a 4.6.6 o superior en `frontend/package-lock.json` (con `npm audit fix` o subiendo `eslint-config-next`) y confirmar que `npm run lint` sigue funcionando per hallazgo de seguridad: zod vulnerable en dependencia de desarrollo (security) — origen: seguridad, detectado en 009/fase-foundational
 
 ---
 

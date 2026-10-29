@@ -5,6 +5,8 @@ import type {
   Metric,
   MetricsWarning,
   ProjectMetricsResponse,
+  ProjectSeriesResponse,
+  SeriesPoint,
   SprintMetric,
 } from "@/types/metrics";
 
@@ -132,4 +134,28 @@ export function getActiveSprintMetrics(
     `/api/v1/projects/${encodeURIComponent(projectId)}/metrics/active-sprint`,
     isActiveSprintMetricsResponse,
   );
+}
+
+// Firmas mínimas: la implementación llega en la tarea T023.
+export function isSeriesEnvelope(
+  value: unknown,
+): value is ProjectSeriesResponse {
+  void value;
+  throw new Error("not implemented");
+}
+
+export function readSeries(
+  envelope: ProjectSeriesResponse,
+  key: keyof ProjectSeriesResponse,
+): SeriesPoint[] | null {
+  void envelope;
+  void key;
+  throw new Error("not implemented");
+}
+
+export function getProjectSeries(
+  projectId: string,
+): Promise<ApiResult<ProjectSeriesResponse>> {
+  void projectId;
+  throw new Error("not implemented");
 }

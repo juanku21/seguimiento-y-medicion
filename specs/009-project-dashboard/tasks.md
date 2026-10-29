@@ -393,7 +393,7 @@ las 4 filas en el orden recibido; con un sprint Activo más, la tabla sigue teni
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T019 [P] [US3] Pruebas unitarias **obligatorias** en
+- [X] T019 [P] [US3] Pruebas unitarias **obligatorias** en
       `frontend/src/features/dashboard/series.test.ts` y en `frontend/src/features/dashboard/api.test.ts`
       (casos nuevos), cubriendo RN-20 y la validación por porción: `closedSprintPoints` sobre
       `[closed A, active B, closed C]` devuelve `[A, C]`, con los mismos objetos y en el mismo

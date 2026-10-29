@@ -453,7 +453,7 @@ las 4 filas en el orden recibido; con un sprint Activo más, la tabla sigue teni
       arman por posición, en el orden recibido. Debajo, un `<details>` "Ver datos" con la tabla "Datos
       de <título>", una fila por sprint y cada valor con `MetricValue`. Con un punto, agrega
       "Todavía no hay evolución que comparar." — depende de T020, T016
-- [ ] T025 [US3] Implementar en `frontend/src/features/dashboard/components/velocity-chart.tsx`
+- [X] T025 [US3] Implementar en `frontend/src/features/dashboard/components/velocity-chart.tsx`
       `VelocityChart({ series })`, que recibe el `QueryState` de las series, lee `plannedStoryPoints`
       y `completedStoryPoints` con `readSeries`, aplica `closedSprintPoints` a las dos y monta
       `SprintSeriesChart` con el título "Velocidad por sprint", el eje "Story Points", las series

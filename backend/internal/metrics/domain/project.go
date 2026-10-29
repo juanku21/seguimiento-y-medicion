@@ -79,7 +79,6 @@ type ProjectMetrics struct {
 // contador de historias sin estimar y advertencias.
 func CalculateProject(data ProjectData, now time.Time, grace time.Duration) ProjectMetrics {
 	result := ProjectMetrics{
-		Velocity:                       calculateVelocity(data, now, grace),
 		EffortOutsideSprintsHundredths: data.OutsideSprintsHundredths,
 		UnestimatedBacklogStories:      data.UnestimatedBacklogStories,
 		Defects:                        TallyDefects(data.DefectCounts),
@@ -99,6 +98,7 @@ func CalculateProject(data ProjectData, now time.Time, grace time.Duration) Proj
 	// Se acumulan los Cerrados y el Activo; los Planificados solo aportan su esfuerzo aparte.
 	var planned, completed, estimated, actual, stories, completedStories int
 	includesActive := false
+	series := []VelocityPoint{}
 	for _, sprint := range data.Sprints {
 		if sprint.Status == sprintsdomain.SprintStatusPlanned {
 			result.EffortInPlannedSprintsHundredths += sprint.ActualHundredths
@@ -119,7 +119,17 @@ func CalculateProject(data ProjectData, now time.Time, grace time.Duration) Proj
 		if sprint.Status == sprintsdomain.SprintStatusActive {
 			includesActive = true
 		}
+		// Cada Cerrado aporta un punto de velocidad con las métricas ya calculadas.
+		if sprint.Status == sprintsdomain.SprintStatusClosed {
+			series = append(series, VelocityPoint{
+				SprintID:             sprint.ID,
+				SprintName:           sprint.Name,
+				ClosedAt:             sprint.ClosedAt,
+				CompletedStoryPoints: metrics.CompletedStoryPoints.Value,
+			})
+		}
 	}
+	result.Velocity = calculateVelocity(series)
 
 	// Los cocientes salen de los totales, nunca del promedio de los porcentajes de cada sprint (RN-11).
 	deviation := actual - estimated
@@ -141,22 +151,8 @@ func CalculateProject(data ProjectData, now time.Time, grace time.Duration) Proj
 	return result
 }
 
-// calculateVelocity arma la serie de todos los Cerrados y el promedio de la ventana de los últimos 3.
-func calculateVelocity(data ProjectData, now time.Time, grace time.Duration) Velocity {
-	// La serie conserva el orden de Sprints y reutiliza CalculateSprint para el valor de cada punto.
-	series := []VelocityPoint{}
-	for _, sprint := range data.Sprints {
-		if sprint.Status != sprintsdomain.SprintStatusClosed {
-			continue
-		}
-		metrics, _ := CalculateSprint(sprint, data.FactorHundredths, now, grace)
-		series = append(series, VelocityPoint{
-			SprintID:             sprint.ID,
-			SprintName:           sprint.Name,
-			ClosedAt:             sprint.ClosedAt,
-			CompletedStoryPoints: metrics.CompletedStoryPoints.Value,
-		})
-	}
+// calculateVelocity promedia la ventana de los últimos 3 Cerrados de la serie, que conserva el orden de Sprints.
+func calculateVelocity(series []VelocityPoint) Velocity {
 	if len(series) == 0 {
 		return Velocity{Value: NotCalculable(), Series: series}
 	}

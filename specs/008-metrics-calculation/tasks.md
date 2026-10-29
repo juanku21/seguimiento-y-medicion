@@ -646,7 +646,7 @@ viva, cobertura, vulnerabilidades y verificación de las puertas de calidad.
       validación manual de la sección 4, la prueba de coherencia con `-count=5` y la verificación de
       que las pruebas corrieron contra `smye_test` en el puerto 5433 y no contra desarrollo — depende
       de T046, T047, T050
-- [ ] T052 Eliminar en backend/internal/metrics/domain/project.go el recálculo de CalculateSprint
+- [X] T052 Eliminar en backend/internal/metrics/domain/project.go el recálculo de CalculateSprint
       en calculateVelocity, reutilizando las métricas de cada Cerrado ya calculadas en
       CalculateProject per Constitución I (partial) — origen: converge, detectado en
       hu/008-us3-metricas-acumuladas-del-proyecto

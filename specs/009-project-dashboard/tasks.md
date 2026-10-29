@@ -580,18 +580,18 @@ el dashboard." y, al pulsar "Reintentar" con el backend ya respondiendo, el dash
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T031 [P] [US6] Pruebas unitarias en `frontend/src/hooks/use-authorized-query.test.tsx`: con
+- [X] T031 [P] [US6] Pruebas unitarias en `frontend/src/hooks/use-authorized-query.test.tsx`: con
       una carga que devuelve un error con `status: 500`, el estado de error trae `httpStatus: 500` y el
       `message`; con `status: 0` (red caída), trae `httpStatus: 0`; con datos, `loaded` como hoy
       (research.md sección 4) — sin dependencias
-- [ ] T032 [P] [US6] Pruebas unitarias **obligatorias** de `DashboardWarnings` en
+- [X] T032 [P] [US6] Pruebas unitarias **obligatorias** de `DashboardWarnings` en
       `frontend/src/features/dashboard/components/dashboard-warnings.test.tsx`, cubriendo RN-21:
       con una advertencia `planning` y una `data_inconsistency`, la región "Advertencias" tiene la
       lista "Avisos de planificación" con `role="status"` y la lista "Datos que hay que revisar" con
       `role="alert"`, con el texto introductorio de que hay información rota que alguien debe
       revisar, y cada una muestra el `message` recibido sin cambios; con solo `planning` no hay
       `role="alert"`; con la lista vacía no se muestra la región — depende de T002
-- [ ] T033 [US6] Pruebas de escenario en
+- [X] T033 [US6] Pruebas de escenario en
       `frontend/src/features/dashboard/components/dashboard-view.test.tsx`, montando `DashboardView`
       con `renderDashboard` e `installResizeObserverStub()`, con
       `describe("009/US6 - Usar el dashboard cuando falta información o falla una sección")` y un
@@ -622,20 +622,20 @@ el dashboard." y, al pulsar "Reintentar" con el backend ya respondiendo, el dash
 
 ### Implementación de la Historia 6
 
-- [ ] T034 [P] [US6] Sumar `httpStatus: number` al caso de error de `QueryState` en
+- [X] T034 [P] [US6] Sumar `httpStatus: number` al caso de error de `QueryState` en
       `frontend/src/hooks/use-authorized-query.ts` (`{ status: "error"; httpStatus: number; message:
       string }`; no se llama `status` porque ese ya es el discriminante), tomado de `result.error.status`, y
       actualizar el comentario del tipo. El cambio es compatible con los usos actuales, que solo
       leen `message`: verificar que `npm test` sigue pasando — depende de T031
-- [ ] T035 [P] [US6] Implementar en
+- [X] T035 [P] [US6] Implementar en
       `frontend/src/features/dashboard/components/dashboard-warnings.tsx`
       `DashboardWarnings({ warnings }: { warnings: MetricsWarning[] })` según research.md sección 11,
       sin cambiar ningún `message` — depende de T032
-- [ ] T036 [P] [US6] Implementar en
+- [X] T036 [P] [US6] Implementar en
       `frontend/src/features/dashboard/components/dashboard-empty-state.tsx` `DashboardEmptyState()`:
       región "Sin datos todavía" con el texto de contracts/ui-contract.md, sin enlaces (la
       navegación hacia los módulos está fuera de alcance) — depende de T033
-- [ ] T037 [US6] Completar `frontend/src/features/dashboard/components/dashboard-view.tsx`: la
+- [X] T037 [US6] Completar `frontend/src/features/dashboard/components/dashboard-view.tsx`: la
       consulta del listado de sprints con `listSprints(projectId)` sin filtros; con
       `emptyReason === "no_sprints"`, `DashboardEmptyState` en lugar de los indicadores, los tres
       gráficos y la distribución (FR-027); mientras esa consulta carga, en lugar de esas secciones se

@@ -312,7 +312,7 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
       `provisional`; con `fetch` sustituido, `getProjectMetrics("a/b")` y
       `getActiveSprintMetrics("a/b")` piden con `GET` las rutas con el identificador codificado
       (`a%2Fb`) y un cuerpo que no cumple el reconocedor llega como error — depende de T002
-- [ ] T013 [US2] Pruebas de escenario en
+- [X] T013 [US2] Pruebas de escenario en
       `frontend/src/features/dashboard/components/key-indicators.test.tsx`, montando `DashboardView`
       con `renderDashboard`, con `describe("009/US2 - Ver los indicadores clave del momento")` y un
       `it` por escenario según plan.md, cada uno precedido por `// Escenario: US2-k (<caso>)`, que

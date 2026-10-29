@@ -101,7 +101,19 @@ function Group({
   );
 }
 
-// Filas término/valor de las siete métricas; el valor se muestra tal como llega.
+// Fila término/valor de un indicador.
+function MetricRow({ term, children }: { term: string; children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-2">
+      <dt className="text-sm text-zinc-600 dark:text-zinc-400">{term}</dt>
+      <dd className="flex items-center gap-2 text-sm font-medium">
+        {children}
+      </dd>
+    </div>
+  );
+}
+
+// Filas de las siete métricas; el valor se muestra tal como llega.
 function MetricRows({
   metrics,
 }: {
@@ -110,12 +122,9 @@ function MetricRows({
   return (
     <>
       {METRIC_ROWS.map(({ term, key, kind, format }) => (
-        <div key={term} className="flex items-center gap-2">
-          <dt className="text-sm text-zinc-600 dark:text-zinc-400">{term}</dt>
-          <dd className="flex items-center gap-2 text-sm font-medium">
-            <MetricValue metric={metrics[key]} kind={kind} format={format} />
-          </dd>
-        </div>
+        <MetricRow key={term} term={term}>
+          <MetricValue metric={metrics[key]} kind={kind} format={format} />
+        </MetricRow>
       ))}
     </>
   );
@@ -178,24 +187,16 @@ function ProjectGroup({
     badge = <FinalityBadge finality={cumulative.finality} />;
     content = (
       <dl className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <dt className="text-sm text-zinc-600 dark:text-zinc-400">
-            Velocidad del equipo
-          </dt>
-          <dd className="flex items-center gap-2 text-sm font-medium">
-            <MetricValue
-              metric={velocity.value}
-              kind="velocity"
-              format={formatDecimal}
-            />
-          </dd>
-        </div>
-        <div className="flex items-center gap-2">
-          <dt className="text-sm text-zinc-600 dark:text-zinc-400">
-            Defectos abiertos
-          </dt>
-          <dd className="text-sm font-medium">{String(defects.open.total)}</dd>
-        </div>
+        <MetricRow term="Velocidad del equipo">
+          <MetricValue
+            metric={velocity.value}
+            kind="velocity"
+            format={formatDecimal}
+          />
+        </MetricRow>
+        <MetricRow term="Defectos abiertos">
+          {String(defects.open.total)}
+        </MetricRow>
         <MetricRows metrics={cumulative} />
       </dl>
     );

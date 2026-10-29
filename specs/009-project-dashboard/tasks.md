@@ -360,7 +360,7 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
       `SectionError({ message }: { message: string })`, que muestra el mensaje con `Alert`
       (`role="alert"`), y declarar en el mismo archivo las constantes de los ocho mensajes de falla
       de contracts/ui-contract.md, en un único lugar — depende de T013
-- [ ] T018 [US2] Implementar en `frontend/src/features/dashboard/components/key-indicators.tsx`
+- [X] T018 [US2] Implementar en `frontend/src/features/dashboard/components/key-indicators.tsx`
       `KeyIndicators({ projectMetrics, activeSprintMetrics })`, que recibe los dos `QueryState`:
       región "Indicadores clave" con los grupos "Indicadores del sprint activo" e "Indicadores del proyecto" como `<dl>`, cada uno
       dentro de un `<div>` con `h3` y `aria-labelledby`, sin `<section>`, para que no sea una región,, con los

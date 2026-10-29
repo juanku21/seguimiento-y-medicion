@@ -155,7 +155,7 @@ lógica de presentación.
       `frontend/src/features/dashboard/components/dashboard-view.tsx` con `"use client"`, la
       exportación `DashboardView({ projectId }: DashboardViewProps)` y un cuerpo que todavía no
       muestra nada (`return null`), con el comentario de qué va a componer
-- [ ] T004 Crear en `frontend/src/features/dashboard/components/dashboard-test-backend.ts` el
+- [X] T004 Crear en `frontend/src/features/dashboard/components/dashboard-test-backend.ts` el
       ayudante de pruebas compartido, que importan **solo** archivos `*.test.tsx`:
       `installDashboardBackend(overrides?)` reemplaza `globalThis.fetch` con `vi.fn` y responde por
       método y ruta las seis operaciones de contracts/consumed-api.md

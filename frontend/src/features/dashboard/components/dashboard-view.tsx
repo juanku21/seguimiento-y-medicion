@@ -10,7 +10,9 @@ import {
 import { ActiveSprintPanel } from "@/features/dashboard/components/active-sprint-panel";
 import { EffortChart } from "@/features/dashboard/components/effort-chart";
 import { KeyIndicators } from "@/features/dashboard/components/key-indicators";
+import { OpenDefectsDistribution } from "@/features/dashboard/components/open-defects-distribution";
 import { ProjectSummary } from "@/features/dashboard/components/project-summary";
+import { QualityChart } from "@/features/dashboard/components/quality-chart";
 import { VelocityChart } from "@/features/dashboard/components/velocity-chart";
 import { getProjectDetail } from "@/features/projects/api";
 import { useAuthorizedQuery } from "@/hooks/use-authorized-query";
@@ -51,6 +53,8 @@ function DashboardSections({ project }: { project: ProjectDetail }) {
       />
       <VelocityChart series={series} />
       <EffortChart series={series} />
+      <QualityChart series={series} />
+      <OpenDefectsDistribution projectMetrics={projectMetrics} />
     </div>
   );
 }

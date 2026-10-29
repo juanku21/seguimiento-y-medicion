@@ -525,7 +525,7 @@ por severidad" muestra las cuatro cantidades y "Total" 7.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T028 [US5] Pruebas de escenario en
+- [X] T028 [US5] Pruebas de escenario en
       `frontend/src/features/dashboard/components/quality-chart.test.tsx`, montando `DashboardView`
       con `renderDashboard` e `installResizeObserverStub()`, con
       `describe("009/US5 - Ver la calidad del producto")` y un `it` por escenario según plan.md, cada
@@ -545,7 +545,7 @@ por severidad" muestra las cuatro cantidades y "Total" 7.
 
 ### Implementación de la Historia 5
 
-- [ ] T029 [P] [US5] Implementar en
+- [X] T029 [P] [US5] Implementar en
       `frontend/src/features/dashboard/components/open-defects-distribution.tsx`
       `OpenDefectsDistribution({ projectMetrics })`, que recibe el `QueryState` de las métricas del
       proyecto: región "Defectos abiertos por severidad" con un `<dl>` de Crítica, Alta, Media y Baja
@@ -553,7 +553,7 @@ por severidad" muestra las cuatro cantidades y "Total" 7.
       total 0 agrega "No hay defectos abiertos." como texto informativo; su "Cargando…" y su
       `SectionError` con "No se pudo cargar la distribución de defectos abiertos." (research.md
       sección 10) — depende de T028
-- [ ] T030 [US5] Implementar en `frontend/src/features/dashboard/components/quality-chart.tsx`
+- [X] T030 [US5] Implementar en `frontend/src/features/dashboard/components/quality-chart.tsx`
       `QualityChart({ series })` sobre `SprintSeriesChart`, con `defectsDetected` y
       `defectsResolved`, sin `closedSprintPoints`, título "Defectos por sprint", eje "Defectos",
       formato `String` y los mensajes de contracts/ui-contract.md; montar en `dashboard-view.tsx`

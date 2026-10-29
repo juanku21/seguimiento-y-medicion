@@ -201,14 +201,20 @@ describe("009/US4 - Ver la evolución del esfuerzo", () => {
 
     expect(await screen.findByText(EMPTY)).toBeDefined();
     expect(screen.queryByRole("figure", { name: TITLE })).toBeNull();
-    // Todo SVG de la vista pertenece al gráfico de velocidad: el de esfuerzo no dibuja ninguno.
+    // Todo SVG de la vista pertenece al gráfico de velocidad o al de calidad: el de esfuerzo no
+    // dibuja ninguno.
     const velocity = await screen.findByRole("figure", {
       name: "Velocidad por sprint",
+    });
+    const quality = await screen.findByRole("figure", {
+      name: "Defectos por sprint",
     });
     const surfaces = container.querySelectorAll("svg.recharts-surface");
     expect(surfaces.length).toBeGreaterThan(0);
     surfaces.forEach((surface) => {
-      expect(velocity.contains(surface)).toBe(true);
+      expect(velocity.contains(surface) || quality.contains(surface)).toBe(
+        true,
+      );
     });
   });
 

@@ -106,7 +106,7 @@ describe("009/US4 - Ver la evolución del esfuerzo", () => {
     installDashboardBackend({
       series: { status: 200, body: seriesWith(estimated, actual) },
     });
-    const { container } = renderDashboard(defaultProjectId);
+    renderDashboard(defaultProjectId);
 
     const figure = await findFigure();
     const rows = dataRows(figure);
@@ -130,7 +130,7 @@ describe("009/US4 - Ver la evolución del esfuerzo", () => {
     expect(within(figure).getAllByText("Horas reales").length).toBeGreaterThan(
       0,
     );
-    const svg = container.querySelector("svg.recharts-surface");
+    const svg = figure.querySelector("svg.recharts-surface");
     expect(svg).not.toBeNull();
     expect(svg!.textContent).toContain("Sprint");
     expect(svg!.textContent).toContain("Horas");
@@ -144,15 +144,15 @@ describe("009/US4 - Ver la evolución del esfuerzo", () => {
     installDashboardBackend({
       series: { status: 200, body: seriesWith(estimated, actual) },
     });
-    const { container } = renderDashboard(defaultProjectId);
+    renderDashboard(defaultProjectId);
 
     const figure = await findFigure();
     const rows = dataRows(figure);
     expect(rows).toHaveLength(4);
     expect(within(rows[3]).getAllByText("Parcial")).toHaveLength(2);
-    expect(
-      container.querySelector("svg.recharts-surface")!.textContent,
-    ).toContain("Sprint 4 (parcial)");
+    expect(figure.querySelector("svg.recharts-surface")!.textContent).toContain(
+      "Sprint 4 (parcial)",
+    );
   });
 
   // Escenario: US4-3 (caso límite: estimadas 0 con reales registradas)
@@ -201,7 +201,15 @@ describe("009/US4 - Ver la evolución del esfuerzo", () => {
 
     expect(await screen.findByText(EMPTY)).toBeDefined();
     expect(screen.queryByRole("figure", { name: TITLE })).toBeNull();
-    expect(container.querySelector("svg.recharts-surface")).toBeNull();
+    // Todo SVG de la vista pertenece al gráfico de velocidad: el de esfuerzo no dibuja ninguno.
+    const velocity = await screen.findByRole("figure", {
+      name: "Velocidad por sprint",
+    });
+    const surfaces = container.querySelectorAll("svg.recharts-surface");
+    expect(surfaces.length).toBeGreaterThan(0);
+    surfaces.forEach((surface) => {
+      expect(velocity.contains(surface)).toBe(true);
+    });
   });
 
   // Escenario: US4-6 (caso de error: actualHours malformada, falla solo este gráfico)

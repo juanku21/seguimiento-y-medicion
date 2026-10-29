@@ -92,7 +92,7 @@ describe("009/US3 - Ver la evolución de la velocidad", () => {
   // Escenario: US3-1 (cuatro sprints Cerrados en el orden recibido)
   it("muestra los 4 pares de Story Points en el orden recibido", async () => {
     installDashboardBackend();
-    const { container } = renderDashboard(defaultProjectId);
+    renderDashboard(defaultProjectId);
 
     const figure = await findFigure();
     const rows = dataRows(figure);
@@ -116,7 +116,7 @@ describe("009/US3 - Ver la evolución de la velocidad", () => {
     expect(
       within(figure).getAllByText("Story Points completados").length,
     ).toBeGreaterThan(0);
-    const svg = container.querySelector("svg.recharts-surface");
+    const svg = figure.querySelector("svg.recharts-surface");
     expect(svg).not.toBeNull();
     expect(svg!.textContent).toContain("Sprint");
     expect(svg!.textContent).toContain("Story Points");
@@ -178,7 +178,15 @@ describe("009/US3 - Ver la evolución de la velocidad", () => {
 
     expect(await screen.findByText(EMPTY)).toBeDefined();
     expect(screen.queryByRole("figure", { name: TITLE })).toBeNull();
-    expect(container.querySelector("svg.recharts-surface")).toBeNull();
+    // Todo SVG de la vista pertenece al gráfico de esfuerzo: el de velocidad no dibuja ninguno.
+    const effort = await screen.findByRole("figure", {
+      name: "Esfuerzo por sprint",
+    });
+    const surfaces = container.querySelectorAll("svg.recharts-surface");
+    expect(surfaces.length).toBeGreaterThan(0);
+    surfaces.forEach((surface) => {
+      expect(effort.contains(surface)).toBe(true);
+    });
   });
 
   // Escenario: US3-5 (20 sprints Cerrados legibles, SC-009)
@@ -193,7 +201,7 @@ describe("009/US3 - Ver la evolución de la velocidad", () => {
         ),
       },
     });
-    const { container } = renderDashboard(defaultProjectId);
+    renderDashboard(defaultProjectId);
 
     const figure = await findFigure();
     const rows = dataRows(figure);
@@ -206,7 +214,7 @@ describe("009/US3 - Ver la evolución de la velocidad", () => {
 
     // Cada nombre aparece exactamente una vez como rótulo del eje X.
     const ticks = Array.from(
-      container.querySelectorAll(
+      figure.querySelectorAll(
         ".recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value",
       ),
     ).map((tick) => tick.textContent);

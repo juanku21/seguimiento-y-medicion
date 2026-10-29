@@ -8,6 +8,7 @@ import {
   getProjectSeries,
 } from "@/features/dashboard/api";
 import { ActiveSprintPanel } from "@/features/dashboard/components/active-sprint-panel";
+import { EffortChart } from "@/features/dashboard/components/effort-chart";
 import { KeyIndicators } from "@/features/dashboard/components/key-indicators";
 import { ProjectSummary } from "@/features/dashboard/components/project-summary";
 import { VelocityChart } from "@/features/dashboard/components/velocity-chart";
@@ -49,6 +50,7 @@ function DashboardSections({ project }: { project: ProjectDetail }) {
         activeSprintMetrics={activeSprintMetrics}
       />
       <VelocityChart series={series} />
+      <EffortChart series={series} />
     </div>
   );
 }

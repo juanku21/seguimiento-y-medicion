@@ -483,7 +483,7 @@ fila lleva "Parcial".
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T026 [US4] Pruebas de escenario en
+- [X] T026 [US4] Pruebas de escenario en
       `frontend/src/features/dashboard/components/effort-chart.test.tsx`, montando `DashboardView`
       con `renderDashboard` e `installResizeObserverStub()`, con
       `describe("009/US4 - Ver la evolución del esfuerzo")` y un `it` por escenario según plan.md,
@@ -499,7 +499,7 @@ fila lleva "Parcial".
 
 ### Implementación de la Historia 4
 
-- [ ] T027 [US4] Implementar en `frontend/src/features/dashboard/components/effort-chart.tsx`
+- [X] T027 [US4] Implementar en `frontend/src/features/dashboard/components/effort-chart.tsx`
       `EffortChart({ series })` sobre `SprintSeriesChart`, con `estimatedHours` y `actualHours`
       leídas con `readSeries` y **sin** `closedSprintPoints` (US4-2), título "Esfuerzo por sprint",
       eje "Horas", series "Horas estimadas" y "Horas reales", formato `formatHours` y los mensajes de

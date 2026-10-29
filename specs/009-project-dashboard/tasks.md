@@ -666,7 +666,7 @@ verificación de las puertas de calidad.
       `GET` y que son exactamente las seis operaciones de contracts/consumed-api.md, cada una una
       sola vez, y que no hay ningún botón de edición en la pantalla. Caracterización: la regla ya se
       cumple, así que no tiene RED; el commit lo justifica — depende de T037
-- [ ] T039 [P] Actualizar `README.md` de la raíz en español: la sección "Panel de Control y Reportes"
+- [X] T039 [P] Actualizar `README.md` de la raíz en español: la sección "Panel de Control y Reportes"
       describe el dashboard (secciones, estados de valor y degradación por sección), la tabla de
       "Arquitectura y Stack Tecnológico" suma Recharts 3.10.1 para los gráficos, y "Comprobar que
       todo funciona" suma abrir `/projects/{id}/dashboard`, manteniendo el criterio de que alguien

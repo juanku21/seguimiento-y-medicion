@@ -108,7 +108,17 @@ La aplicación calcula continuamente indicadores para medir la eficiencia y cali
 
 ## Panel de Control y Reportes
 
-- **Panel de Control (Dashboard):** Muestra de forma visual el estado del proyecto e indicadores clave del progreso.
+- **Panel de Control (Dashboard):** Muestra de forma visual el estado del proyecto e indicadores clave del progreso. Se abre en `/projects/<projectId>/dashboard`, es de solo lectura (solo consulta datos, no modifica nada) y no recalcula nada: muestra los valores que entrega el cálculo de métricas. Sus secciones, de arriba hacia abajo, son:
+  - **Resumen del proyecto:** nombre, estado, fechas (inicio, finalización prevista y, si el proyecto está finalizado, la real) e integrantes en solo lectura.
+  - **Sprint activo:** nombre, Sprint Goal, fechas y días restantes o vencidos del sprint Activo, o el aviso de que no hay ninguno.
+  - **Advertencias:** avisos de planificación (por ejemplo, historias del backlog sin estimar) y, aparte, datos inconsistentes que alguien debe revisar. Si no hay advertencias, la sección no aparece.
+  - **Indicadores clave:** los del sprint activo y los del proyecto (Story Points, horas estimadas y reales, desviación, porcentaje de historias completadas, defectos y velocidad).
+  - **Gráficos por sprint:** velocidad, esfuerzo (estimado contra real) y defectos (detectados contra resueltos), cada uno con su tabla de datos equivalente.
+  - **Defectos abiertos por severidad:** distribución de los defectos que siguen abiertos.
+
+  Cada valor se muestra con uno de estos estados: el número, **No calculable** (con la explicación de por qué, por ejemplo un cociente con denominador 0) o **No aplica** (la métrica no tiene sentido para el estado del sprint). Además, las métricas de sprint llevan la marca **Parcial** (sprint Activo o acumulado que lo incluye) o **Provisoria** (sprint Cerrado cuyo valor todavía puede cambiar); los valores definitivos no llevan marca. El significado de cada estado está en [Métricas: estados y definitividad](#métricas-estados-y-definitividad).
+
+  **Degradación por sección:** cada sección consulta su propia información, así que si una falla muestra solo su mensaje de error (por ejemplo, "No se pudo cargar el gráfico de velocidad.") y las demás siguen visibles. Un proyecto sin sprints muestra el estado vacío "Sin datos todavía" en lugar de las secciones de métricas. Si falla el resumen del proyecto, la pantalla muestra "No se pudo mostrar el dashboard." con el botón **Reintentar** (no se ofrece cuando el proyecto no existe).
 - **Reportes Exportables:** Generación de informes detallados por proyecto o por ciclo, con el desglose de tareas, métricas, registro de tiempo y balance de defectos en formato PDF.
 
 ---
@@ -128,7 +138,7 @@ El repositorio separa el backend y el frontend en dos directorios de primer nive
 | --- | --- |
 | Backend | Go 1.27.3, Gin, GORM, JWT (`golang-jwt/jwt/v5`), bcrypt |
 | Base de datos | PostgreSQL 18.6 (imagen `postgres:18.6-alpine`) |
-| Frontend | Node.js 24.21.0, Next.js 16.4.2, React 19.3.0, Tailwind CSS 4.3.3, TypeScript 5.9.3 |
+| Frontend | Node.js 24.21.0, Next.js 16.4.2, React 19.3.0, Tailwind CSS 4.3.3, TypeScript 5.9.3, Recharts 3.10.1 (gráficos del dashboard) |
 | Documentación de la API | Swagger generado con `swag` 1.16.6 |
 | Pruebas | `go test` con testify en el backend; Vitest 5.0.3 con Testing Library en el frontend |
 | Contenedores | Docker y Docker Compose |
@@ -315,6 +325,7 @@ El frontend queda en <http://localhost:3000> y lee `frontend/.env.local`. Para u
 | `http://localhost:3000/projects/<projectId>/defects` | Defectos del proyecto, de la severidad más alta a la más baja, con su descripción, severidad, estado, historia y sprints de detección y de resolución; los filtros **Estado**, **Severidad**, **Historia** y **Sprint** se combinan, y la lista indica "Todavía no hay defectos registrados." o "Ningún defecto cumple los filtros elegidos." según el caso; ofrece **Registrar defecto** y **Volver al proyecto** (sin sesión redirige a `/login`) |
 | `http://localhost:3000/projects/<projectId>/defects/new` | Formulario de registro de un defecto: **Descripción**, **Severidad**, **Historia** y **Sprint de detección**, con el sprint Activo propuesto por defecto; admite `?storyId=<storyId>` para preseleccionar la historia (sin sesión redirige a `/login`) |
 | `http://localhost:3000/projects/<projectId>/defects/<defectId>` | Detalle del defecto con su descripción, severidad, estado, historia, sprint de detección, sprint de resolución, autor y fecha del último cambio de estado; ofrece las acciones **Pasar a En progreso**, **Resolver** (con **Sprint de resolución**), **Reabrir** y **Descartar** (con confirmación) según el estado, y **Corregir datos** con **Guardar cambios**; un defecto Descartado o de un proyecto finalizado se muestra sin acciones (sin sesión redirige a `/login`; un defecto inexistente o de un proyecto ajeno muestra solo el aviso de que no existe) |
+| `http://localhost:3000/projects/<projectId>/dashboard` | Dashboard del proyecto: resumen, sprint activo, advertencias, indicadores clave, gráficos de velocidad, esfuerzo y defectos por sprint, y defectos abiertos por severidad, con las marcas **Parcial** y **Provisoria** donde corresponde; un proyecto sin sprints muestra "Sin datos todavía", y una sección que falla muestra su propio mensaje sin ocultar las demás (sin sesión redirige a `/login`; un proyecto inexistente o ajeno muestra "No se pudo mostrar el dashboard.") |
 | <http://localhost:8080/swagger/index.html> | Documentación interactiva de la API |
 
 Recorrido mínimo: crear una cuenta en `/register`, iniciar sesión en `/login`, ver el perfil en `/profile` y cerrar sesión desde ahí.

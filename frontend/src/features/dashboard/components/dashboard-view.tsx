@@ -5,10 +5,12 @@ import { Alert } from "@/components/alert";
 import {
   getActiveSprintMetrics,
   getProjectMetrics,
+  getProjectSeries,
 } from "@/features/dashboard/api";
 import { ActiveSprintPanel } from "@/features/dashboard/components/active-sprint-panel";
 import { KeyIndicators } from "@/features/dashboard/components/key-indicators";
 import { ProjectSummary } from "@/features/dashboard/components/project-summary";
+import { VelocityChart } from "@/features/dashboard/components/velocity-chart";
 import { getProjectDetail } from "@/features/projects/api";
 import { useAuthorizedQuery } from "@/hooks/use-authorized-query";
 import type { ProjectDetail } from "@/types/project";
@@ -31,6 +33,12 @@ function DashboardSections({ project }: { project: ProjectDetail }) {
     [projectId],
   );
   const activeSprintMetrics = useAuthorizedQuery(loadSprintMetrics);
+  // Única consulta de series: la comparten todos los gráficos de la vista.
+  const loadSeries = useCallback(
+    () => getProjectSeries(projectId),
+    [projectId],
+  );
+  const series = useAuthorizedQuery(loadSeries);
 
   return (
     <div className="flex flex-col gap-8">
@@ -40,6 +48,7 @@ function DashboardSections({ project }: { project: ProjectDetail }) {
         projectMetrics={projectMetrics}
         activeSprintMetrics={activeSprintMetrics}
       />
+      <VelocityChart series={series} />
     </div>
   );
 }

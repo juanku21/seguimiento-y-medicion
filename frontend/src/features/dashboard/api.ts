@@ -5,6 +5,8 @@ import type {
   Metric,
   MetricsWarning,
   ProjectMetricsResponse,
+  ProjectSeriesResponse,
+  SeriesPoint,
   SprintMetric,
 } from "@/types/metrics";
 
@@ -131,5 +133,48 @@ export function getActiveSprintMetrics(
   return getJson(
     `/api/v1/projects/${encodeURIComponent(projectId)}/metrics/active-sprint`,
     isActiveSprintMetricsResponse,
+  );
+}
+
+// Solo verifica que el cuerpo es un objeto: cada gráfico valida sus series (RN-20).
+export function isSeriesEnvelope(
+  value: unknown,
+): value is ProjectSeriesResponse {
+  return isRecord(value);
+}
+
+// Reconoce un punto de serie: sprint, estado del sprint, valor coherente y finalidad.
+function isSeriesPoint(value: unknown): value is SeriesPoint {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value.sprintId === "string" &&
+    typeof value.sprintName === "string" &&
+    isOneOf(value.sprintStatus, ["active", "closed"]) &&
+    isOneOf(value.finality, FINALITIES) &&
+    isMetric(value)
+  );
+}
+
+// Devuelve la serie indicada si es una lista de puntos válidos, o null si no lo es.
+export function readSeries(
+  envelope: ProjectSeriesResponse,
+  key: keyof ProjectSeriesResponse,
+): SeriesPoint[] | null {
+  const series: unknown = envelope[key];
+  if (!Array.isArray(series) || !series.every(isSeriesPoint)) {
+    return null;
+  }
+  return series;
+}
+
+// Consulta las series por sprint del proyecto.
+export function getProjectSeries(
+  projectId: string,
+): Promise<ApiResult<ProjectSeriesResponse>> {
+  return getJson(
+    `/api/v1/projects/${encodeURIComponent(projectId)}/metrics/series`,
+    isSeriesEnvelope,
   );
 }

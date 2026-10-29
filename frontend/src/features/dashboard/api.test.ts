@@ -10,11 +10,14 @@ import {
 import {
   getActiveSprintMetrics,
   getProjectMetrics,
+  getProjectSeries,
+  readSeries,
   isActiveSprintMetricsResponse,
   isMetric,
   isProjectMetricsResponse,
   isSprintMetric,
 } from "@/features/dashboard/api";
+import type { ProjectSeriesResponse } from "@/types/metrics";
 import { writeToken } from "@/lib/session-storage";
 
 type FetchMock = Mock<typeof fetch>;
@@ -201,5 +204,105 @@ describe("Consultas del dashboard - rutas y cuerpos", () => {
     respond({ activeSprint: true, metrics: null });
     const result = await getActiveSprintMetrics("p1");
     expect(result.ok).toBe(false);
+  });
+});
+
+// Punto de serie válido; las pruebas lo alteran para cada caso.
+const seriesPoint = (overrides: Record<string, unknown> = {}) => ({
+  sprintId: "s1",
+  sprintName: "Sprint 1",
+  sprintStatus: "closed",
+  status: "available",
+  value: 5,
+  finality: "definitive",
+  ...overrides,
+});
+
+// Sobre de series con las seis listas válidas.
+function seriesEnvelope(overrides: Record<string, unknown> = {}) {
+  const keys = [
+    "plannedStoryPoints",
+    "completedStoryPoints",
+    "estimatedHours",
+    "actualHours",
+    "defectsDetected",
+    "defectsResolved",
+  ];
+  return {
+    ...Object.fromEntries(keys.map((k) => [k, [seriesPoint()]])),
+    ...overrides,
+  } as unknown as ProjectSeriesResponse;
+}
+
+describe("readSeries - validación por porción (RN-20)", () => {
+  it("devuelve los puntos de una serie válida", () => {
+    const envelope = seriesEnvelope();
+    expect(readSeries(envelope, "plannedStoryPoints")).toEqual([seriesPoint()]);
+  });
+
+  it("devuelve null si la serie no es una lista", () => {
+    const envelope = seriesEnvelope({ plannedStoryPoints: "no es lista" });
+    expect(readSeries(envelope, "plannedStoryPoints")).toBeNull();
+  });
+
+  it("devuelve null si un punto no tiene sprintId", () => {
+    const envelope = seriesEnvelope({
+      plannedStoryPoints: [seriesPoint({ sprintId: undefined })],
+    });
+    expect(readSeries(envelope, "plannedStoryPoints")).toBeNull();
+  });
+
+  it("devuelve null si un punto tiene un sprintStatus desconocido", () => {
+    const envelope = seriesEnvelope({
+      plannedStoryPoints: [seriesPoint({ sprintStatus: "planned" })],
+    });
+    expect(readSeries(envelope, "plannedStoryPoints")).toBeNull();
+  });
+
+  it("devuelve null si un punto tiene una finality desconocida", () => {
+    const envelope = seriesEnvelope({
+      plannedStoryPoints: [seriesPoint({ finality: "otra" })],
+    });
+    expect(readSeries(envelope, "plannedStoryPoints")).toBeNull();
+  });
+
+  it("con defectsDetected malformada, plannedStoryPoints sigue devolviendo sus puntos", () => {
+    const envelope = seriesEnvelope({ defectsDetected: 42 });
+    expect(readSeries(envelope, "defectsDetected")).toBeNull();
+    expect(readSeries(envelope, "plannedStoryPoints")).toEqual([seriesPoint()]);
+  });
+});
+
+describe("getProjectSeries - ruta", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    sessionStorage.clear();
+  });
+
+  it("pide con GET la ruta de series con el identificador codificado", async () => {
+    sessionStorage.clear();
+    writeToken("eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJicnVubyJ9.firma");
+    const fetchMock = vi.fn<typeof fetch>(
+      async () =>
+        new Response(JSON.stringify(seriesEnvelope()), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await getProjectSeries("a/b");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [input, init] = fetchMock.mock.calls[0];
+    const url =
+      input instanceof Request
+        ? input.url
+        : input instanceof URL
+          ? input.href
+          : input;
+    const method =
+      input instanceof Request ? input.method : (init?.method ?? "GET");
+    expect(method).toBe("GET");
+    expect(url.endsWith("/api/v1/projects/a%2Fb/metrics/series")).toBe(true);
+    expect(result.ok).toBe(true);
   });
 });

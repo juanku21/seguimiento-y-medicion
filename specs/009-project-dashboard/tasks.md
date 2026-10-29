@@ -393,7 +393,7 @@ las 4 filas en el orden recibido; con un sprint Activo más, la tabla sigue teni
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T019 [P] [US3] Pruebas unitarias **obligatorias** en
+- [X] T019 [P] [US3] Pruebas unitarias **obligatorias** en
       `frontend/src/features/dashboard/series.test.ts` y en `frontend/src/features/dashboard/api.test.ts`
       (casos nuevos), cubriendo RN-20 y la validación por porción: `closedSprintPoints` sobre
       `[closed A, active B, closed C]` devuelve `[A, C]`, con los mismos objetos y en el mismo
@@ -402,7 +402,7 @@ las 4 filas en el orden recibido; con un sprint Activo más, la tabla sigue teni
       o tiene un `sprintStatus` o `finality` desconocido; con `defectsDetected` malformada,
       `readSeries` de `plannedStoryPoints` sigue devolviendo sus puntos; `getProjectSeries("a/b")`
       pide con `GET` `/api/v1/projects/a%2Fb/metrics/series` — depende de T015
-- [ ] T020 [P] [US3] Pruebas unitarias **obligatorias** de `SprintSeriesChart` en
+- [X] T020 [P] [US3] Pruebas unitarias **obligatorias** de `SprintSeriesChart` en
       `frontend/src/features/dashboard/components/sprint-series-chart.test.tsx`, con
       `installResizeObserverStub()`, cubriendo RN-07 a RN-10 y FR-025: con dos series de 3 puntos,
       la `figure` tiene como nombre accesible el título de su `<figcaption>`, el SVG contiene los
@@ -414,7 +414,7 @@ las 4 filas en el orden recibido; con un sprint Activo más, la tabla sigue teni
       evolución que comparar." (RN-09); con cero puntos no hay SVG ni tabla y se muestra el
       `emptyMessage` (RN-10); dos series con sprints distintos o en distinto orden muestran el
       `errorMessage` en lugar del gráfico, sin reordenar — depende de T016
-- [ ] T021 [US3] Pruebas de escenario en
+- [X] T021 [US3] Pruebas de escenario en
       `frontend/src/features/dashboard/components/velocity-chart.test.tsx`, montando `DashboardView`
       con `renderDashboard` e `installResizeObserverStub()`, con
       `describe("009/US3 - Ver la evolución de la velocidad")` y un `it` por escenario según plan.md,
@@ -431,16 +431,16 @@ las 4 filas en el orden recibido; con un sprint Activo más, la tabla sigue teni
 
 ### Implementación de la Historia 3
 
-- [ ] T022 [P] [US3] Implementar en `frontend/src/features/dashboard/series.ts`
+- [X] T022 [P] [US3] Implementar en `frontend/src/features/dashboard/series.ts`
       `closedSprintPoints(points: SeriesPoint[]): SeriesPoint[]`, que solo omite los puntos con
       `sprintStatus === "active"`, sin ordenar, sumar ni completar, con el comentario de research.md
       sección 8 ("única selección que hace el dashboard; la velocidad se mide sobre sprints
       terminados, US3-2") — depende de T019
-- [ ] T023 [P] [US3] Implementar en `frontend/src/features/dashboard/api.ts` `isSeriesEnvelope`
+- [X] T023 [P] [US3] Implementar en `frontend/src/features/dashboard/api.ts` `isSeriesEnvelope`
       (solo verifica que el cuerpo es un objeto), el reconocedor de `SeriesPoint`,
       `readSeries(envelope, key): SeriesPoint[] | null` y `getProjectSeries(projectId)` con `getJson`
       sobre `.../metrics/series`, según data-model.md sección 3 — depende de T019
-- [ ] T024 [US3] Implementar en `frontend/src/features/dashboard/components/sprint-series-chart.tsx`
+- [X] T024 [US3] Implementar en `frontend/src/features/dashboard/components/sprint-series-chart.tsx`
       el componente común de los tres gráficos (research.md sección 9): propiedades `title`,
       `yAxisLabel`, `kind` (para `MetricValue`), `format`, `emptyMessage`, `errorMessage` y
       `series: [SeriesInput, SeriesInput]` con `name` y `points`. Si las dos series no tienen los
@@ -453,7 +453,7 @@ las 4 filas en el orden recibido; con un sprint Activo más, la tabla sigue teni
       arman por posición, en el orden recibido. Debajo, un `<details>` "Ver datos" con la tabla "Datos
       de <título>", una fila por sprint y cada valor con `MetricValue`. Con un punto, agrega
       "Todavía no hay evolución que comparar." — depende de T020, T016
-- [ ] T025 [US3] Implementar en `frontend/src/features/dashboard/components/velocity-chart.tsx`
+- [X] T025 [US3] Implementar en `frontend/src/features/dashboard/components/velocity-chart.tsx`
       `VelocityChart({ series })`, que recibe el `QueryState` de las series, lee `plannedStoryPoints`
       y `completedStoryPoints` con `readSeries`, aplica `closedSprintPoints` a las dos y monta
       `SprintSeriesChart` con el título "Velocidad por sprint", el eje "Story Points", las series

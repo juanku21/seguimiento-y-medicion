@@ -553,7 +553,7 @@ por severidad" muestra las cuatro cantidades y "Total" 7.
       total 0 agrega "No hay defectos abiertos." como texto informativo; su "Cargando…" y su
       `SectionError` con "No se pudo cargar la distribución de defectos abiertos." (research.md
       sección 10) — depende de T028
-- [ ] T030 [US5] Implementar en `frontend/src/features/dashboard/components/quality-chart.tsx`
+- [X] T030 [US5] Implementar en `frontend/src/features/dashboard/components/quality-chart.tsx`
       `QualityChart({ series })` sobre `SprintSeriesChart`, con `defectsDetected` y
       `defectsResolved`, sin `closedSprintPoints`, título "Defectos por sprint", eje "Defectos",
       formato `String` y los mensajes de contracts/ui-contract.md; montar en `dashboard-view.tsx`

@@ -2,18 +2,51 @@
 
 import { useCallback } from "react";
 import { Alert } from "@/components/alert";
+import {
+  getActiveSprintMetrics,
+  getProjectMetrics,
+} from "@/features/dashboard/api";
 import { ActiveSprintPanel } from "@/features/dashboard/components/active-sprint-panel";
+import { KeyIndicators } from "@/features/dashboard/components/key-indicators";
 import { ProjectSummary } from "@/features/dashboard/components/project-summary";
 import { getProjectDetail } from "@/features/projects/api";
 import { useAuthorizedQuery } from "@/hooks/use-authorized-query";
+import type { ProjectDetail } from "@/types/project";
 
 interface DashboardViewProps {
   projectId: string;
 }
 
-// Vista cliente del dashboard (009/US1). Consulta el resumen del proyecto con una carga estabilizada
-// por el id; solo cuando el resumen llega monta las demás secciones, para que un error (por ejemplo
-// un 404) no dispare otras consultas. Más adelante suma las métricas y los gráficos.
+// Secciones del dashboard que dependen del resumen ya cargado: consulta las métricas del proyecto y
+// del sprint activo a la par, cada una con su estado, y monta las secciones en el orden del contrato.
+function DashboardSections({ project }: { project: ProjectDetail }) {
+  const projectId = project.id;
+  const loadMetrics = useCallback(
+    () => getProjectMetrics(projectId),
+    [projectId],
+  );
+  const projectMetrics = useAuthorizedQuery(loadMetrics);
+  const loadSprintMetrics = useCallback(
+    () => getActiveSprintMetrics(projectId),
+    [projectId],
+  );
+  const activeSprintMetrics = useAuthorizedQuery(loadSprintMetrics);
+
+  return (
+    <div className="flex flex-col gap-8">
+      <ProjectSummary project={project} />
+      <ActiveSprintPanel activeSprintId={project.activeSprint?.id ?? null} />
+      <KeyIndicators
+        projectMetrics={projectMetrics}
+        activeSprintMetrics={activeSprintMetrics}
+      />
+    </div>
+  );
+}
+
+// Vista cliente del dashboard (009/US1 y US2). Consulta el resumen del proyecto con una carga
+// estabilizada por el id; solo cuando el resumen llega monta las demás secciones, para que un error
+// (por ejemplo un 404) no dispare otras consultas. Más adelante suma los gráficos.
 export function DashboardView({ projectId }: DashboardViewProps) {
   const load = useCallback(() => getProjectDetail(projectId), [projectId]);
   const state = useAuthorizedQuery(load);
@@ -29,12 +62,5 @@ export function DashboardView({ projectId }: DashboardViewProps) {
     return <Alert>{state.message}</Alert>;
   }
 
-  // Secciones en el orden del contrato: resumen del proyecto y sprint activo.
-  const project = state.data;
-  return (
-    <div className="flex flex-col gap-8">
-      <ProjectSummary project={project} />
-      <ActiveSprintPanel activeSprintId={project.activeSprint?.id ?? null} />
-    </div>
-  );
+  return <DashboardSections project={state.data} />;
 }

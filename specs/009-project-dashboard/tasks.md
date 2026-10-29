@@ -622,7 +622,7 @@ el dashboard." y, al pulsar "Reintentar" con el backend ya respondiendo, el dash
 
 ### Implementación de la Historia 6
 
-- [ ] T034 [P] [US6] Sumar `httpStatus: number` al caso de error de `QueryState` en
+- [X] T034 [P] [US6] Sumar `httpStatus: number` al caso de error de `QueryState` en
       `frontend/src/hooks/use-authorized-query.ts` (`{ status: "error"; httpStatus: number; message:
       string }`; no se llama `status` porque ese ya es el discriminante), tomado de `result.error.status`, y
       actualizar el comentario del tipo. El cambio es compatible con los usos actuales, que solo

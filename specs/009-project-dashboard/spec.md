@@ -47,6 +47,12 @@ tomó el trabajo de distinguir esos estados; el dashboard tiene que mostrarlos, 
 - Q: Los días restantes del sprint activo no son una métrica pero son un cálculo. ¿Los deriva el dashboard? (FR-004) → A: no; los entrega `specs/004-sprint-management` junto con los datos del sprint. La regla "el dashboard no calcula nada" queda sin excepciones. Requiere enmendar la spec 004.
 - Q: ¿El dashboard muestra las advertencias que produce la feature de métricas? (FR-032) → A: sí, las dos clases —de planificación y de inconsistencia de datos— y distinguidas entre sí. Esconderlas anularía la decisión de la spec 008 de avisar en vez de calcular en silencio.
 
+### Session 2026-10-28
+
+- Q: La serie de Story Points de `specs/008-metrics-calculation` incluye al sprint Activo, pero US3-2 pide un gráfico de velocidad solo con sprints cerrados. ¿Quién excluye al Activo? (FR-018, FR-026) → A: el dashboard omite en ese gráfico los puntos que la feature de métricas marca como del sprint Activo. Es la única selección permitida: no suma, no reordena ni completa puntos. Los gráficos de esfuerzo y de calidad sí lo muestran, marcado como parcial.
+- Q: US2-1 toma los indicadores del sprint activo, pero US2-3 pide mostrar la marca de parcial del acumulado del proyecto. ¿Qué se muestra? (FR-012) → A: dos grupos. Los del sprint activo, y los del proyecto: velocidad, defectos abiertos y el acumulado de Story Points, porcentaje de historias completadas, horas y desviación, con la marca que entrega la feature de métricas.
+- Q: ¿Qué es "un proyecto sin sprints con esfuerzo registrado" en US4-5? → A: el caso en que la serie de esfuerzo llega vacía. Un sprint con 0 horas sí aparece, con su 0 (US4-4).
+
 ---
 
 ## Entradas y Salidas Esperadas
@@ -58,7 +64,7 @@ tomó el trabajo de distinguir esos estados; el dashboard tiene que mostrarlos, 
 | Sesión de un integrante e identificador del proyecto | Dashboard completo: resumen del proyecto, indicadores clave, los tres gráficos de evolución y la distribución de defectos abiertos por severidad |
 | Proyecto sin sprints | Estado vacío que explica que todavía no hay datos y qué hacer a continuación, en lugar de gráficos en cero |
 | Proyecto sin sprint Activo | Resumen y gráficos normales; la sección del sprint activo informa que no hay ninguno en curso |
-| Proyecto Finalizado | Dashboard completo de solo lectura, con el estado del proyecto visible y sin sección de sprint activo |
+| Proyecto Finalizado | Dashboard completo de solo lectura, con el estado del proyecto visible y la sección del sprint activo indicando que no hay ninguno en curso |
 | Falla de una sección | El resto del dashboard se muestra igual y la sección afectada indica que no pudo obtenerse |
 | Proyecto inexistente o de quien no es integrante | Respuesta de proyecto inexistente, sin revelar ningún dato |
 
@@ -340,8 +346,9 @@ y después forzando la falla de una sección, verificando que el resto sigue en 
   de que todavía no hay evolución que comparar.
 - **Proyecto sin sprint activo**: el resumen y los gráficos se muestran normalmente; la sección del
   sprint activo informa que no hay ninguno en curso.
-- **Proyecto Finalizado**: el dashboard se muestra completo, con la fecha de finalización real y sin
-  sección de sprint activo. Es el momento en que más sentido tiene mirarlo.
+- **Proyecto Finalizado**: el dashboard se muestra completo, con la fecha de finalización real y con
+  la sección del sprint activo indicando que no hay ninguno en curso. Es el momento en que más
+  sentido tiene mirarlo.
 - **Proyecto con muchos sprints**: el gráfico sigue permitiendo identificar el valor de cualquier
   sprint y a cuál corresponde, sin que las etiquetas se superpongan.
 - **Sprint activo cuya fecha de fin ya pasó**: los días restantes se informan como vencidos, no como
@@ -405,9 +412,11 @@ y después forzando la falla de una sección, verificando que el resto sigue en 
 
 **Indicadores clave**
 
-- **FR-012**: El dashboard DEBE mostrar como indicadores clave: la velocidad del equipo, los Story
-  Points planificados y completados del sprint activo, el porcentaje de historias completadas, las
-  horas estimadas contra las reales con su desviación, y la cantidad de defectos abiertos.
+- **FR-012**: El dashboard DEBE mostrar como indicadores clave, en dos grupos: del **sprint
+  activo**, los Story Points planificados y completados, el porcentaje de historias completadas y
+  las horas estimadas contra las reales con su desviación; y del **proyecto**, la velocidad del
+  equipo, la cantidad de defectos abiertos y el acumulado de esas mismas cifras con su marca de
+  parcial o definitivo.
 - **FR-013**: Cada indicador DEBE mostrar exactamente el valor que entrega la feature de métricas,
   sin redondeos, recortes ni transformaciones propias.
 - **FR-014**: Cuando la feature de métricas devuelve **"no calculable"**, el dashboard DEBE mostrar
@@ -445,6 +454,8 @@ y después forzando la falla de una sección, verificando que el resto sigue en 
   sprint, y defectos detectados y resueltos por sprint. El dashboard NO DEBE armar ninguna serie
   consultando sprint por sprint, ni reordenarlas, ni completar los puntos faltantes: la feature de
   métricas es dueña de todo lo que se grafica, incluido su orden.
+  La única excepción es el gráfico de velocidad, que omite los puntos del sprint Activo (US3-2),
+  sin alterar el orden ni el valor de los demás.
 
 **Estados vacíos, fallas y actualización**
 
@@ -501,7 +512,7 @@ y después forzando la falla de una sección, verificando que el resto sigue en 
 | RN-17 | El dashboard no se actualiza solo; refleja los datos vigentes al volver a la pantalla o recargarla. |
 | RN-18 | Solo los integrantes vigentes acceden al dashboard de un proyecto. |
 | RN-19 | El dashboard está disponible para proyectos en cualquier estado, incluido Finalizado. |
-| RN-20 | Las seis series de los gráficos llegan ya armadas y ordenadas desde la feature de métricas; el dashboard no las construye ni las reordena. |
+| RN-20 | Las seis series de los gráficos llegan ya armadas y ordenadas desde la feature de métricas; el dashboard no las construye ni las reordena, y solo omite el sprint Activo en el gráfico de velocidad. |
 | RN-21 | El dashboard muestra las advertencias de la feature de métricas en sus dos clases, distinguidas entre sí, y ninguna impide mostrar las métricas. |
 
 ---
@@ -567,7 +578,7 @@ y después forzando la falla de una sección, verificando que el resto sigue en 
 - **Sección del dashboard**: unidad de presentación que se obtiene y falla de forma independiente de
   las demás. Todas son degradables salvo el resumen del proyecto, que es el que da contexto al resto.
 - **Serie por sprint**: secuencia ordenada cronológicamente de pares sprint-valor, que alimenta cada
-  gráfico. El dashboard la ordena y la presenta; no la calcula.
+  gráfico. El dashboard la recibe ordenada y la presenta; no la calcula ni la reordena.
 - **Estado de valor** *(concepto de `specs/008-metrics-calculation`)*: parcial, provisoria,
   definitiva, no calculable o no aplicable. El dashboard los recibe y los presenta de forma
   distinguible; no los reinterpreta.
@@ -611,7 +622,7 @@ y después forzando la falla de una sección, verificando que el resto sigue en 
 - **SC-014**: El 100 % de los accesos exige sesión válida y membresía vigente.
 - **SC-015**: Cero filtraciones de datos entre proyectos: en el 100 % de los intentos de quien no es
   integrante, la respuesta es indistinguible de la de un proyecto inexistente.
-- **SC-016**: El 100 % de las reglas de negocio (RN-01 a RN-19) tiene al menos una prueba
+- **SC-016**: El 100 % de las reglas de negocio (RN-01 a RN-21) tiene al menos una prueba
   automatizada asociada que falla si la regla se rompe.
 
 ---

@@ -282,7 +282,7 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T010 [P] [US2] Pruebas unitarias **obligatorias** en `frontend/src/utils/metric-format.test.ts`
+- [X] T010 [P] [US2] Pruebas unitarias **obligatorias** en `frontend/src/utils/metric-format.test.ts`
       y `frontend/src/utils/metric-explanations.test.ts`, cubriendo FR-013 y FR-014:
       `formatDecimal(14)` → "14,00", `formatDecimal(0)` → "0,00", `formatDecimal(13.1)` → "13,10";
       `formatShare(27.78)` → "27,78 %", `formatShare(0)` → "0,00 %", `formatShare(100)` →

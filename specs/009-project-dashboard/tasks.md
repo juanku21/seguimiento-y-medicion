@@ -282,7 +282,7 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T010 [P] [US2] Pruebas unitarias **obligatorias** en `frontend/src/utils/metric-format.test.ts`
+- [X] T010 [P] [US2] Pruebas unitarias **obligatorias** en `frontend/src/utils/metric-format.test.ts`
       y `frontend/src/utils/metric-explanations.test.ts`, cubriendo FR-013 y FR-014:
       `formatDecimal(14)` → "14,00", `formatDecimal(0)` → "0,00", `formatDecimal(13.1)` → "13,10";
       `formatShare(27.78)` → "27,78 %", `formatShare(0)` → "0,00 %", `formatShare(100)` →
@@ -292,7 +292,7 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
       `("deviationPercent")` → "Las horas estimadas son 0.", `("storyCompletionPercent")` → "No hay
       historias planificadas." y cualquier otra clave → "No se puede calcular con los datos
       actuales." (research.md secciones 5 y 6)
-- [ ] T011 [P] [US2] Pruebas unitarias **obligatorias** de `MetricValue` y `FinalityBadge` en
+- [X] T011 [P] [US2] Pruebas unitarias **obligatorias** de `MetricValue` y `FinalityBadge` en
       `frontend/src/features/dashboard/components/metric-value.test.tsx`, cubriendo RN-03 a RN-06:
       `{status: "available", value: 0}` muestra "0" con el formateador recibido;
       `{status: "not_calculable", value: null}` con `kind` `velocity`, `deviationPercent` y
@@ -301,7 +301,7 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
       textos son distintos entre sí; `finality: "partial"` muestra "Parcial"; `"provisional"` muestra
       "Provisoria" y no "Parcial"; `"definitive"` y `null` no muestran marca; `FinalityBadge` con
       `partial` y con `provisional` produce textos distintos — depende de T010
-- [ ] T012 [P] [US2] Pruebas unitarias **obligatorias** de los reconocedores y las consultas en
+- [X] T012 [P] [US2] Pruebas unitarias **obligatorias** de los reconocedores y las consultas en
       `frontend/src/features/dashboard/api.test.ts` (validación de entradas, Principio VII):
       `isMetric` acepta `available` con número y `not_calculable` y `not_applicable` con `null`, y
       rechaza `available` con `null`, `not_calculable` con número y un `status` desconocido;
@@ -312,7 +312,7 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
       `provisional`; con `fetch` sustituido, `getProjectMetrics("a/b")` y
       `getActiveSprintMetrics("a/b")` piden con `GET` las rutas con el identificador codificado
       (`a%2Fb`) y un cuerpo que no cumple el reconocedor llega como error — depende de T002
-- [ ] T013 [US2] Pruebas de escenario en
+- [X] T013 [US2] Pruebas de escenario en
       `frontend/src/features/dashboard/components/key-indicators.test.tsx`, montando `DashboardView`
       con `renderDashboard`, con `describe("009/US2 - Ver los indicadores clave del momento")` y un
       `it` por escenario según plan.md, cada uno precedido por `// Escenario: US2-k (<caso>)`, que
@@ -334,7 +334,7 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
 
 ### Implementación de la Historia 2
 
-- [ ] T014 [P] [US2] Implementar en `frontend/src/utils/metric-format.ts` `formatDecimal(value:
+- [X] T014 [P] [US2] Implementar en `frontend/src/utils/metric-format.ts` `formatDecimal(value:
       number): string` (`value.toFixed(2)` con coma decimal) y `formatShare(value: number): string`
       (lo mismo más " %", sin signo), con el comentario de que el valor llega con a lo sumo 2
       decimales desde la 008 y `toFixed(2)` solo restituye los ceros que `JSON.parse` quitó; y en
@@ -342,13 +342,13 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
       "storyPoints" | "storyCompletionPercent" | "hours" | "deviationHours" | "deviationPercent" |
       "defects"`) y `explainNotCalculable(kind: MetricKind): string` con los textos de research.md
       sección 6 — depende de T010
-- [ ] T015 [P] [US2] Implementar en `frontend/src/features/dashboard/api.ts` los reconocedores
+- [X] T015 [P] [US2] Implementar en `frontend/src/features/dashboard/api.ts` los reconocedores
       `isMetric`, `isSprintMetric`, `isActiveSprintMetricsResponse` e `isProjectMetricsResponse` de
       data-model.md sección 3, sobre `isRecord` de `lib/api-client.ts` y sin `any`, y las consultas
       `getProjectMetrics(projectId)` y `getActiveSprintMetrics(projectId)` con `getJson` sobre
       `/api/v1/projects/${encodeURIComponent(projectId)}/metrics` y `.../metrics/active-sprint`.
       Comentario de cabecera: este módulo solo lee (RN-02) — depende de T012
-- [ ] T016 [US2] Implementar en `frontend/src/features/dashboard/components/finality-badge.tsx`
+- [X] T016 [US2] Implementar en `frontend/src/features/dashboard/components/finality-badge.tsx`
       `FinalityBadge({ finality }: { finality: Finality | null })`: "Parcial" para `partial`,
       "Provisoria" para `provisional`, con estilos distintos, y nada para `definitive` o `null`; y en
       `frontend/src/features/dashboard/components/metric-value.tsx` `MetricValue({ metric, kind,
@@ -356,11 +356,11 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
       `available` → `format(value)`, `not_calculable` → "No calculable" más
       `explainNotCalculable(kind)`, `not_applicable` → "No aplica", y `FinalityBadge` si la métrica
       tiene `finality` — depende de T011, T014
-- [ ] T017 [US2] Implementar en `frontend/src/features/dashboard/components/section-error.tsx`
+- [X] T017 [US2] Implementar en `frontend/src/features/dashboard/components/section-error.tsx`
       `SectionError({ message }: { message: string })`, que muestra el mensaje con `Alert`
       (`role="alert"`), y declarar en el mismo archivo las constantes de los ocho mensajes de falla
       de contracts/ui-contract.md, en un único lugar — depende de T013
-- [ ] T018 [US2] Implementar en `frontend/src/features/dashboard/components/key-indicators.tsx`
+- [X] T018 [US2] Implementar en `frontend/src/features/dashboard/components/key-indicators.tsx`
       `KeyIndicators({ projectMetrics, activeSprintMetrics })`, que recibe los dos `QueryState`:
       región "Indicadores clave" con los grupos "Indicadores del sprint activo" e "Indicadores del proyecto" como `<dl>`, cada uno
       dentro de un `<div>` con `h3` y `aria-labelledby`, sin `<section>`, para que no sea una región,, con los

@@ -591,7 +591,7 @@ el dashboard." y, al pulsar "Reintentar" con el backend ya respondiendo, el dash
       `role="alert"`, con el texto introductorio de que hay información rota que alguien debe
       revisar, y cada una muestra el `message` recibido sin cambios; con solo `planning` no hay
       `role="alert"`; con la lista vacía no se muestra la región — depende de T002
-- [ ] T033 [US6] Pruebas de escenario en
+- [X] T033 [US6] Pruebas de escenario en
       `frontend/src/features/dashboard/components/dashboard-view.test.tsx`, montando `DashboardView`
       con `renderDashboard` e `installResizeObserverStub()`, con
       `describe("009/US6 - Usar el dashboard cuando falta información o falla una sección")` y un

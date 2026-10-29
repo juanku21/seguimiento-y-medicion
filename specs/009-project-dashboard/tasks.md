@@ -145,7 +145,7 @@ lógica de presentación.
       con las seis listas `plannedStoryPoints`, `completedStoryPoints`, `estimatedHours`,
       `actualHours`, `defectsDetected` y `defectsResolved` de `SeriesPoint[]`. Sin `any` y sin
       campos que el dashboard no muestra
-- [ ] T003 [P] Leer antes `frontend/node_modules/next/dist/docs/01-app/01-getting-started/03-layouts-and-pages.md`
+- [X] T003 [P] Leer antes `frontend/node_modules/next/dist/docs/01-app/01-getting-started/03-layouts-and-pages.md`
       y `05-server-and-client-components.md` (CLAUDE.md). Crear
       `frontend/src/app/projects/[projectId]/dashboard/page.tsx`, un Server Component con
       `metadata.title = "Dashboard | Software Metrics & Estimation"` que lee `params` como `Promise`,

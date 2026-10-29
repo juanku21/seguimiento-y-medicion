@@ -631,7 +631,7 @@ viva, cobertura, vulnerabilidades y verificación de las puertas de calidad.
       depende de T045
 - [X] T048 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
-- [ ] T049 [P] Ejecutar `go test -p 1 ./... -coverprofile=coverage.out` y
+- [X] T049 [P] Ejecutar `go test -p 1 ./... -coverprofile=coverage.out` y
       `go tool cover -func=coverage.out` en `backend/`, y revisar que `internal/metrics/domain/` tenga
       cubiertas todas sus ramas y que `internal/metrics/` en conjunto esté cubierto; correr además
       `go test -race -p 1 ./internal/metrics/...` — depende de T045

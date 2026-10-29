@@ -153,9 +153,7 @@ describe("006/US5 - Comparar el esfuerzo estimado con el real", () => {
   });
 
   it("Caso límite — proyecto con todas las historias sin estimar", async () => {
-    fetchMock.mockImplementation(async () =>
-      jsonResponse(200, allUnestimated),
-    );
+    fetchMock.mockImplementation(async () => jsonResponse(200, allUnestimated));
     renderSection();
 
     const table = await screen.findByRole("table", { name: tableName });

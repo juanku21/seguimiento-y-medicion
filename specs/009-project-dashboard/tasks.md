@@ -249,7 +249,7 @@ proyecto no existe." y no hace ninguna otra consulta.
       `formatDate`, "Finalización real" solo si `status === "finished"` y `actualEndDate` no es `null`
       (FR-006), y la lista "Integrantes" con `MemberList` de la 002, con `viewerIsOwner={false}` y
       `readOnly`, para que no aparezca ninguna acción (FR-003, FR-007) — depende de T006
-- [ ] T009 [US1] Implementar en `frontend/src/features/dashboard/components/dashboard-view.tsx` la
+- [X] T009 [US1] Implementar en `frontend/src/features/dashboard/components/dashboard-view.tsx` la
       consulta del resumen con `useAuthorizedQuery(getProjectDetail)` y una carga estabilizada con
       `useCallback([projectId])`: mientras carga, "Cargando dashboard…" con `role="status"` y nada
       más; con error, el `message` recibido dentro de `Alert` y **ninguna** otra sección ni consulta

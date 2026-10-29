@@ -546,3 +546,30 @@ func TestUS4_SprintFinalityPlanificado(t *testing.T) {
 		}
 	}
 }
+
+// Guarda defensiva (sin escenario en spec.md): un estado de sprint desconocido devuelve solo la
+// identificación, sin métricas calculadas ni advertencias.
+func TestCalculateSprint_EstadoDesconocidoSoloIdentificacion(t *testing.T) {
+	closedAt := time.Date(2026, 10, 14, 0, 0, 0, 0, time.UTC)
+	s := domain.SprintData{
+		ID:        uuid.New(),
+		Name:      "Sprint X",
+		Status:    sprintsdomain.SprintStatus("unknown"),
+		StartDate: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 10, 14, 0, 0, 0, 0, time.UTC),
+		ClosedAt:  &closedAt,
+		Stories:   stories([]int{5, 5}, 1),
+	}
+
+	m, warnings := domain.CalculateSprint(s, factorSix, fixedNow, testGrace)
+
+	assert.Equal(t, domain.SprintMetrics{
+		ID:        s.ID,
+		Name:      s.Name,
+		Status:    s.Status,
+		StartDate: s.StartDate,
+		EndDate:   s.EndDate,
+		ClosedAt:  s.ClosedAt,
+	}, m)
+	assert.Nil(t, warnings)
+}

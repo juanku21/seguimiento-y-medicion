@@ -123,7 +123,7 @@ lógica de presentación.
 
 **Rama**: `fase/009-foundational`
 
-- [ ] T002 [P] Declarar en `frontend/src/types/metrics.ts` los tipos de data-model.md sección 1, con
+- [X] T002 [P] Declarar en `frontend/src/types/metrics.ts` los tipos de data-model.md sección 1, con
       un comentario de cabecera ("Tipos de las respuestas de cálculo de métricas, según
       specs/008-metrics-calculation/contracts/openapi.yaml; solo los campos que usa el dashboard"):
       `ValueStatus = "available" | "not_calculable" | "not_applicable"`;

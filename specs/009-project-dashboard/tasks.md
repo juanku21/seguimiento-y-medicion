@@ -627,7 +627,7 @@ el dashboard." y, al pulsar "Reintentar" con el backend ya respondiendo, el dash
       string }`; no se llama `status` porque ese ya es el discriminante), tomado de `result.error.status`, y
       actualizar el comentario del tipo. El cambio es compatible con los usos actuales, que solo
       leen `message`: verificar que `npm test` sigue pasando — depende de T031
-- [ ] T035 [P] [US6] Implementar en
+- [X] T035 [P] [US6] Implementar en
       `frontend/src/features/dashboard/components/dashboard-warnings.tsx`
       `DashboardWarnings({ warnings }: { warnings: MetricsWarning[] })` según research.md sección 11,
       sin cambiar ningún `message` — depende de T032

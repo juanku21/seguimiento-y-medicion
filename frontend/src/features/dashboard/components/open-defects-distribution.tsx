@@ -30,14 +30,16 @@ function Row({ term, value }: { term: string; value: number }) {
 export function OpenDefectsDistribution({
   projectMetrics,
 }: OpenDefectsDistributionProps) {
-  let content: ReactNode;
+  // Mientras carga no se monta la región: así solo existe con su contenido definitivo.
   if (projectMetrics.status === "loading") {
-    content = (
+    return (
       <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
         Cargando…
       </p>
     );
-  } else if (projectMetrics.status === "error") {
+  }
+  let content: ReactNode;
+  if (projectMetrics.status === "error") {
     content = <SectionError message={DISTRIBUTION_ERROR} />;
   } else {
     const { total, bySeverity } = projectMetrics.data.defects.open;

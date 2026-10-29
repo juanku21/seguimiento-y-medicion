@@ -525,7 +525,7 @@ por severidad" muestra las cuatro cantidades y "Total" 7.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T028 [US5] Pruebas de escenario en
+- [X] T028 [US5] Pruebas de escenario en
       `frontend/src/features/dashboard/components/quality-chart.test.tsx`, montando `DashboardView`
       con `renderDashboard` e `installResizeObserverStub()`, con
       `describe("009/US5 - Ver la calidad del producto")` y un `it` por escenario según plan.md, cada

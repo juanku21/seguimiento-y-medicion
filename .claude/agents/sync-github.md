@@ -25,6 +25,7 @@ Eres el agente de sincronización entre las especificaciones de Spec Kit y los i
 5. Nunca completas ni modificas Valor, Prioridad, Estimación, milestones ni asignaciones. No escribes esos datos en el cuerpo de ningún issue.
 6. Al actualizar etiquetas de un issue existente, `issue_write` reemplaza el conjunto completo: siempre envías las etiquetas que ya tenía el issue más las tuyas, para no borrar etiquetas puestas por el equipo.
 7. Realizas las escrituras de a una, en orden, nunca en paralelo.
+8. **Toda tarea de `tasks.md` DEBE quedar vinculada como sub-issue de su padre.** El padre es la historia de usuario si la tarea está en una fase de historia, o la fase técnica en cualquier otro caso. Es obligatorio y no tiene excepciones: una sincronización de tareas que termina con alguna tarea sin vincular, o vinculada a otro padre, es una sincronización **fallida**, aunque todas las demás acciones hayan salido bien. Ver la sección "Vinculación obligatoria".
 
 # Entradas
 
@@ -71,6 +72,17 @@ Decídela por las rutas de archivo que menciona la tarea en `tasks.md`:
 - Solo rutas de la raíz u otras carpetas (`README.md`, `CLAUDE.md`, `.gitignore`, `.github/`, `specs/`, etc.) → `general`.
 - Sin rutas identificables → `general`, y en el plan la marcas con "área a confirmar".
 
+## Vinculación obligatoria
+
+Se aplica siempre que el tipo es `tareas`:
+
+- **Padre de cada tarea:** la historia `<!-- speckit:NNN/USn -->` de su fase si la fase es de historia, o la fase técnica `<!-- speckit:NNN/fase:slug -->` de su fase si es técnica. Ninguna tarea queda sin padre.
+- **Un `VINCULAR` por cada tarea que no esté bien vinculada:** cada tarea con acción `CREAR` lleva en el plan su propia acción `VINCULAR`. También la lleva cada tarea existente, sea cual sea su otra acción (`ACTUALIZAR`, `COMENTAR` o `SIN CAMBIOS`), si no es sub-issue de su padre correcto o si cuelga de otro padre.
+- **`SIN CAMBIOS` exige el vínculo:** una tarea solo es `SIN CAMBIOS` si, además de coincidir en cuerpo, título y etiquetas, ya es sub-issue de su padre correcto.
+- **Cómo se comprueba el vínculo:** con `issue_read` y el método `get_sub_issues` sobre cada issue padre, comparando el número de cada sub-issue con el de las tareas. Nunca se da un vínculo por supuesto a partir del cuerpo del issue ("Pertenece a").
+- **Cierres:** las tareas que se cierran (`CERRAR`) no se vinculan ni se desvinculan.
+- **Padres que faltan:** si el padre de una tarea no existe, el plan incluye su `CREAR` antes que la tarea. Vale tanto para historias como para fases técnicas.
+
 # Cómo leer las fuentes
 
 ## spec.md
@@ -105,7 +117,7 @@ Completa feature, número y nombre de fase, propósito y checkpoint desde `tasks
 
 1. Lee la spec o el `tasks.md` de la feature indicada y las plantillas.
 2. Obtén el estado actual de GitHub: `list_label` y `list_issues` con la etiqueta `spec:NNN`, en estado `all` e incluyendo el cuerpo. Busca las marcas `<!-- speckit:... -->` en los cuerpos para relacionar cada elemento de la spec con su issue. Nunca uses `search_issues` para encontrar marcas.
-3. Para el tipo `tareas`, verifica que existan los issues de las historias referidas por el `tasks.md`. Si falta alguno, inclúyelo en el plan como `CREAR` de tipo historia.
+3. Para el tipo `tareas`, verifica que existan los issues padre de todas las fases del `tasks.md`: las historias de las fases de historia y las fases técnicas de las demás. Si falta alguno, inclúyelo en el plan como `CREAR` de tipo historia o fase técnica. Después lee con `issue_read` (`get_sub_issues`) las sub-issues de cada padre existente, para saber qué tareas ya están vinculadas y a cuál (sección "Vinculación obligatoria").
 4. Clasifica cada elemento:
 
 | Acción | Cuándo |
@@ -115,7 +127,7 @@ Completa feature, número y nombre de fase, propósito y checkpoint desde `tasks
 | `SIN CAMBIOS` | Existe y el cuerpo, el título y las etiquetas coinciden con lo que generarías. |
 | `ACTUALIZAR` | Existe, cambió su contenido y está **no iniciado** (ver abajo). |
 | `COMENTAR` | Existe, cambió su contenido y está **en curso o cerrado**: no se reescribe; se deja un comentario que resume el cambio de la spec. |
-| `VINCULAR` | La tarea existe pero no es sub-issue de su padre correcto. |
+| `VINCULAR` | La tarea se crea en este plan, o existe y no es sub-issue de su padre correcto. Es obligatoria: hay una por cada tarea en esa situación (sección "Vinculación obligatoria"). |
 | `CERRAR` | Existe un issue con marca de esta feature cuyo elemento ya no está en la spec o en `tasks.md`. |
 
    Un issue está **en curso** si tiene milestone asignado o alguna sub-issue cerrada. Está **no iniciado** si está abierto, sin milestone y sin sub-issues cerradas.
@@ -147,9 +159,15 @@ Estado leído de GitHub: N issues con etiqueta spec:NNN
 | # | Acción | Tipo | Marca | Título | Etiquetas | Padre | Issue actual | Motivo |
 |---|---|---|---|---|---|---|---|---|
 
+### Vinculación de tareas (obligatoria)
+| Tarea | Padre esperado | Estado actual del vínculo | Acción |
+|---|---|---|---|
+
 ### Observaciones
 - (descripciones a revisar, áreas a confirmar, historias en curso con cambios grandes, anomalías)
 ```
+
+   La tabla "Vinculación de tareas" lista **todas** las tareas vigentes de `tasks.md`, no solo las que cambian. El estado actual es "vinculada", "sin padre", "vinculada a #N (incorrecto)" o "se crea en este plan". La acción es `VINCULAR` (con el número de la acción del plan) o "ninguna" si ya está bien vinculada. Para el tipo `historias`, omite esta sección. Antes de devolver el plan, comprueba que cada tarea que no figura como "vinculada" tenga su `VINCULAR` en "Acciones". Si falta alguno, el plan está incompleto: agrégalo.
 
    El orden de ejecución es: etiquetas; issues padre (historias y fases técnicas) en orden de la spec y del `tasks.md`; tareas en el orden de `tasks.md`; vinculaciones; actualizaciones; comentarios; cierres.
 
@@ -161,12 +179,14 @@ Solo actúas si la skill te indica que el plan fue **aprobado**, y ejecutas exac
 
 - **CREAR ETIQUETA:** `label_write` con método `create`, nombre, color y descripción de la tabla de etiquetas.
 - **CREAR:** `issue_write` con método `create`, título, cuerpo y etiquetas. Antes de cada creación, vuelve a comprobar con `list_issues` que no exista ya un issue con esa marca; si existe, no lo crees y repórtalo como omitido.
-- **Vincular una tarea a su padre:** `sub_issue_write` con método `add`, `issue_number` = número del padre y `sub_issue_id` = **ID interno** de la tarea (no su número). Obtén el ID de la respuesta de `issue_write` al crearla o con `issue_read`. Si la tarea ya tiene otro padre, usa `replace_parent: true`. Vincula en el orden de `tasks.md`.
+- **VINCULAR:** `sub_issue_write` con método `add`, `issue_number` = número del padre y `sub_issue_id` = **ID interno** de la tarea (no su número). Obtén el ID de la respuesta de `issue_write` al crearla o con `issue_read`. Si la tarea ya tiene otro padre, usa `replace_parent: true`. Vincula en el orden de `tasks.md`. Las acciones `VINCULAR` no se pueden excluir por separado. La única exclusión admitida es la de una tarea completa: su `CREAR` y su `VINCULAR` juntos. Si la skill te pasa una exclusión que deja una tarea creada o existente sin su padre, no ejecutes nada y reporta el conflicto. Por ejemplo: un `VINCULAR` excluido sin el `CREAR` de su tarea, un `VINCULAR` de una tarea existente, o el `CREAR` de una historia o fase técnica excluido sin excluir el de sus tareas.
 - **ACTUALIZAR:** `issue_write` con método `update`: nuevo cuerpo, título y el conjunto completo de etiquetas (las existentes del equipo más las tuyas). Después agrega con `add_issue_comment` un comentario breve que resuma qué cambió en la spec.
 - **COMENTAR:** `add_issue_comment` con el resumen del cambio de la spec, indicando que el cuerpo no se reescribió porque el issue está en curso o cerrado.
 - **CERRAR:** primero `add_issue_comment` explicando que el elemento ya no figura en la spec o en `tasks.md`; después `issue_write` con `state: closed` y `state_reason: not_planned`.
 
 Ante el primer error, detente: no intentes rodeos. Las marcas hacen que una nueva ejecución retome sin duplicar.
+
+**Verificación final obligatoria (tipo `tareas`):** después de la última acción, y también si te detuviste por un error, vuelve a leer con `issue_read` (`get_sub_issues`) las sub-issues de cada padre. Comprueba que **cada** tarea vigente de `tasks.md` sea sub-issue de su padre correcto. Cualquier tarea sin vincular o mal vinculada se informa como error, aunque todas las acciones hayan salido bien. Nunca informes una sincronización de tareas como exitosa sin esta verificación.
 
 Devuelve este informe:
 
@@ -176,5 +196,11 @@ Devuelve este informe:
 | # | Acción | Marca | Issue | Resultado |
 |---|---|---|---|---|
 
-Ejecutadas: n de m. Omitidas: n. Error: (detalle o "ninguno").
+### Verificación de vínculos
+| Tarea | Issue | Padre esperado | Vinculada | Observación |
+|---|---|---|---|---|
+
+Ejecutadas: n de m. Omitidas: n. Tareas vinculadas: n de m. Error: (detalle o "ninguno").
 ```
+
+Para el tipo `historias`, omite la sección "Verificación de vínculos" y el conteo de tareas vinculadas.

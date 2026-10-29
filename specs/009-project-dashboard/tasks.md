@@ -334,7 +334,7 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
 
 ### Implementación de la Historia 2
 
-- [ ] T014 [P] [US2] Implementar en `frontend/src/utils/metric-format.ts` `formatDecimal(value:
+- [X] T014 [P] [US2] Implementar en `frontend/src/utils/metric-format.ts` `formatDecimal(value:
       number): string` (`value.toFixed(2)` con coma decimal) y `formatShare(value: number): string`
       (lo mismo más " %", sin signo), con el comentario de que el valor llega con a lo sumo 2
       decimales desde la 008 y `toFixed(2)` solo restituye los ceros que `JSON.parse` quitó; y en

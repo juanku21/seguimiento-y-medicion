@@ -436,7 +436,7 @@ las 4 filas en el orden recibido; con un sprint Activo más, la tabla sigue teni
       `sprintStatus === "active"`, sin ordenar, sumar ni completar, con el comentario de research.md
       sección 8 ("única selección que hace el dashboard; la velocidad se mide sobre sprints
       terminados, US3-2") — depende de T019
-- [ ] T023 [P] [US3] Implementar en `frontend/src/features/dashboard/api.ts` `isSeriesEnvelope`
+- [X] T023 [P] [US3] Implementar en `frontend/src/features/dashboard/api.ts` `isSeriesEnvelope`
       (solo verifica que el cuerpo es un objeto), el reconocedor de `SeriesPoint`,
       `readSeries(envelope, key): SeriesPoint[] | null` y `getProjectSeries(projectId)` con `getJson`
       sobre `.../metrics/series`, según data-model.md sección 3 — depende de T019

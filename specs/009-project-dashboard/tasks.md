@@ -545,7 +545,7 @@ por severidad" muestra las cuatro cantidades y "Total" 7.
 
 ### Implementación de la Historia 5
 
-- [ ] T029 [P] [US5] Implementar en
+- [X] T029 [P] [US5] Implementar en
       `frontend/src/features/dashboard/components/open-defects-distribution.tsx`
       `OpenDefectsDistribution({ projectMetrics })`, que recibe el `QueryState` de las métricas del
       proyecto: región "Defectos abiertos por severidad" con un `<dl>` de Crítica, Alta, Media y Baja

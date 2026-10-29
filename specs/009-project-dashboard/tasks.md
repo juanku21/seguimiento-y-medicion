@@ -301,7 +301,7 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
       textos son distintos entre sí; `finality: "partial"` muestra "Parcial"; `"provisional"` muestra
       "Provisoria" y no "Parcial"; `"definitive"` y `null` no muestran marca; `FinalityBadge` con
       `partial` y con `provisional` produce textos distintos — depende de T010
-- [ ] T012 [P] [US2] Pruebas unitarias **obligatorias** de los reconocedores y las consultas en
+- [X] T012 [P] [US2] Pruebas unitarias **obligatorias** de los reconocedores y las consultas en
       `frontend/src/features/dashboard/api.test.ts` (validación de entradas, Principio VII):
       `isMetric` acepta `available` con número y `not_calculable` y `not_applicable` con `null`, y
       rechaza `available` con `null`, `not_calculable` con número y un `status` desconocido;

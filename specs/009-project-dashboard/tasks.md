@@ -348,7 +348,7 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
       `getProjectMetrics(projectId)` y `getActiveSprintMetrics(projectId)` con `getJson` sobre
       `/api/v1/projects/${encodeURIComponent(projectId)}/metrics` y `.../metrics/active-sprint`.
       Comentario de cabecera: este módulo solo lee (RN-02) — depende de T012
-- [ ] T016 [US2] Implementar en `frontend/src/features/dashboard/components/finality-badge.tsx`
+- [X] T016 [US2] Implementar en `frontend/src/features/dashboard/components/finality-badge.tsx`
       `FinalityBadge({ finality }: { finality: Finality | null })`: "Parcial" para `partial`,
       "Provisoria" para `provisional`, con estilos distintos, y nada para `definitive` o `null`; y en
       `frontend/src/features/dashboard/components/metric-value.tsx` `MetricValue({ metric, kind,

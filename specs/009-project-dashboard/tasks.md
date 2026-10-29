@@ -243,7 +243,7 @@ proyecto no existe." y no hace ninguna otra consulta.
       nombre, el Sprint Goal, "Inicio"/"Fin" con `formatDate` y el componente `SprintSchedule` de
       `features/sprints/components/sprint-schedule.tsx` **sin cambios**, sin restar fechas (FR-009,
       FR-010, RN-13) — depende de T005
-- [ ] T008 [P] [US1] Implementar en `frontend/src/features/dashboard/components/project-summary.tsx`
+- [X] T008 [P] [US1] Implementar en `frontend/src/features/dashboard/components/project-summary.tsx`
       `ProjectSummary({ project }: { project: ProjectDetail })`: una región "Resumen del proyecto" con
       el nombre, el estado con `PROJECT_STATUS_LABELS`, "Inicio" y "Finalización prevista" con
       `formatDate`, "Finalización real" solo si `status === "finished"` y `actualEndDate` no es `null`

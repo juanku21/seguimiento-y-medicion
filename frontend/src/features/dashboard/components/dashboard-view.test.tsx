@@ -11,6 +11,7 @@ import {
   defaultProject,
   defaultProjectId,
   defaultSeries,
+  defaultSprint,
   defaultSprints,
   installDashboardBackend,
   installResizeObserverStub,
@@ -508,5 +509,37 @@ describe("009/US6 - Usar el dashboard cuando falta información o falla una secc
     await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
 
     expect(requests.length).toBe(before);
+  });
+
+  // RN-02, FR-003: el dashboard es de solo lectura (prueba de caracterización, sin RED).
+  it("solo hace consultas GET", async () => {
+    const requests = installDashboardBackend();
+    renderDashboard(defaultProjectId);
+
+    await findSummary();
+    await expectAllFigures();
+    await settle(requests);
+
+    // Todas las peticiones son GET y son exactamente las seis operaciones, una vez cada una.
+    const base = `/api/v1/projects/${defaultProjectId}`;
+    expect(requests.every((request) => request.method === "GET")).toBe(true);
+    expect(requests.map((request) => request.path).sort()).toEqual(
+      [
+        base,
+        `/api/v1/sprints/${defaultSprint.id}`,
+        `${base}/sprints`,
+        `${base}/metrics`,
+        `${base}/metrics/active-sprint`,
+        `${base}/metrics/series`,
+      ].sort(),
+    );
+
+    // No hay controles de edición ni campos de entrada en la pantalla.
+    expect(
+      screen.queryAllByRole("button", {
+        name: /editar|eliminar|borrar|guardar|crear|agregar|nuevo/i,
+      }),
+    ).toHaveLength(0);
+    expect(screen.queryAllByRole("textbox")).toHaveLength(0);
   });
 });

@@ -659,7 +659,7 @@ verificación de las puertas de calidad.
 
 **Rama**: `fase/009-polish`
 
-- [ ] T038 Prueba de caracterización en
+- [X] T038 Prueba de caracterización en
       `frontend/src/features/dashboard/components/dashboard-view.test.tsx`, **sin** etiqueta
       `009/USn`: `it("solo hace consultas GET")` (RN-02, FR-003), que monta el dashboard completo con
       sprint activo y recorre la lista de peticiones del backend de prueba verificando que todas son

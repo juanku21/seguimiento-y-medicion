@@ -642,7 +642,7 @@ viva, cobertura, vulnerabilidades y verificación de las puertas de calidad.
       (SC-014); que `TestMetrics_SingleSourceOfFormulas` pase (RN-01, Principio III); que no haya dependencias nuevas en `go.mod`; que
       ningún bloque nuevo quede sin comentario en español; y que esta feature no escriba en ninguna
       tabla — depende de T045
-- [ ] T051 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluida la
+- [X] T051 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluida la
       validación manual de la sección 4, la prueba de coherencia con `-count=5` y la verificación de
       que las pruebas corrieron contra `smye_test` en el puerto 5433 y no contra desarrollo — depende
       de T046, T047, T050

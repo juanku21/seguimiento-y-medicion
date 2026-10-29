@@ -233,7 +233,7 @@ proyecto no existe." y no hace ninguna otra consulta.
 
 ### Implementación de la Historia 1
 
-- [ ] T007 [P] [US1] Implementar en
+- [X] T007 [P] [US1] Implementar en
       `frontend/src/features/dashboard/components/active-sprint-panel.tsx`
       `ActiveSprintPanel({ activeSprintId }: { activeSprintId: string | null })`: una región "Sprint
       activo" (`<section aria-labelledby>` con `h2`); con `null` muestra "No hay ningún sprint en

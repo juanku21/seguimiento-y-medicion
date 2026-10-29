@@ -402,7 +402,7 @@ las 4 filas en el orden recibido; con un sprint Activo más, la tabla sigue teni
       o tiene un `sprintStatus` o `finality` desconocido; con `defectsDetected` malformada,
       `readSeries` de `plannedStoryPoints` sigue devolviendo sus puntos; `getProjectSeries("a/b")`
       pide con `GET` `/api/v1/projects/a%2Fb/metrics/series` — depende de T015
-- [ ] T020 [P] [US3] Pruebas unitarias **obligatorias** de `SprintSeriesChart` en
+- [X] T020 [P] [US3] Pruebas unitarias **obligatorias** de `SprintSeriesChart` en
       `frontend/src/features/dashboard/components/sprint-series-chart.test.tsx`, con
       `installResizeObserverStub()`, cubriendo RN-07 a RN-10 y FR-025: con dos series de 3 puntos,
       la `figure` tiene como nombre accesible el título de su `<figcaption>`, el SVG contiene los

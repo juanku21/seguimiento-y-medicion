@@ -199,7 +199,7 @@ proyecto no existe." y no hace ninguna otra consulta.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T005 [P] [US1] Pruebas unitarias **obligatorias** de `ActiveSprintPanel` en
+- [X] T005 [P] [US1] Pruebas unitarias **obligatorias** de `ActiveSprintPanel` en
       `frontend/src/features/dashboard/components/active-sprint-panel.test.tsx`, con `fetch`
       sustituido, cubriendo RN-12, RN-13 y RN-14: con `activeSprintId` `null` muestra "No hay ningún
       sprint en curso.", no usa `role="alert"` y **no** pide `GET /api/v1/sprints/{id}`; con un

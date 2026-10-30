@@ -659,24 +659,24 @@ verificación de las puertas de calidad.
 
 **Rama**: `fase/009-polish`
 
-- [ ] T038 Prueba de caracterización en
+- [X] T038 Prueba de caracterización en
       `frontend/src/features/dashboard/components/dashboard-view.test.tsx`, **sin** etiqueta
       `009/USn`: `it("solo hace consultas GET")` (RN-02, FR-003), que monta el dashboard completo con
       sprint activo y recorre la lista de peticiones del backend de prueba verificando que todas son
       `GET` y que son exactamente las seis operaciones de contracts/consumed-api.md, cada una una
       sola vez, y que no hay ningún botón de edición en la pantalla. Caracterización: la regla ya se
       cumple, así que no tiene RED; el commit lo justifica — depende de T037
-- [ ] T039 [P] Actualizar `README.md` de la raíz en español: la sección "Panel de Control y Reportes"
+- [X] T039 [P] Actualizar `README.md` de la raíz en español: la sección "Panel de Control y Reportes"
       describe el dashboard (secciones, estados de valor y degradación por sección), la tabla de
       "Arquitectura y Stack Tecnológico" suma Recharts 3.10.1 para los gráficos, y "Comprobar que
       todo funciona" suma abrir `/projects/{id}/dashboard`, manteniendo el criterio de que alguien
       que no conoce el proyecto pueda ejecutarlo siguiendo el documento — depende de T037
-- [ ] T040 [P] Ejecutar en `frontend/` `npm run test:coverage`, `npm run lint`,
+- [X] T040 [P] Ejecutar en `frontend/` `npm run test:coverage`, `npm run lint`,
       `npm run format:check` y `npm run build`, y revisar que `src/features/dashboard/`,
       `src/utils/metric-format.ts` y `src/utils/metric-explanations.ts` tengan cubiertas todas sus
       ramas; ejecutar `npm audit --omit=dev` y resolver o justificar por escrito cada vulnerabilidad
       de `recharts`, `react-is` o sus dependencias — depende de T038
-- [ ] T041 Verificar la trazabilidad y las puertas de calidad recorriendo `frontend/src/`: que buscar
+- [X] T041 Verificar la trazabilidad y las puertas de calidad recorriendo `frontend/src/`: que buscar
       `009/US` en el código de pruebas devuelva los **seis** `describe` y los **45** `it` de
       escenario; que las **21** reglas RN-01 a RN-21 tengan prueba asociada según la tabla de
       plan.md (SC-016); que no haya ningún `any`, ni archivos `AGENTS.md`, ni cambios en `backend/`;
@@ -684,9 +684,18 @@ verificación de las puertas de calidad.
       diff, ningún componente de `features/dashboard/` opere sobre valores de métricas o de series,
       salvo `closedSprintPoints` (RN-01); y que cada bloque nuevo tenga su
       comentario en español — depende de T038
-- [ ] T042 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluida la
+- [X] T042 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluida la
       validación manual de la sección 2 contra el backend de desarrollo y la comparación de cada
       cifra con Swagger (SC-004) — depende de T039, T040, T041
+- [X] T045 Pruebas para las ramas sin cubrir de `frontend/src/features/dashboard/`: validadores `return false` de `api.ts`, estados de carga de `key-indicators.tsx`, `series-section.tsx` y `open-defects-distribution.tsx`, y la rama `String(value)` del Tooltip de `sprint-series-chart.tsx`, per T040 (partial)
+- [X] T046 Estabilizar la corrida completa de `npm run test:coverage` en `frontend/vitest.config.mts` (por ejemplo `testTimeout` o `maxWorkers`) y verificar tres corridas seguidas en verde, per Constitución Principio II (partial)
+- [X] T047 Actualizar la sección Estado Actual de `README.md` para incluir la funcionalidad 009 (dashboard), per T039 (partial)
+- [X] T048 Pruebas para la rama `input instanceof URL` / `input.url` del `fetchMock` en `frontend/src/features/dashboard/components/dashboard-test-backend.ts` (líneas 225-228), invocando `fetch` con un `URL` y con un `Request`, per T040 (partial)
+- [X] T049 Pruebas para la guarda `payload ?? []` del `<Legend>` en `frontend/src/features/dashboard/components/sprint-series-chart.tsx` (línea 103), renderizando la leyenda sin `payload`, per T040 (partial)
+- [X] T050 Quitar la etiqueta `009/USn` de los nueve `describe` y comentarios de pruebas que no son escenarios de la spec, para que buscar `009/US` en el código de pruebas devuelva exactamente los seis `describe` y los 45 `it` de escenario (plan.md, SC-016), sin cambiar el comportamiento de ninguna prueba: `active-sprint-panel.test.tsx:60`, `metric-value.test.tsx:24` y `:91`, `sprint-series-chart.test.tsx:62`, `series.test.ts:18`, `dashboard-warnings.test.tsx:28`, `utils/metric-format.test.ts:7`, `utils/metric-explanations.test.ts:6` y `hooks/use-authorized-query.test.tsx:51`, per T041 (partial)
+- [X] T051 Agregar el comentario en español que falta en los bloques de nivel de declaración de `frontend/src/features/dashboard/`: las constantes `VALUE_STATUSES`, `FINALITIES`, `WARNING_KINDS`, `SEVERITIES` y `METRIC_KEYS` de `api.ts` (líneas 13-27) y la interfaz `DashboardViewProps` de `dashboard-view.tsx` (líneas 29-31), sin cambiar código, per T041 (partial)
+- [X] T052 Agregar el comentario en español que falta en las declaraciones de nivel superior de las pruebas y del soporte de pruebas de `frontend/src/` (Principio VIII): un comentario por `describe`, por `beforeEach`/`afterEach`, por `vi.mock`, por helper y por grupo contiguo de constantes, sin cambiar código ni el comportamiento de ninguna prueba, en `features/dashboard/api.test.ts` (23, 32, 65, 134, 237, 276), `series.test.ts` (18), `components/active-sprint-panel.test.tsx` (50, 54, 60), `components/dashboard-test-backend.ts` (35-37, 169), `components/dashboard-test-backend.test.ts` (10), `components/dashboard-view.test.tsx` (52-70, 76, 80, 84, 89, 94, 168), `components/dashboard-warnings.test.tsx` (9-28), `components/effort-chart.test.tsx` (33-35, 91), `components/key-indicators.test.tsx` (38-40, 121, 126, 132), `components/loading-states.test.tsx` (10), `components/metric-value.test.tsx` (11, 24, 91), `components/project-summary.test.tsx` (47, 52, 58), `components/quality-chart.test.tsx` (39-43, 102), `components/sprint-series-chart-legend.test.tsx` (31, 40), `components/sprint-series-chart-tooltip.test.tsx` (23, 32), `components/sprint-series-chart.test.tsx` (9-12, 62), `components/velocity-chart.test.tsx` (33-36, 80), `hooks/use-authorized-query.test.tsx` (18, 22, 51), `utils/metric-format.test.ts` (7) y `utils/metric-explanations.test.ts` (6), per T041 (partial)
+- [X] T053 Corregir la codificación de los comentarios en español con caracteres mal codificados (`Ã³` en lugar de `ó`, `Ã­` en lugar de `í`) en 15 archivos de pruebas y de soporte de pruebas de `frontend/src/` (`features/dashboard/components/`: `active-sprint-panel.test.tsx`, `effort-chart.test.tsx`, `sprint-series-chart.test.tsx`, `metric-value.test.tsx`, `dashboard-test-backend.test.ts`, `dashboard-test-backend.ts`, `quality-chart.test.tsx`, `dashboard-warnings.test.tsx`, `dashboard-view.test.tsx`, `key-indicators.test.tsx`, `project-summary.test.tsx` y `velocity-chart.test.tsx`; `utils/metric-format.test.ts`, `utils/metric-explanations.test.ts` y `hooks/use-authorized-query.test.tsx`), sin cambiar código ni el comportamiento de ninguna prueba: revertir la doble codificación UTF-8/cp1252 y verificar en el diff que solo cambian líneas de comentario, per T052 (partial)
 
 ---
 

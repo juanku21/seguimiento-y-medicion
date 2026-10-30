@@ -11,6 +11,7 @@ import {
   defaultProject,
   defaultProjectId,
   defaultSeries,
+  defaultSprint,
   defaultSprints,
   installDashboardBackend,
   installResizeObserverStub,
@@ -48,6 +49,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+// Textos esperados de las secciones, de los errores y de las figuras del dashboard.
 const EMPTY_TITLE = "Sin datos todavía";
 const EMPTY_TEXT =
   "Este proyecto todavía no tiene sprints, así que no hay métricas que mostrar. Planificá el primer sprint desde la sección Sprints del proyecto.";
@@ -72,24 +74,29 @@ const FIGURES = [
   "Defectos por sprint",
 ];
 
+// Respuesta de error interno del servidor.
 const serverError: BackendReply = {
   status: 500,
   body: { error: "Error interno." },
 };
+// Listado de sprints vacío porque el proyecto no tiene sprints.
 const noSprints = {
   ...defaultSprints,
   emptyReason: "no_sprints" as const,
 };
+// Proyecto en curso sin sprint activo.
 const projectWithoutSprint: ProjectDetail = {
   ...defaultProject,
   hasActiveSprint: false,
   activeSprint: null,
 };
+// Advertencia de planificación de ejemplo.
 const planningWarning: MetricsWarning = {
   kind: "planning",
   code: "stories_without_estimate",
   message: "Hay 6 historias sin estimar en el backlog.",
 };
+// Advertencia de inconsistencia de datos de ejemplo.
 const inconsistencyWarning: MetricsWarning = {
   kind: "data_inconsistency",
   code: "finished_without_hours",
@@ -164,11 +171,14 @@ function expectNoMetricsSections() {
   expect(screen.queryByRole("region", { name: DISTRIBUTION })).toBeNull();
 }
 
+// Escenarios de uso del dashboard con información faltante o con una sección que falla.
 describe("009/US6 - Usar el dashboard cuando falta información o falla una sección", () => {
+  // Sustituye ResizeObserver para que los gráficos se dibujen en jsdom.
   beforeEach(() => {
     installResizeObserverStub();
   });
 
+  // Desmonta la vista y restablece la sesión, los temporizadores y los globales sustituidos.
   afterEach(() => {
     cleanup();
     clearSession();
@@ -508,5 +518,37 @@ describe("009/US6 - Usar el dashboard cuando falta información o falla una secc
     await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
 
     expect(requests.length).toBe(before);
+  });
+
+  // RN-02, FR-003: el dashboard es de solo lectura (prueba de caracterización, sin RED).
+  it("solo hace consultas GET", async () => {
+    const requests = installDashboardBackend();
+    renderDashboard(defaultProjectId);
+
+    await findSummary();
+    await expectAllFigures();
+    await settle(requests);
+
+    // Todas las peticiones son GET y son exactamente las seis operaciones, una vez cada una.
+    const base = `/api/v1/projects/${defaultProjectId}`;
+    expect(requests.every((request) => request.method === "GET")).toBe(true);
+    expect(requests.map((request) => request.path).sort()).toEqual(
+      [
+        base,
+        `/api/v1/sprints/${defaultSprint.id}`,
+        `${base}/sprints`,
+        `${base}/metrics`,
+        `${base}/metrics/active-sprint`,
+        `${base}/metrics/series`,
+      ].sort(),
+    );
+
+    // No hay controles de edición ni campos de entrada en la pantalla.
+    expect(
+      screen.queryAllByRole("button", {
+        name: /editar|eliminar|borrar|guardar|crear|agregar|nuevo/i,
+      }),
+    ).toHaveLength(0);
+    expect(screen.queryAllByRole("textbox")).toHaveLength(0);
   });
 });

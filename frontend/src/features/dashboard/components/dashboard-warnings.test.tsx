@@ -6,6 +6,7 @@ import type { MetricsWarning } from "@/types/metrics";
 // Pruebas unitarias de la Historia 6 (T032, RN-21): las advertencias se separan en dos listas por
 // kind, con roles distintos, y cada message se muestra tal como llega.
 
+// Mensajes y advertencias de ejemplo, una de planificación y otra de inconsistencia de datos.
 const PLANNING_MESSAGE = "El sprint activo no tiene Story Points estimados.";
 const INCONSISTENCY_MESSAGE =
   "Hay 2 tareas Terminadas sin horas registradas (casos: 3 y 5).";
@@ -21,11 +22,13 @@ const inconsistency: MetricsWarning = {
   message: INCONSISTENCY_MESSAGE,
 };
 
+// Desmonta el componente renderizado tras cada prueba.
 afterEach(() => {
   cleanup();
 });
 
-describe("009/US6 - Usar el dashboard cuando falta información o falla una sección", () => {
+// Escenarios de advertencias y de secciones con información faltante.
+describe("Usar el dashboard cuando falta información o falla una sección", () => {
   it("Advertencias de planificación y de inconsistencia de datos", () => {
     render(<DashboardWarnings warnings={[planning, inconsistency]} />);
 

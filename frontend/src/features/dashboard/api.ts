@@ -10,12 +10,17 @@ import type {
   SprintMetric,
 } from "@/types/metrics";
 
+// Estados válidos de un valor calculado.
 const VALUE_STATUSES = ["available", "not_calculable", "not_applicable"];
+// Finalidades válidas de una métrica de sprint.
 const FINALITIES = ["definitive", "provisional", "partial"];
 // El acumulado nunca es provisional: se excluye de las finalidades válidas.
 const CUMULATIVE_FINALITIES = FINALITIES.filter((f) => f !== "provisional");
+// Tipos válidos de advertencia de las métricas.
 const WARNING_KINDS = ["planning", "data_inconsistency"];
+// Severidades válidas de una advertencia, de mayor a menor.
 const SEVERITIES = ["critical", "high", "medium", "low"];
+// Claves de las métricas que debe traer cada respuesta de métricas.
 const METRIC_KEYS = [
   "plannedStoryPoints",
   "completedStoryPoints",

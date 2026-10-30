@@ -20,6 +20,7 @@ import {
 import type { ProjectSeriesResponse } from "@/types/metrics";
 import { writeToken } from "@/lib/session-storage";
 
+// Tipo del fetch sustituido por las pruebas.
 type FetchMock = Mock<typeof fetch>;
 
 // Valor calculado disponible y métrica de sprint con la finalidad indicada.
@@ -29,6 +30,7 @@ const sprintMetric = (finality: string | null = "definitive") => ({
   finality,
 });
 
+// Nombres de las métricas que componen un cuerpo completo.
 const metricNames = [
   "plannedStoryPoints",
   "completedStoryPoints",
@@ -62,6 +64,7 @@ function projectMetrics() {
   };
 }
 
+// Casos de aceptación y rechazo de los reconocedores de cuerpos.
 describe("Reconocedores del dashboard - validación de entradas", () => {
   it("isMetric acepta available con número y los otros estados con null", () => {
     expect(isMetric({ status: "available", value: 3 })).toBe(true);
@@ -131,6 +134,7 @@ describe("Reconocedores del dashboard - validación de entradas", () => {
   });
 });
 
+// Verifica las rutas pedidas y la lectura de los cuerpos devueltos.
 describe("Consultas del dashboard - rutas y cuerpos", () => {
   let fetchMock: FetchMock;
 
@@ -234,6 +238,7 @@ function seriesEnvelope(overrides: Record<string, unknown> = {}) {
   } as unknown as ProjectSeriesResponse;
 }
 
+// Cada serie se valida por separado, sin descartar las demás.
 describe("readSeries - validación por porción (RN-20)", () => {
   it("devuelve los puntos de una serie válida", () => {
     const envelope = seriesEnvelope();
@@ -273,7 +278,9 @@ describe("readSeries - validación por porción (RN-20)", () => {
   });
 });
 
+// Verifica la ruta de series y que se use el token de la sesión.
 describe("getProjectSeries - ruta", () => {
+  // Restablece los globales sustituidos y la sesión.
   afterEach(() => {
     vi.unstubAllGlobals();
     sessionStorage.clear();
@@ -304,5 +311,41 @@ describe("getProjectSeries - ruta", () => {
     expect(method).toBe("GET");
     expect(url.endsWith("/api/v1/projects/a%2Fb/metrics/series")).toBe(true);
     expect(result.ok).toBe(true);
+  });
+});
+
+// Ramas de rechazo de los reconocedores ante cuerpos que no son objetos o con partes mal formadas (T045).
+describe("Reconocedores del dashboard - ramas de rechazo (T045)", () => {
+  it("isSprintMetric rechaza valores que no son objetos", () => {
+    expect(isSprintMetric(null)).toBe(false);
+    expect(isSprintMetric("available")).toBe(false);
+  });
+
+  it("isActiveSprintMetricsResponse rechaza cuerpos que no son objetos o sin activeSprint booleano", () => {
+    expect(isActiveSprintMetricsResponse(null)).toBe(false);
+    expect(
+      isActiveSprintMetricsResponse({ activeSprint: "true", metrics: null }),
+    ).toBe(false);
+  });
+
+  it("isProjectMetricsResponse rechaza defects.open sin total numérico o sin bySeverity", () => {
+    const withoutTotal = projectMetrics();
+    (withoutTotal.defects.open as Record<string, unknown>).total = "3";
+    expect(isProjectMetricsResponse(withoutTotal)).toBe(false);
+
+    const withoutSeverity = projectMetrics();
+    (withoutSeverity.defects.open as Record<string, unknown>).bySeverity = null;
+    expect(isProjectMetricsResponse(withoutSeverity)).toBe(false);
+
+    const notObject = projectMetrics();
+    (notObject.defects as Record<string, unknown>).open = null;
+    expect(isProjectMetricsResponse(notObject)).toBe(false);
+  });
+
+  it("readSeries devuelve null si un punto de la serie no es un objeto", () => {
+    const envelope = {
+      plannedStoryPoints: [null],
+    } as unknown as ProjectSeriesResponse;
+    expect(readSeries(envelope, "plannedStoryPoints")).toBeNull();
   });
 });

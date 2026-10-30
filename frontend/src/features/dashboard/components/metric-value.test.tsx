@@ -8,6 +8,7 @@ import type { MetricKind } from "@/utils/metric-explanations";
 // Pruebas unitarias de la presentación de estados de valor y marcas de finalidad
 // (T011; RN-03 a RN-06; FR-014 a FR-017).
 
+// Formateador de prueba que envuelve el valor entre almohadillas.
 const format = (value: number) => `#${value}#`;
 
 // Renderiza una métrica y devuelve el texto visible del contenedor.
@@ -21,13 +22,14 @@ function textOf(
   return container.textContent ?? "";
 }
 
-describe("009/US2 - Ver los indicadores clave del momento (MetricValue)", () => {
-  // Escenario: valor disponible igual a cero (009/US2, RN-06)
+// Muestra del valor según el estado de la métrica y su finalidad.
+describe("Ver los indicadores clave del momento (MetricValue)", () => {
+  // Escenario: valor disponible igual a cero (RN-06)
   it("muestra el cero disponible con el formateador recibido", () => {
     expect(textOf({ status: "available", value: 0 })).toBe("#0#");
   });
 
-  // Escenario: métrica no calculable con su explicación (009/US2, RN-03)
+  // Escenario: métrica no calculable con su explicación (RN-03)
   it.each([
     ["velocity", "Todavía no hay sprints cerrados."],
     ["deviationPercent", "Las horas estimadas son 0."],
@@ -45,14 +47,14 @@ describe("009/US2 - Ver los indicadores clave del momento (MetricValue)", () => 
     },
   );
 
-  // Escenario: métrica no aplicable (009/US2, RN-06)
+  // Escenario: métrica no aplicable (RN-06)
   it("muestra No aplica para not_applicable", () => {
     expect(textOf({ status: "not_applicable", value: null })).toContain(
       "No aplica",
     );
   });
 
-  // Escenario: los tres estados se distinguen entre sí (009/US2, RN-06)
+  // Escenario: los tres estados se distinguen entre sí (RN-06)
   it("los textos de disponible 0, no calculable y no aplica son distintos", () => {
     const available = textOf({ status: "available", value: 0 });
     const notCalculable = textOf({ status: "not_calculable", value: null });
@@ -60,14 +62,14 @@ describe("009/US2 - Ver los indicadores clave del momento (MetricValue)", () => 
     expect(new Set([available, notCalculable, notApplicable]).size).toBe(3);
   });
 
-  // Escenario: marca Parcial (009/US2, RN-04)
+  // Escenario: marca Parcial (RN-04)
   it("muestra Parcial cuando la finalidad es partial", () => {
     const text = textOf({ status: "available", value: 5, finality: "partial" });
     expect(text).toContain("Parcial");
     expect(text).toContain("#5#");
   });
 
-  // Escenario: marca Provisoria distinta de Parcial (009/US2, RN-05)
+  // Escenario: marca Provisoria distinta de Parcial (RN-05)
   it("muestra Provisoria y no Parcial cuando la finalidad es provisional", () => {
     const text = textOf({
       status: "available",
@@ -78,7 +80,7 @@ describe("009/US2 - Ver los indicadores clave del momento (MetricValue)", () => 
     expect(text).not.toContain("Parcial");
   });
 
-  // Escenario: finalidad definitiva o nula sin marca (009/US2, RN-04)
+  // Escenario: finalidad definitiva o nula sin marca (RN-04)
   it.each(["definitive", null] as const)(
     "no muestra marca con finalidad %s",
     (finality) => {
@@ -88,8 +90,9 @@ describe("009/US2 - Ver los indicadores clave del momento (MetricValue)", () => 
   );
 });
 
-describe("009/US2 - Ver los indicadores clave del momento (FinalityBadge)", () => {
-  // Escenario: Parcial y Provisoria producen textos distintos (009/US2, RN-05)
+// Muestra de la marca de finalidad según el estado del valor.
+describe("Ver los indicadores clave del momento (FinalityBadge)", () => {
+  // Escenario: Parcial y Provisoria producen textos distintos (RN-05)
   it("produce textos distintos para partial y provisional", () => {
     const partial = render(<FinalityBadge finality="partial" />).container
       .textContent;
@@ -100,7 +103,7 @@ describe("009/US2 - Ver los indicadores clave del momento (FinalityBadge)", () =
     expect(partial).not.toBe(provisional);
   });
 
-  // Escenario: sin marca para definitive y null (009/US2, RN-04)
+  // Escenario: sin marca para definitive y null (RN-04)
   it.each(["definitive", null] as const)(
     "no renderiza texto con finalidad %s",
     (finality) => {

@@ -35,6 +35,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+// Nombres de los grupos de indicadores y signo menos que usa el formato.
 const SPRINT_GROUP = "Indicadores del sprint activo";
 const PROJECT_GROUP = "Indicadores del proyecto";
 const MINUS = "−";
@@ -118,17 +119,20 @@ function plain(element: HTMLElement): string {
   return (element.textContent ?? "").replace(/Parcial|Provisoria/g, "").trim();
 }
 
+// Cada prueba arranca sin sesión y con el espía del enrutador limpio.
 beforeEach(() => {
   clearSession();
   routerMock.replace.mockClear();
 });
 
+// Desmonta el componente y restablece la sesión y los globales sustituidos.
 afterEach(() => {
   cleanup();
   clearSession();
   vi.unstubAllGlobals();
 });
 
+// Escenarios de los indicadores clave del sprint activo y del proyecto.
 describe("009/US2 - Ver los indicadores clave del momento", () => {
   // Escenario: US2-1 (Caso normal)
   it("muestra los indicadores con los valores de la feature de métricas", async () => {
@@ -334,7 +338,7 @@ describe("009/US2 - Ver los indicadores clave del momento", () => {
     ).toBeTruthy();
   });
 
-  // Sin etiqueta 009/USn para no alterar el conteo de escenarios (SC-005).
+  // Sin etiqueta de historia para no alterar el conteo de escenarios (SC-005).
   it("muestra el porcentaje de historias no calculable con su explicación", async () => {
     installDashboardBackend({
       activeSprintMetrics: {

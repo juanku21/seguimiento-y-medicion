@@ -6,7 +6,8 @@
 
 **Creada**: 2026-10-04
 
-**Estado**: Clarificada — sin preguntas abiertas (sesión de clarificación del 2026-10-04)
+**Estado**: Clarificada — sin preguntas abiertas (sesiones de clarificación del 2026-10-04 y del
+2026-10-30)
 
 **Entrada**: Descripción del usuario: "Reportes de proyecto y de sprint con exportación a PDF para
 Software Metrics & Estimation, un sistema web multiusuario para estimar, planificar, seguir y medir
@@ -48,6 +49,13 @@ posible de la velocidad del equipo, después del tablero y del módulo de métri
 - Q: ¿El sistema guarda los reportes generados? (FR-034) → A: guarda solo el registro de generación —quién, cuándo y con qué alcance—, no el documento. Queda el rastro de auditoría de lo que se emitió, sin el costo de almacenar archivos.
 - Q: ¿Qué pasa con las historias que nunca estuvieron en un sprint, dado que el reporte de proyecto agrupa por sprint? (FR-036) → A: se listan en un grupo propio de "historias no planificadas" al final, para que el reporte refleje todo el backlog. Es la misma solución simétrica que `specs/008-metrics-calculation` adoptó para el esfuerzo fuera de sprint.
 
+### Session 2026-10-30
+
+- Q: Una historia comprometida solo en sprints Planificados no aparece en ningún grupo del reporte de proyecto, porque FR-007 excluye a los Planificados. ¿Dónde va? (FR-036) → A: en el grupo de historias no planificadas, que pasa a definirse como las historias sin compromisos en sprints Cerrados ni en el Activo. Así el reporte sigue reflejando todo el backlog.
+- Q: ¿El encabezado puede quedar "no obtenible" como las otras secciones? (FR-024, FR-025) → A: no. Sin proyecto ni autor el reporte no se puede atribuir ni registrar (FR-034, FR-041), así que una falla del encabezado hace fallar la generación completa, que se informa como error y no deja registro.
+- Q: La exportación a PDF se hace en el navegador, sobre el reporte en pantalla. ¿Cómo se cumple que quien no es integrante no exporte? (US2-8, FR-038) → A: el control ocurre al generar. Quien no es integrante recibe "proyecto inexistente" al pedir el reporte y nunca tiene nada que exportar. Exportar no consulta al sistema.
+- Q: El encabezado nunca está vacío y un proyecto con backlog siempre lista sus historias no planificadas. ¿Qué reporte tiene todas sus secciones sin datos? (US3-10, US4-4, SC-008) → A: el de un proyecto sin sprints Cerrados ni Activo y sin historias: sus cinco secciones de contenido muestran "sin datos" y el encabezado se muestra completo.
+
 ---
 
 ## Entradas y Salidas Esperadas
@@ -68,7 +76,7 @@ posible de la velocidad del equipo, después del tablero y del módulo de métri
 | --- | --- |
 | Sesión de un integrante e identificador del proyecto | Reporte en pantalla con las mismas seis secciones, cubriendo todos los sprints Cerrados y el Activo si existe, con las historias agrupadas por sprint |
 | Proyecto con sprint Activo | El reporte completo se marca como **parcial**, porque incluye un sprint en curso |
-| Proyecto sin sprints cerrados ni activo | Reporte con el encabezado y las secciones en estado "sin datos", no un error |
+| Proyecto sin sprints cerrados ni activo | Reporte con el encabezado completo, las historias del backlog en el grupo de no planificadas si las hay, y el resto de las secciones en "sin datos"; no es un error |
 | Proyecto inexistente o ajeno | Respuesta de proyecto inexistente |
 
 ### Exportación a PDF
@@ -171,7 +179,8 @@ regla.
    **entonces** se informa el problema y el reporte en pantalla se conserva intacto, de modo que se
    pueda reintentar sin volver a generarlo.
 8. *(Caso de error)* **Dado** un usuario que no es integrante del proyecto, **cuando** intenta
-   exportar uno de sus reportes, **entonces** la respuesta es de proyecto inexistente.
+   generar uno de sus reportes para exportarlo, **entonces** la respuesta es de proyecto
+   inexistente y no obtiene ningún reporte que exportar.
 
 ---
 
@@ -195,16 +204,17 @@ activo, verificando el agrupamiento por sprint y la marca de parcialidad.
    integrante genera su reporte, **entonces** el reporte incluye los 4 sprints y se marca como
    **parcial**, porque contiene un sprint en curso.
 3. *(Caso alternativo)* **Dado** un proyecto con un sprint Planificado además de los cerrados,
-   **cuando** un integrante genera su reporte, **entonces** el sprint Planificado no aparece, igual
-   que no se puede reportar por separado.
+   **cuando** un integrante genera su reporte, **entonces** el sprint Planificado no aparece como
+   grupo, igual que no se puede reportar por separado, y las historias comprometidas solo en él se
+   listan en el grupo de historias no planificadas.
 4. *(Caso alternativo)* **Dado** un proyecto Finalizado, **cuando** un integrante genera su reporte,
    **entonces** el reporte se genera completo y sin marca de parcial, porque ya no hay sprint en
    curso.
 5. *(Caso límite)* **Dado** una historia que estuvo planificada en dos sprints, **cuando** un
    integrante genera el reporte del proyecto, **entonces** aparece en los dos grupos, con el estado
    que tuvo en cada uno, de modo que se entienda que se replanificó.
-6. *(Caso alternativo)* **Dado** un proyecto con 12 historias en el backlog que nunca entraron a un
-   sprint, **cuando** un integrante genera su reporte, **entonces** ve un grupo final de
+6. *(Caso alternativo)* **Dado** un proyecto con 12 historias en el backlog que no entraron a ningún
+   sprint Cerrado ni Activo, **cuando** un integrante genera su reporte, **entonces** ve un grupo final de
    **historias no planificadas** con esas 12, después de los grupos por sprint.
 7. *(Caso límite)* **Dado** un proyecto cuyas historias estuvieron todas en algún sprint, **cuando**
    un integrante genera su reporte, **entonces** el grupo de historias no planificadas se muestra
@@ -217,8 +227,10 @@ activo, verificando el agrupamiento por sprint y la marca de parcialidad.
    y otro integrante lo genera dentro de un mes, **entonces** los dos documentos son idénticos en
    todo salvo la fecha, la hora y el nombre de quien lo generó.
 10. *(Caso límite)* **Dado** un proyecto sin ningún sprint cerrado ni activo, **cuando** un
-    integrante genera su reporte, **entonces** obtiene el encabezado y todas las secciones en estado
-    "sin datos", sin que eso sea un error.
+    integrante genera su reporte, **entonces** obtiene el encabezado completo y las secciones de
+    estimaciones, esfuerzo, métricas y defectos en "sin datos", sin que eso sea un error. Las
+    historias del backlog, si las hay, aparecen en el grupo de historias no planificadas; si no hay
+    ninguna, la sección de historias también muestra "sin datos".
 11. *(Caso de error)* **Dado** un identificador de proyecto que no existe, **cuando** un integrante
     intenta generar su reporte, **entonces** obtiene una respuesta de proyecto inexistente.
 
@@ -247,9 +259,9 @@ sin defectos, y verificando que esas secciones aparecen con "sin datos" en lugar
    integrante genera su reporte, **entonces** la sección de estimaciones las lista marcadas como
    "sin estimar", y las métricas que dependen de los Story Points muestran lo que la feature de
    métricas informe.
-4. *(Caso límite)* **Dado** un reporte en el que las seis secciones están sin datos, **cuando** un
-   integrante lo genera, **entonces** las seis aparecen con su título y su mensaje, y el encabezado
-   se muestra completo.
+4. *(Caso límite)* **Dado** el reporte de un proyecto sin sprints cerrados ni activo y sin
+   historias, **cuando** un integrante lo genera, **entonces** las cinco secciones de contenido
+   aparecen con su título y el mensaje "sin datos", y el encabezado se muestra completo.
 5. *(Caso límite)* **Dado** un reporte con secciones sin datos, **cuando** un integrante lo exporta,
    **entonces** el PDF conserva esas secciones con su mensaje, igual que la pantalla.
 6. *(Caso de error)* **Dado** que una de las features de origen no puede entregar los datos de su
@@ -265,8 +277,9 @@ sin defectos, y verificando que esas secciones aparecen con "sin datos" en lugar
   ninguna en Completada; las métricas reflejan ese resultado.
 - **Sprint sin ninguna historia**: las secciones dependientes muestran "sin datos" y el encabezado y
   las métricas se muestran igual.
-- **Proyecto sin sprints cerrados**: el reporte de proyecto se genera con las secciones en "sin
-  datos"; no es un error.
+- **Proyecto sin sprints cerrados**: el reporte de proyecto se genera con el encabezado completo,
+  las historias del backlog como no planificadas y el resto de las secciones en "sin datos"; no es
+  un error.
 - **Historias sin estimar**: se listan marcadas como tales, y las métricas que dependen de los Story
   Points muestran lo que la feature de métricas informe.
 - **Historias sin Planning Poker**: la sección de estimaciones indica que no hubo sesión, en lugar
@@ -358,9 +371,12 @@ sin defectos, y verificando que esas secciones aparecen con "sin datos" en lugar
 
 - **FR-023**: Cuando una sección no tiene datos, el sistema DEBE mostrarla con su título y el
   mensaje **"sin datos"**, y NUNCA DEBE omitirla.
-- **FR-024**: Cuando una sección no puede obtenerse, el sistema DEBE informarlo de forma
-  distinguible de "sin datos", porque no tener datos y no poder leerlos significan cosas distintas.
-- **FR-025**: Una sección sin datos o con falla NO DEBE impedir la generación del resto del reporte.
+- **FR-024**: Cuando una sección de contenido (historias, estimaciones, esfuerzo, métricas o
+  defectos) no puede obtenerse, el sistema DEBE informarlo de forma distinguible de "sin datos",
+  porque no tener datos y no poder leerlos significan cosas distintas.
+- **FR-025**: Una sección de contenido sin datos o con falla NO DEBE impedir la generación del resto
+  del reporte. El encabezado es la excepción: si no puede obtenerse, la generación falla completa,
+  se informa como error y no se registra.
 
 **Exportación a PDF**
 
@@ -393,8 +409,9 @@ sin defectos, y verificando que esas secciones aparecen con "sin datos" en lugar
 **Alcance del reporte de proyecto**
 
 - **FR-036**: El reporte de proyecto DEBE incluir, después de los grupos por sprint, un grupo final
-  de **historias no planificadas**: las historias del backlog que nunca estuvieron en ningún
-  sprint, con su título, su prioridad, sus Story Points y su estado, tomados del backlog vigente
+  de **historias no planificadas**: las historias del backlog que no tienen ningún compromiso
+  en un sprint Cerrado ni en el Activo, incluidas las que solo están comprometidas en sprints
+  Planificados, con su título, su prioridad, sus Story Points y su estado, tomados del backlog vigente
   (FR-022). Así el reporte refleja todo el backlog del proyecto y no solo lo que se trabajó. Cuando
   no hay ninguna, el grupo DEBE mostrarse con el mensaje "sin datos", igual que cualquier otra
   sección.
@@ -402,8 +419,9 @@ sin defectos, y verificando que esas secciones aparecen con "sin datos" en lugar
 **Autorización y visibilidad**
 
 - **FR-037**: El sistema DEBE exigir una sesión válida para generar y para exportar reportes.
-- **FR-038**: El sistema DEBE restringir la generación y la exportación a los integrantes vigentes
-  del proyecto.
+- **FR-038**: El sistema DEBE restringir la generación a los integrantes vigentes del proyecto. La
+  exportación solo parte de un reporte ya generado en pantalla, así que queda restringida por la
+  misma verificación.
 - **FR-039**: Ante una solicitud sobre un proyecto o un sprint a los que quien pide no tiene acceso,
   el sistema DEBE responder exactamente igual que ante un identificador inexistente, sin revelar
   ningún dato ni la existencia del recurso.
@@ -496,7 +514,8 @@ sin defectos, y verificando que esas secciones aparecen con "sin datos" en lugar
 | Falla al obtener los datos de una sección | La sección informa que no pudo obtenerse, de forma distinguible de "sin datos"; el resto del reporte se genera. |
 | Sección sin datos | No es un error: se muestra con su título y el mensaje "sin datos". |
 | Métrica con valor "no calculable" | No es un error: se muestra ese estado con su explicación. |
-| Proyecto sin sprints cerrados ni activo | No es un error: el reporte se genera con las secciones en "sin datos". |
+| Proyecto sin sprints cerrados ni activo | No es un error: el reporte se genera con el encabezado completo, las historias no planificadas si las hay, y el resto en "sin datos". |
+| Falla al obtener el encabezado (proyecto o integrante que genera) | La generación falla completa con un error genérico; no se muestra reporte ni queda registro. |
 
 ---
 
@@ -508,7 +527,8 @@ sin defectos, y verificando que esas secciones aparecen con "sin datos" en lugar
 - **Alcance del reporte**: valor que distingue un reporte de sprint de uno de proyecto. Determina
   qué sprints abarca, si las historias se agrupan y qué métricas se incluyen.
 - **Sección del reporte**: unidad de contenido que puede estar completa, sin datos o no obtenible.
-  Los tres estados son distinguibles entre sí y ninguno hace desaparecer la sección.
+  Los tres estados son distinguibles entre sí y ninguno hace desaparecer la sección. El encabezado
+  no tiene estado: o se obtiene, o no hay reporte.
 - **Archivo exportado**: representación del reporte en PDF, con el mismo contenido que la pantalla,
   numeración de páginas y un nombre que identifica proyecto, alcance y fecha.
 - **Resumen de estimación** *(derivado de `specs/005-planning-poker`)*: cantidad de rondas y valor
@@ -539,7 +559,8 @@ sin defectos, y verificando que esas secciones aparecen con "sin datos" en lugar
   tanto en pantalla como en el PDF.
 - **SC-007**: Cero reportes generados para sprints Planificados.
 - **SC-008**: El 100 % de las secciones sin datos aparece con su título y su mensaje, y ninguna se
-  omite, verificado generando un reporte con las seis secciones vacías.
+  omite, verificado generando el reporte de un proyecto sin sprints ni historias, con sus cinco
+  secciones de contenido vacías y el encabezado completo.
 - **SC-009**: Una sección que no pudo obtenerse se distingue de una sección sin datos en el 100 % de
   los casos.
 - **SC-010**: Un PDF de un proyecto con 80 historias conserva el 100 % del contenido, con todas las
@@ -551,7 +572,8 @@ sin defectos, y verificando que esas secciones aparecen con "sin datos" en lugar
   proyecto, alcance y día.
 - **SC-013**: Una falla al generar el archivo conserva el reporte en pantalla en el 100 % de los
   casos, permitiendo reintentar sin regenerarlo.
-- **SC-014**: El 100 % de las generaciones y exportaciones exige sesión válida y membresía vigente.
+- **SC-014**: El 100 % de las generaciones exige sesión válida y membresía vigente, y ninguna
+  exportación es posible sin un reporte generado.
 - **SC-015**: Cero filtraciones de datos entre proyectos: en el 100 % de los intentos de quien no es
   integrante, la respuesta es indistinguible de la de un identificador inexistente.
 - **SC-016**: El listado de defectos cuadra con sus totales en el 100 % de los casos, verificado en
@@ -605,6 +627,9 @@ sin defectos, y verificando que esas secciones aparecen con "sin datos" en lugar
   no tiene control de acceso, así que no se aprovecha el formato para mostrar de más.
 - **Sin paginación ni recorte de contenido en pantalla**: el reporte se muestra completo, en línea
   con el criterio del resto del producto.
+- **La exportación no vuelve a consultar al sistema**: se hace sobre el reporte en pantalla. Si la
+  sesión vence entre la generación y la exportación, el PDF igual se descarga, porque contiene
+  exactamente lo que el integrante ya estaba viendo.
 - **Idioma**: los títulos de las secciones, los mensajes de "sin datos" y las explicaciones de los
   valores no calculables están en español.
 
@@ -620,6 +645,12 @@ Ninguna. Las tres decisiones que quedaron abiertas al redactar la especificació
    el título y la prioridad de cada historia.
 2. **Se guarda el registro de generación, no el documento** (FR-034, FR-035, RN-02, RN-24).
 3. **El reporte de proyecto incluye un grupo de historias no planificadas** (FR-036, RN-25).
+
+Al planificar surgieron cuatro precisiones más, resueltas el 2026-10-30 y registradas en la misma
+sección: las historias comprometidas solo en sprints Planificados van al grupo de no planificadas
+(FR-036), el encabezado no admite el estado "no obtenible" (FR-024, FR-025), la membresía se
+verifica al generar y no al exportar (US2-8, FR-038, SC-014), y solo el reporte de un proyecto sin
+sprints ni historias tiene sus cinco secciones de contenido sin datos (US3-10, US4-4, SC-008).
 
 Las demás decisiones que podrían haber quedado abiertas se resolvieron con supuestos explícitos,
 documentados en la sección Supuestos.

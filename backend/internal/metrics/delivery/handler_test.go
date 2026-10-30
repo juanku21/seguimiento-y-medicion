@@ -1672,3 +1672,296 @@ func TestUS5_NoIntegrante(t *testing.T) {
 		assert.Equal(t, projectNotFoundBody, rec.Body.String(), name)
 	}
 }
+
+// ---------------------------------------------------------------------------------------------
+// Pruebas de caracterización transversales (Fase 7). No llevan etiqueta 008/USn: verifican reglas
+// que ya existen (SC-012, SC-013, SC-014, SC-020, FR-043, RN-02, RN-22, RN-30).
+// ---------------------------------------------------------------------------------------------
+
+// metricsRoute es una de las cuatro rutas de métricas de un proyecto.
+type metricsRoute struct {
+	name string
+	path string
+}
+
+// metricsRoutes devuelve las cuatro rutas de métricas del proyecto; sprintID es el segmento de la
+// ruta de un sprint concreto.
+func metricsRoutes(projectID, sprintID string) []metricsRoute {
+	base := "/api/v1/projects/" + projectID + "/metrics"
+	return []metricsRoute{
+		{"proyecto", base},
+		{"series", base + "/series"},
+		{"sprint activo", base + "/active-sprint"},
+		{"sprint", base + "/sprints/" + sprintID},
+	}
+}
+
+// Caracterización de SC-013: sin sesión, o con un token adulterado, las cuatro rutas responden 401.
+func TestMetricsEndpoints_SinSesion(t *testing.T) {
+	env := newMetricsTestEnv(t)
+	_, token := env.signUp(t, "Ana Pérez", "ana@example.com")
+	const want = `{"error":"Se requiere iniciar sesión."}`
+
+	for _, route := range metricsRoutes(uuid.NewString(), uuid.NewString()) {
+		t.Run(route.name+" sin cabecera", func(t *testing.T) {
+			rec := env.do(t, http.MethodGet, route.path, "", nil)
+
+			assert.Equal(t, http.StatusUnauthorized, rec.Code)
+			assert.Equal(t, want, rec.Body.String())
+		})
+		t.Run(route.name+" con token adulterado", func(t *testing.T) {
+			rec := env.do(t, http.MethodGet, route.path, token+"x", nil)
+
+			assert.Equal(t, http.StatusUnauthorized, rec.Code)
+			assert.Equal(t, want, rec.Body.String())
+		})
+	}
+}
+
+// Caracterización de SC-014: el 404 de proyecto inexistente, ajeno y mal formado es idéntico byte a
+// byte en las cuatro rutas, y el de sprint inexistente, de otro proyecto y mal formado también.
+func TestMetricsEndpoints_NotFoundIndistinguible(t *testing.T) {
+	f := newMetricsFixture(t)
+	_, brunoToken := f.env.signUp(t, "Bruno Díaz", "bruno@example.com")
+	other := metricsFixture{env: f.env, ownerToken: brunoToken, projectID: f.env.createProject(t, brunoToken, "Otro proyecto", 6)}
+	foreignSprint, _ := other.normalSprint(t, 10)
+
+	// Proyecto: inexistente, ajeno (Ana no integra el de Bruno) y mal formado, en cada una de las rutas.
+	projects := []struct{ name, id string }{
+		{"inexistente", uuid.NewString()},
+		{"ajeno", other.projectID.String()},
+		{"mal formado", "abc"},
+	}
+	for index := range metricsRoutes("", "") {
+		var first string
+		for i, p := range projects {
+			route := metricsRoutes(p.id, uuid.NewString())[index]
+			rec := f.env.do(t, http.MethodGet, route.path, f.ownerToken, nil)
+
+			assert.Equal(t, http.StatusNotFound, rec.Code, "%s / %s", route.name, p.name)
+			assert.Equal(t, projectNotFoundBody, rec.Body.String(), "%s / %s", route.name, p.name)
+			if i == 0 {
+				first = rec.Body.String()
+			}
+			assert.Equal(t, first, rec.Body.String(), "%s / %s", route.name, p.name)
+		}
+	}
+
+	// Sprint: inexistente, de otro proyecto y mal formado.
+	var first string
+	for i, s := range []struct{ name, id string }{
+		{"inexistente", uuid.NewString()},
+		{"de otro proyecto", foreignSprint.String()},
+		{"mal formado", "abc"},
+	} {
+		rec := f.env.getSprintMetrics(t, f.ownerToken, f.projectID.String(), s.id)
+
+		assert.Equal(t, http.StatusNotFound, rec.Code, s.name)
+		assert.Equal(t, sprintNotFoundBody, rec.Body.String(), s.name)
+		if i == 0 {
+			first = rec.Body.String()
+		}
+		assert.Equal(t, first, rec.Body.String(), s.name)
+	}
+}
+
+// inconsistencyWarning es una advertencia de la respuesta con los identificadores que la ubican.
+type inconsistencyWarning struct {
+	Kind     string  `json:"kind"`
+	Code     string  `json:"code"`
+	SprintID *string `json:"sprintId"`
+	StoryID  *string `json:"storyId"`
+}
+
+// warningsOf decodifica la lista de advertencias de un cuerpo JSON de respuesta.
+func warningsOf(t *testing.T, raw []byte) []inconsistencyWarning {
+	t.Helper()
+	var body struct {
+		Warnings []inconsistencyWarning `json:"warnings"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &body), "cuerpo inválido: %s", string(raw))
+	return body.Warnings
+}
+
+// hasInconsistency indica si la lista trae una advertencia data_inconsistency con ese código, sprint
+// y, si se indica, historia.
+func hasInconsistency(ws []inconsistencyWarning, code, sprintID, storyID string) bool {
+	for _, w := range ws {
+		if w.Kind != "data_inconsistency" || w.Code != code || w.SprintID == nil || *w.SprintID != sprintID {
+			continue
+		}
+		if storyID == "" && w.StoryID == nil {
+			return true
+		}
+		if storyID != "" && w.StoryID != nil && *w.StoryID == storyID {
+			return true
+		}
+	}
+	return false
+}
+
+// storyIDByTitle busca en la base la historia del proyecto con ese título.
+func (f metricsFixture) storyIDByTitle(t *testing.T, title string) string {
+	t.Helper()
+	var id string
+	require.NoError(t, f.env.db.Raw("SELECT id FROM user_stories WHERE project_id = ? AND title = ?", f.projectID, title).Scan(&id).Error)
+	require.NotEmpty(t, id, "no existe la historia %q", title)
+	return id
+}
+
+// requireAllAvailable exige que las nueve métricas del sprint estén disponibles (respuesta completa).
+func requireAllAvailable(t *testing.T, body sprintMetricsBody) {
+	t.Helper()
+	for name, m := range map[string]metricValue{
+		"plannedStoryPoints": body.PlannedStoryPoints, "completedStoryPoints": body.CompletedStoryPoints,
+		"estimatedHours": body.EstimatedHours, "actualHours": body.ActualHours,
+		"deviationHours": body.DeviationHours, "deviationPercent": body.DeviationPercent,
+		"storyCompletionPercent": body.StoryCompletionPercent,
+		"defectsDetected":        body.DefectsDetected, "defectsResolved": body.DefectsResolved,
+	} {
+		assert.Equal(t, "available", m.Status, "%s debe estar disponible", name)
+	}
+}
+
+// Caracterización de SC-020 y RN-30: con datos rotos las cuatro rutas responden 200, completas, con la
+// historia sin puntos contada como 0 y la advertencia data_inconsistency que corresponde.
+func TestMetrics_DataInconsistency(t *testing.T) {
+	f := newMetricsFixture(t)
+	closedA := f.closedSprintN(t, 0, []int{5, 5, 3}, []int{8}, 0)
+	closedB := f.closedSprintN(t, 1, []int{5}, []int{3}, 0)
+	closedC := f.closedSprintN(t, 2, []int{5}, []int{3}, 0)
+	active, _ := f.startedSprintN(t, 3, []int{5}, []int{3}, 0)
+
+	// Datos que ninguna API permite: una historia sin puntos en un Cerrado y otra en el Activo, un
+	// Cerrado sin factor congelado y otro sin closed_at.
+	storyA := f.storyIDByTitle(t, "Historia 0D")
+	storyActive := f.storyIDByTitle(t, "Historia 3B")
+	f.env.forceRow(t, "UPDATE sprint_stories SET story_points_at_close = NULL WHERE sprint_id = ? AND story_id = ?", closedA, storyA)
+	f.env.forceRow(t, "UPDATE sprints SET hours_per_story_point_hundredths = NULL WHERE id = ?", closedB)
+	f.env.forceRow(t, "UPDATE sprints SET closed_at = NULL WHERE id = ?", closedC)
+	f.env.forceRow(t, "UPDATE user_stories SET story_points = NULL WHERE id = ?", storyActive)
+
+	// Ruta de sprint: una por cada sprint roto.
+	cases := []struct {
+		name       string
+		sprintID   uuid.UUID
+		code       string
+		storyID    string
+		planned    string
+		completed  string
+		closedNull bool
+	}{
+		{"cerrado con historia sin puntos", closedA, "unestimated_story_in_sprint", storyA, "13", "13", false},
+		{"cerrado sin factor congelado", closedB, "missing_frozen_factor", "", "8", "5", false},
+		{"cerrado sin closed_at", closedC, "missing_close_time", "", "8", "5", true},
+		{"activo con historia sin puntos", active, "unestimated_story_in_sprint", storyActive, "5", "5", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rec := f.env.getSprintMetrics(t, f.ownerToken, f.projectID.String(), c.sprintID.String())
+			var body sprintMetricsBody
+			metricsRequireStatus(t, rec, http.StatusOK, &body)
+
+			requireAllAvailable(t, body)
+			assert.Equal(t, c.planned, string(body.PlannedStoryPoints.Value), "la historia sin puntos cuenta como 0")
+			assert.Equal(t, c.completed, string(body.CompletedStoryPoints.Value))
+			assert.Equal(t, c.closedNull, body.Sprint.ClosedAt == nil)
+			assert.True(t, hasInconsistency(warningsOf(t, rec.Body.Bytes()), c.code, c.sprintID.String(), c.storyID),
+				"falta la advertencia %s: %s", c.code, rec.Body.String())
+		})
+	}
+
+	// Ruta del sprint Activo: trae sus métricas completas y su advertencia.
+	t.Run("sprint activo", func(t *testing.T) {
+		rec := f.env.getActiveSprint(t, f.ownerToken, f.projectID.String())
+		var body activeSprintBody
+		metricsRequireStatus(t, rec, http.StatusOK, &body)
+
+		require.True(t, body.ActiveSprint)
+		require.NotNil(t, body.Metrics)
+		requireAllAvailable(t, *body.Metrics)
+		assert.Equal(t, "5", string(body.Metrics.PlannedStoryPoints.Value))
+		var raw struct {
+			Metrics json.RawMessage `json:"metrics"`
+		}
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &raw))
+		assert.True(t, hasInconsistency(warningsOf(t, raw.Metrics), "unestimated_story_in_sprint", active.String(), storyActive),
+			"falta la advertencia del sprint Activo: %s", rec.Body.String())
+	})
+
+	// Rutas del proyecto y de las series: reúnen las cuatro advertencias.
+	for _, route := range metricsRoutes(f.projectID.String(), "")[:2] {
+		t.Run(route.name, func(t *testing.T) {
+			rec := f.env.do(t, http.MethodGet, route.path, f.ownerToken, nil)
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+			ws := warningsOf(t, rec.Body.Bytes())
+			assert.True(t, hasInconsistency(ws, "unestimated_story_in_sprint", closedA.String(), storyA), "Cerrado con historia sin puntos")
+			assert.True(t, hasInconsistency(ws, "missing_frozen_factor", closedB.String(), ""), "Cerrado sin factor congelado")
+			assert.True(t, hasInconsistency(ws, "missing_close_time", closedC.String(), ""), "Cerrado sin closed_at")
+			assert.True(t, hasInconsistency(ws, "unestimated_story_in_sprint", active.String(), storyActive), "Activo con historia sin puntos")
+		})
+	}
+}
+
+// Caracterización de SC-012: dos consultas seguidas, sin escrituras, devuelven cuerpos idénticos.
+func TestMetrics_Repeatable(t *testing.T) {
+	f := newMetricsFixture(t)
+	closed, _ := f.normalSprint(t, 142.5)
+	f.startedSprintN(t, 2, []int{5}, []int{8}, 20)
+
+	for _, route := range metricsRoutes(f.projectID.String(), closed.String()) {
+		t.Run(route.name, func(t *testing.T) {
+			first := f.env.do(t, http.MethodGet, route.path, f.ownerToken, nil)
+			second := f.env.do(t, http.MethodGet, route.path, f.ownerToken, nil)
+
+			require.Equal(t, http.StatusOK, first.Code, first.Body.String())
+			assert.Equal(t, first.Code, second.Code)
+			assert.Equal(t, first.Body.String(), second.Body.String())
+		})
+	}
+}
+
+// Caracterización de FR-043 y RN-22: sobre un proyecto Finalizado las cuatro rutas siguen respondiendo 200.
+func TestMetrics_FinishedProject(t *testing.T) {
+	f := newMetricsFixture(t)
+	closed, _ := f.normalSprint(t, 142.5)
+	metricsRequireStatus(t, f.env.do(t, http.MethodPatch, "/api/v1/projects/"+f.projectID.String()+"/status", f.ownerToken,
+		map[string]any{"status": "finished"}), http.StatusOK, nil)
+
+	for _, route := range metricsRoutes(f.projectID.String(), closed.String()) {
+		t.Run(route.name, func(t *testing.T) {
+			rec := f.env.do(t, http.MethodGet, route.path, f.ownerToken, nil)
+
+			assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		})
+	}
+}
+
+// Caracterización de RN-02: consultar las cuatro rutas no cambia el updated_at ni la cantidad de filas
+// de las tablas que se leen.
+func TestMetrics_DoesNotWrite(t *testing.T) {
+	f := newMetricsFixture(t)
+	closed, _ := f.normalSprint(t, 142.5)
+	f.startedSprintN(t, 2, []int{5}, []int{8}, 20)
+	tables := []string{"projects", "sprints", "sprint_stories", "user_stories", "effort_entries", "defects"}
+
+	// snapshot resume cada tabla como "filas|último updated_at".
+	snapshot := func() map[string]string {
+		result := map[string]string{}
+		for _, table := range tables {
+			var summary string
+			require.NoError(t, f.env.db.Raw("SELECT COUNT(*)::text || '|' || COALESCE(MAX(updated_at)::text, '') FROM "+table).Scan(&summary).Error)
+			result[table] = summary
+		}
+		return result
+	}
+	before := snapshot()
+
+	for _, route := range metricsRoutes(f.projectID.String(), closed.String()) {
+		rec := f.env.do(t, http.MethodGet, route.path, f.ownerToken, nil)
+		require.Equal(t, http.StatusOK, rec.Code, "%s: %s", route.name, rec.Body.String())
+	}
+
+	assert.Equal(t, before, snapshot())
+}

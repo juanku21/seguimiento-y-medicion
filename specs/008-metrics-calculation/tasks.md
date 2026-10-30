@@ -596,7 +596,7 @@ viva, cobertura, vulnerabilidades y verificación de las puertas de calidad.
 
 **Rama**: `fase/008-polish`
 
-- [ ] T045 Pruebas de integración de caracterización en
+- [X] T045 Pruebas de integración de caracterización en
       `backend/internal/metrics/delivery/handler_test.go`, **sin** etiqueta `008/USn`:
       `TestMetricsEndpoints_SinSesion`, con un subtest por cada uno de los **cuatro** endpoints sin
       cabecera y con token adulterado → `401 {"error":"Se requiere iniciar sesión."}` (SC-013);
@@ -618,42 +618,35 @@ viva, cobertura, vulnerabilidades y verificación de las puertas de calidad.
       `internal/metrics/delivery` importa la capa `delivery` de otro módulo, sin dependencias nuevas.
       Caracterización: las reglas ya existen, así que no tiene RED; el commit lo
       justifica — depende de T044
-- [ ] T046 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
+- [X] T046 Regenerar la documentación con `swag init -g cmd/app/main.go -o docs` y verificar que
       `backend/docs/` coincida con [contracts/openapi.yaml](./contracts/openapi.yaml) en las **cuatro**
       operaciones, sus códigos de respuesta (todas declaran `401`, `404` y `500`), sus esquemas, los
       enums `ValueStatus` y `Finality`, los cuatro `code` de `Warning` y la anulabilidad de `value`,
       `finality`, `closedAt` y `metrics`; corregir las anotaciones si difieren (Principio VIII) —
       depende de T045
-- [ ] T047 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona el
+- [X] T047 [P] Actualizar `README.md` de la raíz en español: la sección introductoria menciona el
       cálculo de métricas, y se agregan los cuatro endpoints y una explicación breve de los estados
       `available`/`not_calculable`/`not_applicable` y `definitive`/`provisional`/`partial`, manteniendo
       el criterio de que alguien que no conoce el proyecto pueda ejecutarlo siguiendo el documento —
       depende de T045
-- [ ] T048 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
+- [X] T048 Ejecutar `govulncheck ./...` en `backend/` y resolver o justificar por escrito cada
       vulnerabilidad reportada
-- [ ] T049 [P] Ejecutar `go test -p 1 ./... -coverprofile=coverage.out` y
+- [X] T049 [P] Ejecutar `go test -p 1 ./... -coverprofile=coverage.out` y
       `go tool cover -func=coverage.out` en `backend/`, y revisar que `internal/metrics/domain/` tenga
       cubiertas todas sus ramas y que `internal/metrics/` en conjunto esté cubierto; correr además
       `go test -race -p 1 ./internal/metrics/...` — depende de T045
-- [ ] T050 Verificar la trazabilidad y las puertas de calidad recorriendo `backend/internal/metrics/`:
+- [X] T050 Verificar la trazabilidad y las puertas de calidad recorriendo `backend/internal/metrics/`:
       que buscar `008/US1` a `008/US5` en el código de pruebas devuelva los **61** escenarios; que las
       **31** reglas RN-01 a RN-31 tengan prueba asociada según la tabla de plan.md (SC-021); que los
       **cuatro** endpoints tengan su prueba de `401` (SC-013) y los `404` sean indistinguibles
       (SC-014); que `TestMetrics_SingleSourceOfFormulas` pase (RN-01, Principio III); que no haya dependencias nuevas en `go.mod`; que
       ningún bloque nuevo quede sin comentario en español; y que esta feature no escriba en ninguna
       tabla — depende de T045
-- [ ] T051 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluida la
+- [X] T051 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluida la
       validación manual de la sección 4, la prueba de coherencia con `-count=5` y la verificación de
       que las pruebas corrieron contra `smye_test` en el puerto 5433 y no contra desarrollo — depende
       de T046, T047, T050
-
----
-
-## Phase 8: Convergence and Security
-
-Propósito: ajustes transversales detectados por /speckit-converge y /revisar-seguridad.
-
-- [ ] T052 Eliminar en backend/internal/metrics/domain/project.go el recálculo de CalculateSprint
+- [X] T052 Eliminar en backend/internal/metrics/domain/project.go el recálculo de CalculateSprint
       en calculateVelocity, reutilizando las métricas de cada Cerrado ya calculadas en
       CalculateProject per Constitución I (partial) — origen: converge, detectado en
       hu/008-us3-metricas-acumuladas-del-proyecto

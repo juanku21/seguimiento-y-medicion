@@ -103,7 +103,7 @@ del resumen.
 
 **Rama**: `fase/009-foundational`, la misma que la Fase 2: las dos forman un único pull request.
 
-- [ ] T001 Instalar en `frontend/` las dependencias autorizadas con versión exacta:
+- [X] T001 Instalar en `frontend/` las dependencias autorizadas con versión exacta:
       `npm install --save-exact recharts@3.10.1 react-is@19.3.0`. Verificar que
       `frontend/package.json` las lista en `dependencies` **sin** `^` ni `~` y que
       `frontend/package-lock.json` quedó actualizado. Verificar también que no se agregó ninguna
@@ -123,7 +123,7 @@ lógica de presentación.
 
 **Rama**: `fase/009-foundational`
 
-- [ ] T002 [P] Declarar en `frontend/src/types/metrics.ts` los tipos de data-model.md sección 1, con
+- [X] T002 [P] Declarar en `frontend/src/types/metrics.ts` los tipos de data-model.md sección 1, con
       un comentario de cabecera ("Tipos de las respuestas de cálculo de métricas, según
       specs/008-metrics-calculation/contracts/openapi.yaml; solo los campos que usa el dashboard"):
       `ValueStatus = "available" | "not_calculable" | "not_applicable"`;
@@ -145,7 +145,7 @@ lógica de presentación.
       con las seis listas `plannedStoryPoints`, `completedStoryPoints`, `estimatedHours`,
       `actualHours`, `defectsDetected` y `defectsResolved` de `SeriesPoint[]`. Sin `any` y sin
       campos que el dashboard no muestra
-- [ ] T003 [P] Leer antes `frontend/node_modules/next/dist/docs/01-app/01-getting-started/03-layouts-and-pages.md`
+- [X] T003 [P] Leer antes `frontend/node_modules/next/dist/docs/01-app/01-getting-started/03-layouts-and-pages.md`
       y `05-server-and-client-components.md` (CLAUDE.md). Crear
       `frontend/src/app/projects/[projectId]/dashboard/page.tsx`, un Server Component con
       `metadata.title = "Dashboard | Software Metrics & Estimation"` que lee `params` como `Promise`,
@@ -155,7 +155,7 @@ lógica de presentación.
       `frontend/src/features/dashboard/components/dashboard-view.tsx` con `"use client"`, la
       exportación `DashboardView({ projectId }: DashboardViewProps)` y un cuerpo que todavía no
       muestra nada (`return null`), con el comentario de qué va a componer
-- [ ] T004 Crear en `frontend/src/features/dashboard/components/dashboard-test-backend.ts` el
+- [X] T004 Crear en `frontend/src/features/dashboard/components/dashboard-test-backend.ts` el
       ayudante de pruebas compartido, que importan **solo** archivos `*.test.tsx`:
       `installDashboardBackend(overrides?)` reemplaza `globalThis.fetch` con `vi.fn` y responde por
       método y ruta las seis operaciones de contracts/consumed-api.md
@@ -199,7 +199,7 @@ proyecto no existe." y no hace ninguna otra consulta.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T005 [P] [US1] Pruebas unitarias **obligatorias** de `ActiveSprintPanel` en
+- [X] T005 [P] [US1] Pruebas unitarias **obligatorias** de `ActiveSprintPanel` en
       `frontend/src/features/dashboard/components/active-sprint-panel.test.tsx`, con `fetch`
       sustituido, cubriendo RN-12, RN-13 y RN-14: con `activeSprintId` `null` muestra "No hay ningún
       sprint en curso.", no usa `role="alert"` y **no** pide `GET /api/v1/sprints/{id}`; con un
@@ -207,7 +207,7 @@ proyecto no existe." y no hace ninguna otra consulta.
       `formatDate`, y "10 días restantes"; con `remainingDays: 0`, "0 días restantes"; con
       `overdueDays: 3`, "Vencido hace 3 días", y el texto de la región no contiene "−3" ni "-3"; con
       un `500` muestra "No se pudo cargar el sprint activo." con `role="alert"` — depende de T004
-- [ ] T006 [US1] Pruebas de escenario en
+- [X] T006 [US1] Pruebas de escenario en
       `frontend/src/features/dashboard/components/project-summary.test.tsx`, montando
       `DashboardView` con `renderDashboard`, con
       `describe("009/US1 - Ver el estado del proyecto y del sprint en curso")` y un `it` por escenario
@@ -233,7 +233,7 @@ proyecto no existe." y no hace ninguna otra consulta.
 
 ### Implementación de la Historia 1
 
-- [ ] T007 [P] [US1] Implementar en
+- [X] T007 [P] [US1] Implementar en
       `frontend/src/features/dashboard/components/active-sprint-panel.tsx`
       `ActiveSprintPanel({ activeSprintId }: { activeSprintId: string | null })`: una región "Sprint
       activo" (`<section aria-labelledby>` con `h2`); con `null` muestra "No hay ningún sprint en
@@ -243,13 +243,13 @@ proyecto no existe." y no hace ninguna otra consulta.
       nombre, el Sprint Goal, "Inicio"/"Fin" con `formatDate` y el componente `SprintSchedule` de
       `features/sprints/components/sprint-schedule.tsx` **sin cambios**, sin restar fechas (FR-009,
       FR-010, RN-13) — depende de T005
-- [ ] T008 [P] [US1] Implementar en `frontend/src/features/dashboard/components/project-summary.tsx`
+- [X] T008 [P] [US1] Implementar en `frontend/src/features/dashboard/components/project-summary.tsx`
       `ProjectSummary({ project }: { project: ProjectDetail })`: una región "Resumen del proyecto" con
       el nombre, el estado con `PROJECT_STATUS_LABELS`, "Inicio" y "Finalización prevista" con
       `formatDate`, "Finalización real" solo si `status === "finished"` y `actualEndDate` no es `null`
       (FR-006), y la lista "Integrantes" con `MemberList` de la 002, con `viewerIsOwner={false}` y
       `readOnly`, para que no aparezca ninguna acción (FR-003, FR-007) — depende de T006
-- [ ] T009 [US1] Implementar en `frontend/src/features/dashboard/components/dashboard-view.tsx` la
+- [X] T009 [US1] Implementar en `frontend/src/features/dashboard/components/dashboard-view.tsx` la
       consulta del resumen con `useAuthorizedQuery(getProjectDetail)` y una carga estabilizada con
       `useCallback([projectId])`: mientras carga, "Cargando dashboard…" con `role="status"` y nada
       más; con error, el `message` recibido dentro de `Alert` y **ninguna** otra sección ni consulta
@@ -282,7 +282,7 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T010 [P] [US2] Pruebas unitarias **obligatorias** en `frontend/src/utils/metric-format.test.ts`
+- [X] T010 [P] [US2] Pruebas unitarias **obligatorias** en `frontend/src/utils/metric-format.test.ts`
       y `frontend/src/utils/metric-explanations.test.ts`, cubriendo FR-013 y FR-014:
       `formatDecimal(14)` → "14,00", `formatDecimal(0)` → "0,00", `formatDecimal(13.1)` → "13,10";
       `formatShare(27.78)` → "27,78 %", `formatShare(0)` → "0,00 %", `formatShare(100)` →
@@ -292,7 +292,7 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
       `("deviationPercent")` → "Las horas estimadas son 0.", `("storyCompletionPercent")` → "No hay
       historias planificadas." y cualquier otra clave → "No se puede calcular con los datos
       actuales." (research.md secciones 5 y 6)
-- [ ] T011 [P] [US2] Pruebas unitarias **obligatorias** de `MetricValue` y `FinalityBadge` en
+- [X] T011 [P] [US2] Pruebas unitarias **obligatorias** de `MetricValue` y `FinalityBadge` en
       `frontend/src/features/dashboard/components/metric-value.test.tsx`, cubriendo RN-03 a RN-06:
       `{status: "available", value: 0}` muestra "0" con el formateador recibido;
       `{status: "not_calculable", value: null}` con `kind` `velocity`, `deviationPercent` y
@@ -301,7 +301,7 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
       textos son distintos entre sí; `finality: "partial"` muestra "Parcial"; `"provisional"` muestra
       "Provisoria" y no "Parcial"; `"definitive"` y `null` no muestran marca; `FinalityBadge` con
       `partial` y con `provisional` produce textos distintos — depende de T010
-- [ ] T012 [P] [US2] Pruebas unitarias **obligatorias** de los reconocedores y las consultas en
+- [X] T012 [P] [US2] Pruebas unitarias **obligatorias** de los reconocedores y las consultas en
       `frontend/src/features/dashboard/api.test.ts` (validación de entradas, Principio VII):
       `isMetric` acepta `available` con número y `not_calculable` y `not_applicable` con `null`, y
       rechaza `available` con `null`, `not_calculable` con número y un `status` desconocido;
@@ -312,7 +312,7 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
       `provisional`; con `fetch` sustituido, `getProjectMetrics("a/b")` y
       `getActiveSprintMetrics("a/b")` piden con `GET` las rutas con el identificador codificado
       (`a%2Fb`) y un cuerpo que no cumple el reconocedor llega como error — depende de T002
-- [ ] T013 [US2] Pruebas de escenario en
+- [X] T013 [US2] Pruebas de escenario en
       `frontend/src/features/dashboard/components/key-indicators.test.tsx`, montando `DashboardView`
       con `renderDashboard`, con `describe("009/US2 - Ver los indicadores clave del momento")` y un
       `it` por escenario según plan.md, cada uno precedido por `// Escenario: US2-k (<caso>)`, que
@@ -334,7 +334,7 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
 
 ### Implementación de la Historia 2
 
-- [ ] T014 [P] [US2] Implementar en `frontend/src/utils/metric-format.ts` `formatDecimal(value:
+- [X] T014 [P] [US2] Implementar en `frontend/src/utils/metric-format.ts` `formatDecimal(value:
       number): string` (`value.toFixed(2)` con coma decimal) y `formatShare(value: number): string`
       (lo mismo más " %", sin signo), con el comentario de que el valor llega con a lo sumo 2
       decimales desde la 008 y `toFixed(2)` solo restituye los ceros que `JSON.parse` quitó; y en
@@ -342,13 +342,13 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
       "storyPoints" | "storyCompletionPercent" | "hours" | "deviationHours" | "deviationPercent" |
       "defects"`) y `explainNotCalculable(kind: MetricKind): string` con los textos de research.md
       sección 6 — depende de T010
-- [ ] T015 [P] [US2] Implementar en `frontend/src/features/dashboard/api.ts` los reconocedores
+- [X] T015 [P] [US2] Implementar en `frontend/src/features/dashboard/api.ts` los reconocedores
       `isMetric`, `isSprintMetric`, `isActiveSprintMetricsResponse` e `isProjectMetricsResponse` de
       data-model.md sección 3, sobre `isRecord` de `lib/api-client.ts` y sin `any`, y las consultas
       `getProjectMetrics(projectId)` y `getActiveSprintMetrics(projectId)` con `getJson` sobre
       `/api/v1/projects/${encodeURIComponent(projectId)}/metrics` y `.../metrics/active-sprint`.
       Comentario de cabecera: este módulo solo lee (RN-02) — depende de T012
-- [ ] T016 [US2] Implementar en `frontend/src/features/dashboard/components/finality-badge.tsx`
+- [X] T016 [US2] Implementar en `frontend/src/features/dashboard/components/finality-badge.tsx`
       `FinalityBadge({ finality }: { finality: Finality | null })`: "Parcial" para `partial`,
       "Provisoria" para `provisional`, con estilos distintos, y nada para `definitive` o `null`; y en
       `frontend/src/features/dashboard/components/metric-value.tsx` `MetricValue({ metric, kind,
@@ -356,11 +356,11 @@ proyecto (velocidad, defectos abiertos y acumulado con su marca), con exactament
       `available` → `format(value)`, `not_calculable` → "No calculable" más
       `explainNotCalculable(kind)`, `not_applicable` → "No aplica", y `FinalityBadge` si la métrica
       tiene `finality` — depende de T011, T014
-- [ ] T017 [US2] Implementar en `frontend/src/features/dashboard/components/section-error.tsx`
+- [X] T017 [US2] Implementar en `frontend/src/features/dashboard/components/section-error.tsx`
       `SectionError({ message }: { message: string })`, que muestra el mensaje con `Alert`
       (`role="alert"`), y declarar en el mismo archivo las constantes de los ocho mensajes de falla
       de contracts/ui-contract.md, en un único lugar — depende de T013
-- [ ] T018 [US2] Implementar en `frontend/src/features/dashboard/components/key-indicators.tsx`
+- [X] T018 [US2] Implementar en `frontend/src/features/dashboard/components/key-indicators.tsx`
       `KeyIndicators({ projectMetrics, activeSprintMetrics })`, que recibe los dos `QueryState`:
       región "Indicadores clave" con los grupos "Indicadores del sprint activo" e "Indicadores del proyecto" como `<dl>`, cada uno
       dentro de un `<div>` con `h3` y `aria-labelledby`, sin `<section>`, para que no sea una región,, con los
@@ -393,7 +393,7 @@ las 4 filas en el orden recibido; con un sprint Activo más, la tabla sigue teni
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T019 [P] [US3] Pruebas unitarias **obligatorias** en
+- [X] T019 [P] [US3] Pruebas unitarias **obligatorias** en
       `frontend/src/features/dashboard/series.test.ts` y en `frontend/src/features/dashboard/api.test.ts`
       (casos nuevos), cubriendo RN-20 y la validación por porción: `closedSprintPoints` sobre
       `[closed A, active B, closed C]` devuelve `[A, C]`, con los mismos objetos y en el mismo
@@ -402,7 +402,7 @@ las 4 filas en el orden recibido; con un sprint Activo más, la tabla sigue teni
       o tiene un `sprintStatus` o `finality` desconocido; con `defectsDetected` malformada,
       `readSeries` de `plannedStoryPoints` sigue devolviendo sus puntos; `getProjectSeries("a/b")`
       pide con `GET` `/api/v1/projects/a%2Fb/metrics/series` — depende de T015
-- [ ] T020 [P] [US3] Pruebas unitarias **obligatorias** de `SprintSeriesChart` en
+- [X] T020 [P] [US3] Pruebas unitarias **obligatorias** de `SprintSeriesChart` en
       `frontend/src/features/dashboard/components/sprint-series-chart.test.tsx`, con
       `installResizeObserverStub()`, cubriendo RN-07 a RN-10 y FR-025: con dos series de 3 puntos,
       la `figure` tiene como nombre accesible el título de su `<figcaption>`, el SVG contiene los
@@ -414,7 +414,7 @@ las 4 filas en el orden recibido; con un sprint Activo más, la tabla sigue teni
       evolución que comparar." (RN-09); con cero puntos no hay SVG ni tabla y se muestra el
       `emptyMessage` (RN-10); dos series con sprints distintos o en distinto orden muestran el
       `errorMessage` en lugar del gráfico, sin reordenar — depende de T016
-- [ ] T021 [US3] Pruebas de escenario en
+- [X] T021 [US3] Pruebas de escenario en
       `frontend/src/features/dashboard/components/velocity-chart.test.tsx`, montando `DashboardView`
       con `renderDashboard` e `installResizeObserverStub()`, con
       `describe("009/US3 - Ver la evolución de la velocidad")` y un `it` por escenario según plan.md,
@@ -431,16 +431,16 @@ las 4 filas en el orden recibido; con un sprint Activo más, la tabla sigue teni
 
 ### Implementación de la Historia 3
 
-- [ ] T022 [P] [US3] Implementar en `frontend/src/features/dashboard/series.ts`
+- [X] T022 [P] [US3] Implementar en `frontend/src/features/dashboard/series.ts`
       `closedSprintPoints(points: SeriesPoint[]): SeriesPoint[]`, que solo omite los puntos con
       `sprintStatus === "active"`, sin ordenar, sumar ni completar, con el comentario de research.md
       sección 8 ("única selección que hace el dashboard; la velocidad se mide sobre sprints
       terminados, US3-2") — depende de T019
-- [ ] T023 [P] [US3] Implementar en `frontend/src/features/dashboard/api.ts` `isSeriesEnvelope`
+- [X] T023 [P] [US3] Implementar en `frontend/src/features/dashboard/api.ts` `isSeriesEnvelope`
       (solo verifica que el cuerpo es un objeto), el reconocedor de `SeriesPoint`,
       `readSeries(envelope, key): SeriesPoint[] | null` y `getProjectSeries(projectId)` con `getJson`
       sobre `.../metrics/series`, según data-model.md sección 3 — depende de T019
-- [ ] T024 [US3] Implementar en `frontend/src/features/dashboard/components/sprint-series-chart.tsx`
+- [X] T024 [US3] Implementar en `frontend/src/features/dashboard/components/sprint-series-chart.tsx`
       el componente común de los tres gráficos (research.md sección 9): propiedades `title`,
       `yAxisLabel`, `kind` (para `MetricValue`), `format`, `emptyMessage`, `errorMessage` y
       `series: [SeriesInput, SeriesInput]` con `name` y `points`. Si las dos series no tienen los
@@ -453,7 +453,7 @@ las 4 filas en el orden recibido; con un sprint Activo más, la tabla sigue teni
       arman por posición, en el orden recibido. Debajo, un `<details>` "Ver datos" con la tabla "Datos
       de <título>", una fila por sprint y cada valor con `MetricValue`. Con un punto, agrega
       "Todavía no hay evolución que comparar." — depende de T020, T016
-- [ ] T025 [US3] Implementar en `frontend/src/features/dashboard/components/velocity-chart.tsx`
+- [X] T025 [US3] Implementar en `frontend/src/features/dashboard/components/velocity-chart.tsx`
       `VelocityChart({ series })`, que recibe el `QueryState` de las series, lee `plannedStoryPoints`
       y `completedStoryPoints` con `readSeries`, aplica `closedSprintPoints` a las dos y monta
       `SprintSeriesChart` con el título "Velocidad por sprint", el eje "Story Points", las series
@@ -483,7 +483,7 @@ fila lleva "Parcial".
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T026 [US4] Pruebas de escenario en
+- [X] T026 [US4] Pruebas de escenario en
       `frontend/src/features/dashboard/components/effort-chart.test.tsx`, montando `DashboardView`
       con `renderDashboard` e `installResizeObserverStub()`, con
       `describe("009/US4 - Ver la evolución del esfuerzo")` y un `it` por escenario según plan.md,
@@ -499,7 +499,7 @@ fila lleva "Parcial".
 
 ### Implementación de la Historia 4
 
-- [ ] T027 [US4] Implementar en `frontend/src/features/dashboard/components/effort-chart.tsx`
+- [X] T027 [US4] Implementar en `frontend/src/features/dashboard/components/effort-chart.tsx`
       `EffortChart({ series })` sobre `SprintSeriesChart`, con `estimatedHours` y `actualHours`
       leídas con `readSeries` y **sin** `closedSprintPoints` (US4-2), título "Esfuerzo por sprint",
       eje "Horas", series "Horas estimadas" y "Horas reales", formato `formatHours` y los mensajes de
@@ -525,7 +525,7 @@ por severidad" muestra las cuatro cantidades y "Total" 7.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T028 [US5] Pruebas de escenario en
+- [X] T028 [US5] Pruebas de escenario en
       `frontend/src/features/dashboard/components/quality-chart.test.tsx`, montando `DashboardView`
       con `renderDashboard` e `installResizeObserverStub()`, con
       `describe("009/US5 - Ver la calidad del producto")` y un `it` por escenario según plan.md, cada
@@ -545,7 +545,7 @@ por severidad" muestra las cuatro cantidades y "Total" 7.
 
 ### Implementación de la Historia 5
 
-- [ ] T029 [P] [US5] Implementar en
+- [X] T029 [P] [US5] Implementar en
       `frontend/src/features/dashboard/components/open-defects-distribution.tsx`
       `OpenDefectsDistribution({ projectMetrics })`, que recibe el `QueryState` de las métricas del
       proyecto: región "Defectos abiertos por severidad" con un `<dl>` de Crítica, Alta, Media y Baja
@@ -553,7 +553,7 @@ por severidad" muestra las cuatro cantidades y "Total" 7.
       total 0 agrega "No hay defectos abiertos." como texto informativo; su "Cargando…" y su
       `SectionError` con "No se pudo cargar la distribución de defectos abiertos." (research.md
       sección 10) — depende de T028
-- [ ] T030 [US5] Implementar en `frontend/src/features/dashboard/components/quality-chart.tsx`
+- [X] T030 [US5] Implementar en `frontend/src/features/dashboard/components/quality-chart.tsx`
       `QualityChart({ series })` sobre `SprintSeriesChart`, con `defectsDetected` y
       `defectsResolved`, sin `closedSprintPoints`, título "Defectos por sprint", eje "Defectos",
       formato `String` y los mensajes de contracts/ui-contract.md; montar en `dashboard-view.tsx`
@@ -580,18 +580,18 @@ el dashboard." y, al pulsar "Reintentar" con el backend ya respondiendo, el dash
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T031 [P] [US6] Pruebas unitarias en `frontend/src/hooks/use-authorized-query.test.tsx`: con
+- [X] T031 [P] [US6] Pruebas unitarias en `frontend/src/hooks/use-authorized-query.test.tsx`: con
       una carga que devuelve un error con `status: 500`, el estado de error trae `httpStatus: 500` y el
       `message`; con `status: 0` (red caída), trae `httpStatus: 0`; con datos, `loaded` como hoy
       (research.md sección 4) — sin dependencias
-- [ ] T032 [P] [US6] Pruebas unitarias **obligatorias** de `DashboardWarnings` en
+- [X] T032 [P] [US6] Pruebas unitarias **obligatorias** de `DashboardWarnings` en
       `frontend/src/features/dashboard/components/dashboard-warnings.test.tsx`, cubriendo RN-21:
       con una advertencia `planning` y una `data_inconsistency`, la región "Advertencias" tiene la
       lista "Avisos de planificación" con `role="status"` y la lista "Datos que hay que revisar" con
       `role="alert"`, con el texto introductorio de que hay información rota que alguien debe
       revisar, y cada una muestra el `message` recibido sin cambios; con solo `planning` no hay
       `role="alert"`; con la lista vacía no se muestra la región — depende de T002
-- [ ] T033 [US6] Pruebas de escenario en
+- [X] T033 [US6] Pruebas de escenario en
       `frontend/src/features/dashboard/components/dashboard-view.test.tsx`, montando `DashboardView`
       con `renderDashboard` e `installResizeObserverStub()`, con
       `describe("009/US6 - Usar el dashboard cuando falta información o falla una sección")` y un
@@ -622,20 +622,20 @@ el dashboard." y, al pulsar "Reintentar" con el backend ya respondiendo, el dash
 
 ### Implementación de la Historia 6
 
-- [ ] T034 [P] [US6] Sumar `httpStatus: number` al caso de error de `QueryState` en
+- [X] T034 [P] [US6] Sumar `httpStatus: number` al caso de error de `QueryState` en
       `frontend/src/hooks/use-authorized-query.ts` (`{ status: "error"; httpStatus: number; message:
       string }`; no se llama `status` porque ese ya es el discriminante), tomado de `result.error.status`, y
       actualizar el comentario del tipo. El cambio es compatible con los usos actuales, que solo
       leen `message`: verificar que `npm test` sigue pasando — depende de T031
-- [ ] T035 [P] [US6] Implementar en
+- [X] T035 [P] [US6] Implementar en
       `frontend/src/features/dashboard/components/dashboard-warnings.tsx`
       `DashboardWarnings({ warnings }: { warnings: MetricsWarning[] })` según research.md sección 11,
       sin cambiar ningún `message` — depende de T032
-- [ ] T036 [P] [US6] Implementar en
+- [X] T036 [P] [US6] Implementar en
       `frontend/src/features/dashboard/components/dashboard-empty-state.tsx` `DashboardEmptyState()`:
       región "Sin datos todavía" con el texto de contracts/ui-contract.md, sin enlaces (la
       navegación hacia los módulos está fuera de alcance) — depende de T033
-- [ ] T037 [US6] Completar `frontend/src/features/dashboard/components/dashboard-view.tsx`: la
+- [X] T037 [US6] Completar `frontend/src/features/dashboard/components/dashboard-view.tsx`: la
       consulta del listado de sprints con `listSprints(projectId)` sin filtros; con
       `emptyReason === "no_sprints"`, `DashboardEmptyState` en lugar de los indicadores, los tres
       gráficos y la distribución (FR-027); mientras esa consulta carga, en lugar de esas secciones se
@@ -687,6 +687,15 @@ verificación de las puertas de calidad.
 - [ ] T042 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluida la
       validación manual de la sección 2 contra el backend de desarrollo y la comparación de cada
       cifra con Swagger (SC-004) — depende de T039, T040, T041
+
+---
+
+## Phase 10: Convergence and Security
+
+Propósito: ajustes transversales detectados por /speckit-converge y /revisar-seguridad.
+
+- [ ] T043 Actualizar `undici` a 8.12.2 o superior en `frontend/package.json` y `frontend/package-lock.json` (con `npm audit fix` o subiendo `jsdom`) y confirmar que `npm test` sigue en verde per hallazgo de seguridad: undici vulnerable en dependencia de desarrollo (security) — origen: seguridad, detectado en 009/fase-foundational
+- [ ] T044 Actualizar `zod` a 4.6.6 o superior en `frontend/package-lock.json` (con `npm audit fix` o subiendo `eslint-config-next`) y confirmar que `npm run lint` sigue funcionando per hallazgo de seguridad: zod vulnerable en dependencia de desarrollo (security) — origen: seguridad, detectado en 009/fase-foundational
 
 ---
 

@@ -160,6 +160,24 @@ func TestUS2_VelocidadCerradoSinClosedAtQuedaUltimo(t *testing.T) {
 	assert.Equal(t, []int{100, 3, 6, 9}, seriesValues(v))
 }
 
+// Escenario: un cerrado sin ClosedAt queda último en la ventana (008/US2)
+func TestUS2_VelocidadCerradoSinClosedAtAlFinalDeLaSerieQuedaUltimo(t *testing.T) {
+	// El cerrado sin cierre es el último por inicio: al ordenar, el nulo se compara como primer operando.
+	data := projectOf(
+		closedWith("S1", 3, 1, timePtr(day(3))),
+		closedWith("S2", 6, 4, timePtr(day(6))),
+		closedWith("S3", 9, 7, timePtr(day(9))),
+		closedWith("S4", 100, 10, nil),
+	)
+
+	v := domain.CalculateProject(data, fixedNow, testGrace).Velocity
+
+	// El cerrado sin cierre queda fuera de la ventana: (3 + 6 + 9) / 3 = 6,00.
+	assert.Equal(t, domain.Available(600), v.Value)
+	assert.Equal(t, 3, v.SprintsConsidered)
+	assert.Equal(t, []int{3, 6, 9, 100}, seriesValues(v))
+}
+
 // Escenario: tres cerrados que no completaron nada dan velocidad 0 (008/US2)
 func TestUS2_VelocidadCeroEsPromedioValido(t *testing.T) {
 	data := projectOf(

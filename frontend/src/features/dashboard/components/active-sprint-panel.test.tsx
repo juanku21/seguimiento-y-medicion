@@ -57,8 +57,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("009/US1 - Panel del sprint activo", () => {
-  // Escenario: Proyecto sin sprint activo (009/US1, RN-12)
+describe("Panel del sprint activo", () => {
+  // Escenario: Proyecto sin sprint activo (RN-12)
   it("sin sprint activo lo informa sin error y sin consultar", async () => {
     const requests = installDashboardBackend();
     renderPanel(null);
@@ -72,7 +72,7 @@ describe("009/US1 - Panel del sprint activo", () => {
     ).toHaveLength(0);
   });
 
-  // Escenario: Sprint activo con días restantes (009/US1, RN-13)
+  // Escenario: Sprint activo con días restantes (RN-13)
   it("muestra nombre, Sprint Goal, fechas y 10 días restantes", async () => {
     installDashboardBackend();
     renderPanel(defaultSprintId);
@@ -86,7 +86,7 @@ describe("009/US1 - Panel del sprint activo", () => {
     expect(screen.getByText("10 días restantes")).toBeTruthy();
   });
 
-  // Escenario: Último día del sprint (009/US1, RN-13)
+  // Escenario: Último día del sprint (RN-13)
   it("con 0 días restantes muestra 0 días restantes", async () => {
     installDashboardBackend({
       sprint: {
@@ -99,7 +99,7 @@ describe("009/US1 - Panel del sprint activo", () => {
     expect(await screen.findByText("0 días restantes")).toBeTruthy();
   });
 
-  // Escenario: Sprint vencido (009/US1, RN-14)
+  // Escenario: Sprint vencido (RN-14)
   it("con sprint vencido lo informa en palabras y sin número negativo", async () => {
     installDashboardBackend({
       sprint: {
@@ -115,7 +115,7 @@ describe("009/US1 - Panel del sprint activo", () => {
     expect(region.textContent).not.toContain("-3");
   });
 
-  // Escenario: Error al cargar el sprint activo (009/US1)
+  // Escenario: Error al cargar el sprint activo
   it("con un 500 muestra el error con role alert", async () => {
     installDashboardBackend({
       sprint: { status: 500, body: { error: "Error interno." } },

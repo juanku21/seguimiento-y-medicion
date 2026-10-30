@@ -15,7 +15,7 @@ const point = (
   finality: sprintStatus === "active" ? "partial" : "definitive",
 });
 
-describe("009/US3 - closedSprintPoints (RN-20)", () => {
+describe("closedSprintPoints (RN-20)", () => {
   it("omite el sprint activo y conserva los mismos objetos en el mismo orden", () => {
     const a = point("A", "closed");
     const b = point("B", "active");

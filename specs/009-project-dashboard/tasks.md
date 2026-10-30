@@ -692,6 +692,7 @@ verificación de las puertas de calidad.
 - [X] T047 Actualizar la sección Estado Actual de `README.md` para incluir la funcionalidad 009 (dashboard), per T039 (partial)
 - [X] T048 Pruebas para la rama `input instanceof URL` / `input.url` del `fetchMock` en `frontend/src/features/dashboard/components/dashboard-test-backend.ts` (líneas 225-228), invocando `fetch` con un `URL` y con un `Request`, per T040 (partial)
 - [X] T049 Pruebas para la guarda `payload ?? []` del `<Legend>` en `frontend/src/features/dashboard/components/sprint-series-chart.tsx` (línea 103), renderizando la leyenda sin `payload`, per T040 (partial)
+- [X] T050 Quitar la etiqueta `009/USn` de los nueve `describe` y comentarios de pruebas que no son escenarios de la spec, para que buscar `009/US` en el código de pruebas devuelva exactamente los seis `describe` y los 45 `it` de escenario (plan.md, SC-016), sin cambiar el comportamiento de ninguna prueba: `active-sprint-panel.test.tsx:60`, `metric-value.test.tsx:24` y `:91`, `sprint-series-chart.test.tsx:62`, `series.test.ts:18`, `dashboard-warnings.test.tsx:28`, `utils/metric-format.test.ts:7`, `utils/metric-explanations.test.ts:6` y `hooks/use-authorized-query.test.tsx:51`, per T041 (partial)
 
 ---
 

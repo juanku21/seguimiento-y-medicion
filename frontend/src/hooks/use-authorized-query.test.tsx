@@ -48,7 +48,7 @@ async function settledState(result: ApiResult<string>): Promise<unknown> {
   return JSON.parse(view.getByTestId("state").textContent ?? "null");
 }
 
-describe("009/US6 - Usar el dashboard cuando falta información o falla una sección", () => {
+describe("Usar el dashboard cuando falta información o falla una sección", () => {
   beforeEach(() => {
     sessionStorage.clear();
     vi.clearAllMocks();

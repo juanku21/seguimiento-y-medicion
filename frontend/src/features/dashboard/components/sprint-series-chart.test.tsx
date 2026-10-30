@@ -59,7 +59,7 @@ const COMPLETED = [
   point("s3", "Sprint A", 19),
 ];
 
-describe("009/US3 - SprintSeriesChart", () => {
+describe("SprintSeriesChart", () => {
   beforeEach(() => {
     installResizeObserverStub();
   });

@@ -334,7 +334,7 @@ describe("009/US2 - Ver los indicadores clave del momento", () => {
     ).toBeTruthy();
   });
 
-  // Sin etiqueta 009/USn para no alterar el conteo de escenarios (SC-005).
+  // Sin etiqueta de historia para no alterar el conteo de escenarios (SC-005).
   it("muestra el porcentaje de historias no calculable con su explicación", async () => {
     installDashboardBackend({
       activeSprintMetrics: {

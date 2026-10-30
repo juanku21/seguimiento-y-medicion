@@ -25,7 +25,7 @@ afterEach(() => {
   cleanup();
 });
 
-describe("009/US6 - Usar el dashboard cuando falta información o falla una sección", () => {
+describe("Usar el dashboard cuando falta información o falla una sección", () => {
   it("Advertencias de planificación y de inconsistencia de datos", () => {
     render(<DashboardWarnings warnings={[planning, inconsistency]} />);
 

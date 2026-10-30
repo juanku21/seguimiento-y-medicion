@@ -703,7 +703,7 @@ verificación de las puertas de calidad.
 
 Propósito: ajustes transversales detectados por /speckit-converge y /revisar-seguridad.
 
-- [ ] T043 Actualizar `undici` a 8.12.2 o superior en `frontend/package.json` y `frontend/package-lock.json` (con `npm audit fix` o subiendo `jsdom`) y confirmar que `npm test` sigue en verde per hallazgo de seguridad: undici vulnerable en dependencia de desarrollo (security) — origen: seguridad, detectado en 009/fase-foundational
+- [X] T043 Actualizar `undici` a 8.12.2 o superior en `frontend/package.json` y `frontend/package-lock.json` (con `npm audit fix` o subiendo `jsdom`) y confirmar que `npm test` sigue en verde per hallazgo de seguridad: undici vulnerable en dependencia de desarrollo (security) — origen: seguridad, detectado en 009/fase-foundational
 - [ ] T044 Actualizar `zod` a 4.6.6 o superior en `frontend/package-lock.json` (con `npm audit fix` o subiendo `eslint-config-next`) y confirmar que `npm run lint` sigue funcionando per hallazgo de seguridad: zod vulnerable en dependencia de desarrollo (security) — origen: seguridad, detectado en 009/fase-foundational
 
 ---

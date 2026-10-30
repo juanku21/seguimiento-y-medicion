@@ -26,6 +26,7 @@ import { listSprints } from "@/features/sprints/api";
 import { useAuthorizedQuery } from "@/hooks/use-authorized-query";
 import type { ProjectDetail } from "@/types/project";
 
+// Propiedades de la vista: el proyecto cuyo dashboard se muestra.
 interface DashboardViewProps {
   projectId: string;
 }

@@ -1,0 +1,135 @@
+# Integración continua: verifica el backend y el frontend en cada pull request y en cada push a
+# main. Las acciones se fijan por SHA de commit, con la versión exacta en el comentario, y el runner
+# y las imágenes por versión exacta (Principio IV). No usa secretos: la base de test es un service
+# container efímero y el .env.test se genera en cada ejecución (Principios V y VI).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Los trabajos solo leen el repositorio.
+permissions:
+  contents: read
+
+# Una ejecución nueva de la misma rama o PR cancela la anterior, salvo en main, donde cada push
+# conserva su ejecución porque el CD depende de ella.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    # La suite corre en serie por el advisory lock de la base de test y tarda entre 25 y 35 minutos.
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: backend
+
+    # Base de test con la misma imagen que backend/postgres/docker-compose.yml y la base smye_test
+    # que exige testsupport. Acepta conexiones sin contraseña porque solo vive durante el trabajo y
+    # solo escucha en el runner.
+    services:
+      postgres:
+        image: postgres:18.6-alpine
+        env:
+          POSTGRES_USER: smye
+          POSTGRES_DB: smye_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U smye -d smye_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Go en la versión que declara go.mod, con caché de módulos y de compilación.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      # gofmt corre antes de generar docs/, que no se versiona.
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "Archivos sin formatear con gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      # Sin backend/docs/ el paquete main no compila; se genera con la misma versión de swag que el
+      # Dockerfile.
+      - name: swag init
+        run: go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g cmd/app/main.go -o docs
+
+      - name: go vet
+        run: go vet ./...
+
+      # El .env.test equivale al del desarrollador: base smye_test en el puerto 5433. La contraseña
+      # no se verifica (trust) y el secreto JWT se genera al azar en cada ejecución.
+      - name: Generar backend/.env.test
+        run: |
+          {
+            echo "DB_HOST=localhost"
+            echo "DB_PORT=5433"
+            echo "DB_USER=smye"
+            echo "DB_PASSWORD=$(openssl rand -hex 16)"
+            echo "DB_NAME=smye_test"
+            echo "JWT_SECRET=$(openssl rand -hex 32)"
+            echo "SERVER_PORT=8081"
+            echo "CORS_ALLOWED_ORIGIN=http://localhost:3000"
+            echo "APP_TIMEZONE=America/Argentina/Buenos_Aires"
+            echo "EFFORT_GRACE_PERIOD_HOURS=48"
+          } > .env.test
+
+      # -p 1 serializa los paquetes, como indica el README; el total de cobertura queda en el resumen
+      # del trabajo.
+      - name: go test
+        run: |
+          go test -p 1 -coverprofile=coverage.out ./...
+          echo "Cobertura total del backend: $(go tool cover -func=coverage.out | tail -1 | awk '{print $NF}')" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: docker build
+        run: docker build -t smye-backend:ci .
+
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Node en la misma versión que frontend/Dockerfile, con caché de npm.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.21.0
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: npm ci
+        run: npm ci
+
+      - name: lint
+        run: npm run lint
+
+      - name: prettier
+        run: npm run format:check
+
+      - name: vitest
+        run: npm test
+
+      # La variable que lee el frontend es NEXT_PUBLIC_API_BASE_URL (src/config/env.ts); el valor
+      # solo sirve para verificar que la imagen compila.
+      - name: docker build
+        run: docker build --build-arg NEXT_PUBLIC_API_BASE_URL=http://localhost:8080 -t smye-frontend:ci .

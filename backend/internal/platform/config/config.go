@@ -21,6 +21,9 @@ const defaultEffortGracePeriodHours = 48
 // Config agrupa las variables de entorno que necesita el backend; sus claves coinciden con
 // backend/.env.example.
 type Config struct {
+	// DatabaseURL es la URL de conexión completa, cargada desde DATABASE_URL; cuando está definida
+	// reemplaza a las variables DB_* (por ejemplo, la Internal Database URL de Render).
+	DatabaseURL       string
 	DBHost            string
 	DBPort            string
 	DBUser            string
@@ -52,14 +55,18 @@ func Load() (Config, error) {
 	}
 
 	cfg := Config{
-		DBHost:            read("DB_HOST"),
-		DBPort:            read("DB_PORT"),
-		DBUser:            read("DB_USER"),
-		DBPassword:        read("DB_PASSWORD"),
-		DBName:            read("DB_NAME"),
+		DatabaseURL:       strings.TrimSpace(os.Getenv("DATABASE_URL")),
 		JWTSecret:         read("JWT_SECRET"),
 		ServerPort:        read("SERVER_PORT"),
 		CORSAllowedOrigin: read("CORS_ALLOWED_ORIGIN"),
+	}
+	// Las variables DB_* solo son obligatorias cuando no hay una DATABASE_URL que las reemplace.
+	if cfg.DatabaseURL == "" {
+		cfg.DBHost = read("DB_HOST")
+		cfg.DBPort = read("DB_PORT")
+		cfg.DBUser = read("DB_USER")
+		cfg.DBPassword = read("DB_PASSWORD")
+		cfg.DBName = read("DB_NAME")
 	}
 	timezone := read("APP_TIMEZONE")
 	graceHours := strings.TrimSpace(os.Getenv("EFFORT_GRACE_PERIOD_HOURS"))

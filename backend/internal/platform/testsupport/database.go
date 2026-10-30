@@ -57,6 +57,9 @@ func OpenDatabase(t testing.TB) (*gorm.DB, config.Config) {
 	if err != nil {
 		t.Fatalf("configuración de test inválida: %v", err)
 	}
+	if cfg.DatabaseURL != "" {
+		t.Fatalf("DATABASE_URL está definida: las pruebas de integración solo corren contra %q configurada con DB_*", testDatabaseName)
+	}
 	if cfg.DBName != testDatabaseName {
 		t.Fatalf("DB_NAME es %q: las pruebas de integración solo corren contra %q", cfg.DBName, testDatabaseName)
 	}

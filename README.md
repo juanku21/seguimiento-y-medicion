@@ -211,6 +211,7 @@ Después, editar los valores. Los secretos se pueden generar con `openssl rand -
 | `backend/.env.test` | `DB_PORT` | `5433` |
 | `backend/.env.test` | `DB_NAME` | `smye_test` |
 | `backend/.env.test` | `JWT_SECRET` | Un secreto de **al menos 32 caracteres**, distinto del de desarrollo |
+| Solo producción (Render) | `DATABASE_URL` | Opcional: URL de conexión completa que reemplaza a `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD` y `DB_NAME`, y respeta el `sslmode` que traiga. No se define en `backend/.env` ni en `backend/.env.test`: si está definida, las pruebas de integración se detienen para no tocar otra base que `smye_test` |
 | `backend/.env` y `backend/.env.test` | `EFFORT_GRACE_PERIOD_HOURS` | Opcional, por defecto `48`: plazo de gracia, en horas enteras (`≥ 1`), para registrar y corregir esfuerzo después de cerrar un sprint. Si el valor no es un entero mayor o igual que 1, el backend no arranca |
 
 Los archivos del frontend no necesitan cambios: `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080` apunta al backend local. El resto de las claves (`DB_HOST=localhost`, `DB_USER=smye`, `SERVER_PORT=8080`, `CORS_ALLOWED_ORIGIN=http://localhost:3000`, `APP_TIMEZONE=America/Argentina/Buenos_Aires`) sirven tal como vienen en las plantillas.
@@ -316,6 +317,7 @@ El frontend queda en <http://localhost:3000> y lee `frontend/.env.local`. Para u
 | `http://localhost:3000/projects/<projectId>/defects/new` | Formulario de registro de un defecto: **Descripción**, **Severidad**, **Historia** y **Sprint de detección**, con el sprint Activo propuesto por defecto; admite `?storyId=<storyId>` para preseleccionar la historia (sin sesión redirige a `/login`) |
 | `http://localhost:3000/projects/<projectId>/defects/<defectId>` | Detalle del defecto con su descripción, severidad, estado, historia, sprint de detección, sprint de resolución, autor y fecha del último cambio de estado; ofrece las acciones **Pasar a En progreso**, **Resolver** (con **Sprint de resolución**), **Reabrir** y **Descartar** (con confirmación) según el estado, y **Corregir datos** con **Guardar cambios**; un defecto Descartado o de un proyecto finalizado se muestra sin acciones (sin sesión redirige a `/login`; un defecto inexistente o de un proyecto ajeno muestra solo el aviso de que no existe) |
 | <http://localhost:8080/swagger/index.html> | Documentación interactiva de la API |
+| <http://localhost:8080/healthz> | Estado del servicio: `{"status":"ok"}` si el backend y la base responden |
 
 Recorrido mínimo: crear una cuenta en `/register`, iniciar sesión en `/login`, ver el perfil en `/profile` y cerrar sesión desde ahí.
 
@@ -386,7 +388,7 @@ Recorrido de la gestión de defectos, con un proyecto que todavía no está fina
 7. Para un duplicado, **Descartar** (con confirmación) lo deja **Descartado** desde Abierto o En progreso, no desde Resuelto. Un defecto Descartado sigue en los listados con su estado, no admite más cambios y no tiene sprint de resolución. La historia con defectos, aunque todos estén descartados, ya no se puede eliminar del backlog.
 8. Si Ana finaliza el proyecto, los defectos se siguen pudiendo consultar, pero registrar, corregir, cambiar de estado, reabrir y descartar se rechazan con "El proyecto está finalizado y sus defectos son de solo lectura.".
 
-La API expone estos endpoints bajo `/api/v1`; solo el registro y el inicio de sesión son públicos, los demás exigen la cabecera `Authorization: Bearer <token>`. Fuera de `/api/v1`, la documentación Swagger (`/swagger/index.html`) también es pública, como excepción documentada a la regla RN-08 de `specs/001-user-auth/spec.md`:
+La API expone estos endpoints bajo `/api/v1`; solo el registro y el inicio de sesión son públicos, los demás exigen la cabecera `Authorization: Bearer <token>`. Fuera de `/api/v1`, la documentación Swagger (`/swagger/index.html`) también es pública, como excepción documentada a la regla RN-08 de `specs/001-user-auth/spec.md`, y lo mismo el estado del servicio (`GET /healthz`), que consulta el health check de Render: responde `200` con `{"status":"ok"}` si la base contesta y `503` con `{"status":"unavailable"}` si no.
 
 | Método | Ruta | Descripción |
 | --- | --- | --- |

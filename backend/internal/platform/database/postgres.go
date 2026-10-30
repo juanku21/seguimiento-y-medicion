@@ -27,8 +27,13 @@ import (
 // features de autenticación, de proyectos, del backlog, de sprints, de Planning Poker, de registro
 // de esfuerzo y de defectos. Lo usan cmd/app al arrancar y el ayudante de las pruebas de integración.
 func Open(cfg config.Config) (*gorm.DB, error) {
+	// El error nombra el host y el puerto solo cuando vienen de DB_*: con DATABASE_URL se omiten
+	// para no repetir una URL que incluye la contraseña.
 	db, err := gorm.Open(postgres.Open(DSN(cfg)), &gorm.Config{TranslateError: true})
 	if err != nil {
+		if cfg.DatabaseURL != "" {
+			return nil, fmt.Errorf("no se pudo conectar con PostgreSQL usando DATABASE_URL: %w", err)
+		}
 		return nil, fmt.Errorf("no se pudo conectar con PostgreSQL en %s:%s: %w", cfg.DBHost, cfg.DBPort, err)
 	}
 
@@ -74,10 +79,15 @@ func Open(cfg config.Config) (*gorm.DB, error) {
 	return db, nil
 }
 
-// DSN arma la URL de conexión con net/url para que una contraseña con caracteres especiales quede
-// escapada. El SSL se desactiva porque la base corre en un contenedor local de Docker Compose. Se
-// exporta para que el ayudante de pruebas abra su conexión dedicada al lock con la misma URL.
+// DSN devuelve la URL de conexión. Con DATABASE_URL la usa sin cambios, para respetar el host, la
+// base y el sslmode del proveedor (Render en producción). Sin ella, la arma con net/url para que una
+// contraseña con caracteres especiales quede escapada, y desactiva el SSL porque la base corre en un
+// contenedor local de Docker Compose. Se exporta para que el ayudante de pruebas abra su conexión
+// dedicada al lock con la misma URL.
 func DSN(cfg config.Config) string {
+	if cfg.DatabaseURL != "" {
+		return cfg.DatabaseURL
+	}
 	u := url.URL{
 		Scheme:   "postgres",
 		User:     url.UserPassword(cfg.DBUser, cfg.DBPassword),

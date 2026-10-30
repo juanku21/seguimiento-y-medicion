@@ -44,17 +44,20 @@ function projectWith(changes: Partial<ProjectDetail>): ProjectDetail {
   return { ...defaultProject, ...changes };
 }
 
+// Cada prueba arranca sin sesiÃ³n y con el espÃ­a del enrutador limpio.
 beforeEach(() => {
   clearSession();
   routerMock.replace.mockClear();
 });
 
+// Desmonta el componente y restablece la sesiÃ³n y los globales sustituidos.
 afterEach(() => {
   cleanup();
   clearSession();
   vi.unstubAllGlobals();
 });
 
+// Escenarios del resumen del proyecto y del sprint en curso.
 describe("009/US1 - Ver el estado del proyecto y del sprint en curso", () => {
   // Escenario: US1-1 (resumen y sprint activo con 10 días restantes)
   it("muestra el resumen y el sprint activo con 10 días restantes", async () => {

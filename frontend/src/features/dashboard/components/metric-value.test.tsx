@@ -8,6 +8,7 @@ import type { MetricKind } from "@/utils/metric-explanations";
 // Pruebas unitarias de la presentación de estados de valor y marcas de finalidad
 // (T011; RN-03 a RN-06; FR-014 a FR-017).
 
+// Formateador de prueba que envuelve el valor entre almohadillas.
 const format = (value: number) => `#${value}#`;
 
 // Renderiza una métrica y devuelve el texto visible del contenedor.
@@ -21,6 +22,7 @@ function textOf(
   return container.textContent ?? "";
 }
 
+// Muestra del valor segÃºn el estado de la mÃ©trica y su finalidad.
 describe("Ver los indicadores clave del momento (MetricValue)", () => {
   // Escenario: valor disponible igual a cero (RN-06)
   it("muestra el cero disponible con el formateador recibido", () => {
@@ -88,6 +90,7 @@ describe("Ver los indicadores clave del momento (MetricValue)", () => {
   );
 });
 
+// Muestra de la marca de finalidad segÃºn el estado del valor.
 describe("Ver los indicadores clave del momento (FinalityBadge)", () => {
   // Escenario: Parcial y Provisoria producen textos distintos (RN-05)
   it("produce textos distintos para partial y provisional", () => {

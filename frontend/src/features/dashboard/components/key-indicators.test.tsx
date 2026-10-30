@@ -35,6 +35,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+// Nombres de los grupos de indicadores y signo menos que usa el formato.
 const SPRINT_GROUP = "Indicadores del sprint activo";
 const PROJECT_GROUP = "Indicadores del proyecto";
 const MINUS = "−";
@@ -118,17 +119,20 @@ function plain(element: HTMLElement): string {
   return (element.textContent ?? "").replace(/Parcial|Provisoria/g, "").trim();
 }
 
+// Cada prueba arranca sin sesiÃ³n y con el espÃ­a del enrutador limpio.
 beforeEach(() => {
   clearSession();
   routerMock.replace.mockClear();
 });
 
+// Desmonta el componente y restablece la sesiÃ³n y los globales sustituidos.
 afterEach(() => {
   cleanup();
   clearSession();
   vi.unstubAllGlobals();
 });
 
+// Escenarios de los indicadores clave del sprint activo y del proyecto.
 describe("009/US2 - Ver los indicadores clave del momento", () => {
   // Escenario: US2-1 (Caso normal)
   it("muestra los indicadores con los valores de la feature de métricas", async () => {

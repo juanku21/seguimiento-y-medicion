@@ -32,6 +32,7 @@ export type DashboardBackendOverrides = {
 // Petición recibida por el backend de prueba.
 export type RecordedRequest = { method: string; path: string };
 
+// Token de sesiÃ³n e identificadores por defecto de los datos de prueba.
 export const sessionToken = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbmEifQ.firma";
 export const defaultProjectId = "8c2d4e1a-5b3f-4a6c-9d7e-1f2a3b4c5d6e";
 export const defaultSprintId = "3a7b9c1d-2e4f-4a6b-8c0d-1e2f3a4b5c6d";
@@ -166,6 +167,7 @@ function point(index: number, sprintName: string, value: number): SeriesPoint {
   };
 }
 
+// Nombres de los sprints Cerrados que usan las series por defecto.
 const closedSprintNames = ["Sprint 1", "Sprint 2", "Sprint 3", "Sprint 4"];
 
 // Arma una serie con un valor por cada sprint Cerrado.

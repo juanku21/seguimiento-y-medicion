@@ -30,6 +30,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+// TÃ­tulo y mensajes esperados del grÃ¡fico de esfuerzo.
 const TITLE = "Esfuerzo por sprint";
 const EMPTY = "Todavía no hay sprints iniciados para mostrar esfuerzo.";
 const ERROR = "No se pudo cargar el gráfico de esfuerzo.";
@@ -88,11 +89,14 @@ function dataRows(figure: HTMLElement): HTMLElement[] {
   return within(table).getAllByRole("row").slice(1);
 }
 
+// Escenarios del grÃ¡fico de esfuerzo por sprint.
 describe("009/US4 - Ver la evolución del esfuerzo", () => {
+  // Sustituye ResizeObserver para que el grÃ¡fico se dibuje en jsdom.
   beforeEach(() => {
     installResizeObserverStub();
   });
 
+  // Desmonta la vista y restablece la sesiÃ³n y los globales sustituidos.
   afterEach(() => {
     cleanup();
     clearSession();

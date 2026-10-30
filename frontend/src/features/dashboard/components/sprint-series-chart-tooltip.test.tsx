@@ -20,6 +20,7 @@ vi.mock("recharts", async (importOriginal) => {
   };
 });
 
+// Punto de serie con el identificador y el valor indicados.
 const point = (id: string, value: number): SeriesPoint => ({
   sprintId: id,
   sprintName: id,
@@ -29,7 +30,9 @@ const point = (id: string, value: number): SeriesPoint => ({
   finality: "definitive",
 });
 
+// Verifica el formateo de los valores del Tooltip.
 describe("SprintSeriesChart - formateador del Tooltip (T045)", () => {
+  // Desmonta el componente renderizado tras cada prueba.
   afterEach(() => {
     cleanup();
   });

@@ -47,16 +47,19 @@ function sprintWith(schedule: SprintDetail["schedule"]): SprintDetail {
   return { ...defaultSprint, schedule };
 }
 
+// Cada prueba arranca sin sesiÃ³n guardada.
 beforeEach(() => {
   clearSession();
 });
 
+// Limpia el DOM, la sesiÃ³n y los globales sustituidos.
 afterEach(() => {
   cleanup();
   clearSession();
   vi.unstubAllGlobals();
 });
 
+// Escenarios del panel del sprint activo del dashboard.
 describe("Panel del sprint activo", () => {
   // Escenario: Proyecto sin sprint activo (RN-12)
   it("sin sprint activo lo informa sin error y sin consultar", async () => {

@@ -7,7 +7,9 @@ import { SeriesSection } from "@/features/dashboard/components/series-section";
 // Pruebas de los estados de carga de los componentes del dashboard (T045, per T040): cada uno
 // recibe la consulta aún sin respuesta y debe mostrar solo el aviso de carga.
 
+// Verifica el mensaje de carga de las secciones mientras la consulta no responde.
 describe("dashboard - estados de carga (T045)", () => {
+  // Desmonta el componente renderizado tras cada prueba.
   afterEach(() => {
     cleanup();
   });

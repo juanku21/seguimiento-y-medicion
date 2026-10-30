@@ -20,6 +20,7 @@ import {
 import type { ProjectSeriesResponse } from "@/types/metrics";
 import { writeToken } from "@/lib/session-storage";
 
+// Tipo del fetch sustituido por las pruebas.
 type FetchMock = Mock<typeof fetch>;
 
 // Valor calculado disponible y métrica de sprint con la finalidad indicada.
@@ -29,6 +30,7 @@ const sprintMetric = (finality: string | null = "definitive") => ({
   finality,
 });
 
+// Nombres de las métricas que componen un cuerpo completo.
 const metricNames = [
   "plannedStoryPoints",
   "completedStoryPoints",
@@ -62,6 +64,7 @@ function projectMetrics() {
   };
 }
 
+// Casos de aceptación y rechazo de los reconocedores de cuerpos.
 describe("Reconocedores del dashboard - validación de entradas", () => {
   it("isMetric acepta available con número y los otros estados con null", () => {
     expect(isMetric({ status: "available", value: 3 })).toBe(true);
@@ -131,6 +134,7 @@ describe("Reconocedores del dashboard - validación de entradas", () => {
   });
 });
 
+// Verifica las rutas pedidas y la lectura de los cuerpos devueltos.
 describe("Consultas del dashboard - rutas y cuerpos", () => {
   let fetchMock: FetchMock;
 
@@ -234,6 +238,7 @@ function seriesEnvelope(overrides: Record<string, unknown> = {}) {
   } as unknown as ProjectSeriesResponse;
 }
 
+// Cada serie se valida por separado, sin descartar las demás.
 describe("readSeries - validación por porción (RN-20)", () => {
   it("devuelve los puntos de una serie válida", () => {
     const envelope = seriesEnvelope();
@@ -273,7 +278,9 @@ describe("readSeries - validación por porción (RN-20)", () => {
   });
 });
 
+// Verifica la ruta de series y que se use el token de la sesión.
 describe("getProjectSeries - ruta", () => {
+  // Restablece los globales sustituidos y la sesión.
   afterEach(() => {
     vi.unstubAllGlobals();
     sessionStorage.clear();

@@ -15,10 +15,12 @@ const router = vi.hoisted(() => ({
   prefetch: vi.fn<(href: string) => void>(),
 }));
 
+// Hace que useRouter devuelva el enrutador sustituido.
 vi.mock("next/navigation", () => ({
   useRouter: () => router,
 }));
 
+// Token de sesiÃ³n vigente para las pruebas.
 const issuedToken = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbmEifQ.firma";
 
 // Resultado de error de la API con el código HTTP y el mensaje indicados.
@@ -48,12 +50,15 @@ async function settledState(result: ApiResult<string>): Promise<unknown> {
   return JSON.parse(view.getByTestId("state").textContent ?? "null");
 }
 
+// Verifica el estado que devuelve el hook ante errores de la API y sesiÃ³n vencida.
 describe("Usar el dashboard cuando falta información o falla una sección", () => {
+  // Cada prueba arranca sin sesiÃ³n y con los espÃ­as limpios.
   beforeEach(() => {
     sessionStorage.clear();
     vi.clearAllMocks();
   });
 
+  // Desmonta la sonda renderizada tras cada prueba.
   afterEach(() => {
     cleanup();
   });

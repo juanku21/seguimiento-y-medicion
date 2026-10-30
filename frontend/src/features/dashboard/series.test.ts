@@ -15,6 +15,7 @@ const point = (
   finality: sprintStatus === "active" ? "partial" : "definitive",
 });
 
+// Filtra los puntos de serie y deja solo los de sprints Cerrados.
 describe("closedSprintPoints (RN-20)", () => {
   it("omite el sprint activo y conserva los mismos objetos en el mismo orden", () => {
     const a = point("A", "closed");

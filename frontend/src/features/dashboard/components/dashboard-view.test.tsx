@@ -49,6 +49,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+// Textos esperados de las secciones, de los errores y de las figuras del dashboard.
 const EMPTY_TITLE = "Sin datos todavía";
 const EMPTY_TEXT =
   "Este proyecto todavía no tiene sprints, así que no hay métricas que mostrar. Planificá el primer sprint desde la sección Sprints del proyecto.";
@@ -73,24 +74,29 @@ const FIGURES = [
   "Defectos por sprint",
 ];
 
+// Respuesta de error interno del servidor.
 const serverError: BackendReply = {
   status: 500,
   body: { error: "Error interno." },
 };
+// Listado de sprints vacÃ­o porque el proyecto no tiene sprints.
 const noSprints = {
   ...defaultSprints,
   emptyReason: "no_sprints" as const,
 };
+// Proyecto en curso sin sprint activo.
 const projectWithoutSprint: ProjectDetail = {
   ...defaultProject,
   hasActiveSprint: false,
   activeSprint: null,
 };
+// Advertencia de planificaciÃ³n de ejemplo.
 const planningWarning: MetricsWarning = {
   kind: "planning",
   code: "stories_without_estimate",
   message: "Hay 6 historias sin estimar en el backlog.",
 };
+// Advertencia de inconsistencia de datos de ejemplo.
 const inconsistencyWarning: MetricsWarning = {
   kind: "data_inconsistency",
   code: "finished_without_hours",
@@ -165,11 +171,14 @@ function expectNoMetricsSections() {
   expect(screen.queryByRole("region", { name: DISTRIBUTION })).toBeNull();
 }
 
+// Escenarios de uso del dashboard con informaciÃ³n faltante o con una secciÃ³n que falla.
 describe("009/US6 - Usar el dashboard cuando falta información o falla una sección", () => {
+  // Sustituye ResizeObserver para que los grÃ¡ficos se dibujen en jsdom.
   beforeEach(() => {
     installResizeObserverStub();
   });
 
+  // Desmonta la vista y restablece la sesiÃ³n, los temporizadores y los globales sustituidos.
   afterEach(() => {
     cleanup();
     clearSession();

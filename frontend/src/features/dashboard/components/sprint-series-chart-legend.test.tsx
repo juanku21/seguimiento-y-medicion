@@ -28,6 +28,7 @@ vi.mock("recharts", async (importOriginal) => {
   };
 });
 
+// Punto de serie con el identificador y el valor indicados.
 const point = (id: string, value: number): SeriesPoint => ({
   sprintId: id,
   sprintName: id,
@@ -37,7 +38,9 @@ const point = (id: string, value: number): SeriesPoint => ({
   finality: "definitive",
 });
 
+// Verifica la leyenda con y sin payload.
 describe("SprintSeriesChart - guarda del payload de la Legend (T049)", () => {
+  // Desmonta el componente renderizado tras cada prueba.
   afterEach(() => {
     cleanup();
   });

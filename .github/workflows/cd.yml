@@ -1,0 +1,54 @@
+# Despliegue continuo: cuando el workflow CI termina en verde sobre un push a main, dispara los
+# deploy hooks de Render para el commit verificado. También se puede ejecutar a mano desde la
+# pestaña Actions, por ejemplo para volver a desplegar main. Los hooks son secretos del environment
+# production, que solo admite la rama main (Principio VI).
+name: CD
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# El trabajo no lee el repositorio: solo llama a los deploy hooks.
+permissions: {}
+
+# Un despliegue nuevo espera a que termine el que está en curso, sin cancelarlo, para que Render no
+# quede a mitad de camino entre dos versiones.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # Solo despliega un CI exitoso disparado por un push a main (no por un pull request) o una
+    # ejecución manual.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: production
+
+    # El commit a desplegar es el que verificó el CI; en una ejecución manual, el último de main.
+    env:
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+    steps:
+      # El backend va primero porque el frontend depende de su API. Render encola cada deploy y
+      # responde enseguida; -f hace fallar el paso si el hook responde con un error.
+      - name: Desplegar backend
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}
+        run: curl -fsS -X POST -o /dev/null "${DEPLOY_HOOK}&ref=${DEPLOY_SHA}"
+
+      - name: Desplegar frontend
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}
+        run: curl -fsS -X POST -o /dev/null "${DEPLOY_HOOK}&ref=${DEPLOY_SHA}"
+
+      # El resumen deja registrado qué commit se mandó a desplegar.
+      - name: Resumen
+        run: echo "Deploy solicitado en Render para el commit ${DEPLOY_SHA}" >> "$GITHUB_STEP_SUMMARY"

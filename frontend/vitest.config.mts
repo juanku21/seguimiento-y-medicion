@@ -11,6 +11,10 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     passWithNoTests: true,
+    // Con la corrida completa y la cobertura activa, jsdom y recharts
+    // saturan la CPU y algunas pruebas asíncronas superan el tiempo por
+    // defecto (5 s). Se amplía el límite para estabilizar la suite.
+    testTimeout: 20000,
     coverage: {
       provider: "v8",
     },

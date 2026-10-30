@@ -125,7 +125,7 @@ declaran tipos, esquema, composición y ayudantes, sin reglas de negocio.
 
 **Rama**: `fase/010-foundational`
 
-- [ ] T002 [P] Declarar los tipos del dominio en `backend/internal/reports/domain/`, con comentario
+- [X] T002 [P] Declarar los tipos del dominio en `backend/internal/reports/domain/`, con comentario
       de paquete ("Package domain declara las entidades, los tipos de valor, las reglas y las
       interfaces del módulo de reportes; no depende de ninguna otra capa"):
       `scope.go` con `ReportScope` (`ScopeSprint = "sprint"`, `ScopeProject = "project"`),

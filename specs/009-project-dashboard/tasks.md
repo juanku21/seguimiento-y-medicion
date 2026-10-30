@@ -684,7 +684,7 @@ verificación de las puertas de calidad.
       diff, ningún componente de `features/dashboard/` opere sobre valores de métricas o de series,
       salvo `closedSprintPoints` (RN-01); y que cada bloque nuevo tenga su
       comentario en español — depende de T038
-- [ ] T042 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluida la
+- [X] T042 Ejecutar de punta a punta la [guía de validación](./quickstart.md) completa, incluida la
       validación manual de la sección 2 contra el backend de desarrollo y la comparación de cada
       cifra con Swagger (SC-004) — depende de T039, T040, T041
 - [X] T045 Pruebas para las ramas sin cubrir de `frontend/src/features/dashboard/`: validadores `return false` de `api.ts`, estados de carga de `key-indicators.tsx`, `series-section.tsx` y `open-defects-distribution.tsx`, y la rama `String(value)` del Tooltip de `sprint-series-chart.tsx`, per T040 (partial)

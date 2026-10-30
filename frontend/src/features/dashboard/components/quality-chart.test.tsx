@@ -36,7 +36,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-// TÃ­tulo, regiÃ³n y mensajes esperados del grÃ¡fico de defectos, y orden de severidades.
+// Título, región y mensajes esperados del gráfico de defectos, y orden de severidades.
 const TITLE = "Defectos por sprint";
 const REGION = "Defectos abiertos por severidad";
 const ERROR = "No se pudo cargar el gráfico de defectos.";
@@ -100,14 +100,14 @@ async function findDistribution(): Promise<Array<[string, string]>> {
   ]);
 }
 
-// Escenarios del grÃ¡fico de defectos por sprint y de la distribuciÃ³n de abiertos.
+// Escenarios del gráfico de defectos por sprint y de la distribución de abiertos.
 describe("009/US5 - Ver la calidad del producto", () => {
-  // Sustituye ResizeObserver para que el grÃ¡fico se dibuje en jsdom.
+  // Sustituye ResizeObserver para que el gráfico se dibuje en jsdom.
   beforeEach(() => {
     installResizeObserverStub();
   });
 
-  // Desmonta la vista y restablece la sesiÃ³n y los globales sustituidos.
+  // Desmonta la vista y restablece la sesión y los globales sustituidos.
   afterEach(() => {
     cleanup();
     clearSession();

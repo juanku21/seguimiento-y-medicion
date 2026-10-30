@@ -6,7 +6,7 @@ import type { Finality, SeriesPoint } from "@/types/metrics";
 
 // Pruebas unitarias de SprintSeriesChart (T020): RN-07 a RN-10 y FR-025.
 
-// TÃ­tulo y mensajes esperados del grÃ¡fico.
+// Título y mensajes esperados del gráfico.
 const TITLE = "Velocidad por sprint";
 const EMPTY = "No hay sprints cerrados.";
 const ERROR = "No se pudo cargar el gráfico de velocidad.";
@@ -60,14 +60,14 @@ const COMPLETED = [
   point("s3", "Sprint A", 19),
 ];
 
-// Verifica el grÃ¡fico de series por sprint con sus estados y su accesibilidad.
+// Verifica el gráfico de series por sprint con sus estados y su accesibilidad.
 describe("SprintSeriesChart", () => {
-  // Sustituye ResizeObserver para que el grÃ¡fico se dibuje en jsdom.
+  // Sustituye ResizeObserver para que el gráfico se dibuje en jsdom.
   beforeEach(() => {
     installResizeObserverStub();
   });
 
-  // Desmonta el grÃ¡fico y restablece los globales sustituidos.
+  // Desmonta el gráfico y restablece los globales sustituidos.
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();

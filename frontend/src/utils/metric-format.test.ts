@@ -4,7 +4,7 @@ import { formatDecimal, formatShare } from "@/utils/metric-format";
 // Pruebas unitarias del formato de velocidad y porcentajes del dashboard (T010; FR-013).
 // Los formateadores solo restituyen los 2 decimales y cambian el punto por la coma: nunca redondean.
 
-// Verifica cÃ³mo se formatean los valores de las mÃ©tricas.
+// Verifica cómo se formatean los valores de las métricas.
 describe("Formato de métricas del dashboard", () => {
   // La velocidad se muestra con coma decimal y exactamente 2 decimales.
   it("formatDecimal muestra 2 decimales con coma", () => {

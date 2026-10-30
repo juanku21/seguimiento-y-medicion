@@ -3,7 +3,7 @@ import { explainNotCalculable } from "@/utils/metric-explanations";
 
 // Pruebas unitarias de las explicaciones de "no calculable" (T010; FR-014; research.md sección 6).
 
-// Verifica la explicaciÃ³n de cada motivo por el que una mÃ©trica no es calculable.
+// Verifica la explicación de cada motivo por el que una métrica no es calculable.
 describe("Explicación de métricas no calculables", () => {
   // Cada métrica con causa propia explica su motivo.
   it("explica el motivo de las métricas con causa propia", () => {

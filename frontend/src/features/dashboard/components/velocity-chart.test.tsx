@@ -30,7 +30,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-// TÃ­tulo y mensajes esperados del grÃ¡fico de velocidad.
+// Título y mensajes esperados del gráfico de velocidad.
 const TITLE = "Velocidad por sprint";
 const EMPTY = "Todavía no hay sprints cerrados para mostrar la velocidad.";
 const ERROR = "No se pudo cargar el gráfico de velocidad.";
@@ -78,14 +78,14 @@ function dataRows(figure: HTMLElement): HTMLElement[] {
   return within(table).getAllByRole("row").slice(1);
 }
 
-// Escenarios del grÃ¡fico de velocidad por sprint.
+// Escenarios del gráfico de velocidad por sprint.
 describe("009/US3 - Ver la evolución de la velocidad", () => {
-  // Sustituye ResizeObserver para que el grÃ¡fico se dibuje en jsdom.
+  // Sustituye ResizeObserver para que el gráfico se dibuje en jsdom.
   beforeEach(() => {
     installResizeObserverStub();
   });
 
-  // Desmonta la vista y restablece la sesiÃ³n y los globales sustituidos.
+  // Desmonta la vista y restablece la sesión y los globales sustituidos.
   afterEach(() => {
     cleanup();
     clearSession();

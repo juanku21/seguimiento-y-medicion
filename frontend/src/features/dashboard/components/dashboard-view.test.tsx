@@ -79,7 +79,7 @@ const serverError: BackendReply = {
   status: 500,
   body: { error: "Error interno." },
 };
-// Listado de sprints vacÃ­o porque el proyecto no tiene sprints.
+// Listado de sprints vacío porque el proyecto no tiene sprints.
 const noSprints = {
   ...defaultSprints,
   emptyReason: "no_sprints" as const,
@@ -90,7 +90,7 @@ const projectWithoutSprint: ProjectDetail = {
   hasActiveSprint: false,
   activeSprint: null,
 };
-// Advertencia de planificaciÃ³n de ejemplo.
+// Advertencia de planificación de ejemplo.
 const planningWarning: MetricsWarning = {
   kind: "planning",
   code: "stories_without_estimate",
@@ -171,14 +171,14 @@ function expectNoMetricsSections() {
   expect(screen.queryByRole("region", { name: DISTRIBUTION })).toBeNull();
 }
 
-// Escenarios de uso del dashboard con informaciÃ³n faltante o con una secciÃ³n que falla.
+// Escenarios de uso del dashboard con información faltante o con una sección que falla.
 describe("009/US6 - Usar el dashboard cuando falta información o falla una sección", () => {
-  // Sustituye ResizeObserver para que los grÃ¡ficos se dibujen en jsdom.
+  // Sustituye ResizeObserver para que los gráficos se dibujen en jsdom.
   beforeEach(() => {
     installResizeObserverStub();
   });
 
-  // Desmonta la vista y restablece la sesiÃ³n, los temporizadores y los globales sustituidos.
+  // Desmonta la vista y restablece la sesión, los temporizadores y los globales sustituidos.
   afterEach(() => {
     cleanup();
     clearSession();

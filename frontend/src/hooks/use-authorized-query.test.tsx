@@ -20,7 +20,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => router,
 }));
 
-// Token de sesiÃ³n vigente para las pruebas.
+// Token de sesión vigente para las pruebas.
 const issuedToken = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbmEifQ.firma";
 
 // Resultado de error de la API con el código HTTP y el mensaje indicados.
@@ -50,9 +50,9 @@ async function settledState(result: ApiResult<string>): Promise<unknown> {
   return JSON.parse(view.getByTestId("state").textContent ?? "null");
 }
 
-// Verifica el estado que devuelve el hook ante errores de la API y sesiÃ³n vencida.
+// Verifica el estado que devuelve el hook ante errores de la API y sesión vencida.
 describe("Usar el dashboard cuando falta información o falla una sección", () => {
-  // Cada prueba arranca sin sesiÃ³n y con los espÃ­as limpios.
+  // Cada prueba arranca sin sesión y con los espías limpios.
   beforeEach(() => {
     sessionStorage.clear();
     vi.clearAllMocks();

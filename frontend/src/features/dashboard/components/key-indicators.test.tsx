@@ -119,13 +119,13 @@ function plain(element: HTMLElement): string {
   return (element.textContent ?? "").replace(/Parcial|Provisoria/g, "").trim();
 }
 
-// Cada prueba arranca sin sesiÃ³n y con el espÃ­a del enrutador limpio.
+// Cada prueba arranca sin sesión y con el espía del enrutador limpio.
 beforeEach(() => {
   clearSession();
   routerMock.replace.mockClear();
 });
 
-// Desmonta el componente y restablece la sesiÃ³n y los globales sustituidos.
+// Desmonta el componente y restablece la sesión y los globales sustituidos.
 afterEach(() => {
   cleanup();
   clearSession();

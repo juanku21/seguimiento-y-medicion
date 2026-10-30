@@ -47,12 +47,12 @@ function sprintWith(schedule: SprintDetail["schedule"]): SprintDetail {
   return { ...defaultSprint, schedule };
 }
 
-// Cada prueba arranca sin sesiÃ³n guardada.
+// Cada prueba arranca sin sesión guardada.
 beforeEach(() => {
   clearSession();
 });
 
-// Limpia el DOM, la sesiÃ³n y los globales sustituidos.
+// Limpia el DOM, la sesión y los globales sustituidos.
 afterEach(() => {
   cleanup();
   clearSession();

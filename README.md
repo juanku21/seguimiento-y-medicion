@@ -33,6 +33,7 @@ Software Metrics & Estimation es un sistema diseñado para la estimación, segui
   - [Problemas frecuentes](#problemas-frecuentes)
 - [Cobertura de Pruebas](#cobertura-de-pruebas)
 - [Análisis de Vulnerabilidades](#análisis-de-vulnerabilidades)
+- [Integración y Despliegue Continuos](#integración-y-despliegue-continuos)
 - [Equipo de Trabajo](#equipo-de-trabajo)
 
 ---
@@ -132,6 +133,8 @@ El repositorio separa el backend y el frontend en dos directorios de primer nive
 | Documentación de la API | Swagger generado con `swag` 1.16.6 |
 | Pruebas | `go test` con testify en el backend; Vitest 5.0.3 con Testing Library en el frontend |
 | Contenedores | Docker y Docker Compose |
+| Integración continua | GitHub Actions |
+| Producción | Render: web services con runtime Docker y Render Postgres 18 |
 
 Los entornos de **desarrollo** y de **test** son disjuntos: cada uno tiene su propio contenedor de PostgreSQL, su propia base, su propio puerto y sus propios archivos de variables de entorno. Las pruebas nunca tocan la base de desarrollo.
 
@@ -660,6 +663,75 @@ El último análisis (2026-10-26) no reporta vulnerabilidades que alcancen al c�
 | Aviso | Módulo | Justificación |
 | --- | --- | --- |
 | [GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932) | `golang.org/x/crypto` | El aviso corresponde al paquete `golang.org/x/crypto/openpgp`, que no tiene versión corregida. El proyecto solo usa `golang.org/x/crypto/bcrypt` y ningún paquete importa `openpgp`, por lo que el código vulnerable no se compila en la aplicación. |
+
+---
+
+## Integración y Despliegue Continuos
+
+El repositorio tiene dos workflows de GitHub Actions en `.github/workflows/`. El CI verifica cada cambio y el CD despliega en Render lo que llega a `main` con el CI en verde.
+
+```text
+Pull request ──► CI (backend + frontend) ──► revisión y merge del Agile Enabler
+                                                   │
+Push a main ──► CI (backend + frontend) ──► en verde ──► CD ──► deploy hooks de Render
+```
+
+### Integración continua (`ci.yml`)
+
+Corre en cada pull request y en cada push a `main`, con dos trabajos en paralelo. Los dos son obligatorios para mergear a `main`: los exige el ruleset `main-ci`, que además pide que la rama esté al día con `main`.
+
+| Trabajo | Qué verifica | Duración aproximada |
+| --- | --- | --- |
+| `backend` | `gofmt`, generación de Swagger con `swag` 1.16.6, `go vet`, `go test -p 1` con cobertura y la construcción de la imagen Docker | 30 a 40 minutos |
+| `frontend` | `npm ci`, ESLint, el chequeo de Prettier, Vitest y la construcción de la imagen Docker | 5 a 10 minutos |
+
+- El trabajo `backend` levanta la base de test como service container `postgres:18.6-alpine`, la misma imagen del Compose, y genera su propio `backend/.env.test` en cada ejecución, con un `JWT_SECRET` al azar. El workflow no usa secretos.
+- Las pruebas del backend corren en serie (`-p 1`) por el advisory lock de `smye_test`, igual que en local. Por eso el trabajo `backend` es el que marca la duración total. La cobertura total queda en el resumen de cada ejecución.
+- Una ejecución nueva en la misma rama cancela la anterior. En `main`, en cambio, cada push conserva su ejecución, porque el CD depende de ella.
+- Las acciones están fijadas por SHA de commit, con la versión exacta en un comentario, y el runner en `ubuntu-24.04` (Principio IV).
+
+### Despliegue continuo (`cd.yml`)
+
+- **Automático:** cuando el CI termina en verde sobre un push a `main`, el CD llama a los deploy hooks del backend y del frontend, en ese orden, con el mismo commit que verificó el CI. El CI de un pull request nunca despliega.
+- **Manual:** desde **Actions → CD → Run workflow** sobre `main`, despliega el último commit de `main`.
+- Los deploy hooks son secretos del environment `production` de GitHub (`RENDER_DEPLOY_HOOK_BACKEND` y `RENDER_DEPLOY_HOOK_FRONTEND`), que solo admite la rama `main`. Si un hook se filtra, se regenera en **Settings → Deploy Hook** del servicio de Render y se actualiza el secreto.
+- Los despliegues se encolan en el grupo `deploy-production` y nunca se cancela uno en curso.
+- Como el CD se dispara con `workflow_run`, GitHub ejecuta la versión de `cd.yml` que está en `main`: un cambio en ese archivo recién se aplica después de mergearlo.
+
+### Infraestructura en Render
+
+Los tres recursos están en la región **Ohio**, en el plan Free y con **Auto-Deploy en Off**: solo despliega el CD.
+
+| Recurso | Tipo | Configuración |
+| --- | --- | --- |
+| Base de datos | Render Postgres 18 | El backend se conecta por la Internal Database URL, que solo funciona dentro de la misma región |
+| `smye-backend` | Web service, runtime Docker | Root Directory `backend`, health check en `/healthz` |
+| `smye-frontend` | Web service, runtime Docker | Root Directory `frontend` |
+
+El esquema de la base lo crea y actualiza el AutoMigrate del backend al arrancar. Las variables se cargan en **Environment** de cada servicio y nunca se versionan (Principio VI):
+
+| Servicio | Variable | Valor |
+| --- | --- | --- |
+| `smye-backend` | `DATABASE_URL` | La Internal Database URL de la base, no la External |
+| `smye-backend` | `JWT_SECRET` | Un secreto propio de producción, de al menos 32 caracteres |
+| `smye-backend` | `SERVER_PORT` y `PORT` | `10000`, el puerto que Render espera |
+| `smye-backend` | `CORS_ALLOWED_ORIGIN` | `https://<url-del-frontend>`, sin barra final |
+| `smye-backend` | `APP_TIMEZONE` | `America/Argentina/Buenos_Aires` |
+| `smye-backend` | `EFFORT_GRACE_PERIOD_HOURS` | `48` |
+| `smye-frontend` | `NEXT_PUBLIC_API_BASE_URL` | `https://<url-del-backend>`, sin barra final |
+
+- **Las URLs públicas se completan en dos pasadas:** primero se crea el backend con un origen de CORS provisorio, después el frontend con la URL del backend, y por último se corrige `CORS_ALLOWED_ORIGIN` con la URL real del frontend.
+- **`NEXT_PUBLIC_API_BASE_URL` queda fija al compilar:** Render la pasa como argumento de construcción, y la imagen la incrusta en el bundle. Si cambia, hay que volver a desplegar el frontend.
+- **Una sola instancia del backend:** el backend corre en una única instancia, por el [supuesto de una sola instancia](#arquitectura-y-stack-tecnológico) del Planning Poker.
+
+### Volver a una versión anterior
+
+En **Events** del servicio de Render, se elige un deploy anterior y la opción **Rollback**. Render vuelve a poner en Live esa imagen sin reconstruirla, y la versión se mantiene hasta el próximo CD. Para volver a la versión actual de `main`, se ejecuta el CD a mano. La base no vuelve atrás: el AutoMigrate solo agrega tablas y columnas, así que una versión anterior del backend funciona con el esquema más nuevo.
+
+### Limitaciones del plan Free
+
+- Cada web service se suspende después de unos 15 minutos sin uso. El primer acceso tarda alrededor de un minuto, y ese corte interrumpe las sesiones de Planning Poker abiertas.
+- La base de datos gratuita vence a los 30 días de creada.
 
 ---
 

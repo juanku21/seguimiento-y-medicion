@@ -671,7 +671,7 @@ verificación de las puertas de calidad.
       "Arquitectura y Stack Tecnológico" suma Recharts 3.10.1 para los gráficos, y "Comprobar que
       todo funciona" suma abrir `/projects/{id}/dashboard`, manteniendo el criterio de que alguien
       que no conoce el proyecto pueda ejecutarlo siguiendo el documento — depende de T037
-- [ ] T040 [P] Ejecutar en `frontend/` `npm run test:coverage`, `npm run lint`,
+- [X] T040 [P] Ejecutar en `frontend/` `npm run test:coverage`, `npm run lint`,
       `npm run format:check` y `npm run build`, y revisar que `src/features/dashboard/`,
       `src/utils/metric-format.ts` y `src/utils/metric-explanations.ts` tengan cubiertas todas sus
       ramas; ejecutar `npm audit --omit=dev` y resolver o justificar por escrito cada vulnerabilidad

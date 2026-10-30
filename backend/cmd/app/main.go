@@ -8,7 +8,7 @@
 //	@description				sprints, estimación de historias con Planning Poker, registro del esfuerzo trabajado
 //	@description				sobre cada historia, gestión de los defectos de cada proyecto y cálculo de las métricas
 //	@description				de estimación, seguimiento y calidad de cada sprint.
-//	@description				Las únicas operaciones públicas son el registro y el inicio de sesión; las demás exigen
+//	@description				Las únicas operaciones públicas son el registro, el inicio de sesión y el estado del servicio; las demás exigen
 //	@description				la cabecera `Authorization: Bearer <token>`.
 //	@BasePath					/
 //	@schemes					http
@@ -113,14 +113,17 @@ func run() error {
 
 	// El router habilita CORS solo para el origen del frontend, limita el cuerpo de cada solicitud a
 	// 1 MiB, rechaza con 400 las queries mal formadas para que ningún listado ignore sus filtros sin
-	// aviso, publica Swagger y registra las rutas de la feature de autenticación. La ruta de Swagger
-	// es pública sin sesión: es la excepción a RN-08 documentada en specs/001-user-auth/spec.md,
-	// porque el Principio VIII exige documentar la API con Swagger.
+	// aviso, publica Swagger y el endpoint de salud, y registra las rutas de la feature de
+	// autenticación. La ruta de Swagger es pública sin sesión: es la excepción a RN-08 documentada en
+	// specs/001-user-auth/spec.md, porque el Principio VIII exige documentar la API con Swagger.
+	// GET /healthz también es público, porque lo consulta el health check de Render sin token, y
+	// solo informa si la base responde.
 	router := gin.Default()
 	router.Use(httpserver.CORS(cfg.CORSAllowedOrigin))
 	router.Use(httpserver.LimitRequestBody())
 	router.Use(httpserver.RejectMalformedQuery())
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	router.GET("/healthz", httpserver.Health(sqlDB))
 	delivery.RegisterRoutes(router, handler)
 
 	// El módulo de proyectos recibe el middleware de sesión de la feature de autenticación como

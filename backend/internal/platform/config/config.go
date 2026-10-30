@@ -21,6 +21,9 @@ const defaultEffortGracePeriodHours = 48
 // Config agrupa las variables de entorno que necesita el backend; sus claves coinciden con
 // backend/.env.example.
 type Config struct {
+	// DatabaseURL es la URL de conexión completa, cargada desde DATABASE_URL; cuando está definida
+	// reemplaza a las variables DB_* (por ejemplo, la Internal Database URL de Render).
+	DatabaseURL       string
 	DBHost            string
 	DBPort            string
 	DBUser            string

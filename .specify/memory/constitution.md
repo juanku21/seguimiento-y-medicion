@@ -1,10 +1,11 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Cambio de versión: 2.3.0 → 2.4.0
-Tipo de bump: MINOR (se amplía la tabla de dependencias autorizadas del
-Principio IV con el proveedor de cobertura de Vitest; no se elimina ni se
-redefine ninguna regla existente).
+Cambio de versión: 2.4.0 → 2.5.0
+Tipo de bump: MINOR (se amplían los Principios IV, V y VI, el árbol de
+directorios y las puertas de calidad para incorporar la integración continua
+con GitHub Actions y el despliegue en Render; no se elimina ni se redefine
+ninguna regla existente).
 
 Historial:
   - 1.0.0 (2026-09-19): ratificación original del documento.
@@ -30,6 +31,36 @@ Historial:
     incorpora `.specify/` y `specs/`.
   - 2.4.0 (2026-10-08): se autoriza `@vitest/coverage-v8` como proveedor de
     cobertura del frontend.
+  - 2.5.0 (2026-10-30): integración continua con GitHub Actions y despliegue
+    en Render.
+
+Principios modificados en 2.5.0:
+  - IV. Stack Fijo y Versiones Estables:
+    - La tabla del stack incorpora "Integración continua: GitHub Actions" y
+      "Despliegue: Render (web services con runtime Docker y Render Postgres
+      administrado)".
+    - La regla de versiones estables se extiende a los workflows: acciones de
+      GitHub, runners e imágenes de service containers con versión exacta, sin
+      `latest`, ramas ni etiquetas móviles.
+  - V. Contenerización y Aislamiento de Entornos:
+    - En producción la base es Render Postgres administrado, fuera de Docker
+      Compose, que sigue siendo obligatorio para desarrollo y test.
+    - El CI levanta la base de test como service container de PostgreSQL con la
+      misma versión que el Compose y variables equivalentes a su `.env.test`.
+  - VI. Seguridad y Gestión de Secretos:
+    - Los secretos de producción residen solo en Render y en los secretos de
+      GitHub; los workflows los referencian por nombre.
+
+Secciones modificadas en 2.5.0:
+  - Restricciones Técnicas, "Estructura del repositorio": se agrega
+    `.github/workflows/` con `ci.yml` y `cd.yml`.
+  - Flujo de Trabajo de Desarrollo, "Puertas de calidad": se agrega la puerta
+    "El CI está en verde (trabajos backend y frontend)".
+
+Secciones añadidas en 2.5.0: ninguna
+Secciones eliminadas en 2.5.0: ninguna
+Plantillas dependientes: no se modifican; leen la constitución al ejecutarse.
+TODO diferidos: ninguno.
 
 Principios modificados en 2.4.0:
   - IV. Stack Fijo y Versiones Estables:
@@ -293,10 +324,15 @@ El stack tecnológico está definido y no se sustituye sin enmienda de esta cons
 | Hash de contraseñas | bcrypt |
 | Orquestación de servicios | Docker / Docker Compose |
 | Documentación de API | Swagger |
+| Integración continua | GitHub Actions |
+| Despliegue | Render (web services con runtime Docker y Render Postgres administrado) |
 
 Toda imagen de Docker, librería, dependencia, runtime o framework DEBE fijarse en una versión
 estable publicada; están prohibidas las versiones alpha, beta, release candidate y las etiquetas
-móviles del tipo `latest`.
+móviles del tipo `latest`. La regla alcanza a los workflows de integración y despliegue: las
+acciones de GitHub, los runners y las imágenes de los service containers DEBEN fijarse en versiones
+exactas; están prohibidas `latest`, las ramas como `main` y las etiquetas móviles como
+`ubuntu-latest` o una versión mayor sin menor y parche.
 
 Instalar una dependencia externa no listada en esta tabla ni exigida explícitamente por el
 requisito en curso REQUIERE autorización previa y explícita del responsable humano, acompañada de
@@ -346,6 +382,11 @@ Compose usando una versión estable; no se admiten instalaciones manuales en la 
   jamás toque datos ni puertos del entorno de desarrollo.
 - Las aplicaciones backend y frontend DEBEN encapsularse cada una en su `Dockerfile` versionado,
   de forma que puedan ejecutarse de manera portable en cualquier entorno.
+- En producción, la base de datos es Render Postgres administrado y no se levanta con Docker
+  Compose. Docker Compose sigue siendo obligatorio para los entornos de desarrollo y de test.
+- La integración continua levanta la base de test como service container de PostgreSQL, con la
+  misma versión de imagen que el `docker-compose` de la base y variables equivalentes a su
+  `.env.test`.
 
 **Justificación**: un entorno reproducible con un comando elimina la clase entera de fallos "en mi
 máquina funciona" y permite que las pruebas de integración corran contra datos desechables.
@@ -356,6 +397,10 @@ Contraseñas de bases de datos, claves de encriptación, secretos de firma JWT, 
 otro dato sensible DEBEN residir en archivos `.env`, nunca embebidos en el código ni versionados.
 Cada `.env` DEBE tener su `.env.example` con las mismas claves y valores de ejemplo no sensibles.
 
+- Los secretos de producción (credenciales y URL de la base de datos, `JWT_SECRET` y deploy hooks
+  de Render, entre otros) residen solo en las variables de entorno de Render y en los secretos de
+  GitHub. Están prohibidos en el repositorio y en los workflows, que solo los referencian por
+  nombre.
 - La autenticación de usuarios se resuelve con JWT.
 - Las contraseñas almacenadas en base de datos DEBEN estar hasheadas con bcrypt; está prohibido
   guardar o registrar contraseñas en texto plano.
@@ -557,7 +602,8 @@ qué skill se invocó.
 │   ├── agents/
 │   └── settings.json
 ├── .github/
-│   └── ISSUE_TEMPLATE/  # Plantillas de issues: historia de usuario, fase técnica y tarea
+│   ├── ISSUE_TEMPLATE/  # Plantillas de issues: historia de usuario, fase técnica y tarea
+│   └── workflows/       # ci.yml (integración continua) y cd.yml (despliegue en Render)
 ├── .specify/         # Configuración de Spec Kit
 │   ├── memory/       # constitution.md: este documento
 │   └── templates/    # Plantillas de spec, plan y tasks
@@ -615,6 +661,7 @@ qué skill se invocó.
       inglés.
 - [ ] Swagger y `README.md` reflejan el estado actual.
 - [ ] Las versiones añadidas son estables y las dependencias no previstas fueron autorizadas.
+- [ ] El CI está en verde (trabajos `backend` y `frontend`).
 
 ## Gobernanza
 
@@ -647,4 +694,4 @@ este documento.
 - `CLAUDE.md` en la raíz es la guía operativa en tiempo de desarrollo y DEBE mantenerse alineado
   con esta constitución; ante discrepancia, manda la constitución.
 
-**Version**: 2.4.0 | **Ratified**: 2026-09-19 | **Last Amended**: 2026-10-08
+**Version**: 2.5.0 | **Ratified**: 2026-09-19 | **Last Amended**: 2026-10-30

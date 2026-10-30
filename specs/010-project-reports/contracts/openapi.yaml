@@ -1,0 +1,466 @@
+# Contrato de la API de Reportes de Proyecto y de Sprint (spec 010).
+# Fuente de verdad del diseño: specs/010-project-reports/spec.md
+# Este archivo es el contrato acordado en la Fase 1 del plan. La documentación publicada en
+# /swagger/index.html se genera con `swag init` a partir de las anotaciones del código y DEBE
+# coincidir con este contrato (Principio VIII). Los esquemas de métricas se toman del contrato de la
+# 008 por referencia, porque la sección de métricas lleva exactamente esos cuerpos (research.md,
+# sección 3).
+openapi: 3.0.3
+
+info:
+  title: Software Metrics & Estimation — Reportes
+  description: |
+    Reporte consolidado de un sprint o del proyecto completo, con seis secciones: encabezado,
+    historias, estimaciones, esfuerzo, métricas y defectos. La exportación a PDF ocurre en el
+    navegador a partir de esta misma respuesta, así que esta API no devuelve archivos (research.md,
+    secciones 13 y 14).
+
+    **Todas** las operaciones exigen una sesión válida (FR-037), enviada en la cabecera
+    `Authorization: Bearer <token>` emitida por `/api/v1/auth/login` de la spec 001, y que quien pide
+    sea integrante vigente del proyecto (FR-038).
+
+    Reglas que gobiernan todas las respuestas:
+
+    - Cada generación exitosa deja un registro de generación (quién, cuándo y con qué alcance). Es lo
+      único que se escribe: el documento no se guarda (FR-034, RN-02). Por eso las operaciones son
+      `POST` y no son idempotentes. Un proyecto `finished` se reporta con normalidad (FR-035, FR-040).
+    - Ninguna cifra se recalcula: la sección `metrics` es el cuerpo de la 008 sin cambios, con sus
+      estados de valor y su finalidad (FR-008, FR-017, FR-020). Los totales de defectos salen de la
+      008 (RC-09).
+    - Las seis secciones están siempre presentes. Cada una informa `state`: `complete`, `empty` (sin
+      datos, nunca omitida) o `unavailable` (no se pudo obtener). Una sección `unavailable` no impide
+      el resto (FR-023 a FR-025).
+    - `partial` es `true` cuando el reporte incluye el sprint Activo (FR-005, FR-006).
+    - En un sprint Cerrado, las historias, sus prioridades y sus Story Points salen de la instantánea
+      de cierre; en el Activo y en las historias no planificadas, del backlog vigente (FR-021,
+      FR-022).
+    - Quien no es integrante vigente recibe el mismo `404` que ante un proyecto inexistente, y un
+      sprint de otro proyecto, el mismo `404` que ante un sprint inexistente (FR-039).
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Entorno de desarrollo local
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Reportes
+    description: Reportes de sprint y de proyecto
+
+paths:
+  /api/v1/projects/{projectId}/reports/sprints/{sprintId}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/SprintId'
+    post:
+      tags: [Reportes]
+      summary: Generar el reporte de un sprint
+      description: |
+        Arma el reporte de un sprint Cerrado o Activo y registra la generación (US1, FR-001). El
+        reporte del Activo lleva `partial: true` (FR-005). Un sprint Planificado se rechaza con `409`
+        (FR-004). No lee cuerpo.
+      operationId: generateSprintReport
+      responses:
+        '200':
+          description: Reporte del sprint.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: |
+            El proyecto no existe o quien pide no es integrante (cuerpo de la 002), o el sprint no
+            existe, es de otro proyecto o su identificador está mal formado (cuerpo de la 004:
+            "El sprint no existe."). No deja registro.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: El sprint está Planificado. No deja registro.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "El sprint todavía no arrancó: no tiene nada que reportar."
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/projects/{projectId}/reports/project:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      tags: [Reportes]
+      summary: Generar el reporte del proyecto
+      description: |
+        Arma el reporte del proyecto completo y registra la generación (US3, FR-002). Abarca los
+        sprints Cerrados y el Activo si existe, en orden cronológico, y nunca los Planificados
+        (FR-006, FR-007, FR-011). Las historias se agrupan por sprint y terminan con el grupo de
+        historias no planificadas, que siempre está (FR-036). Lleva `partial: true` si incluye al
+        Activo. Un proyecto sin sprints reportables responde `200` con las secciones en `empty`, no
+        con un error. No lee cuerpo.
+      operationId: generateProjectReport
+      responses:
+        '200':
+          description: Reporte del proyecto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/ProjectNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      description: Identificador del proyecto.
+      schema:
+        type: string
+        format: uuid
+    SprintId:
+      name: sprintId
+      in: path
+      required: true
+      description: Identificador del sprint. Uno mal formado responde como sprint inexistente.
+      schema:
+        type: string
+
+  responses:
+    Unauthorized:
+      description: Se requiere iniciar sesión.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ProjectNotFound:
+      description: El proyecto no existe o quien pide no es integrante; los dos casos son idénticos.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: |
+        Error interno sin detalles expuestos. Incluye la falla al leer el encabezado y la falla al
+        guardar el registro de generación: en los dos casos no se entrega el reporte (research.md,
+        secciones 8 y 10).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    SectionState:
+      type: string
+      enum: [complete, empty, unavailable]
+      description: |
+        `complete` con datos; `empty` sin datos, que se muestra con su título y "sin datos";
+        `unavailable` si la fuente falló, distinguible de `empty` (FR-023, FR-024).
+
+    GroupState:
+      type: string
+      enum: [complete, empty]
+
+    ReportSprint:
+      type: object
+      required: [id, name, status, startDate, endDate, closedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, example: "Sprint 3" }
+        status: { type: string, enum: [active, closed] }
+        startDate: { type: string, format: date, example: "2026-09-15" }
+        endDate: { type: string, format: date, example: "2026-09-28" }
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Instante de cierre; null en el Activo.
+
+    Period:
+      type: object
+      required: [startDate, endDate]
+      properties:
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+
+    Header:
+      type: object
+      required: [projectId, projectName, projectStatus, sprint, period, generatedAt, generatedBy]
+      properties:
+        projectId: { type: string, format: uuid }
+        projectName: { type: string, example: "Gestión de Compras — Ñandú" }
+        projectStatus: { type: string, enum: [planned, in_progress, finished] }
+        sprint:
+          allOf: [{ $ref: '#/components/schemas/ReportSprint' }]
+          nullable: true
+          description: El sprint del reporte; null en el alcance `project`.
+        period:
+          allOf: [{ $ref: '#/components/schemas/Period' }]
+          nullable: true
+          description: |
+            Fechas del sprint, o desde el inicio del primer sprint incluido hasta el fin del último;
+            null en un proyecto sin sprints reportables.
+        generatedAt:
+          type: string
+          format: date-time
+          description: Instante de la generación, en UTC; el mismo que guarda el registro.
+          example: "2026-10-30T17:32:05Z"
+        generatedBy:
+          type: object
+          required: [id, fullName]
+          properties:
+            id: { type: string, format: uuid }
+            fullName: { type: string, example: "Ana Pérez" }
+
+    StoryLine:
+      type: object
+      required: [storyId, title, priority, storyPoints, status]
+      properties:
+        storyId: { type: string, format: uuid }
+        title: { type: string }
+        priority: { type: string, enum: [high, medium, low] }
+        storyPoints:
+          type: integer
+          nullable: true
+          description: null si la historia está sin estimar.
+        status:
+          type: string
+          enum: [pending, in_progress, completed, not_completed]
+          description: |
+            En un sprint Cerrado, el resultado congelado: `completed` o `not_completed`. En el Activo y
+            en las no planificadas, el estado vigente.
+
+    StoryGroup:
+      type: object
+      required: [sprint, state, stories]
+      properties:
+        sprint:
+          allOf: [{ $ref: '#/components/schemas/ReportSprint' }]
+          nullable: true
+          description: null en el grupo de historias no planificadas, que siempre va último.
+        state: { $ref: '#/components/schemas/GroupState' }
+        stories:
+          type: array
+          items: { $ref: '#/components/schemas/StoryLine' }
+          description: Orden por prioridad, después título y después storyId.
+
+    StoriesSection:
+      type: object
+      required: [state, groups]
+      properties:
+        state: { $ref: '#/components/schemas/SectionState' }
+        groups:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/StoryGroup' }
+          description: |
+            Un grupo en el alcance `sprint`; en el de proyecto, uno por sprint incluido en orden
+            cronológico y al final el de no planificadas. null con `unavailable`.
+
+    PokerSummary:
+      type: object
+      required: [rounds, agreedStoryPoints, finishedAt]
+      properties:
+        rounds: { type: integer, minimum: 1, example: 3 }
+        agreedStoryPoints: { type: integer, example: 8 }
+        finishedAt: { type: string, format: date-time }
+
+    EstimationLine:
+      type: object
+      required: [storyId, title, storyPoints, poker, session]
+      properties:
+        storyId: { type: string, format: uuid }
+        title: { type: string }
+        storyPoints: { type: integer, nullable: true }
+        poker:
+          type: string
+          enum: [agreed, no_agreement, none]
+          description: |
+            `agreed`: hubo una sesión Finalizada (dentro del corte de cierre en un sprint Cerrado);
+            `no_agreement`: hubo sesiones, pero ninguna Finalizada; `none`: no hubo sesiones
+            (research.md, sección 5).
+        session:
+          allOf: [{ $ref: '#/components/schemas/PokerSummary' }]
+          nullable: true
+          description: La última sesión Finalizada; solo con `agreed`.
+
+    EstimationGroup:
+      type: object
+      required: [sprint, state, items]
+      properties:
+        sprint:
+          allOf: [{ $ref: '#/components/schemas/ReportSprint' }]
+          nullable: true
+        state: { $ref: '#/components/schemas/GroupState' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/EstimationLine' }
+
+    EstimationsSection:
+      type: object
+      required: [state, groups]
+      properties:
+        state: { $ref: '#/components/schemas/SectionState' }
+        groups:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/EstimationGroup' }
+          description: Los mismos grupos, en el mismo orden, que la sección de historias.
+
+    StoryEffort:
+      type: object
+      required: [storyId, title, hours]
+      properties:
+        storyId: { type: string, format: uuid }
+        title: { type: string }
+        hours: { type: number, description: "Con 2 decimales.", example: 12.50 }
+
+    EffortGroup:
+      type: object
+      required: [sprint, state, stories, totalHours]
+      properties:
+        sprint: { $ref: '#/components/schemas/ReportSprint' }
+        state: { $ref: '#/components/schemas/GroupState' }
+        stories:
+          type: array
+          items: { $ref: '#/components/schemas/StoryEffort' }
+        totalHours: { type: number, example: 40.00 }
+
+    MemberEffort:
+      type: object
+      required: [userId, fullName, hours]
+      properties:
+        userId: { type: string, format: uuid }
+        fullName:
+          type: string
+          description: Se conserva aunque la persona ya no sea integrante (RC-06).
+        hours: { type: number, example: 18.25 }
+
+    EffortSection:
+      type: object
+      required: [state, groups, byMember, totalHours]
+      properties:
+        state: { $ref: '#/components/schemas/SectionState' }
+        groups:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/EffortGroup' }
+          description: Un grupo por sprint incluido, con los registros anclados a ese sprint.
+        byMember:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/MemberEffort' }
+        totalHours:
+          type: number
+          nullable: true
+          description: |
+            Suma de los registros anclados a los sprints del alcance; con los mismos datos coincide
+            con `actualHours` (sprint) o `cumulative.actualHours` (proyecto) de la 008. 0.00 con
+            `empty`; null con `unavailable`.
+
+    MetricsSection:
+      type: object
+      required: [state, sprint, project]
+      description: |
+        Exactamente uno de `sprint` o `project` está presente según el alcance; los dos son null con
+        `unavailable` y en el reporte de proyecto `empty` (sin sprints Cerrados ni Activo).
+      properties:
+        state: { $ref: '#/components/schemas/SectionState' }
+        sprint:
+          allOf: [{ $ref: '../../008-metrics-calculation/contracts/openapi.yaml#/components/schemas/SprintMetrics' }]
+          nullable: true
+        project:
+          allOf: [{ $ref: '../../008-metrics-calculation/contracts/openapi.yaml#/components/schemas/ProjectMetricsResponse' }]
+          nullable: true
+
+    SprintName:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+
+    DefectLine:
+      type: object
+      required: [defectId, description, severity, status, story, detectedSprint, resolvedSprint]
+      properties:
+        defectId: { type: string, format: uuid }
+        description: { type: string }
+        severity: { type: string, enum: [critical, high, medium, low] }
+        status:
+          type: string
+          enum: [open, in_progress, resolved]
+          description: Los Descartados nunca se listan (RC-09).
+        story:
+          type: object
+          required: [id, title]
+          properties:
+            id: { type: string, format: uuid }
+            title:
+              type: string
+              description: El de la instantánea del sprint del reporte si la historia está en ella; si no, el vigente.
+        detectedSprint: { $ref: '#/components/schemas/SprintName' }
+        resolvedSprint:
+          allOf: [{ $ref: '#/components/schemas/SprintName' }]
+          nullable: true
+
+    DefectsSection:
+      type: object
+      required: [state, defects, totals]
+      properties:
+        state: { $ref: '#/components/schemas/SectionState' }
+        defects:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/DefectLine' }
+          description: |
+            Sprint: los detectados o resueltos en el sprint. Proyecto: todos. Orden por inicio del
+            sprint de detección, después alta y después id.
+        totals:
+          type: object
+          nullable: true
+          required: [detected, resolved]
+          description: De la 008; presentes también con `empty` (en 0) y null con `unavailable`.
+          properties:
+            detected: { type: integer, minimum: 0 }
+            resolved: { type: integer, minimum: 0 }
+
+    Report:
+      type: object
+      required: [scope, partial, header, stories, estimations, effort, metrics, defects]
+      properties:
+        scope: { type: string, enum: [sprint, project] }
+        partial:
+          type: boolean
+          description: true si incluye el sprint Activo (RN-03, RN-06).
+        header: { $ref: '#/components/schemas/Header' }
+        stories: { $ref: '#/components/schemas/StoriesSection' }
+        estimations: { $ref: '#/components/schemas/EstimationsSection' }
+        effort: { $ref: '#/components/schemas/EffortSection' }
+        metrics: { $ref: '#/components/schemas/MetricsSection' }
+        defects: { $ref: '#/components/schemas/DefectsSection' }
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Mensaje en español apto para mostrar.

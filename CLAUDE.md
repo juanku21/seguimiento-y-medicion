@@ -18,6 +18,15 @@ La constitución prevalece sobre cualquier skill, propia o de terceros. En parti
 - Next.js: antes de escribir código de Next.js, leer la documentación de la versión instalada en `frontend/node_modules/next/dist/docs/`. Si una herramienta genera un archivo `AGENTS.md`, avisar al desarrollador.
 - Skills de terceros: están en `.claude/skills/`; su origen y sus adaptaciones constan en el commit que las incorporó. No modificarlas sin pedido explícito.
 
+## CI/CD
+
+- El CI (`.github/workflows/ci.yml`) tiene los trabajos `backend` y `frontend`, obligatorios en `main`. Un cambio no está terminado hasta que ambos pasen en el PR.
+- El CD (`.github/workflows/cd.yml`) despliega en Render el commit verificado por el CI en `main`. El agente nunca ejecuta deploys, deploy hooks ni `Run workflow`: los lanza una persona.
+- Las acciones de los workflows se fijan por SHA de commit, con la versión exacta en un comentario. Al actualizarlas, usar una versión estable publicada hace al menos dos semanas.
+- Las pruebas del backend corren siempre con `go test -p 1`, en local y en el CI, por el advisory lock de `smye_test`.
+- `DATABASE_URL` es solo de producción: no se define en `backend/.env` ni en `backend/.env.test`.
+- Los secretos de producción viven solo en Render y en el environment `production` de GitHub. El agente no los pide, no los muestra y usa marcadores en el chat.
+
 ## Git y GitHub
 
 ### Operaciones de Git (prohibidas)

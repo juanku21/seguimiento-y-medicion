@@ -206,3 +206,64 @@ func TestLoad_EffortGracePeriodInvalidAccumulated(t *testing.T) {
 		t.Errorf("el error no conserva el problema de APP_TIMEZONE: %q", msg)
 	}
 }
+
+// unsetEnv quita del entorno cada clave indicada; el t.Setenv previo garantiza que se restaure el
+// valor original al terminar la prueba.
+func unsetEnv(t *testing.T, keys ...string) {
+	t.Helper()
+	for _, key := range keys {
+		t.Setenv(key, "")
+		if err := os.Unsetenv(key); err != nil {
+			t.Fatalf("no se pudo quitar %s: %v", key, err)
+		}
+	}
+}
+
+// dbVars son las variables de conexión que DATABASE_URL reemplaza cuando está definida.
+var dbVars = []string{"DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME"}
+
+// Con DATABASE_URL definida, Load no exige las variables DB_* y conserva la URL tal cual, para
+// conectarse con la Internal Database URL de Render.
+func TestLoad_DatabaseURLReplacesDBVars(t *testing.T) {
+	const databaseURL = "postgres://user:password@dpg-example-a:5432/smye?sslmode=require"
+	setRequiredEnv(t)
+	t.Setenv("APP_TIMEZONE", "America/Argentina/Buenos_Aires")
+	unsetEnv(t, dbVars...)
+	t.Setenv("DATABASE_URL", "  "+databaseURL+"  ")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load devolvió un error inesperado: %v", err)
+	}
+	if cfg.DatabaseURL != databaseURL {
+		t.Errorf("Config.DatabaseURL = %q; se esperaba %q", cfg.DatabaseURL, databaseURL)
+	}
+}
+
+// Sin DATABASE_URL, o con un valor de solo espacios, las variables DB_* siguen siendo
+// obligatorias y Load las enumera como faltantes.
+func TestLoad_DatabaseURLMissingRequiresDBVars(t *testing.T) {
+	cases := map[string]func(t *testing.T){
+		"ausente":       func(t *testing.T) { unsetEnv(t, "DATABASE_URL") },
+		"solo espacios": func(t *testing.T) { t.Setenv("DATABASE_URL", "   ") },
+	}
+	for name, prepare := range cases {
+		t.Run(name, func(t *testing.T) {
+			setRequiredEnv(t)
+			t.Setenv("APP_TIMEZONE", "America/Argentina/Buenos_Aires")
+			unsetEnv(t, dbVars...)
+			prepare(t)
+
+			_, err := Load()
+			if err == nil {
+				t.Fatal("se esperaba error por variables DB_* faltantes y Load no devolvió error")
+			}
+			msg := err.Error()
+			for _, key := range dbVars {
+				if !strings.Contains(msg, key) {
+					t.Errorf("el error no enumera %s: %q", key, msg)
+				}
+			}
+		})
+	}
+}

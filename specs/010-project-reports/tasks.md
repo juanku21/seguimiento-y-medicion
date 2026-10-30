@@ -106,7 +106,7 @@ frontend montan la vista real, `ReportsView`. Cada historia le suma al módulo l
 
 **Rama**: `fase/010-foundational`, la misma que la Fase 2: las dos forman un único pull request.
 
-- [ ] T001 Instalar en `frontend/` la dependencia autorizada con versión exacta:
+- [X] T001 Instalar en `frontend/` la dependencia autorizada con versión exacta:
       `npm install --save-exact pdfmake@0.3.13`. Verificar que `frontend/package.json` la lista en
       `dependencies` **sin** `^` ni `~`, que `frontend/package-lock.json` quedó actualizado, que no se
       agregó ninguna otra dependencia directa (en particular **no** `@types/pdfmake`, plan punto 2) y

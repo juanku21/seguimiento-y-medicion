@@ -676,7 +676,7 @@ verificación de las puertas de calidad.
       `src/utils/metric-format.ts` y `src/utils/metric-explanations.ts` tengan cubiertas todas sus
       ramas; ejecutar `npm audit --omit=dev` y resolver o justificar por escrito cada vulnerabilidad
       de `recharts`, `react-is` o sus dependencias — depende de T038
-- [ ] T041 Verificar la trazabilidad y las puertas de calidad recorriendo `frontend/src/`: que buscar
+- [X] T041 Verificar la trazabilidad y las puertas de calidad recorriendo `frontend/src/`: que buscar
       `009/US` en el código de pruebas devuelva los **seis** `describe` y los **45** `it` de
       escenario; que las **21** reglas RN-01 a RN-21 tengan prueba asociada según la tabla de
       plan.md (SC-016); que no haya ningún `any`, ni archivos `AGENTS.md`, ni cambios en `backend/`;

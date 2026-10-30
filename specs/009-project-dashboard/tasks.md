@@ -689,7 +689,7 @@ verificación de las puertas de calidad.
       cifra con Swagger (SC-004) — depende de T039, T040, T041
 - [X] T045 Pruebas para las ramas sin cubrir de `frontend/src/features/dashboard/`: validadores `return false` de `api.ts`, estados de carga de `key-indicators.tsx`, `series-section.tsx` y `open-defects-distribution.tsx`, y la rama `String(value)` del Tooltip de `sprint-series-chart.tsx`, per T040 (partial)
 - [X] T046 Estabilizar la corrida completa de `npm run test:coverage` en `frontend/vitest.config.mts` (por ejemplo `testTimeout` o `maxWorkers`) y verificar tres corridas seguidas en verde, per Constitución Principio II (partial)
-- [ ] T047 Actualizar la sección Estado Actual de `README.md` para incluir la funcionalidad 009 (dashboard), per T039 (partial)
+- [X] T047 Actualizar la sección Estado Actual de `README.md` para incluir la funcionalidad 009 (dashboard), per T039 (partial)
 
 ---
 

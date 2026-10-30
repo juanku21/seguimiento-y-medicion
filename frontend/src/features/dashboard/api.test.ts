@@ -306,3 +306,39 @@ describe("getProjectSeries - ruta", () => {
     expect(result.ok).toBe(true);
   });
 });
+
+// Ramas de rechazo de los reconocedores ante cuerpos que no son objetos o con partes mal formadas (T045).
+describe("Reconocedores del dashboard - ramas de rechazo (T045)", () => {
+  it("isSprintMetric rechaza valores que no son objetos", () => {
+    expect(isSprintMetric(null)).toBe(false);
+    expect(isSprintMetric("available")).toBe(false);
+  });
+
+  it("isActiveSprintMetricsResponse rechaza cuerpos que no son objetos o sin activeSprint booleano", () => {
+    expect(isActiveSprintMetricsResponse(null)).toBe(false);
+    expect(
+      isActiveSprintMetricsResponse({ activeSprint: "true", metrics: null }),
+    ).toBe(false);
+  });
+
+  it("isProjectMetricsResponse rechaza defects.open sin total numérico o sin bySeverity", () => {
+    const withoutTotal = projectMetrics();
+    (withoutTotal.defects.open as Record<string, unknown>).total = "3";
+    expect(isProjectMetricsResponse(withoutTotal)).toBe(false);
+
+    const withoutSeverity = projectMetrics();
+    (withoutSeverity.defects.open as Record<string, unknown>).bySeverity = null;
+    expect(isProjectMetricsResponse(withoutSeverity)).toBe(false);
+
+    const notObject = projectMetrics();
+    (notObject.defects as Record<string, unknown>).open = null;
+    expect(isProjectMetricsResponse(notObject)).toBe(false);
+  });
+
+  it("readSeries devuelve null si un punto de la serie no es un objeto", () => {
+    const envelope = {
+      plannedStoryPoints: [null],
+    } as unknown as ProjectSeriesResponse;
+    expect(readSeries(envelope, "plannedStoryPoints")).toBeNull();
+  });
+});

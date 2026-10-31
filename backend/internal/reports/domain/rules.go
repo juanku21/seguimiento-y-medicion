@@ -1,33 +1,58 @@
 package domain
 
 import (
-	"errors"
+	"bytes"
+	"cmp"
+	"slices"
 
 	sprintsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
 
-// EnsureReportable rechaza el sprint Planificado (RN-04); la implementación llega con T015.
+// EnsureReportable rechaza el sprint Planificado porque todavía no tiene nada que reportar (RN-04);
+// el sprint Activo y el Cerrado se aceptan.
 func EnsureReportable(status sprintsdomain.SprintStatus) error {
-	return errors.New("not implemented")
+	if status == sprintsdomain.SprintStatusPlanned {
+		return ErrSprintNotStarted
+	}
+	return nil
 }
 
-// IsPartial indica si el reporte incluye algún sprint Activo (RN-03); la implementación llega con T015.
+// IsPartial indica si el reporte incluye algún sprint Activo, cuyos datos todavía pueden cambiar
+// (RN-03). El alcance no altera la regla: aplica igual a un sprint y a todo el proyecto.
 func IsPartial(scope ReportScope, sprints []SprintRef) bool {
-	return false
+	return slices.ContainsFunc(sprints, func(s SprintRef) bool {
+		return s.Status == sprintsdomain.SprintStatusActive
+	})
 }
 
-// SortStories ordena las historias in situ por prioridad, título y story_id (RN-22); la
-// implementación llega con T015.
-func SortStories(lines []StoryLine) {}
+// SortStories ordena las historias in situ por prioridad (high, medium, low), después por título y
+// por último por story_id, para que el orden sea estable (RN-22).
+func SortStories(lines []StoryLine) {
+	slices.SortStableFunc(lines, func(a, b StoryLine) int {
+		return cmp.Or(
+			cmp.Compare(a.Priority.Rank(), b.Priority.Rank()),
+			cmp.Compare(a.Title, b.Title),
+			bytes.Compare(a.StoryID[:], b.StoryID[:]),
+		)
+	})
+}
 
-// StoryTitle devuelve el título de la instantánea si existe (nil si la historia no está en ella) y,
-// si no, el vigente (FR-021); la implementación llega con T015.
+// StoryTitle devuelve el título de la instantánea si la historia está en ella (puntero no nulo) y,
+// si no, el título vigente (FR-021).
 func StoryTitle(snapshot *string, current string) string {
-	return ""
+	if snapshot != nil {
+		return *snapshot
+	}
+	return current
 }
 
-// StoriesState calcula el estado de la sección de historias a partir de sus grupos (RN-11); la
-// implementación llega con T015.
+// StoriesState devuelve la sección de historias vacía si ningún grupo tiene historias y completa en
+// caso contrario (RN-11).
 func StoriesState(groups []StoryGroup) SectionState {
-	return ""
+	for _, g := range groups {
+		if len(g.Stories) > 0 {
+			return SectionComplete
+		}
+	}
+	return SectionEmpty
 }

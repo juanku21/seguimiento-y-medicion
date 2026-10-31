@@ -355,7 +355,7 @@ con el `article` "Reporte".
 
 ### Implementación de la Historia 1
 
-- [ ] T015 [P] [US1] Implementar en `backend/internal/reports/domain/rules.go` `EnsureReportable`,
+- [X] T015 [P] [US1] Implementar en `backend/internal/reports/domain/rules.go` `EnsureReportable`,
       `IsPartial`, `SortStories`, `StoryTitle` y `StoriesState`, como funciones puras con su
       comentario en español y la referencia a la regla (data-model.md sección 2.4) — depende de T010
 - [ ] T016 [P] [US1] Implementar en `backend/internal/reports/domain/estimation.go`

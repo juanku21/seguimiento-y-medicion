@@ -724,7 +724,7 @@ completas.
       `frontend/src/types/report.ts` y `frontend/src/types/pdfmake.d.ts`; y ninguna dependencia nueva
       fuera de `pdfmake@0.3.13`. Si algo falla, detenerse e informarlo con la salida — depende de T046,
       T047
-- [ ] T049 Validar a mano con [quickstart.md](./quickstart.md) secciones 2 y 3, en particular el
+- [X] T049 Validar a mano con [quickstart.md](./quickstart.md) secciones 2 y 3, en particular el
       PDF de 80 historias (paso 3.5), los caracteres especiales (paso 3.6) y la falla de exportación
       (paso 3.8), y anotar en el pull request de esta fase qué se verificó — depende de T048
 

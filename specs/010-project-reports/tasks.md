@@ -233,7 +233,7 @@ declaran tipos, esquema, composición y ayudantes, sin reglas de negocio.
       Crear `frontend/src/features/reports/components/reports-view.tsx` con `"use client"`,
       `ReportsView({ projectId }: ReportsViewProps)` y un cuerpo que todavía no muestra nada
       (`return null`), con el comentario de qué va a componer
-- [ ] T009 Crear en `frontend/src/features/reports/components/reports-test-backend.ts` el ayudante
+- [X] T009 Crear en `frontend/src/features/reports/components/reports-test-backend.ts` el ayudante
       de pruebas compartido, que importan **solo** archivos `*.test.tsx`:
       `installReportsBackend(overrides?)` reemplaza `globalThis.fetch` con `vi.fn` y responde por
       método y ruta `GET /api/v1/projects/{id}/sprints`, `POST …/reports/sprints/{sprintId}` y

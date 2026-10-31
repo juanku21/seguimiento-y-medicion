@@ -611,7 +611,7 @@ reporte de proyecto tiene cuatro grupos en orden, más el de no planificadas, y 
       `generateProjectReport`, con su anotación Swagger completa (`@ID generateProjectReport`,
       `@Failure` 401, 404 y 500), y en `dto.go` `metrics.project` con
       `metricsdelivery.NewProjectMetrics` — depende de T035
-- [ ] T037 [P] [US3] Implementar en `frontend/src/features/reports/api.ts`
+- [X] T037 [P] [US3] Implementar en `frontend/src/features/reports/api.ts`
       `generateProjectReport(projectId)` sobre `/api/v1/projects/{projectId}/reports/project`, con
       `postAuthorizedJson(path, {}, isReport)` — depende de T032
 - [ ] T038 [US3] Implementar el alcance `project` en `frontend/src/features/reports/view-model.ts`

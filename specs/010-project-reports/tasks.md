@@ -575,7 +575,7 @@ reporte de proyecto tiene cuatro grupos en orden, más el de no planificadas, y 
       último "Historias no planificadas" con "Sin datos." si está vacío; y en métricas, las filas del
       acumulado con su marca, "Esfuerzo fuera de sprints", "Esfuerzo en sprints planificados" e
       "Historias sin estimar en el backlog" — depende de T021
-- [ ] T032 [US3] Pruebas de escenario en
+- [X] T032 [US3] Pruebas de escenario en
       `frontend/src/features/reports/components/reports-view.test.tsx`, con
       `describe("010/US3 - Generar y ver el reporte de un proyecto completo")` y un `it` por escenario
       según la tabla de plan.md, precedido por `// Escenario: US3-k (<caso>)`, cada uno eligiendo

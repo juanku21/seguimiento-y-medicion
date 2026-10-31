@@ -22,7 +22,7 @@ import { ReportsView } from "@/features/reports/components/reports-view";
 import { clearSession } from "@/lib/session-storage";
 import { SessionProvider } from "@/providers/session-provider";
 import type { SprintMetric } from "@/types/metrics";
-import type { Report } from "@/types/report";
+import type { Report, StoryGroup, StoryLine } from "@/types/report";
 import type { SprintListItem, SprintListResponse } from "@/types/sprint";
 
 // Pruebas de escenario de la Historia 1 (T014): montan ReportsView completo con el backend de
@@ -700,5 +700,366 @@ describe("010/US2 - Exportar el reporte a PDF", () => {
 
     await clickExport(1);
     expect(requests).toHaveLength(before);
+  });
+});
+
+// Sprint del reporte de proyecto de prueba (el primero, el segundo o el tercero).
+function projectSprint(index: number) {
+  const sprint = projectReport().stories.groups?.[index]?.sprint;
+  if (!sprint) {
+    throw new Error("falta el sprint de prueba");
+  }
+  return sprint;
+}
+
+// Historia con los datos mínimos para las tablas del reporte.
+function storyLine(
+  storyId: string,
+  title: string,
+  status: StoryLine["status"],
+): StoryLine {
+  return { storyId, title, priority: "medium", storyPoints: 3, status };
+}
+
+// Reporte de proyecto cuya sección de historias lleva los grupos indicados.
+function projectWithGroups(
+  groups: StoryGroup[],
+  overrides: Partial<Report> = {},
+): Report {
+  return projectReport({
+    stories: { state: "complete", groups },
+    ...overrides,
+  });
+}
+
+// Grupo de historias no planificadas (sin sprint) con las historias indicadas.
+function unplannedGroup(stories: StoryLine[]): StoryGroup {
+  return {
+    sprint: null,
+    state: stories.length === 0 ? "empty" : "complete",
+    stories,
+  };
+}
+
+// Elige "Proyecto completo" (la primera opción) y pulsa "Generar reporte".
+async function generateProject() {
+  renderReports(defaultProjectId);
+  const scope = await screen.findByRole("combobox", {
+    name: "Alcance del reporte",
+  });
+  const first = (await screen.findAllByRole("option"))[0];
+  expect(first.textContent).toBe("Proyecto completo");
+  fireEvent.change(scope, { target: { value: first.getAttribute("value") } });
+  fireEvent.click(screen.getByRole("button", { name: "Generar reporte" }));
+}
+
+// Textos de los h4 de una región, en orden.
+function headings4(container: HTMLElement): string[] {
+  return within(container)
+    .queryAllByRole("heading", { level: 4 })
+    .map((h) => h.textContent ?? "");
+}
+
+// Contenedor (bloque) de un h4 dentro de una región.
+function blockOf(container: HTMLElement, name: string): HTMLElement {
+  const heading = within(container).getByRole("heading", {
+    level: 4,
+    name,
+  });
+  return heading.parentElement as HTMLElement;
+}
+
+const UNPLANNED = "Historias no planificadas";
+
+describe("010/US3 - Generar y ver el reporte de un proyecto completo", () => {
+  // Escenario: US3-1 (Caso normal)
+  it("agrupa las historias por sprint en orden cronológico", async () => {
+    installReportsBackend();
+    await generateProject();
+    const report = await findReport();
+
+    expect(
+      within(report).getByRole("heading", {
+        level: 2,
+        name: "Reporte del proyecto Plataforma de seguimiento",
+      }),
+    ).toBeTruthy();
+    expect(headings4(region(report, "Historias"))).toEqual([
+      "Sprint 1 (07/09/2026 al 27/09/2026)",
+      "Sprint 2 (28/09/2026 al 18/10/2026)",
+      "Sprint 3 (19/10/2026 al 08/11/2026)",
+    ]);
+  });
+
+  // Escenario: US3-2 (Caso alternativo)
+  it("marca como parcial el reporte del proyecto con sprint activo", async () => {
+    const active = {
+      ...projectSprint(2),
+      status: "active" as const,
+      closedAt: null,
+    };
+    const groups = projectReport().stories.groups ?? [];
+    installReportsBackend({
+      projectReport: {
+        status: 200,
+        body: projectWithGroups(
+          [groups[0], groups[1], { ...groups[2], sprint: active }],
+          { partial: true },
+        ),
+      },
+    });
+    await generateProject();
+    const report = await findReport();
+
+    expect(within(report).getByRole("status").textContent).toBe(PARTIAL_NOTE);
+    expect(headings4(region(report, "Historias"))[2]).toBe(
+      "Sprint 3 (19/10/2026 al 08/11/2026) — en curso",
+    );
+  });
+
+  // Escenario: US3-3 (Caso alternativo)
+  it("no muestra el sprint planificado", async () => {
+    const groups = projectReport().stories.groups ?? [];
+    installReportsBackend({
+      projectReport: {
+        status: 200,
+        body: projectWithGroups([
+          ...groups,
+          unplannedGroup([
+            storyLine(
+              "c1000000-0000-4000-8000-000000000001",
+              "Historia del Planificado",
+              "pending",
+            ),
+          ]),
+        ]),
+      },
+    });
+    await generateProject();
+    const report = await findReport();
+
+    const stories = region(report, "Historias");
+    expect(headings4(stories).some((h) => h.includes("Planificado"))).toBe(
+      false,
+    );
+    const unplanned = blockOf(stories, UNPLANNED);
+    expect(within(unplanned).getByText("Historia del Planificado")).toBeTruthy();
+  });
+
+  // Escenario: US3-4 (Caso alternativo)
+  it("muestra el reporte del proyecto finalizado sin marca de parcial", async () => {
+    const base = projectReport();
+    installReportsBackend({
+      projectReport: {
+        status: 200,
+        body: projectReport({
+          partial: false,
+          header: { ...base.header, projectStatus: "finished" },
+        }),
+      },
+    });
+    await generateProject();
+    const report = await findReport();
+
+    expect(within(report).queryByRole("status")).toBeNull();
+  });
+
+  // Escenario: US3-5 (Caso límite)
+  it("muestra la historia replanificada en los dos grupos con su estado", async () => {
+    const groups = projectReport().stories.groups ?? [];
+    const id = "c2000000-0000-4000-8000-000000000002";
+    installReportsBackend({
+      projectReport: {
+        status: 200,
+        body: projectWithGroups([
+          {
+            ...groups[0],
+            state: "complete",
+            stories: [storyLine(id, "Login", "not_completed")],
+          },
+          {
+            ...groups[1],
+            state: "complete",
+            stories: [storyLine(id, "Login", "completed")],
+          },
+        ]),
+      },
+    });
+    await generateProject();
+    const report = await findReport();
+
+    const states = within(region(report, "Historias"))
+      .getAllByRole("row")
+      .filter((row) => within(row).queryByText("Login") !== null)
+      .map((row) => within(row).getAllByRole("cell").at(-1)?.textContent);
+    expect(states).toEqual(["No completada", "Completada"]);
+  });
+
+  // Escenario: US3-6 (Caso límite)
+  it("muestra el grupo final de historias no planificadas", async () => {
+    const groups = projectReport().stories.groups ?? [];
+    const twelve = Array.from({ length: 12 }, (_, index) =>
+      storyLine(
+        `c3000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+        `Pendiente ${index + 1}`,
+        "pending",
+      ),
+    );
+    installReportsBackend({
+      projectReport: {
+        status: 200,
+        body: projectWithGroups([...groups, unplannedGroup(twelve)]),
+      },
+    });
+    await generateProject();
+    const report = await findReport();
+
+    const stories = region(report, "Historias");
+    const headings = headings4(stories);
+    expect(headings[headings.length - 1]).toBe(UNPLANNED);
+    // Una fila de encabezado de columnas y las 12 historias.
+    expect(within(blockOf(stories, UNPLANNED)).getAllByRole("row")).toHaveLength(
+      13,
+    );
+  });
+
+  // Escenario: US3-7 (Caso límite)
+  it("muestra el grupo de no planificadas con sin datos", async () => {
+    const groups = projectReport().stories.groups ?? [];
+    installReportsBackend({
+      projectReport: {
+        status: 200,
+        body: projectWithGroups([...groups, unplannedGroup([])]),
+      },
+    });
+    await generateProject();
+    const report = await findReport();
+
+    const unplanned = blockOf(region(report, "Historias"), UNPLANNED);
+    expect(within(unplanned).getByText("Sin datos.")).toBeTruthy();
+  });
+
+  // Escenario: US3-8 (Caso límite)
+  it("muestra el título, la prioridad y los Story Points del cierre", async () => {
+    const groups = projectReport().stories.groups ?? [];
+    installReportsBackend({
+      projectReport: {
+        status: 200,
+        body: projectWithGroups([
+          {
+            ...groups[0],
+            state: "complete",
+            stories: [
+              {
+                storyId: "c4000000-0000-4000-8000-000000000004",
+                title: "Título del cierre",
+                priority: "high",
+                storyPoints: 5,
+                status: "completed",
+              },
+            ],
+          },
+          groups[1],
+          groups[2],
+        ]),
+      },
+    });
+    await generateProject();
+    const report = await findReport();
+
+    const row = within(region(report, "Historias"))
+      .getByText("Título del cierre")
+      .closest("tr");
+    expect(row).not.toBeNull();
+    expect(
+      within(row as HTMLElement)
+        .getAllByRole("cell")
+        .map((c) => c.textContent),
+    ).toEqual(["Título del cierre", "Alta", "5", "Completada"]);
+  });
+
+  // Escenario: US3-9 (Caso límite)
+  it("muestra dos reportes del mismo sprint cerrado iguales salvo la generación", async () => {
+    installReportsBackend();
+    await generateProject();
+    const first = await findReport();
+    const sectionNames = REGIONS.filter((name) => name !== "Encabezado");
+    const before = sectionNames.map((name) => region(first, name).textContent);
+
+    const base = projectReport();
+    installReportsBackend({
+      projectReport: {
+        status: 200,
+        body: projectReport({
+          header: {
+            ...base.header,
+            generatedAt: "2026-11-11T09:15:00Z",
+            generatedBy: {
+              id: "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d",
+              fullName: "Luis Gómez",
+            },
+          },
+        }),
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Generar reporte" }));
+    await waitFor(() => {
+      const current = screen.getByRole("article", { name: "Reporte" });
+      expect(
+        within(region(current, "Encabezado")).queryByText("Luis Gómez"),
+      ).not.toBeNull();
+    });
+    const second = await findReport();
+
+    expect(
+      sectionNames.map((name) => region(second, name).textContent),
+    ).toEqual(before);
+  });
+
+  // Escenario: US3-10 (Caso límite)
+  it("muestra el encabezado y las secciones sin datos", async () => {
+    const base = projectReport();
+    installReportsBackend({
+      projectReport: {
+        status: 200,
+        body: projectReport({
+          header: { ...base.header, period: null },
+          stories: { state: "empty", groups: [] },
+          estimations: { state: "empty", groups: [] },
+          effort: { state: "empty", groups: [], byMember: [], totalHours: 0 },
+          metrics: { state: "empty", sprint: null, project: null },
+          defects: {
+            state: "empty",
+            defects: [],
+            totals: { detected: 0, resolved: 0 },
+          },
+        }),
+      },
+    });
+    await generateProject();
+    const report = await findReport();
+
+    const header = region(report, "Encabezado");
+    expect(within(header).getByText("Plataforma de seguimiento")).toBeTruthy();
+    expect(within(header).getByText("Sin sprints reportables")).toBeTruthy();
+    ["Historias", "Estimaciones", "Esfuerzo", "Métricas", "Defectos"].forEach(
+      (name) =>
+        expect(
+          within(region(report, name)).getAllByText("Sin datos.").length,
+        ).toBeGreaterThan(0),
+    );
+  });
+
+  // Escenario: US3-11 (Caso de error)
+  it("informa que el proyecto no existe", async () => {
+    installReportsBackend({
+      projectReport: { status: 404, body: { error: "El proyecto no existe." } },
+    });
+    await generateProject();
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "El proyecto no existe.",
+    );
+    expect(screen.queryByRole("article", { name: "Reporte" })).toBeNull();
   });
 });

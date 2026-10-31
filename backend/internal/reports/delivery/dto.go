@@ -3,7 +3,7 @@ package delivery
 import (
 	"time"
 
-	metricsdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/metrics/delivery"
+	"github.com/juanku21/seguimiento-y-medicion/backend/internal/metrics/delivery"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/httpserver"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/reports/domain"
 )
@@ -182,9 +182,9 @@ type MetricsSection struct {
 	// Estado de la sección.
 	State string `json:"state" validate:"required" enums:"complete,empty,unavailable" example:"complete"`
 	// Métricas del sprint; null fuera del alcance sprint.
-	Sprint *metricsdelivery.SprintMetrics `json:"sprint" validate:"required" extensions:"x-nullable"`
+	Sprint *delivery.SprintMetrics `json:"sprint" validate:"required" extensions:"x-nullable"`
 	// Métricas del proyecto; null fuera del alcance project.
-	Project *metricsdelivery.ProjectMetricsResponse `json:"project" validate:"required" extensions:"x-nullable"`
+	Project *delivery.ProjectMetricsResponse `json:"project" validate:"required" extensions:"x-nullable"`
 }
 
 // SprintName identifica un sprint por su identificador y su nombre.
@@ -402,11 +402,11 @@ func newEffortSection(section domain.EffortSection) EffortSection {
 func newMetricsSection(section domain.MetricsSection, header domain.Header) MetricsSection {
 	dto := MetricsSection{State: string(section.State)}
 	if section.Sprint != nil {
-		sprint := metricsdelivery.NewSprintMetrics(*section.Sprint, section.SprintWarnings)
+		sprint := delivery.NewSprintMetrics(*section.Sprint, section.SprintWarnings)
 		dto.Sprint = &sprint
 	}
 	if section.Project != nil {
-		project := metricsdelivery.NewProjectMetrics(header.Project.ID, *section.Project)
+		project := delivery.NewProjectMetrics(header.Project.ID, *section.Project)
 		dto.Project = &project
 	}
 	return dto

@@ -410,7 +410,7 @@ con el `article` "Reporte".
       los textos exactos de contracts/ui-contract.md y los formateadores y etiquetas listados en
       "Base existente"; ninguna cadena se arma fuera de este archivo (research.md sección 13). Los
       estados `empty` se resuelven con "Sin datos."; `unavailable` llega en US4 — depende de T013
-- [ ] T022 [US1] Implementar los componentes en `frontend/src/features/reports/components/`:
+- [X] T022 [US1] Implementar los componentes en `frontend/src/features/reports/components/`:
       `report-section.tsx` (`ReportSection({ section }: { section: SectionView })`: una `region` con
       `h3`, "Sin datos." con `role="note"` y los bloques con `h4` y `<table>` con `<thead>`, `<tbody>`
       y `<tfoot>`); `report-document.tsx` (`ReportDocument({ view }: { view: ReportView })`: `article`

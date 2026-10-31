@@ -162,7 +162,7 @@ describe("010/US1 - Generar y ver el reporte de un sprint", () => {
     ).toBeTruthy();
     const effort = region(report, "Esfuerzo");
     expect(within(effort).getByText("Bruno Díaz")).toBeTruthy();
-    expect(within(effort).getByText("Total registrado")).toBeTruthy();
+    expect(within(effort).getByText("Total registrado: 50,00")).toBeTruthy();
     expect(
       within(region(report, "Métricas")).getByText("Desviación porcentual"),
     ).toBeTruthy();

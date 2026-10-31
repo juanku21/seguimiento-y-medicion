@@ -665,7 +665,7 @@ métricas y de defectos dicen "No se pudo obtener esta sección." y las demás s
       datos." (textos distintos, RN-12); una sección de defectos `empty` conserva "Detectados: 0" y
       "Resueltos: 0"; y el documento PDF conserva el título y el mensaje de cada sección `empty` y
       `unavailable`, en el mismo orden que la vista (US4-5) — depende de T024, T031
-- [ ] T042 [US4] Pruebas de escenario en
+- [X] T042 [US4] Pruebas de escenario en
       `frontend/src/features/reports/components/reports-view.test.tsx`, con
       `describe("010/US4 - Leer un reporte con secciones sin datos")` y un `it` por escenario según
       la tabla de plan.md, precedido por `// Escenario: US4-k (<caso>)`: (1) "Sin datos." con

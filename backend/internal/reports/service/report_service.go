@@ -195,12 +195,12 @@ func (s *ReportService) sprintStoryGroup(ctx context.Context, sprint domain.Spri
 // estimationGroup arma el grupo de estimaciones de las historias de un grupo, en el mismo orden; el
 // corte es el cierre del sprint Cerrado y no existe en el Activo ni en las no planificadas, donde
 // sprint es nil (RN-09, RN-10).
-func (s *ReportService) estimationGroup(ctx context.Context, sprint *domain.SprintRef, stories []domain.StoryLine) (domain.EstimationGroup, error) {
+func (s *ReportService) estimationGroup(ctx context.Context, projectID uuid.UUID, sprint *domain.SprintRef, stories []domain.StoryLine) (domain.EstimationGroup, error) {
 	storyIDs := make([]uuid.UUID, 0, len(stories))
 	for _, story := range stories {
 		storyIDs = append(storyIDs, story.StoryID)
 	}
-	sessions, err := s.repo.LoadEstimationSessions(ctx, storyIDs)
+	sessions, err := s.repo.LoadEstimationSessions(ctx, projectID, storyIDs)
 	if err != nil {
 		return domain.EstimationGroup{}, fmt.Errorf("armar las estimaciones del reporte: %w", err)
 	}
@@ -264,7 +264,7 @@ func (s *ReportService) storiesAndEstimations(ctx context.Context, projectID uui
 	// Un grupo de estimaciones por grupo de historias, en el mismo orden.
 	estimationGroups := make([]domain.EstimationGroup, 0, len(storyGroups))
 	for _, group := range storyGroups {
-		estimationGroup, err := s.estimationGroup(ctx, group.Sprint, group.Stories)
+		estimationGroup, err := s.estimationGroup(ctx, projectID, group.Sprint, group.Stories)
 		if err != nil {
 			logSectionFailure("estimations", projectID, err)
 			return storyGroups, stories, unavailableEstimations
@@ -340,7 +340,7 @@ func (s *ReportService) effortSection(ctx context.Context, projectID uuid.UUID, 
 			sprintIDs = append(sprintIDs, sprint.ID)
 		}
 		var err error
-		rows, err = s.repo.LoadEffort(ctx, sprintIDs)
+		rows, err = s.repo.LoadEffort(ctx, projectID, sprintIDs)
 		if err != nil {
 			logSectionFailure("effort", projectID, err)
 			return domain.EffortSection{State: domain.SectionUnavailable}

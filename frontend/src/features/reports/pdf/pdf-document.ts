@@ -23,7 +23,8 @@ function buildTable(table: TableView): PdfContent {
   const longColumn = longTextColumn(table);
   const body: PdfContent[][] = [
     table.columns.map((column) => ({ text: column, style: "tableHeader" })),
-    ...table.rows,
+    // Copia de cada fila: pdfmake muta los arreglos y no debe tocar la vista.
+    ...table.rows.map((row) => [...row]),
   ];
   if (table.footer) {
     body.push(table.footer.map((cell) => ({ text: cell, bold: true })));

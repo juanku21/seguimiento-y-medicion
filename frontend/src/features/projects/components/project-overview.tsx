@@ -91,6 +91,12 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
           Dashboard
         </Link>
         <Link
+          href={`/projects/${project.id}/reports`}
+          className="text-sm font-medium underline underline-offset-4"
+        >
+          Reportes
+        </Link>
+        <Link
           href={`/projects/${project.id}/backlog`}
           className="text-sm font-medium underline underline-offset-4"
         >

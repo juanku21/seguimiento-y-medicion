@@ -236,4 +236,16 @@ describe("009 - Navegación de la vista del proyecto al dashboard", () => {
       `/projects/${project.id}/dashboard`,
     );
   });
+
+  // La navegación "Secciones del proyecto" ofrece el enlace a los reportes (010).
+  it("ofrece el enlace a los reportes", async () => {
+    const project = projectWith(membersWithEmail);
+    await renderOverview(fetchMock, project);
+
+    const nav = screen.getByRole("navigation", {
+      name: "Secciones del proyecto",
+    });
+    const link = within(nav).getByRole("link", { name: "Reportes" });
+    expect(link.getAttribute("href")).toBe(`/projects/${project.id}/reports`);
+  });
 });

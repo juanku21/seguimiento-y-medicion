@@ -271,7 +271,7 @@ con el `article` "Reporte".
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T010 [P] [US1] Pruebas unitarias **obligatorias** en
+- [X] T010 [P] [US1] Pruebas unitarias **obligatorias** en
       `backend/internal/reports/domain/rules_test.go`, con tablas y `t.Run`: `EnsureReportable` con
       `planned` → `ErrSprintNotStarted` (RN-04), y con `active` y `closed` → nil; `IsPartial` en el
       alcance `sprint` con un Activo → `true` y con un Cerrado → `false` (RN-03); `SortStories` con
@@ -281,7 +281,7 @@ con el `article` "Reporte".
       instantánea aunque el vigente sea otro) y fuera de ella (devuelve el vigente) (FR-021); y
       `StoriesState` con todos los grupos vacíos → `empty`, y con uno con historias → `complete`
       (RN-11). Crear las firmas mínimas para que compile — depende de T002
-- [ ] T011 [P] [US1] Pruebas unitarias **obligatorias** de `SelectEstimation(sessions, cutoff
+- [X] T011 [P] [US1] Pruebas unitarias **obligatorias** de `SelectEstimation(sessions, cutoff
       *time.Time)` en `backend/internal/reports/domain/estimation_test.go`, cubriendo RN-09, RN-10,
       FR-013 a FR-015 y research.md sección 5: sin sesiones → `none` y `Session` nil; dos `finished`
       → la de mayor `closed_at`, con sus `Rounds` y su valor; empate de `closed_at` → mayor `id`; solo
@@ -290,7 +290,7 @@ con el `article` "Reporte".
       no cuenta (`none` si es la única); con corte, la `finished` anterior al corte gana a otra
       posterior; sin corte (`nil`), todas cuentan. Crear las firmas mínimas para que compile —
       depende de T002
-- [ ] T012 [US1] Pruebas de escenario de integración en
+- [X] T012 [US1] Pruebas de escenario de integración en
       `backend/internal/reports/delivery/handler_test.go`, una función por escenario con los nombres
       de la tabla de plan.md, cada una precedida por `// Escenario: <nombre> (010/US1)`:
       `TestUS1_ReporteDeSprintCerrado` (4 historias, 2 completadas, esfuerzo de 2 integrantes y 3
@@ -319,7 +319,7 @@ con el `article` "Reporte".
       `backend/internal/reports/service/report_service_test.go`, `TestSprintReportSaveFails`
       (SC-018): con un `GenerationRepository` de prueba que devuelve error, `SprintReport` devuelve
       error y no un reporte — depende de T006
-- [ ] T013 [P] [US1] Pruebas unitarias **obligatorias** en `frontend/src/features/reports/api.test.ts`
+- [X] T013 [P] [US1] Pruebas unitarias **obligatorias** en `frontend/src/features/reports/api.test.ts`
       y `frontend/src/features/reports/view-model.test.ts`: `isReport` acepta `sprintReport()` y
       rechaza un cuerpo sin `header`, con `stories.state` desconocido, con `storyPoints` `"8"` y con
       una sección faltante (Principio VII); `buildReportView(sprintReport(), "America/Argentina/Buenos_Aires")`
@@ -334,7 +334,7 @@ con el `article` "Reporte".
       `storyCompletionPercent` → "No calculable: <explicación>" y **nunca** "0" (RN-13), `not_applicable`
       → "No aplica", y las marcas " · Parcial", " · Provisoria" y " · Definitiva", distintas entre sí
       (RN-14). Crear las firmas mínimas para que compile — depende de T007
-- [ ] T014 [US1] Pruebas de escenario en
+- [X] T014 [US1] Pruebas de escenario en
       `frontend/src/features/reports/components/reports-view.test.tsx`, montando `ReportsView` con
       `renderReports`, con `describe("010/US1 - Generar y ver el reporte de un sprint")` y un `it` por
       escenario con los nombres de la tabla de plan.md, cada uno precedido por
@@ -355,13 +355,13 @@ con el `article` "Reporte".
 
 ### Implementación de la Historia 1
 
-- [ ] T015 [P] [US1] Implementar en `backend/internal/reports/domain/rules.go` `EnsureReportable`,
+- [X] T015 [P] [US1] Implementar en `backend/internal/reports/domain/rules.go` `EnsureReportable`,
       `IsPartial`, `SortStories`, `StoryTitle` y `StoriesState`, como funciones puras con su
       comentario en español y la referencia a la regla (data-model.md sección 2.4) — depende de T010
-- [ ] T016 [P] [US1] Implementar en `backend/internal/reports/domain/estimation.go`
+- [X] T016 [P] [US1] Implementar en `backend/internal/reports/domain/estimation.go`
       `SelectEstimation(sessions []SessionRecord, cutoff *time.Time) (PokerState, *PokerSummary)`
       según research.md sección 5, sin consultar nada — depende de T011
-- [ ] T017 [US1] Implementar en `backend/internal/reports/repository/report_repository.go`, con
+- [X] T017 [US1] Implementar en `backend/internal/reports/repository/report_repository.go`, con
       `tx.Raw` y parámetros con nombre como `metrics/repository`, cada lectura en su propia consulta y
       cada error envuelto con `fmt.Errorf("…: %w", err)`: `LoadHeader` (proyecto por id y
       `users.full_name` del que pide); `LoadSprint` acotado al `project_id` (`ErrSprintNotFound` con
@@ -376,7 +376,7 @@ con el `article` "Reporte".
       detección, `created_at`, `id` (research.md sección 7). `ListSprints` y `LoadUnplannedStories`
       quedan para US3. Implementar en `generation_repository.go` `Save` con `db.Create` — depende de
       T012
-- [ ] T018 [US1] Implementar en `backend/internal/reports/service/report_service.go` `SprintReport`:
+- [X] T018 [US1] Implementar en `backend/internal/reports/service/report_service.go` `SprintReport`:
       tomar `now` una sola vez; `LoadSprint` y `EnsureReportable` (propagar `ErrSprintNotFound` y
       `ErrSprintNotStarted` con `%w`); `LoadHeader`; historias con `SortStories` y `StoriesState`;
       estimaciones con los mismos grupos, `SelectEstimation` con corte `ClosedAt` en el Cerrado y
@@ -386,7 +386,7 @@ con el `article` "Reporte".
       `GenerationRepository.Save` con `GeneratedAt = now`; si falla, devolver el error y ningún
       reporte (research.md sección 10). En esta historia, toda falla de lectura se propaga; los
       estados `unavailable` llegan en US4 — depende de T015, T016, T017
-- [ ] T019 [US1] Implementar en `backend/internal/reports/delivery/dto.go` la forma JSON del contrato
+- [X] T019 [US1] Implementar en `backend/internal/reports/delivery/dto.go` la forma JSON del contrato
       (`Report`, `Header`, secciones, grupos y líneas, con `json` en camelCase, `validate:"required"`,
       `extensions:"x-nullable"` donde el contrato lo marca y horas como `httpserver.Hundredths`), con
       `metrics.sprint` armado con `metricsdelivery.NewSprintMetrics`; y en
@@ -398,19 +398,19 @@ con el `article` "Reporte".
       `ErrSprintNotFound` → `404` y `ErrSprintNotStarted` → `409` "El sprint todavía no arrancó: no
       tiene nada que reportar."; cualquier otro error → `500` genérico registrado con `slog`
       (Principio VII) — depende de T018
-- [ ] T020 [P] [US1] Implementar en `frontend/src/features/reports/api.ts` el reconocedor `isReport`
+- [X] T020 [P] [US1] Implementar en `frontend/src/features/reports/api.ts` el reconocedor `isReport`
       sobre `isRecord`, sin `any`, que verifica las seis secciones, sus `state` y los tipos de cada
       campo del contrato (las métricas con los reconocedores de la 009 si están exportados; si no,
       con los propios), y `generateSprintReport(projectId, sprintId)` con
       `postAuthorizedJson(path, {}, isReport)` sobre `/api/v1/projects/{projectId}/reports/sprints/{sprintId}`,
       con el comentario de que el backend no lee el cuerpo — depende de T013
-- [ ] T021 [P] [US1] Implementar en `frontend/src/features/reports/view-model.ts` los tipos
+- [X] T021 [P] [US1] Implementar en `frontend/src/features/reports/view-model.ts` los tipos
       `ReportView`, `SectionView` y `BlockView` de data-model.md sección 3.2 y las funciones puras
       `buildReportView(report, timeZone)` y `metricText(metric, kind)` para el alcance `sprint`, con
       los textos exactos de contracts/ui-contract.md y los formateadores y etiquetas listados en
       "Base existente"; ninguna cadena se arma fuera de este archivo (research.md sección 13). Los
       estados `empty` se resuelven con "Sin datos."; `unavailable` llega en US4 — depende de T013
-- [ ] T022 [US1] Implementar los componentes en `frontend/src/features/reports/components/`:
+- [X] T022 [US1] Implementar los componentes en `frontend/src/features/reports/components/`:
       `report-section.tsx` (`ReportSection({ section }: { section: SectionView })`: una `region` con
       `h3`, "Sin datos." con `role="note"` y los bloques con `h4` y `<table>` con `<thead>`, `<tbody>`
       y `<tfoot>`); `report-document.tsx` (`ReportDocument({ view }: { view: ReportView })`: `article`
@@ -727,6 +727,17 @@ completas.
 - [ ] T049 Validar a mano con [quickstart.md](./quickstart.md) secciones 2 y 3, en particular el
       PDF de 80 historias (paso 3.5), los caracteres especiales (paso 3.6) y la falla de exportación
       (paso 3.8), y anotar en el pull request de esta fase qué se verificó — depende de T048
+
+---
+
+## Phase 8: Convergence and Security
+
+Propósito: ajustes transversales detectados por /speckit-converge y /revisar-seguridad.
+
+- [ ] T050 Agregar prueba de integración que verifica que LoadEffort y LoadEstimationSessions no devuelven filas de sprints o historias de otro proyecto aunque se les pase su id, en backend/internal/reports/repository/ per hallazgo de seguridad: consultas de esfuerzo y sesiones sin filtro de proyecto (security) — origen: seguridad, detectado en 010/US1
+- [ ] T051 Recibir projectID en LoadEffort y LoadEstimationSessions y filtrar por él (JOIN con sprints y user_stories) en backend/internal/reports/repository/report_repository.go y en la interfaz de backend/internal/reports/domain/ per hallazgo de seguridad: consultas de esfuerzo y sesiones sin filtro de proyecto (security) — origen: seguridad, detectado en 010/US1
+- [ ] T052 Justificar o quitar la opción "Proyecto completo" y su valor inicial con el botón deshabilitado en frontend/src/features/reports/components/report-scope-select.tsx y frontend/src/features/reports/components/reports-view.tsx hasta que T038 la incorpore, ajustando la prueba de frontend/src/features/reports/components/reports-view.test.tsx per plan: la opción "Proyecto completo" la agrega T038 (unrequested) — origen: converge, detectado en hu/010-us1-generar-y-ver-el-reporte-de-un-sprint
+- [ ] T053 Cubrir con una prueba o quitar la traducción de metrics.project en NewReport de backend/internal/reports/delivery/dto.go hasta US3 per Constitución Principio II (unrequested) — origen: converge, detectado en hu/010-us1-generar-y-ver-el-reporte-de-un-sprint
 
 ---
 

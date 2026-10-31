@@ -1,0 +1,58 @@
+package domain
+
+import (
+	"bytes"
+	"cmp"
+	"slices"
+
+	sprintsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
+)
+
+// EnsureReportable rechaza el sprint Planificado porque todavía no tiene nada que reportar (RN-04);
+// el sprint Activo y el Cerrado se aceptan.
+func EnsureReportable(status sprintsdomain.SprintStatus) error {
+	if status == sprintsdomain.SprintStatusPlanned {
+		return ErrSprintNotStarted
+	}
+	return nil
+}
+
+// IsPartial indica si el reporte incluye algún sprint Activo, cuyos datos todavía pueden cambiar
+// (RN-03). El alcance no altera la regla: aplica igual a un sprint y a todo el proyecto.
+func IsPartial(scope ReportScope, sprints []SprintRef) bool {
+	return slices.ContainsFunc(sprints, func(s SprintRef) bool {
+		return s.Status == sprintsdomain.SprintStatusActive
+	})
+}
+
+// SortStories ordena las historias in situ por prioridad (high, medium, low), después por título y
+// por último por story_id, para que el orden sea estable (RN-22).
+func SortStories(lines []StoryLine) {
+	slices.SortStableFunc(lines, func(a, b StoryLine) int {
+		return cmp.Or(
+			cmp.Compare(a.Priority.Rank(), b.Priority.Rank()),
+			cmp.Compare(a.Title, b.Title),
+			bytes.Compare(a.StoryID[:], b.StoryID[:]),
+		)
+	})
+}
+
+// StoryTitle devuelve el título de la instantánea si la historia está en ella (puntero no nulo) y,
+// si no, el título vigente (FR-021).
+func StoryTitle(snapshot *string, current string) string {
+	if snapshot != nil {
+		return *snapshot
+	}
+	return current
+}
+
+// StoriesState devuelve la sección de historias vacía si ningún grupo tiene historias y completa en
+// caso contrario (RN-11).
+func StoriesState(groups []StoryGroup) SectionState {
+	for _, g := range groups {
+		if len(g.Stories) > 0 {
+			return SectionComplete
+		}
+	}
+	return SectionEmpty
+}

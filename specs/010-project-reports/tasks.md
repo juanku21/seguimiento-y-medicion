@@ -281,7 +281,7 @@ con el `article` "Reporte".
       instantánea aunque el vigente sea otro) y fuera de ella (devuelve el vigente) (FR-021); y
       `StoriesState` con todos los grupos vacíos → `empty`, y con uno con historias → `complete`
       (RN-11). Crear las firmas mínimas para que compile — depende de T002
-- [ ] T011 [P] [US1] Pruebas unitarias **obligatorias** de `SelectEstimation(sessions, cutoff
+- [X] T011 [P] [US1] Pruebas unitarias **obligatorias** de `SelectEstimation(sessions, cutoff
       *time.Time)` en `backend/internal/reports/domain/estimation_test.go`, cubriendo RN-09, RN-10,
       FR-013 a FR-015 y research.md sección 5: sin sesiones → `none` y `Session` nil; dos `finished`
       → la de mayor `closed_at`, con sus `Rounds` y su valor; empate de `closed_at` → mayor `id`; solo

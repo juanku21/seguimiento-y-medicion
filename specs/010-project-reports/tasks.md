@@ -224,7 +224,7 @@ declaran tipos, esquema, composición y ayudantes, sin reglas de negocio.
       `footer(currentPage: number, pageCount: number)`, `pageMargins`, `styles`, `defaultStyle`,
       `info.title`), `createPdf(definition): { download(fileName: string): Promise<void> }` y
       `addVirtualFileSystem(vfs: Record<string, string>): void`. Sin `any`. `npx tsc --noEmit` pasa
-- [ ] T008 [P] Leer antes `frontend/node_modules/next/dist/docs/01-app/01-getting-started/03-layouts-and-pages.md`
+- [X] T008 [P] Leer antes `frontend/node_modules/next/dist/docs/01-app/01-getting-started/03-layouts-and-pages.md`
       y `05-server-and-client-components.md` (CLAUDE.md). Crear
       `frontend/src/app/projects/[projectId]/reports/page.tsx`, un Server Component con
       `metadata.title = "Reportes | Software Metrics & Estimation"` que lee `params` como `Promise`,

@@ -16,6 +16,7 @@ import {
   type MetricKind,
 } from "@/utils/metric-explanations";
 import { formatDecimal, formatShare } from "@/utils/metric-format";
+import { reportFileName } from "@/utils/report-file-name";
 import {
   STORY_PRIORITY_LABELS,
   STORY_STATUS_LABELS,
@@ -356,7 +357,13 @@ export function buildReportView(report: Report, timeZone: string): ReportView {
         blocks: defects,
       },
     ],
-    // El nombre del archivo lo arma reportFileName en US2.
-    fileName: "",
+    // Nombre del PDF con proyecto, alcance y fecha de generación en la zona del navegador.
+    fileName: reportFileName({
+      projectName: header.projectName,
+      scope: report.scope,
+      sprintName: header.sprint?.name ?? null,
+      generatedAt: header.generatedAt,
+      timeZone,
+    }),
   };
 }

@@ -4,6 +4,8 @@ import { useCallback, useMemo, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
 import { generateSprintReport } from "@/features/reports/api";
+import { buildPdfDocument } from "@/features/reports/pdf/pdf-document";
+import { exportReportPdf } from "@/features/reports/pdf/export-pdf";
 import { ReportDocument } from "@/features/reports/components/report-document";
 import {
   PROJECT_SCOPE,
@@ -31,6 +33,9 @@ type GenerationState =
 // Mensaje cuando el servidor falla o su respuesta no se reconoce.
 const GENERIC_ERROR = "No se pudo generar el reporte. Intentá de nuevo.";
 
+// Mensaje cuando falla la generación o la descarga del PDF.
+const EXPORT_ERROR = "No se pudo generar el PDF. Intentá de nuevo.";
+
 // Vista de reportes del proyecto (010/US1): elige el alcance, genera el reporte del sprint y lo
 // muestra. El reporte consolidado del proyecto llega con la Historia 3.
 export function ReportsView({ projectId }: ReportsViewProps) {
@@ -44,6 +49,9 @@ export function ReportsView({ projectId }: ReportsViewProps) {
   const [generation, setGeneration] = useState<GenerationState>({
     status: "idle",
   });
+  // Estado de la exportación: no toca el reporte en pantalla (FR-033).
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   // Zona horaria del navegador, con la que se muestra la fecha de generación.
   const timeZone = useMemo(
     () => Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -66,6 +74,19 @@ export function ReportsView({ projectId }: ReportsViewProps) {
       status: "error",
       message: status === 404 || status === 409 ? message : GENERIC_ERROR,
     });
+  }
+
+  // Exporta a PDF el reporte en pantalla; una falla se informa sin alterar el reporte.
+  async function handleExport(view: ReportView) {
+    setExporting(true);
+    setExportError(null);
+    try {
+      await exportReportPdf(buildPdfDocument(view), view.fileName);
+    } catch {
+      setExportError(EXPORT_ERROR);
+    } finally {
+      setExporting(false);
+    }
   }
 
   if (sprints.status === "loading") {
@@ -99,7 +120,18 @@ export function ReportsView({ projectId }: ReportsViewProps) {
       </div>
       {generation.status === "error" && <Alert>{generation.message}</Alert>}
       {generation.status === "shown" && (
-        <ReportDocument view={generation.view} />
+        <>
+          <div className="flex flex-col gap-4 sm:max-w-md">
+            <Button
+              onClick={() => handleExport(generation.view)}
+              disabled={exporting}
+            >
+              {exporting ? "Exportando…" : "Exportar a PDF"}
+            </Button>
+            {exportError && <Alert>{exportError}</Alert>}
+          </div>
+          <ReportDocument view={generation.view} />
+        </>
       )}
     </div>
   );

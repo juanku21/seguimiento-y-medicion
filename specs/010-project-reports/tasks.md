@@ -504,7 +504,7 @@ si la exportación falla, la pantalla sigue igual.
       `widths` con `*` en la columna de texto largo y `auto` en las demás), `footer` con "Página N de M"
       y la nota, `pageMargins`, estilos y `defaultStyle.font = "Roboto"`. Sin formatear nada: solo lee
       `view` — depende de T024
-- [ ] T028 [US2] Implementar en `frontend/src/features/reports/pdf/export-pdf.ts`
+- [X] T028 [US2] Implementar en `frontend/src/features/reports/pdf/export-pdf.ts`
       `exportReportPdf(definition, fileName): Promise<void>`, que importa con `import()`
       `pdfmake/build/pdfmake` y `pdfmake/build/vfs_fonts`, registra las fuentes con
       `addVirtualFileSystem` y llama a `createPdf(definition).download(fileName)`, con un comentario de

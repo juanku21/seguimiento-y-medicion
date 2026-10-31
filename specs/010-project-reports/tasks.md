@@ -658,7 +658,7 @@ métricas y de defectos dicen "No se pudo obtener esta sección." y las demás s
       repositorio fallando solo en `LoadEffort` → solo `effort` `unavailable`; en los dos casos
       `200` y la fila de `report_generations` (FR-025); y el repositorio fallando en `LoadHeader` →
       `500` genérico y **ninguna** fila en `report_generations` (FR-025, excepción del encabezado) — depende de T030
-- [ ] T041 [P] [US4] Pruebas unitarias **obligatorias** en
+- [X] T041 [P] [US4] Pruebas unitarias **obligatorias** en
       `frontend/src/features/reports/view-model.test.ts` y
       `frontend/src/features/reports/pdf/pdf-document.test.ts`: con `state` `unavailable`, la
       `SectionView` tiene "No se pudo obtener esta sección." y ningún bloque, y con `empty` tiene "Sin

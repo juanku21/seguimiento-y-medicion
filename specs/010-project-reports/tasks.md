@@ -678,7 +678,7 @@ métricas y de defectos dicen "No se pudo obtener esta sección." y las demás s
 
 ### Implementación de la Historia 4
 
-- [ ] T043 [P] [US4] Implementar en `backend/internal/reports/domain/rules.go` `EffortState`,
+- [X] T043 [P] [US4] Implementar en `backend/internal/reports/domain/rules.go` `EffortState`,
       `DefectsState` y `ProjectMetricsState` — depende de T039
 - [ ] T044 [US4] Implementar en `backend/internal/reports/service/report_service.go` los estados por
       sección de research.md sección 8: cada lectura independiente; si falla la de historias,

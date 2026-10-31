@@ -88,16 +88,18 @@ func ReportPeriod(sprints []SprintRef) *Period {
 
 // EffortState devuelve la sección de esfuerzo vacía si no hay filas en el alcance (RN-11).
 func EffortState(rows []EffortRow) SectionState {
-	if len(rows) == 0 {
-		return SectionEmpty
-	}
-	return SectionComplete
+	return stateByCount(len(rows))
 }
 
 // DefectsState devuelve la sección de defectos vacía si el listado está vacío (RN-11); los totales
 // se conservan aparte.
 func DefectsState(defects []DefectLine) SectionState {
-	if len(defects) == 0 {
+	return stateByCount(len(defects))
+}
+
+// stateByCount traduce la cantidad de elementos de una sección en su estado: vacía si es cero.
+func stateByCount(count int) SectionState {
+	if count == 0 {
 		return SectionEmpty
 	}
 	return SectionComplete

@@ -447,7 +447,7 @@ si la exportación falla, la pantalla sigue igual.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T023 [P] [US2] Pruebas unitarias **obligatorias** de `reportFileName` en
+- [X] T023 [P] [US2] Pruebas unitarias **obligatorias** de `reportFileName` en
       `frontend/src/utils/report-file-name.test.ts`, cubriendo RN-17, FR-029, FR-030 y los ejemplos
       de contracts/ui-contract.md: "Gestión de Compras", alcance proyecto, 30/10/2026 14:32:05 →
       `Reporte_Gestion-de-Compras_proyecto_2026-10-30_14-32-05.pdf`; "Ñandú: App/Web *beta*" con

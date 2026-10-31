@@ -300,10 +300,7 @@ describe("010/US3 - Generar y ver el reporte de un proyecto completo", () => {
         },
       ],
     };
-    const report = projectWith([
-      ...(base.stories.groups ?? []),
-      unplanned,
-    ]);
+    const report = projectWith([...(base.stories.groups ?? []), unplanned]);
     const blocks = section(report, "stories").blocks;
     const last = blocks[blocks.length - 1];
     expect(last.heading).toBe("Historias no planificadas");

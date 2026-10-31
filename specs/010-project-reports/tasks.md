@@ -716,7 +716,7 @@ completas.
       en la tabla del stack del frontend; y `report_generations` donde se listan las tablas, aclarando
       que guarda solo quién, cuándo y con qué alcance. Mantener el paso a paso de ejecución sin
       cambios, porque no hay servicios ni variables nuevas
-- [ ] T048 Ejecutar las puertas de calidad y dejar constancia del resultado: `gofmt -l backend`
+- [X] T048 Ejecutar las puertas de calidad y dejar constancia del resultado: `gofmt -l backend`
       vacío, `go vet ./...`, `go test ./... -coverprofile=coverage.out` contra la base de test,
       `govulncheck ./...`, `npm run lint`, `npm run format:check` y `npm run test:coverage`; `grep -rn
       "010/US" backend frontend/src` con los 26 escenarios del backend y los 35 del frontend de la

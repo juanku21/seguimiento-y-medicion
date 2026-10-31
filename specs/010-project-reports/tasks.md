@@ -542,7 +542,7 @@ reporte de proyecto tiene cuatro grupos en orden, más el de no planificadas, y 
       intacto (RN-05, RN-07, FR-007); `ReportPeriod` con tres sprints → menor inicio y mayor fin, con
       uno → sus fechas, y sin sprints → nil; e `IsPartial` en el alcance `project` con y sin un Activo
       (RN-06). Crear las firmas mínimas para que compile — depende de T015
-- [ ] T030 [US3] Pruebas de escenario de integración en
+- [X] T030 [US3] Pruebas de escenario de integración en
       `backend/internal/reports/delivery/handler_test.go`, con los nombres de la tabla de plan.md y
       `// Escenario: <nombre> (010/US3)`: `TestUS3_ProyectoConTresSprintsCerrados` (grupos en orden
       cronológico, `period` del primero al último y `metrics.project` igual a

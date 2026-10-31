@@ -203,7 +203,7 @@ declaran tipos, esquema, composición y ayudantes, sin reglas de negocio.
       `withoutGeneration(report)`, que borra `header.generatedAt` y `header.generatedBy`; y
       `generationRows(t, projectID) []domain.ReportGeneration`, que lee `report_generations`. Cada
       ayudante con su comentario en español — depende de T003, T005
-- [ ] T007 [P] Declarar los tipos del frontend: en `frontend/src/types/report.ts`, con comentario de
+- [X] T007 [P] Declarar los tipos del frontend: en `frontend/src/types/report.ts`, con comentario de
       cabecera ("Tipos de la respuesta de los reportes, según
       specs/010-project-reports/contracts/openapi.yaml"), `ReportScope`, `SectionState`,
       `GroupState`, `StoryResult`, `PokerState`, `ReportSprint`, `Period`, `ReportHeader`,

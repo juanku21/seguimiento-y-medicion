@@ -44,6 +44,24 @@ export type Cumulative = {
   storyCompletionPercent: Metric;
 };
 
+// Sprint al que se refieren las métricas.
+export type SprintMetricsRef = {
+  id: string;
+  name: string;
+  status: "planned" | "active" | "closed";
+  startDate: string;
+  endDate: string;
+  closedAt: string | null;
+};
+
+// Métricas de un sprint, con las nueve métricas y sus advertencias.
+export type SprintMetrics = ActiveSprintMetrics & {
+  sprint: SprintMetricsRef;
+  defectsDetected: SprintMetric;
+  defectsResolved: SprintMetric;
+  warnings: MetricsWarning[];
+};
+
 // Cantidad de defectos por severidad.
 export type SeverityBreakdown = {
   critical: number;
@@ -70,9 +88,12 @@ export type MetricsWarning = {
 
 // Respuesta de las métricas del proyecto.
 export type ProjectMetricsResponse = {
-  velocity: { value: Metric };
+  velocity: { value: Metric; sprintsConsidered: number };
   cumulative: Cumulative;
-  defects: { open: DefectTally };
+  effortOutsideSprintsHours: number;
+  effortInPlannedSprintsHours: number;
+  unestimatedBacklogStories: number;
+  defects: { detected: DefectTally; resolved: DefectTally; open: DefectTally };
   warnings: MetricsWarning[];
 };
 

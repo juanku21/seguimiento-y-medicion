@@ -641,12 +641,12 @@ métricas y de defectos dicen "No se pudo obtener esta sección." y las demás s
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T039 [P] [US4] Pruebas unitarias **obligatorias** en
+- [X] T039 [P] [US4] Pruebas unitarias **obligatorias** en
       `backend/internal/reports/domain/rules_test.go` de `EffortState` (sin filas → `empty`),
       `DefectsState` (listado vacío → `empty` con los totales conservados) y `ProjectMetricsState`
       (alcance `project` sin sprints reportables → `empty`; con alguno → `complete`), según la tabla
       de research.md sección 8 (RN-11). Crear las firmas mínimas para que compile — depende de T033
-- [ ] T040 [US4] Pruebas de escenario de integración con los nombres de la tabla de plan.md y
+- [X] T040 [US4] Pruebas de escenario de integración con los nombres de la tabla de plan.md y
       `// Escenario: <nombre> (010/US4)`: en `backend/internal/reports/delivery/handler_test.go`,
       `TestUS4_SprintSinEsfuerzo` (`effort.state` `empty`, `totalHours` `0.00`, grupos sin filas),
       `TestUS4_SprintSinDefectos` (`defects.state` `empty`, `defects` vacío y `totals` en 0),
@@ -658,14 +658,14 @@ métricas y de defectos dicen "No se pudo obtener esta sección." y las demás s
       repositorio fallando solo en `LoadEffort` → solo `effort` `unavailable`; en los dos casos
       `200` y la fila de `report_generations` (FR-025); y el repositorio fallando en `LoadHeader` →
       `500` genérico y **ninguna** fila en `report_generations` (FR-025, excepción del encabezado) — depende de T030
-- [ ] T041 [P] [US4] Pruebas unitarias **obligatorias** en
+- [X] T041 [P] [US4] Pruebas unitarias **obligatorias** en
       `frontend/src/features/reports/view-model.test.ts` y
       `frontend/src/features/reports/pdf/pdf-document.test.ts`: con `state` `unavailable`, la
       `SectionView` tiene "No se pudo obtener esta sección." y ningún bloque, y con `empty` tiene "Sin
       datos." (textos distintos, RN-12); una sección de defectos `empty` conserva "Detectados: 0" y
       "Resueltos: 0"; y el documento PDF conserva el título y el mensaje de cada sección `empty` y
       `unavailable`, en el mismo orden que la vista (US4-5) — depende de T024, T031
-- [ ] T042 [US4] Pruebas de escenario en
+- [X] T042 [US4] Pruebas de escenario en
       `frontend/src/features/reports/components/reports-view.test.tsx`, con
       `describe("010/US4 - Leer un reporte con secciones sin datos")` y un `it` por escenario según
       la tabla de plan.md, precedido por `// Escenario: US4-k (<caso>)`: (1) "Sin datos." con
@@ -678,9 +678,9 @@ métricas y de defectos dicen "No se pudo obtener esta sección." y las demás s
 
 ### Implementación de la Historia 4
 
-- [ ] T043 [P] [US4] Implementar en `backend/internal/reports/domain/rules.go` `EffortState`,
+- [X] T043 [P] [US4] Implementar en `backend/internal/reports/domain/rules.go` `EffortState`,
       `DefectsState` y `ProjectMetricsState` — depende de T039
-- [ ] T044 [US4] Implementar en `backend/internal/reports/service/report_service.go` los estados por
+- [X] T044 [US4] Implementar en `backend/internal/reports/service/report_service.go` los estados por
       sección de research.md sección 8: cada lectura independiente; si falla la de historias,
       historias **y** estimaciones `unavailable`; si falla la de sesiones, solo estimaciones; si falla
       la de esfuerzo, solo esfuerzo; si falla `MetricsSource`, métricas **y** defectos; si falla la de
@@ -690,7 +690,7 @@ métricas y de defectos dicen "No se pudo obtener esta sección." y las demás s
       `500`). Aplicar `EffortState`, `DefectsState` y `ProjectMetricsState`. En
       `backend/internal/reports/delivery/dto.go`, las secciones `unavailable` con sus datos en `null`
       según el contrato — depende de T040, T043
-- [ ] T045 [US4] Implementar el estado `unavailable` y los totales de una sección de defectos vacía en
+- [X] T045 [US4] Implementar el estado `unavailable` y los totales de una sección de defectos vacía en
       `frontend/src/features/reports/view-model.ts`, en `report-section.tsx` el mensaje
       "No se pudo obtener esta sección." con `role="alert"`, y en `pdf/pdf-document.ts` el mensaje de
       las dos clases de sección — depende de T041, T042

@@ -3,6 +3,7 @@ package delivery
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +20,7 @@ import (
 	authrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/repository"
 	authservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/auth/service"
 	metricsdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/metrics/delivery"
+	metricsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/metrics/domain"
 	metricsrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/metrics/repository"
 	metricsservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/metrics/service"
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/config"
@@ -1196,4 +1198,186 @@ func TestProjectReportActiveSprintChanges(t *testing.T) {
 	require.Len(t, after.Stories.Groups, 2)
 	assert.Equal(t, []string{"Alta de clientes"}, storyTitles(before.Stories.Groups[0].Stories))
 	assert.Equal(t, []string{"Alta renombrada"}, storyTitles(after.Stories.Groups[0].Stories))
+}
+
+// Escenario: Caso límite — sprint sin ningún registro de esfuerzo (010/US4)
+func TestUS4_SprintSinEsfuerzo(t *testing.T) {
+	f := newReportsFixture(t)
+	story := f.env.createStory(t, f.ownerToken, f.projectID, "Alta de clientes", "high", 8)
+	sprintID := f.activeSprint(t, story)
+	f.closeAndFixClock(t, sprintID)
+
+	body := f.report(t, sprintID)
+
+	// La sección figura sin datos, con el total en 0.00 y los grupos sin filas.
+	assert.Equal(t, "empty", body.Effort.State)
+	require.NotNil(t, body.Effort.TotalHours)
+	assert.Zero(t, *body.Effort.TotalHours)
+	assert.Empty(t, body.Effort.ByMember)
+	for _, group := range body.Effort.Groups {
+		assert.Empty(t, group.Stories, "el grupo no debe tener filas")
+		assert.Zero(t, group.TotalHours)
+	}
+}
+
+// Escenario: Caso límite — sprint sin ningún defecto (010/US4)
+func TestUS4_SprintSinDefectos(t *testing.T) {
+	f := newReportsFixture(t)
+	story := f.env.createStory(t, f.ownerToken, f.projectID, "Alta de clientes", "high", 8)
+	sprintID := f.activeSprint(t, story)
+	f.closeAndFixClock(t, sprintID)
+
+	body := f.report(t, sprintID)
+
+	// La sección figura sin datos pero conserva los totales, en 0.
+	assert.Equal(t, "empty", body.Defects.State)
+	assert.Empty(t, body.Defects.Defects)
+	require.NotNil(t, body.Defects.Totals)
+	assert.Zero(t, body.Defects.Totals.Detected)
+	assert.Zero(t, body.Defects.Totals.Resolved)
+}
+
+// Escenario: Caso límite — historias sin estimar (010/US4)
+func TestUS4_HistoriasSinEstimar(t *testing.T) {
+	f := newReportsFixture(t)
+	first := f.env.createStory(t, f.ownerToken, f.projectID, "Alta de clientes", "high", 8)
+	second := f.env.createStory(t, f.ownerToken, f.projectID, "Baja de clientes", "medium", 5)
+	sprintID := f.activeSprint(t, first, second)
+	// La 004 no deja planificar historias sin estimar, así que se les quitan los puntos ya dentro del sprint.
+	f.env.forceRow(t, "UPDATE user_stories SET story_points = NULL WHERE id IN (?, ?)", first, second)
+	f.closeAndFixClock(t, sprintID)
+
+	body := f.report(t, sprintID)
+
+	// Las historias se listan sin Story Points y las métricas son las de la 008.
+	require.Len(t, body.Stories.Groups, 1)
+	require.Len(t, body.Stories.Groups[0].Stories, 2)
+	for _, line := range body.Stories.Groups[0].Stories {
+		assert.Nil(t, line.StoryPoints, "Story Points de %q", line.Title)
+	}
+	assert.Equal(t, "complete", body.Metrics.State)
+	require.JSONEq(t, string(f.metricsReference(t, sprintID)), string(body.Metrics.Sprint))
+}
+
+// Escenario: Caso límite — proyecto sin sprints ni historias (010/US4)
+func TestUS4_SeccionesSinDatos(t *testing.T) {
+	f := newReportsFixture(t)
+
+	body := f.projectReport(t)
+
+	// Las cinco secciones figuran sin datos y el encabezado está completo.
+	assert.Equal(t, reportsProjectName, body.Header.ProjectName)
+	assert.Equal(t, "Ana Pérez", body.Header.GeneratedBy.FullName)
+	assert.False(t, body.Header.GeneratedAt.IsZero())
+	assert.Equal(t, "empty", body.Stories.State)
+	assert.Equal(t, "empty", body.Estimations.State)
+	assert.Equal(t, "empty", body.Effort.State)
+	assert.Equal(t, "empty", body.Metrics.State)
+	assert.Equal(t, "empty", body.Defects.State)
+}
+
+// simulatedFailure es el texto del error inyectado; no debe aparecer nunca en una respuesta.
+const simulatedFailure = "fallo simulado de la fuente"
+
+// failingMetricsSource hace fallar las dos lecturas de la fuente de métricas.
+type failingMetricsSource struct {
+	reportsdomain.MetricsSource
+}
+
+func (failingMetricsSource) SprintMetrics(context.Context, uuid.UUID, uuid.UUID) (metricsdomain.SprintMetrics, []metricsdomain.Warning, error) {
+	return metricsdomain.SprintMetrics{}, nil, errors.New(simulatedFailure)
+}
+
+func (failingMetricsSource) ProjectMetrics(context.Context, uuid.UUID) (metricsdomain.ProjectMetrics, error) {
+	return metricsdomain.ProjectMetrics{}, errors.New(simulatedFailure)
+}
+
+// failingEffortRepository hace fallar solo la lectura del esfuerzo.
+type failingEffortRepository struct {
+	reportsdomain.ReportRepository
+}
+
+func (failingEffortRepository) LoadEffort(context.Context, []uuid.UUID) ([]reportsdomain.EffortRow, error) {
+	return nil, errors.New(simulatedFailure)
+}
+
+// failingHeaderRepository hace fallar solo la lectura del encabezado.
+type failingHeaderRepository struct {
+	reportsdomain.ReportRepository
+}
+
+func (failingHeaderRepository) LoadHeader(context.Context, uuid.UUID, uuid.UUID) (reportsdomain.ProjectInfo, reportsdomain.UserInfo, error) {
+	return reportsdomain.ProjectInfo{}, reportsdomain.UserInfo{}, errors.New(simulatedFailure)
+}
+
+// isJSONNull indica si el valor JSON crudo falta o es null.
+func isJSONNull(raw json.RawMessage) bool {
+	return len(raw) == 0 || string(raw) == "null"
+}
+
+// failingFixture arma un sprint Cerrado con historia, horas y defecto sobre un entorno compuesto.
+func failingFixture(t *testing.T, compose reportsCompose) (reportsFixture, uuid.UUID) {
+	t.Helper()
+	f := fixtureOn(t, newReportsTestEnvWith(t, compose))
+	story := f.env.createStory(t, f.ownerToken, f.projectID, "Alta de clientes", "high", 8)
+	sprintID := f.activeSprint(t, story)
+	f.env.logHours(t, f.ownerToken, story, 4)
+	f.env.createDefect(t, f.ownerToken, f.projectID, story, sprintID, "high", "Falla el alta")
+	f.closeAndFixClock(t, sprintID)
+	return f, sprintID
+}
+
+// Escenario: Caso de error — una sección no se pudo obtener (010/US4)
+func TestUS4_SeccionNoObtenible(t *testing.T) {
+	t.Run("falla la fuente de métricas", func(t *testing.T) {
+		f, sprintID := failingFixture(t, func(repo reportsdomain.ReportRepository, metrics reportsdomain.MetricsSource) (reportsdomain.ReportRepository, reportsdomain.MetricsSource) {
+			return repo, failingMetricsSource{MetricsSource: metrics}
+		})
+
+		body := f.report(t, sprintID)
+
+		// Métricas y defectos no se obtuvieron, con sus datos en null; el resto sigue completo.
+		assert.Equal(t, "unavailable", body.Metrics.State)
+		assert.True(t, isJSONNull(body.Metrics.Sprint), "metrics.sprint = %s", body.Metrics.Sprint)
+		assert.True(t, isJSONNull(body.Metrics.Project), "metrics.project = %s", body.Metrics.Project)
+		assert.Equal(t, "unavailable", body.Defects.State)
+		assert.Nil(t, body.Defects.Defects)
+		assert.Nil(t, body.Defects.Totals)
+		assert.Equal(t, "complete", body.Stories.State)
+		assert.Equal(t, "complete", body.Estimations.State)
+		assert.Equal(t, "complete", body.Effort.State)
+		assert.Len(t, f.env.generationRows(t, f.projectID), 1)
+	})
+
+	t.Run("falla solo la lectura del esfuerzo", func(t *testing.T) {
+		f, sprintID := failingFixture(t, func(repo reportsdomain.ReportRepository, metrics reportsdomain.MetricsSource) (reportsdomain.ReportRepository, reportsdomain.MetricsSource) {
+			return failingEffortRepository{ReportRepository: repo}, metrics
+		})
+
+		body := f.report(t, sprintID)
+
+		// Solo el esfuerzo queda sin obtener, con sus datos en null; las demás secciones no se ven afectadas.
+		assert.Equal(t, "unavailable", body.Effort.State)
+		assert.Nil(t, body.Effort.Groups)
+		assert.Nil(t, body.Effort.ByMember)
+		assert.Nil(t, body.Effort.TotalHours)
+		assert.Equal(t, "complete", body.Stories.State)
+		assert.Equal(t, "complete", body.Estimations.State)
+		assert.Equal(t, "complete", body.Metrics.State)
+		assert.Equal(t, "complete", body.Defects.State)
+		assert.Len(t, f.env.generationRows(t, f.projectID), 1)
+	})
+
+	t.Run("falla la lectura del encabezado", func(t *testing.T) {
+		f, sprintID := failingFixture(t, func(repo reportsdomain.ReportRepository, metrics reportsdomain.MetricsSource) (reportsdomain.ReportRepository, reportsdomain.MetricsSource) {
+			return failingHeaderRepository{ReportRepository: repo}, metrics
+		})
+
+		rec := f.env.generateSprintReport(t, f.ownerToken, f.projectID, sprintID)
+
+		// Sin encabezado no hay reporte: 500 genérico, sin detalles y sin registro de generación.
+		require.Equal(t, http.StatusInternalServerError, rec.Code, "cuerpo: %s", rec.Body.String())
+		assert.NotContains(t, rec.Body.String(), simulatedFailure)
+		assert.Empty(t, f.env.generationRows(t, f.projectID), "no debe dejar registro")
+	})
 }

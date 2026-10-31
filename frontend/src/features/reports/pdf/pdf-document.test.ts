@@ -205,3 +205,42 @@ describe("010/US2 - Exportar el reporte a PDF", () => {
     expect(doc.defaultStyle).toMatchObject({ font: "Roboto" });
   });
 });
+
+describe("010/US4 - Leer un reporte con secciones sin datos", () => {
+  // Reporte con una sección sin datos y otra no disponible.
+  function reportWithGaps(): Report {
+    const base = sprintReport();
+    return {
+      ...base,
+      estimations: { state: "empty", groups: [] },
+      effort: {
+        state: "unavailable",
+        groups: null,
+        byMember: null,
+        totalHours: null,
+      },
+    };
+  }
+
+  // Escenario: US4-5 (el PDF conserva título y mensaje de cada sección sin datos)
+  it("el PDF conserva el título y el mensaje de las secciones empty y unavailable", () => {
+    const view = buildReportView(reportWithGaps(), zone);
+    const texts = extractTexts(buildPdfDocument(view).content);
+    const at = texts.indexOf("Estimaciones");
+    expect(at).toBeGreaterThan(-1);
+    expect(texts[at + 1]).toBe("Sin datos.");
+    const effortAt = texts.indexOf("Esfuerzo");
+    expect(effortAt).toBeGreaterThan(-1);
+    expect(texts[effortAt + 1]).toBe("No se pudo obtener esta sección.");
+    expect(texts[effortAt + 2]).toBe("Métricas");
+  });
+
+  // Escenario: US4-5 (mismo orden de secciones que la vista)
+  it("las secciones del PDF siguen el orden de la vista", () => {
+    const view = buildReportView(reportWithGaps(), zone);
+    const texts = extractTexts(buildPdfDocument(view).content);
+    const positions = view.sections.map((item) => texts.indexOf(item.title));
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+  });
+});

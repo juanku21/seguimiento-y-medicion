@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"log/slog"
 	"slices"
 	"time"
 
@@ -50,34 +51,24 @@ func (s *ReportService) SprintReport(ctx context.Context, projectID, sprintID, u
 		return domain.Report{}, fmt.Errorf("armar el encabezado del reporte: %w", err)
 	}
 
-	// Historias del sprint en orden estable y estado de la sección.
-	storyGroup, err := s.sprintStoryGroup(ctx, sprint)
-	if err != nil {
-		return domain.Report{}, err
-	}
-	storyGroups := []domain.StoryGroup{storyGroup}
+	// Historias y estimaciones del sprint; cada sección falla por separado (research.md sección 8).
+	storyGroups, stories, estimations := s.storiesAndEstimations(ctx, projectID, []domain.SprintRef{sprint}, false)
+	effort := s.effortSection(ctx, projectID, []domain.SprintRef{sprint}, storyGroups)
 
-	estimationGroup, err := s.estimationGroup(ctx, &sprint, storyGroup.Stories)
-	if err != nil {
-		return domain.Report{}, err
-	}
-	estimations := estimationsSection([]domain.EstimationGroup{estimationGroup})
-
-	effort, err := s.effortSection(ctx, []domain.SprintRef{sprint}, storyGroups)
-	if err != nil {
-		return domain.Report{}, err
-	}
-
-	// Métricas del sprint reutilizadas del módulo de métricas.
+	// Métricas del sprint reutilizadas del módulo de métricas; si fallan, los defectos tampoco se
+	// pueden informar porque sus totales salen de ellas.
+	metricsSection := domain.MetricsSection{State: domain.SectionUnavailable}
+	defects := domain.DefectsSection{State: domain.SectionUnavailable}
 	sprintMetrics, warnings, err := s.metrics.SprintMetrics(ctx, projectID, sprintID)
 	if err != nil {
-		return domain.Report{}, fmt.Errorf("armar las métricas del reporte: %w", err)
-	}
-
-	// Defectos del sprint; los totales salen de las métricas.
-	defects, err := s.repo.LoadDefects(ctx, projectID, &sprintID)
-	if err != nil {
-		return domain.Report{}, fmt.Errorf("armar los defectos del reporte: %w", err)
+		logSectionFailure("metrics", projectID, err)
+	} else {
+		metricsSection = domain.MetricsSection{
+			State:          domain.ProjectMetricsState(domain.ScopeSprint, []domain.SprintRef{sprint}),
+			Sprint:         &sprintMetrics,
+			SprintWarnings: warnings,
+		}
+		defects = s.defectsSection(ctx, projectID, &sprintID, sprintMetrics.DefectsDetected.Value, sprintMetrics.DefectsResolved.Value, nil)
 	}
 
 	report := domain.Report{
@@ -90,15 +81,11 @@ func (s *ReportService) SprintReport(ctx context.Context, projectID, sprintID, u
 			GeneratedAt: now,
 			GeneratedBy: user,
 		},
-		Stories:     storiesSection(storyGroups),
+		Stories:     stories,
 		Estimations: estimations,
 		Effort:      effort,
-		Metrics: domain.MetricsSection{
-			State:          domain.SectionComplete,
-			Sprint:         &sprintMetrics,
-			SprintWarnings: warnings,
-		},
-		Defects: defectsSection(defects, sprintMetrics.DefectsDetected.Value, sprintMetrics.DefectsResolved.Value),
+		Metrics:     metricsSection,
+		Defects:     defects,
 	}
 
 	// El registro es la última operación: si falla, no se entrega el reporte.
@@ -126,56 +113,25 @@ func (s *ReportService) ProjectReport(ctx context.Context, projectID, userID uui
 	}
 	sprints := domain.ReportableSprints(allSprints)
 
-	// Un grupo de historias y uno de estimaciones por sprint.
-	storyGroups := make([]domain.StoryGroup, 0, len(sprints)+1)
-	estimationGroups := make([]domain.EstimationGroup, 0, len(sprints)+1)
-	for _, sprint := range sprints {
-		storyGroup, err := s.sprintStoryGroup(ctx, sprint)
-		if err != nil {
-			return domain.Report{}, err
-		}
-		estimationGroup, err := s.estimationGroup(ctx, storyGroup.Sprint, storyGroup.Stories)
-		if err != nil {
-			return domain.Report{}, err
-		}
-		storyGroups = append(storyGroups, storyGroup)
-		estimationGroups = append(estimationGroups, estimationGroup)
-	}
+	// Historias y estimaciones con un grupo por sprint y el de no planificadas al final; cada
+	// sección falla por separado (research.md sección 8).
+	storyGroups, stories, estimations := s.storiesAndEstimations(ctx, projectID, sprints, true)
+	effort := s.effortSection(ctx, projectID, sprints, storyGroups)
 
-	// Grupo de no planificadas al final, siempre presente y sin corte.
-	unplanned, err := s.repo.LoadUnplannedStories(ctx, projectID)
-	if err != nil {
-		return domain.Report{}, fmt.Errorf("armar las historias no planificadas del reporte: %w", err)
-	}
-	domain.SortStories(unplanned)
-	storyGroups = append(storyGroups, domain.StoryGroup{State: groupState(len(unplanned)), Stories: unplanned})
-	unplannedEstimation, err := s.estimationGroup(ctx, nil, unplanned)
-	if err != nil {
-		return domain.Report{}, err
-	}
-	estimationGroups = append(estimationGroups, unplannedEstimation)
-
-	effort, err := s.effortSection(ctx, sprints, storyGroups)
-	if err != nil {
-		return domain.Report{}, err
-	}
-
-	// Métricas del proyecto reutilizadas del módulo de métricas; sin sprints reportables la sección
-	// queda vacía, pero los totales de defectos igual salen de ellas.
+	// Métricas del proyecto reutilizadas del módulo de métricas; si fallan, los defectos tampoco se
+	// pueden informar porque sus totales salen de ellas.
+	metricsSection := domain.MetricsSection{State: domain.SectionUnavailable}
+	defects := domain.DefectsSection{State: domain.SectionUnavailable}
 	projectMetrics, err := s.metrics.ProjectMetrics(ctx, projectID)
 	if err != nil {
-		return domain.Report{}, fmt.Errorf("armar las métricas del reporte: %w", err)
+		logSectionFailure("metrics", projectID, err)
+	} else {
+		metricsSection = domain.MetricsSection{State: domain.ProjectMetricsState(domain.ScopeProject, sprints)}
+		if metricsSection.State == domain.SectionComplete {
+			metricsSection.Project = &projectMetrics
+		}
+		defects = s.defectsSection(ctx, projectID, nil, projectMetrics.Defects.Detected.Total, projectMetrics.Defects.Resolved.Total, storyGroups)
 	}
-	metricsSection := domain.MetricsSection{State: domain.SectionEmpty}
-	if len(sprints) > 0 {
-		metricsSection = domain.MetricsSection{State: domain.SectionComplete, Project: &projectMetrics}
-	}
-
-	defects, err := s.repo.LoadDefects(ctx, projectID, nil)
-	if err != nil {
-		return domain.Report{}, fmt.Errorf("armar los defectos del reporte: %w", err)
-	}
-	applyDetectionSnapshot(defects, storyGroups)
 
 	report := domain.Report{
 		Scope:   domain.ScopeProject,
@@ -186,11 +142,11 @@ func (s *ReportService) ProjectReport(ctx context.Context, projectID, userID uui
 			GeneratedAt: now,
 			GeneratedBy: user,
 		},
-		Stories:     storiesSection(storyGroups),
-		Estimations: estimationsSection(estimationGroups),
+		Stories:     stories,
+		Estimations: estimations,
 		Effort:      effort,
 		Metrics:     metricsSection,
-		Defects:     defectsSection(defects, projectMetrics.Defects.Detected.Total, projectMetrics.Defects.Resolved.Total),
+		Defects:     defects,
 	}
 
 	// El registro es la última operación: si falla, no se entrega el reporte.
@@ -270,15 +226,66 @@ func (s *ReportService) estimationGroup(ctx context.Context, sprint *domain.Spri
 	return domain.EstimationGroup{Sprint: sprint, State: groupState(len(items)), Items: items}, nil
 }
 
-// storiesSection arma la sección de historias con el estado derivado de sus grupos.
-func storiesSection(groups []domain.StoryGroup) domain.StoriesSection {
-	return domain.StoriesSection{State: domain.StoriesState(groups), Groups: groups}
+// logSectionFailure registra una sección que no se pudo obtener; la falla no se propaga.
+func logSectionFailure(section string, projectID uuid.UUID, err error) {
+	slog.Error("no se pudo obtener la sección del reporte", "section", section, "projectId", projectID, "error", err)
 }
 
-// defectsSection arma la sección de defectos; los totales vienen de las métricas, no del listado.
-func defectsSection(defects []domain.DefectLine, detected, resolved int) domain.DefectsSection {
+// storiesAndEstimations arma los grupos de historias y de estimaciones. Si falla la lectura de
+// historias, ambas secciones quedan unavailable; si falla solo la de sesiones, únicamente las
+// estimaciones. includeUnplanned agrega al final el grupo de historias no planificadas.
+func (s *ReportService) storiesAndEstimations(ctx context.Context, projectID uuid.UUID, sprints []domain.SprintRef, includeUnplanned bool) ([]domain.StoryGroup, domain.StoriesSection, domain.EstimationsSection) {
+	unavailableStories := domain.StoriesSection{State: domain.SectionUnavailable}
+	unavailableEstimations := domain.EstimationsSection{State: domain.SectionUnavailable}
+
+	// Un grupo de historias por sprint; cualquier falla de lectura deja sin historias ni estimaciones.
+	storyGroups := make([]domain.StoryGroup, 0, len(sprints)+1)
+	for _, sprint := range sprints {
+		storyGroup, err := s.sprintStoryGroup(ctx, sprint)
+		if err != nil {
+			logSectionFailure("stories", projectID, err)
+			return nil, unavailableStories, unavailableEstimations
+		}
+		storyGroups = append(storyGroups, storyGroup)
+	}
+
+	// Grupo de no planificadas al final, siempre presente y sin corte.
+	if includeUnplanned {
+		unplanned, err := s.repo.LoadUnplannedStories(ctx, projectID)
+		if err != nil {
+			logSectionFailure("stories", projectID, err)
+			return nil, unavailableStories, unavailableEstimations
+		}
+		domain.SortStories(unplanned)
+		storyGroups = append(storyGroups, domain.StoryGroup{State: groupState(len(unplanned)), Stories: unplanned})
+	}
+	stories := domain.StoriesSection{State: domain.StoriesState(storyGroups), Groups: storyGroups}
+
+	// Un grupo de estimaciones por grupo de historias, en el mismo orden.
+	estimationGroups := make([]domain.EstimationGroup, 0, len(storyGroups))
+	for _, group := range storyGroups {
+		estimationGroup, err := s.estimationGroup(ctx, group.Sprint, group.Stories)
+		if err != nil {
+			logSectionFailure("estimations", projectID, err)
+			return storyGroups, stories, unavailableEstimations
+		}
+		estimationGroups = append(estimationGroups, estimationGroup)
+	}
+	return storyGroups, stories, estimationsSection(estimationGroups)
+}
+
+// defectsSection lee el listado de defectos y arma la sección; los totales vienen de las métricas,
+// no del listado. Si la lectura falla, la sección queda unavailable. Con storyGroups no nil aplica la
+// instantánea de títulos (FR-021).
+func (s *ReportService) defectsSection(ctx context.Context, projectID uuid.UUID, sprintID *uuid.UUID, detected, resolved int, storyGroups []domain.StoryGroup) domain.DefectsSection {
+	defects, err := s.repo.LoadDefects(ctx, projectID, sprintID)
+	if err != nil {
+		logSectionFailure("defects", projectID, err)
+		return domain.DefectsSection{State: domain.SectionUnavailable}
+	}
+	applyDetectionSnapshot(defects, storyGroups)
 	return domain.DefectsSection{
-		State:   groupState(len(defects)),
+		State:   domain.DefectsState(defects),
 		Defects: defects,
 		Totals:  &domain.DefectTotals{Detected: detected, Resolved: resolved},
 	}
@@ -286,13 +293,11 @@ func defectsSection(defects []domain.DefectLine, detected, resolved int) domain.
 
 // estimationsSection arma la sección: vacía si ningún grupo tiene líneas (RN-11).
 func estimationsSection(groups []domain.EstimationGroup) domain.EstimationsSection {
-	state := domain.SectionEmpty
+	lines := 0
 	for _, g := range groups {
-		if len(g.Items) > 0 {
-			state = domain.SectionComplete
-		}
+		lines += len(g.Items)
 	}
-	return domain.EstimationsSection{State: state, Groups: groups}
+	return domain.EstimationsSection{State: groupState(lines), Groups: groups}
 }
 
 // snapshotTitles indexa los títulos de las historias de cada grupo con sprint por id de sprint y de
@@ -324,8 +329,9 @@ func snapshotTitle(snapshot map[uuid.UUID]map[uuid.UUID]string, sprintID, storyI
 
 // effortSection arma la sección de esfuerzo de uno o varios sprints: horas por historia en cada
 // grupo, por integrante y total, todo sumado desde las mismas filas para que no se contradigan
-// (research.md sección 6). storyGroups aporta los títulos de la instantánea de cada sprint.
-func (s *ReportService) effortSection(ctx context.Context, sprints []domain.SprintRef, storyGroups []domain.StoryGroup) (domain.EffortSection, error) {
+// (research.md sección 6); si la lectura falla, la sección queda unavailable. storyGroups aporta los
+// títulos de la instantánea de cada sprint.
+func (s *ReportService) effortSection(ctx context.Context, projectID uuid.UUID, sprints []domain.SprintRef, storyGroups []domain.StoryGroup) domain.EffortSection {
 	// Sin sprints no hay nada que leer.
 	var rows []domain.EffortRow
 	if len(sprints) > 0 {
@@ -336,7 +342,8 @@ func (s *ReportService) effortSection(ctx context.Context, sprints []domain.Spri
 		var err error
 		rows, err = s.repo.LoadEffort(ctx, sprintIDs)
 		if err != nil {
-			return domain.EffortSection{}, fmt.Errorf("armar el esfuerzo del reporte: %w", err)
+			logSectionFailure("effort", projectID, err)
+			return domain.EffortSection{State: domain.SectionUnavailable}
 		}
 	}
 
@@ -394,11 +401,11 @@ func (s *ReportService) effortSection(ctx context.Context, sprints []domain.Spri
 	})
 
 	return domain.EffortSection{
-		State:           groupState(len(rows)),
+		State:           domain.EffortState(rows),
 		Groups:          groups,
 		ByMember:        memberEfforts,
 		TotalHundredths: total,
-	}, nil
+	}
 }
 
 // applyDetectionSnapshot reemplaza el título de la historia de cada defecto por el de la instantánea

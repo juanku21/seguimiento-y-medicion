@@ -215,3 +215,63 @@ func TestUS3_IsPartialProject(t *testing.T) {
 		assert.False(t, IsPartial(ScopeProject, []SprintRef{closed}))
 	})
 }
+
+// Escenario: Un sprint sin esfuerzo registrado muestra la sección sin datos (010/US4)
+func TestUS4_EffortState(t *testing.T) {
+	tests := []struct {
+		name string
+		rows []EffortRow
+		want SectionState
+	}{
+		{"sin filas (nil)", nil, SectionEmpty},
+		{"sin filas (vacío)", []EffortRow{}, SectionEmpty},
+		{"con una fila", []EffortRow{{SprintID: uuid.New(), Hundredths: 150}}, SectionComplete},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, EffortState(tt.rows))
+		})
+	}
+}
+
+// Escenario: Un sprint sin defectos muestra la sección sin datos y totales en 0 (010/US4)
+func TestUS4_DefectsState(t *testing.T) {
+	tests := []struct {
+		name    string
+		defects []DefectLine
+		want    SectionState
+	}{
+		{"listado nil", nil, SectionEmpty},
+		{"listado vacío", []DefectLine{}, SectionEmpty},
+		{"con un defecto", []DefectLine{{DefectID: uuid.New()}}, SectionComplete},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, DefectsState(tt.defects))
+		})
+	}
+}
+
+// Escenario: El reporte de un proyecto sin sprints reportables ni historias tiene todo sin datos (010/US4)
+func TestUS4_ProjectMetricsState(t *testing.T) {
+	planned := sprintRef("00000000-0000-0000-0000-000000000001", sprintsdomain.SprintStatusPlanned, "2026-01-01", "2026-01-14")
+	active := sprintRef("00000000-0000-0000-0000-000000000002", sprintsdomain.SprintStatusActive, "2026-01-15", "2026-01-28")
+	closed := sprintRef("00000000-0000-0000-0000-000000000003", sprintsdomain.SprintStatusClosed, "2026-01-15", "2026-01-28")
+	tests := []struct {
+		name    string
+		scope   ReportScope
+		sprints []SprintRef
+		want    SectionState
+	}{
+		{"proyecto sin sprints", ScopeProject, nil, SectionEmpty},
+		{"proyecto solo con planificados", ScopeProject, []SprintRef{planned}, SectionEmpty},
+		{"proyecto con un activo", ScopeProject, []SprintRef{planned, active}, SectionComplete},
+		{"proyecto con un cerrado", ScopeProject, []SprintRef{closed}, SectionComplete},
+		{"sprint nunca está vacío", ScopeSprint, nil, SectionComplete},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, ProjectMetricsState(tt.scope, tt.sprints))
+		})
+	}
+}

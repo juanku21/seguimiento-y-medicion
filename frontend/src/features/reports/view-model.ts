@@ -63,6 +63,9 @@ export type ReportView = {
 // Texto de las secciones y grupos sin datos.
 const EMPTY_MESSAGE = "Sin datos.";
 
+// Texto de las secciones que no se pudieron obtener (RN-12).
+const UNAVAILABLE_MESSAGE = "No se pudo obtener esta sección.";
+
 // Marca de finalidad que se agrega al valor de una métrica (RN-14).
 const FINALITY_LABELS: Record<Finality, string> = {
   partial: "Parcial",
@@ -152,20 +155,24 @@ function textBlock(message: string): BlockView {
   return { heading: null, message, table: null };
 }
 
-// Sección que, si no tiene datos, muestra "Sin datos." en lugar de sus bloques.
+// Sección que, sin datos o no disponible, muestra su mensaje en lugar de sus bloques.
 function section(
   key: SectionView["key"],
   title: string,
   state: SectionView["state"],
   blocks: BlockView[],
 ): SectionView {
-  const empty = state === "empty";
+  const messages = {
+    complete: null,
+    empty: EMPTY_MESSAGE,
+    unavailable: UNAVAILABLE_MESSAGE,
+  };
   return {
     key,
     title,
     state,
-    message: empty ? EMPTY_MESSAGE : null,
-    blocks: empty ? [] : blocks,
+    message: messages[state],
+    blocks: state === "complete" ? blocks : [],
   };
 }
 
@@ -419,7 +426,7 @@ export function buildReportView(report: Report, timeZone: string): ReportView {
       // Con defectos vacíos se conservan los totales en cero.
       {
         ...section("defects", "Defectos", report.defects.state, defects),
-        blocks: defects,
+        blocks: report.defects.state === "unavailable" ? [] : defects,
       },
     ],
     // Nombre del PDF con proyecto, alcance y fecha de generación en la zona del navegador.

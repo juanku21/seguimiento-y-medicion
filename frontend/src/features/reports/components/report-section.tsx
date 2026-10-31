@@ -75,9 +75,10 @@ function ReportBlock({ block }: { block: BlockView }) {
   );
 }
 
-// Sección del reporte: una región con su título y, según el estado, la nota "Sin datos." o sus bloques.
+// Sección del reporte: una región con su título, el aviso de su estado y sus bloques.
 export function ReportSection({ section, children }: ReportSectionProps) {
   const titleId = useId();
+  const unavailable = section.state === "unavailable";
   return (
     <section
       aria-labelledby={titleId}
@@ -87,7 +88,15 @@ export function ReportSection({ section, children }: ReportSectionProps) {
         {section.title}
       </h3>
       {section.message !== null && (
-        <p role="note" className="text-sm text-zinc-600 dark:text-zinc-400">
+        // Una sección que falló se anuncia como alerta; sin datos, como nota.
+        <p
+          role={unavailable ? "alert" : "note"}
+          className={
+            unavailable
+              ? "text-sm text-red-700 dark:text-red-400"
+              : "text-sm text-zinc-600 dark:text-zinc-400"
+          }
+        >
           {section.message}
         </p>
       )}

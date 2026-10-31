@@ -456,3 +456,59 @@ describe("010/US1 - metricText", () => {
     expect(new Set(texts).size).toBe(3);
   });
 });
+
+// Reporte de sprint con las secciones indicadas reemplazadas.
+function withSections(overrides: Partial<Report>): Report {
+  return { ...sprintReport(), ...overrides };
+}
+
+describe("010/US4 - Leer un reporte con secciones sin datos", () => {
+  // Escenario: US4-5 (sección no disponible, RN-12)
+  it("una sección unavailable dice que no se pudo obtener y no tiene bloques", () => {
+    const report = withSections({
+      stories: { state: "unavailable", groups: null },
+      effort: {
+        state: "unavailable",
+        groups: null,
+        byMember: null,
+        totalHours: null,
+      },
+      metrics: { state: "unavailable", sprint: null, project: null },
+      defects: { state: "unavailable", defects: null, totals: null },
+    });
+    for (const key of ["stories", "effort", "metrics", "defects"] as const) {
+      const found = section(report, key);
+      expect(found.state).toBe("unavailable");
+      expect(found.message).toBe("No se pudo obtener esta sección.");
+      expect(found.blocks).toEqual([]);
+    }
+  });
+
+  // Escenario: US4-1 (sección sin datos, RN-12)
+  it("una sección empty dice Sin datos. y es distinta de la no disponible", () => {
+    const report = withSections({
+      estimations: { state: "empty", groups: [] },
+      stories: { state: "unavailable", groups: null },
+    });
+    const empty = section(report, "estimations");
+    expect(empty.message).toBe("Sin datos.");
+    expect(empty.blocks).toEqual([]);
+    expect(empty.message).not.toBe(section(report, "stories").message);
+  });
+
+  // Escenario: US4-2 (defectos sin datos conservan los totales en cero)
+  it("una sección de defectos empty conserva Detectados: 0 y Resueltos: 0", () => {
+    const report = withSections({
+      defects: {
+        state: "empty",
+        defects: [],
+        totals: { detected: 0, resolved: 0 },
+      },
+    });
+    const defects = section(report, "defects");
+    expect(defects.message).toBe("Sin datos.");
+    const messages = defects.blocks.map((block) => block.message);
+    expect(messages).toContain("Detectados: 0");
+    expect(messages).toContain("Resueltos: 0");
+  });
+});

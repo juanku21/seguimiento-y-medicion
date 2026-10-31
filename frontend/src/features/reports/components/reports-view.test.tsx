@@ -1065,3 +1065,249 @@ describe("010/US3 - Generar y ver el reporte de un proyecto completo", () => {
     expect(screen.queryByRole("article", { name: "Reporte" })).toBeNull();
   });
 });
+
+// Mensajes de las secciones sin datos y no obtenidas (RN-12).
+const EMPTY_TEXT = "Sin datos.";
+const UNAVAILABLE_TEXT = "No se pudo obtener esta sección.";
+
+// Reporte de sprint con las historias sin estimar, tanto en historias como en estimaciones.
+function unestimatedSprintReport(): Report {
+  const base = sprintReport();
+  const stories = base.stories.groups?.[0];
+  const estimations = base.estimations.groups?.[0];
+  if (!stories || !estimations) {
+    throw new Error("faltan los grupos de prueba");
+  }
+  return {
+    ...base,
+    stories: {
+      state: "complete",
+      groups: [
+        {
+          ...stories,
+          stories: stories.stories.map((story) => ({
+            ...story,
+            storyPoints: null,
+          })),
+        },
+      ],
+    },
+    estimations: {
+      state: "complete",
+      groups: [
+        {
+          ...estimations,
+          items: estimations.items.map((item) => ({
+            ...item,
+            storyPoints: null,
+          })),
+        },
+      ],
+    },
+  };
+}
+
+// Reporte de un proyecto sin sprints ni historias: las cinco secciones de contenido vacías.
+function emptyProjectReport(): Report {
+  const base = projectReport();
+  return projectReport({
+    header: { ...base.header, period: null },
+    stories: { state: "empty", groups: [] },
+    estimations: { state: "empty", groups: [] },
+    effort: { state: "empty", groups: [], byMember: [], totalHours: 0 },
+    metrics: { state: "empty", sprint: null, project: null },
+    defects: {
+      state: "empty",
+      defects: [],
+      totals: { detected: 0, resolved: 0 },
+    },
+  });
+}
+
+const CONTENT_SECTIONS = [
+  "Historias",
+  "Estimaciones",
+  "Esfuerzo",
+  "Métricas",
+  "Defectos",
+];
+
+describe("010/US4 - Leer un reporte con secciones sin datos", () => {
+  // Escenario: US4-1 (Sprint sin esfuerzo)
+  it("muestra la sección de esfuerzo con sin datos", async () => {
+    const base = sprintReport();
+    const sprint = base.header.sprint ?? defaultReportSprint;
+    installReportsBackend({
+      sprintReport: {
+        status: 200,
+        body: sprintReport({
+          effort: {
+            state: "empty",
+            groups: [{ sprint, state: "empty", stories: [], totalHours: 0 }],
+            byMember: [],
+            totalHours: 0,
+          },
+        }),
+      },
+    });
+    await generate("Sprint 1 (Cerrado)");
+    const report = await findReport();
+
+    const note = within(region(report, "Esfuerzo")).getByRole("note");
+    expect(note.textContent).toBe(EMPTY_TEXT);
+  });
+
+  // Escenario: US4-2 (Sprint sin defectos)
+  it("muestra la sección de defectos con sin datos y totales en 0", async () => {
+    installReportsBackend({
+      sprintReport: {
+        status: 200,
+        body: sprintReport({
+          defects: {
+            state: "empty",
+            defects: [],
+            totals: { detected: 0, resolved: 0 },
+          },
+        }),
+      },
+    });
+    await generate("Sprint 1 (Cerrado)");
+    const report = await findReport();
+
+    const defects = region(report, "Defectos");
+    expect(within(defects).getByText(EMPTY_TEXT)).toBeTruthy();
+    expect(within(defects).getByText("Detectados: 0")).toBeTruthy();
+    expect(within(defects).getByText("Resueltos: 0")).toBeTruthy();
+  });
+
+  // Escenario: US4-3 (Historias sin estimar)
+  it("lista las historias sin estimar y las métricas de la fuente", async () => {
+    installReportsBackend({
+      sprintReport: { status: 200, body: unestimatedSprintReport() },
+    });
+    await generate("Sprint 1 (Cerrado)");
+    const report = await findReport();
+
+    // Cada fila de datos de Historias y Estimaciones lleva "Sin estimar".
+    const storyRows = within(region(report, "Historias"))
+      .getAllByRole("row")
+      .slice(1);
+    expect(storyRows).toHaveLength(4);
+    storyRows.forEach((row) =>
+      expect(within(row).getAllByRole("cell")[2].textContent).toBe(
+        "Sin estimar",
+      ),
+    );
+    const estimationRows = within(region(report, "Estimaciones"))
+      .getAllByRole("row")
+      .slice(1);
+    expect(estimationRows).toHaveLength(4);
+    estimationRows.forEach((row) =>
+      expect(within(row).getAllByRole("cell")[1].textContent).toBe(
+        "Sin estimar",
+      ),
+    );
+
+    // Las métricas se muestran tal como llegan: planificados 16 y completados 13.
+    const metrics = region(report, "Métricas");
+    const planned = within(metrics)
+      .getByText("Story Points planificados")
+      .closest("tr") as HTMLElement;
+    expect(within(planned).getAllByRole("cell")[1].textContent).toMatch(
+      /^16\b/,
+    );
+    const completed = within(metrics)
+      .getByText("Story Points completados")
+      .closest("tr") as HTMLElement;
+    expect(within(completed).getAllByRole("cell")[1].textContent).toMatch(
+      /^13\b/,
+    );
+  });
+
+  // Escenario: US4-4 (Proyecto sin sprints ni historias)
+  it("muestra todas las secciones con su título y su mensaje", async () => {
+    installReportsBackend({
+      projectReport: { status: 200, body: emptyProjectReport() },
+    });
+    await generateProject();
+    const report = await findReport();
+
+    const regions = within(report).getAllByRole("region");
+    expect(regions).toHaveLength(6);
+    expect(
+      regions.map(
+        (r) => within(r).getByRole("heading", { level: 3 }).textContent,
+      ),
+    ).toEqual(REGIONS);
+    CONTENT_SECTIONS.forEach((name) =>
+      expect(
+        within(region(report, name)).getAllByText(EMPTY_TEXT),
+      ).toHaveLength(1),
+    );
+
+    // Encabezado completo y sin mensaje de "Sin datos.".
+    const header = region(report, "Encabezado");
+    expect(within(header).queryByText(EMPTY_TEXT)).toBeNull();
+    expect(within(header).getByText("Plataforma de seguimiento")).toBeTruthy();
+    expect(within(header).getByText("Proyecto completo")).toBeTruthy();
+    expect(within(header).getByText("Sin sprints reportables")).toBeTruthy();
+    expect(within(header).getByText("Generado el")).toBeTruthy();
+    expect(within(header).getByText("Ana Pérez")).toBeTruthy();
+  });
+
+  // Escenario: US4-5 (PDF con secciones sin datos)
+  it("conserva en el PDF las secciones sin datos", async () => {
+    installReportsBackend({
+      projectReport: { status: 200, body: emptyProjectReport() },
+    });
+    await generateProject();
+    await findReport();
+    await clickExport(1);
+
+    // Entre el título de cada sección y el siguiente queda su mensaje.
+    const texts = extractTexts(lastExport().doc.content);
+    let from = 0;
+    const starts = REGIONS.map((title) => {
+      from = texts.indexOf(title, from + 1);
+      return from;
+    });
+    expect(starts.every((index) => index > 0)).toBe(true);
+    CONTENT_SECTIONS.forEach((name) => {
+      const index = REGIONS.indexOf(name);
+      const end = index + 1 < starts.length ? starts[index + 1] : texts.length;
+      expect(texts.slice(starts[index], end)).toContain(EMPTY_TEXT);
+    });
+    const defects = texts.slice(starts[REGIONS.indexOf("Defectos")]);
+    expect(defects).toContain("Detectados: 0");
+    expect(defects).toContain("Resueltos: 0");
+  });
+
+  // Escenario: US4-6 (Sección no obtenible)
+  it("distingue la sección no obtenida de la sección sin datos", async () => {
+    installReportsBackend({
+      sprintReport: {
+        status: 200,
+        body: sprintReport({
+          metrics: { state: "unavailable", sprint: null, project: null },
+          effort: { state: "empty", groups: [], byMember: [], totalHours: 0 },
+        }),
+      },
+    });
+    await generate("Sprint 1 (Cerrado)");
+    const report = await findReport();
+
+    const metrics = region(report, "Métricas");
+    const unavailable = within(metrics).getByRole("alert");
+    expect(unavailable.textContent).toBe(UNAVAILABLE_TEXT);
+    const empty = within(region(report, "Esfuerzo")).getByRole("note");
+    expect(empty.textContent).toBe(EMPTY_TEXT);
+    expect(unavailable.textContent).not.toBe(empty.textContent);
+    // La sección no obtenida no muestra tablas ni "Sin datos.".
+    expect(within(metrics).queryByRole("table")).toBeNull();
+    expect(within(metrics).queryByText(EMPTY_TEXT)).toBeNull();
+    // Las demás secciones siguen mostrando sus datos.
+    expect(
+      within(region(report, "Historias")).getByText("Tablero"),
+    ).toBeTruthy();
+  });
+});

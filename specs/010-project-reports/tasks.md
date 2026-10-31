@@ -334,7 +334,7 @@ con el `article` "Reporte".
       `storyCompletionPercent` → "No calculable: <explicación>" y **nunca** "0" (RN-13), `not_applicable`
       → "No aplica", y las marcas " · Parcial", " · Provisoria" y " · Definitiva", distintas entre sí
       (RN-14). Crear las firmas mínimas para que compile — depende de T007
-- [ ] T014 [US1] Pruebas de escenario en
+- [X] T014 [US1] Pruebas de escenario en
       `frontend/src/features/reports/components/reports-view.test.tsx`, montando `ReportsView` con
       `renderReports`, con `describe("010/US1 - Generar y ver el reporte de un sprint")` y un `it` por
       escenario con los nombres de la tabla de plan.md, cada uno precedido por

@@ -319,7 +319,7 @@ con el `article` "Reporte".
       `backend/internal/reports/service/report_service_test.go`, `TestSprintReportSaveFails`
       (SC-018): con un `GenerationRepository` de prueba que devuelve error, `SprintReport` devuelve
       error y no un reporte — depende de T006
-- [ ] T013 [P] [US1] Pruebas unitarias **obligatorias** en `frontend/src/features/reports/api.test.ts`
+- [X] T013 [P] [US1] Pruebas unitarias **obligatorias** en `frontend/src/features/reports/api.test.ts`
       y `frontend/src/features/reports/view-model.test.ts`: `isReport` acepta `sprintReport()` y
       rechaza un cuerpo sin `header`, con `stories.state` desconocido, con `storyPoints` `"8"` y con
       una sección faltante (Principio VII); `buildReportView(sprintReport(), "America/Argentina/Buenos_Aires")`

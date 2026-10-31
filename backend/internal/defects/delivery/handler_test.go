@@ -2051,14 +2051,17 @@ func requireNoPasswordHash(t *testing.T, rec *httptest.ResponseRecorder) {
 	assert.NotContains(t, rec.Body.String(), "passwordHash", "la respuesta no debe exponer passwordHash")
 }
 
-// tamperedToken devuelve el token con el último carácter de la firma cambiado.
+// tamperedToken devuelve el token con el primer carácter de la firma cambiado. Se cambia el primero
+// y no el último porque el último carácter de una firma de 32 bytes en base64url solo aporta 4 bits
+// útiles: cambiarlo por otro que difiera solo en los bits de relleno deja la misma firma y el token
+// seguiría siendo válido (la prueba fallaba en el 6% de las corridas).
 func tamperedToken(token string) string {
-	last := token[len(token)-1]
+	start := strings.LastIndex(token, ".") + 1
 	replacement := byte('A')
-	if last == 'A' {
+	if token[start] == 'A' {
 		replacement = 'B'
 	}
-	return token[:len(token)-1] + string(replacement)
+	return token[:start] + string(replacement) + token[start+1:]
 }
 
 // TestDefectEndpoints_SinSesion verifica que los seis endpoints rechazan con 401 la petición sin

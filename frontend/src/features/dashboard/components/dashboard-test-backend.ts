@@ -116,6 +116,7 @@ export const defaultSprints: SprintListResponse = {
 export const defaultMetrics: ProjectMetricsResponse = {
   velocity: {
     value: { status: "available", value: 14 },
+    sprintsConsidered: 3,
   },
   cumulative: {
     finality: "partial",
@@ -127,7 +128,18 @@ export const defaultMetrics: ProjectMetricsResponse = {
     deviationPercent: { status: "available", value: -17.67 },
     storyCompletionPercent: { status: "available", value: 74.7 },
   },
+  effortOutsideSprintsHours: 0,
+  effortInPlannedSprintsHours: 0,
+  unestimatedBacklogStories: 0,
   defects: {
+    detected: {
+      total: 7,
+      bySeverity: { critical: 2, high: 3, medium: 1, low: 1 },
+    },
+    resolved: {
+      total: 0,
+      bySeverity: { critical: 0, high: 0, medium: 0, low: 0 },
+    },
     open: {
       total: 7,
       bySeverity: { critical: 2, high: 3, medium: 1, low: 1 },

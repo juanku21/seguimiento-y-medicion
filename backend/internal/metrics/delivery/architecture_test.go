@@ -16,7 +16,7 @@ import (
 const modulePath = "github.com/juanku21/seguimiento-y-medicion/backend"
 
 // Caracterización de RN-01 y SC-021: las fórmulas viven en un solo lugar. Ningún paquete fuera de
-// internal/metrics y cmd/app importa internal/metrics/..., e internal/metrics/delivery no importa la
+// internal/metrics, internal/reports y cmd/app importa internal/metrics/..., e internal/metrics/delivery no importa la
 // capa delivery de otro módulo.
 func TestMetrics_SingleSourceOfFormulas(t *testing.T) {
 	root, err := filepath.Abs("../../..")
@@ -48,8 +48,10 @@ func TestMetrics_SingleSourceOfFormulas(t *testing.T) {
 		}
 		rel = filepath.ToSlash(rel)
 
-		// Regla 1: solo internal/metrics y cmd/app importan internal/metrics/...
-		allowed := rel == "internal/metrics" || strings.HasPrefix(rel, "internal/metrics/") || rel == "cmd/app"
+		// Regla 1: solo internal/metrics, internal/reports y cmd/app importan internal/metrics/...
+		// Los reportes (spec 010) consumen las métricas ya calculadas y no repiten sus fórmulas.
+		allowed := rel == "internal/metrics" || strings.HasPrefix(rel, "internal/metrics/") ||
+			rel == "internal/reports" || strings.HasPrefix(rel, "internal/reports/") || rel == "cmd/app"
 		if !allowed {
 			all := append(append(append([]string{}, pkg.Imports...), pkg.TestImports...), pkg.XTestImports...)
 			for _, imp := range all {

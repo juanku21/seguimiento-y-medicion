@@ -239,7 +239,10 @@ describe("009/US2 - Ver los indicadores clave del momento", () => {
       metrics: {
         status: 200,
         body: projectMetricsWith({
-          velocity: { value: { status: "not_calculable", value: null } },
+          velocity: {
+            value: { status: "not_calculable", value: null },
+            sprintsConsidered: 0,
+          },
         }),
       },
     });
@@ -290,6 +293,14 @@ describe("009/US2 - Ver los indicadores clave del momento", () => {
         status: 200,
         body: projectMetricsWith({
           defects: {
+            detected: {
+              total: 0,
+              bySeverity: { critical: 0, high: 0, medium: 0, low: 0 },
+            },
+            resolved: {
+              total: 0,
+              bySeverity: { critical: 0, high: 0, medium: 0, low: 0 },
+            },
             open: {
               total: 0,
               bySeverity: { critical: 0, high: 0, medium: 0, low: 0 },

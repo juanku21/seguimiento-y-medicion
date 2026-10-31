@@ -87,8 +87,8 @@ func OpenDatabase(t testing.TB) (*gorm.DB, config.Config) {
 	})
 
 	// Se vacían las tablas de autenticación, de proyectos, del backlog, de sprints, de planning
-	// poker, de esfuerzo y de defectos para que cada caso empiece sin datos de los anteriores.
-	if err := db.Exec("TRUNCATE users, sessions, auth_events, projects, project_members, user_stories, acceptance_criteria, sprints, sprint_stories, estimation_sessions, estimation_rounds, estimation_participants, estimation_votes, effort_entries, defects CASCADE").Error; err != nil {
+	// poker, de esfuerzo, de defectos y de reportes para que cada caso empiece sin datos de los anteriores.
+	if err := db.Exec("TRUNCATE users, sessions, auth_events, projects, project_members, user_stories, acceptance_criteria, sprints, sprint_stories, estimation_sessions, estimation_rounds, estimation_participants, estimation_votes, effort_entries, defects, report_generations CASCADE").Error; err != nil {
 		t.Fatalf("no se pudieron vaciar las tablas de test: %v", err)
 	}
 	return db, cfg

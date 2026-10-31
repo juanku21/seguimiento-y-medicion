@@ -72,7 +72,10 @@ function metricsWith(
   total: number,
   bySeverity: { critical: number; high: number; medium: number; low: number },
 ): ProjectMetricsResponse {
-  return { ...defaultMetrics, defects: { open: { total, bySeverity } } };
+  return {
+    ...defaultMetrics,
+    defects: { ...defaultMetrics.defects, open: { total, bySeverity } },
+  };
 }
 
 // Figura de calidad, una vez cargada.

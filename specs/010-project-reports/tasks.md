@@ -106,7 +106,7 @@ frontend montan la vista real, `ReportsView`. Cada historia le suma al módulo l
 
 **Rama**: `fase/010-foundational`, la misma que la Fase 2: las dos forman un único pull request.
 
-- [ ] T001 Instalar en `frontend/` la dependencia autorizada con versión exacta:
+- [X] T001 Instalar en `frontend/` la dependencia autorizada con versión exacta:
       `npm install --save-exact pdfmake@0.3.13`. Verificar que `frontend/package.json` la lista en
       `dependencies` **sin** `^` ni `~`, que `frontend/package-lock.json` quedó actualizado, que no se
       agregó ninguna otra dependencia directa (en particular **no** `@types/pdfmake`, plan punto 2) y
@@ -125,7 +125,7 @@ declaran tipos, esquema, composición y ayudantes, sin reglas de negocio.
 
 **Rama**: `fase/010-foundational`
 
-- [ ] T002 [P] Declarar los tipos del dominio en `backend/internal/reports/domain/`, con comentario
+- [X] T002 [P] Declarar los tipos del dominio en `backend/internal/reports/domain/`, con comentario
       de paquete ("Package domain declara las entidades, los tipos de valor, las reglas y las
       interfaces del módulo de reportes; no depende de ninguna otra capa"):
       `scope.go` con `ReportScope` (`ScopeSprint = "sprint"`, `ScopeProject = "project"`),
@@ -151,20 +151,20 @@ declaran tipos, esquema, composición y ayudantes, sin reglas de negocio.
       `CreatedAt` y `UpdatedAt` `type:timestamptz;not null`. El comentario del tipo explica que los
       punteros a entidades existen solo para que `AutoMigrate` cree las claves foráneas, **sin**
       cascada, y que el registro nunca se actualiza ni se elimina. Sin funciones todavía
-- [ ] T003 Registrar la tabla en la plataforma: en
+- [X] T003 Registrar la tabla en la plataforma: en
       `backend/internal/platform/database/postgres.go`, `&reportsdomain.ReportGeneration{}` al final
       de la lista de `AutoMigrate`, con su importación; en
       `backend/internal/platform/testsupport/database.go`, `report_generations` al final del
       `TRUNCATE … CASCADE`. Verificar con la base de test levantada que `go test ./...` sigue pasando
       y que `\d report_generations` en `smye-test-postgres-1` muestra las tres claves foráneas y el
       índice `idx_report_generations_project_generated` — depende de T002
-- [ ] T004 [P] Exportar en `backend/internal/metrics/delivery/dto.go` los constructores
+- [X] T004 [P] Exportar en `backend/internal/metrics/delivery/dto.go` los constructores
       `newSprintMetrics` → `NewSprintMetrics` y `newProjectMetrics` → `NewProjectMetrics`, con un
       comentario que diga que también los usa el módulo de reportes para que la sección de métricas
       tenga exactamente la forma de la 008 (research.md sección 3), y actualizar sus llamadas en
       `backend/internal/metrics/delivery/handler.go`. Sin otro cambio: `go test ./internal/metrics/...`
       pasa igual
-- [ ] T005 Crear el esqueleto del módulo y su composición, sin lógica: en
+- [X] T005 Crear el esqueleto del módulo y su composición, sin lógica: en
       `backend/internal/reports/repository/report_repository.go`, `ReportRepository` con
       `NewReportRepository(db *gorm.DB)` y las ocho operaciones del puerto devolviendo
       `errors.New("no implementado")`; en `generation_repository.go`, `GenerationRepository` con
@@ -186,7 +186,7 @@ declaran tipos, esquema, composición y ayudantes, sin reglas de negocio.
       demás (cuelga del subgrupo `/:projectId`, que ya exige sesión y membresía; reutiliza el
       servicio de métricas en proceso, research.md secciones 1 y 3). `go build ./...` y `go vet ./...`
       pasan — depende de T002, T004
-- [ ] T006 Crear en `backend/internal/reports/delivery/testenv_test.go` el entorno de pruebas
+- [X] T006 Crear en `backend/internal/reports/delivery/testenv_test.go` el entorno de pruebas
       compartido, con la misma estructura que `backend/internal/metrics/delivery/testenv_test.go`
       (que no se puede importar por ser `_test.go`): `reportsTestEnv` con la base de
       `testsupport.OpenDatabase`, un reloj inyectable (`Now`, `Set`, `Advance`) compartido por
@@ -203,7 +203,7 @@ declaran tipos, esquema, composición y ayudantes, sin reglas de negocio.
       `withoutGeneration(report)`, que borra `header.generatedAt` y `header.generatedBy`; y
       `generationRows(t, projectID) []domain.ReportGeneration`, que lee `report_generations`. Cada
       ayudante con su comentario en español — depende de T003, T005
-- [ ] T007 [P] Declarar los tipos del frontend: en `frontend/src/types/report.ts`, con comentario de
+- [X] T007 [P] Declarar los tipos del frontend: en `frontend/src/types/report.ts`, con comentario de
       cabecera ("Tipos de la respuesta de los reportes, según
       specs/010-project-reports/contracts/openapi.yaml"), `ReportScope`, `SectionState`,
       `GroupState`, `StoryResult`, `PokerState`, `ReportSprint`, `Period`, `ReportHeader`,
@@ -224,7 +224,7 @@ declaran tipos, esquema, composición y ayudantes, sin reglas de negocio.
       `footer(currentPage: number, pageCount: number)`, `pageMargins`, `styles`, `defaultStyle`,
       `info.title`), `createPdf(definition): { download(fileName: string): Promise<void> }` y
       `addVirtualFileSystem(vfs: Record<string, string>): void`. Sin `any`. `npx tsc --noEmit` pasa
-- [ ] T008 [P] Leer antes `frontend/node_modules/next/dist/docs/01-app/01-getting-started/03-layouts-and-pages.md`
+- [X] T008 [P] Leer antes `frontend/node_modules/next/dist/docs/01-app/01-getting-started/03-layouts-and-pages.md`
       y `05-server-and-client-components.md` (CLAUDE.md). Crear
       `frontend/src/app/projects/[projectId]/reports/page.tsx`, un Server Component con
       `metadata.title = "Reportes | Software Metrics & Estimation"` que lee `params` como `Promise`,
@@ -233,7 +233,7 @@ declaran tipos, esquema, composición y ayudantes, sin reglas de negocio.
       Crear `frontend/src/features/reports/components/reports-view.tsx` con `"use client"`,
       `ReportsView({ projectId }: ReportsViewProps)` y un cuerpo que todavía no muestra nada
       (`return null`), con el comentario de qué va a componer
-- [ ] T009 Crear en `frontend/src/features/reports/components/reports-test-backend.ts` el ayudante
+- [X] T009 Crear en `frontend/src/features/reports/components/reports-test-backend.ts` el ayudante
       de pruebas compartido, que importan **solo** archivos `*.test.tsx`:
       `installReportsBackend(overrides?)` reemplaza `globalThis.fetch` con `vi.fn` y responde por
       método y ruta `GET /api/v1/projects/{id}/sprints`, `POST …/reports/sprints/{sprintId}` y

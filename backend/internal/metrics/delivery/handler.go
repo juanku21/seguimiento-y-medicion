@@ -90,7 +90,7 @@ func (h *Handler) getSprintMetrics(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, newSprintMetrics(metrics, warnings))
+	c.JSON(http.StatusOK, NewSprintMetrics(metrics, warnings))
 }
 
 // getActiveSprintMetrics godoc
@@ -129,7 +129,7 @@ func (h *Handler) getActiveSprintMetrics(c *gin.Context) {
 		c.JSON(http.StatusOK, ActiveSprintMetricsResponse{ActiveSprint: false})
 		return
 	}
-	response := newSprintMetrics(*metrics, warnings)
+	response := NewSprintMetrics(*metrics, warnings)
 	c.JSON(http.StatusOK, ActiveSprintMetricsResponse{ActiveSprint: true, Metrics: &response})
 }
 
@@ -186,7 +186,7 @@ func (h *Handler) getProjectMetrics(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, newProjectMetrics(projectID, metrics))
+	c.JSON(http.StatusOK, NewProjectMetrics(projectID, metrics))
 }
 
 // getProjectSeries godoc

@@ -376,7 +376,7 @@ con el `article` "Reporte".
       detección, `created_at`, `id` (research.md sección 7). `ListSprints` y `LoadUnplannedStories`
       quedan para US3. Implementar en `generation_repository.go` `Save` con `db.Create` — depende de
       T012
-- [ ] T018 [US1] Implementar en `backend/internal/reports/service/report_service.go` `SprintReport`:
+- [X] T018 [US1] Implementar en `backend/internal/reports/service/report_service.go` `SprintReport`:
       tomar `now` una sola vez; `LoadSprint` y `EnsureReportable` (propagar `ErrSprintNotFound` y
       `ErrSprintNotStarted` con `%w`); `LoadHeader`; historias con `SortStories` y `StoriesState`;
       estimaciones con los mismos grupos, `SelectEstimation` con corte `ClosedAt` en el Cerrado y

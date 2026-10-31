@@ -536,7 +536,7 @@ reporte de proyecto tiene cuatro grupos en orden, más el de no planificadas, y 
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T029 [P] [US3] Pruebas unitarias **obligatorias** en
+- [X] T029 [P] [US3] Pruebas unitarias **obligatorias** en
       `backend/internal/reports/domain/rules_test.go`: `ReportableSprints` con Planificados
       intercalados → solo `active` y `closed`, con el orden recibido (`start_date ASC, id ASC`)
       intacto (RN-05, RN-07, FR-007); `ReportPeriod` con tres sprints → menor inicio y mayor fin, con

@@ -56,3 +56,13 @@ func StoriesState(groups []StoryGroup) SectionState {
 	}
 	return SectionEmpty
 }
+
+// ReportableSprints filtra los sprints Activo y Cerrado y conserva el orden recibido (RN-05, RN-07).
+func ReportableSprints(sprints []SprintRef) []SprintRef {
+	return nil
+}
+
+// ReportPeriod devuelve el período con el menor inicio y el mayor fin; es nil sin sprints.
+func ReportPeriod(sprints []SprintRef) *Period {
+	return nil
+}

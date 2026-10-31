@@ -186,7 +186,7 @@ declaran tipos, esquema, composición y ayudantes, sin reglas de negocio.
       demás (cuelga del subgrupo `/:projectId`, que ya exige sesión y membresía; reutiliza el
       servicio de métricas en proceso, research.md secciones 1 y 3). `go build ./...` y `go vet ./...`
       pasan — depende de T002, T004
-- [ ] T006 Crear en `backend/internal/reports/delivery/testenv_test.go` el entorno de pruebas
+- [X] T006 Crear en `backend/internal/reports/delivery/testenv_test.go` el entorno de pruebas
       compartido, con la misma estructura que `backend/internal/metrics/delivery/testenv_test.go`
       (que no se puede importar por ser `_test.go`): `reportsTestEnv` con la base de
       `testsupport.OpenDatabase`, un reloj inyectable (`Now`, `Set`, `Advance`) compartido por

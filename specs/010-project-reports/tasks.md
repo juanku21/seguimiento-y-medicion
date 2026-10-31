@@ -739,7 +739,7 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
 - [ ] T052 Justificar o quitar la opción "Proyecto completo" y su valor inicial con el botón deshabilitado en frontend/src/features/reports/components/report-scope-select.tsx y frontend/src/features/reports/components/reports-view.tsx hasta que T038 la incorpore, ajustando la prueba de frontend/src/features/reports/components/reports-view.test.tsx per plan: la opción "Proyecto completo" la agrega T038 (unrequested) — origen: converge, detectado en hu/010-us1-generar-y-ver-el-reporte-de-un-sprint
 - [ ] T053 Cubrir con una prueba o quitar la traducción de metrics.project en NewReport de backend/internal/reports/delivery/dto.go hasta US3 per Constitución Principio II (unrequested) — origen: converge, detectado en hu/010-us1-generar-y-ver-el-reporte-de-un-sprint
 - [X] T054 Agregar prueba que simule la mutación de pdfmake sobre el documento y verifique que las filas del modelo de la vista no se modifican, en frontend/src/features/reports/pdf/pdf-document.test.ts per FR-027 (missing) — origen: converge, detectado en fase/010-polish
-- [ ] T055 Copiar las filas de la tabla en buildTable para que el documento de pdfmake no comparta referencias con el modelo de la vista, en frontend/src/features/reports/pdf/pdf-document.ts per FR-026 y SC-002 (partial) — origen: converge, detectado en fase/010-polish — depende de T054
+- [X] T055 Copiar las filas de la tabla en buildTable para que el documento de pdfmake no comparta referencias con el modelo de la vista, en frontend/src/features/reports/pdf/pdf-document.ts per FR-026 y SC-002 (partial) — origen: converge, detectado en fase/010-polish — depende de T054
 
 ---
 

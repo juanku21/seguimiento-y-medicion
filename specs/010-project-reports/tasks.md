@@ -491,7 +491,7 @@ si la exportación falla, la pantalla sigue igual.
 
 ### Implementación de la Historia 2
 
-- [ ] T026 [P] [US2] Implementar en `frontend/src/utils/report-file-name.ts`
+- [X] T026 [P] [US2] Implementar en `frontend/src/utils/report-file-name.ts`
       `reportFileName({ projectName, scope, sprintName, generatedAt, timeZone })` según research.md
       sección 15, con `normalize("NFD")`, la eliminación de `\p{M}`, el reemplazo de todo lo que no sea
       `[A-Za-z0-9-]`, el colapso de guiones, el límite de 60 por parte y los valores por defecto; la

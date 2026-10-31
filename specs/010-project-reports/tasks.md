@@ -290,7 +290,7 @@ con el `article` "Reporte".
       no cuenta (`none` si es la única); con corte, la `finished` anterior al corte gana a otra
       posterior; sin corte (`nil`), todas cuentan. Crear las firmas mínimas para que compile —
       depende de T002
-- [ ] T012 [US1] Pruebas de escenario de integración en
+- [X] T012 [US1] Pruebas de escenario de integración en
       `backend/internal/reports/delivery/handler_test.go`, una función por escenario con los nombres
       de la tabla de plan.md, cada una precedida por `// Escenario: <nombre> (010/US1)`:
       `TestUS1_ReporteDeSprintCerrado` (4 historias, 2 completadas, esfuerzo de 2 integrantes y 3

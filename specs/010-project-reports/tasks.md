@@ -567,7 +567,7 @@ reporte de proyecto tiene cuatro grupos en orden, más el de no planificadas, y 
       `metrics.project.cumulative.actualHours.value`) y `TestProjectReportActiveSprintChanges`
       (RN-23: con un Activo, renombrar una de sus historias cambia el reporte siguiente) — depende de
       T012
-- [ ] T031 [P] [US3] Pruebas unitarias **obligatorias** en
+- [X] T031 [P] [US3] Pruebas unitarias **obligatorias** en
       `frontend/src/features/reports/view-model.test.ts` para el alcance `project`, sobre
       `projectReport()`: título "Reporte del proyecto <nombre>"; "Alcance" "Proyecto completo";
       "Período" "DD/MM/AAAA al DD/MM/AAAA" y, con `period` null, "Sin sprints reportables"; un bloque

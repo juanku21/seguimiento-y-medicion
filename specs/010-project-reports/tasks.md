@@ -711,7 +711,7 @@ completas.
       sprint" a la `@description` de `backend/cmd/app/main.go`, y verificar en
       `/swagger/index.html` que la etiqueta "Reportes" tiene las dos operaciones, en español y con los
       mismos códigos, campos y nulos que [contracts/openapi.yaml](./contracts/openapi.yaml)
-- [ ] T047 [P] Actualizar `README.md`: la sección introductoria y "Panel de Control y Reportes" con
+- [X] T047 [P] Actualizar `README.md`: la sección introductoria y "Panel de Control y Reportes" con
       qué es un reporte, sus dos alcances, la exportación a PDF y la marca de parcial; `pdfmake 0.3.13`
       en la tabla del stack del frontend; y `report_generations` donde se listan las tablas, aclarando
       que guarda solo quién, cuándo y con qué alcance. Mantener el paso a paso de ejecución sin

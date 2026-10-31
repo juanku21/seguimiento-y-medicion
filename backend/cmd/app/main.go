@@ -7,7 +7,7 @@
 //	@description				proyectos y de sus integrantes, Product Backlog de cada proyecto, planificación de sus
 //	@description				sprints, estimación de historias con Planning Poker, registro del esfuerzo trabajado
 //	@description				sobre cada historia, gestión de los defectos de cada proyecto y cálculo de las métricas
-//	@description				de estimación, seguimiento y calidad de cada sprint.
+//	@description				de estimación, seguimiento y calidad de cada sprint y generación de reportes de proyecto y de sprint.
 //	@description				Las únicas operaciones públicas son el registro, el inicio de sesión y el estado del servicio; las demás exigen
 //	@description				la cabecera `Authorization: Bearer <token>`.
 //	@BasePath					/

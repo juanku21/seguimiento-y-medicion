@@ -706,17 +706,17 @@ completas.
 
 **Rama**: `fase/010-polish`
 
-- [ ] T046 [P] Regenerar Swagger en `backend/docs/` con `swag init -g cmd/app/main.go -o docs`, ejecutado desde
+- [X] T046 [P] Regenerar Swagger en `backend/docs/` con `swag init -g cmd/app/main.go -o docs`, ejecutado desde
       `backend/` como indica el `README.md`, sumar "y generación de reportes de proyecto y de
       sprint" a la `@description` de `backend/cmd/app/main.go`, y verificar en
       `/swagger/index.html` que la etiqueta "Reportes" tiene las dos operaciones, en español y con los
       mismos códigos, campos y nulos que [contracts/openapi.yaml](./contracts/openapi.yaml)
-- [ ] T047 [P] Actualizar `README.md`: la sección introductoria y "Panel de Control y Reportes" con
+- [X] T047 [P] Actualizar `README.md`: la sección introductoria y "Panel de Control y Reportes" con
       qué es un reporte, sus dos alcances, la exportación a PDF y la marca de parcial; `pdfmake 0.3.13`
       en la tabla del stack del frontend; y `report_generations` donde se listan las tablas, aclarando
       que guarda solo quién, cuándo y con qué alcance. Mantener el paso a paso de ejecución sin
       cambios, porque no hay servicios ni variables nuevas
-- [ ] T048 Ejecutar las puertas de calidad y dejar constancia del resultado: `gofmt -l backend`
+- [X] T048 Ejecutar las puertas de calidad y dejar constancia del resultado: `gofmt -l backend`
       vacío, `go vet ./...`, `go test ./... -coverprofile=coverage.out` contra la base de test,
       `govulncheck ./...`, `npm run lint`, `npm run format:check` y `npm run test:coverage`; `grep -rn
       "010/US" backend frontend/src` con los 26 escenarios del backend y los 35 del frontend de la
@@ -724,7 +724,7 @@ completas.
       `frontend/src/types/report.ts` y `frontend/src/types/pdfmake.d.ts`; y ninguna dependencia nueva
       fuera de `pdfmake@0.3.13`. Si algo falla, detenerse e informarlo con la salida — depende de T046,
       T047
-- [ ] T049 Validar a mano con [quickstart.md](./quickstart.md) secciones 2 y 3, en particular el
+- [X] T049 Validar a mano con [quickstart.md](./quickstart.md) secciones 2 y 3, en particular el
       PDF de 80 historias (paso 3.5), los caracteres especiales (paso 3.6) y la falla de exportación
       (paso 3.8), y anotar en el pull request de esta fase qué se verificó — depende de T048
 
@@ -738,6 +738,8 @@ Propósito: ajustes transversales detectados por /speckit-converge y /revisar-se
 - [ ] T051 Recibir projectID en LoadEffort y LoadEstimationSessions y filtrar por él (JOIN con sprints y user_stories) en backend/internal/reports/repository/report_repository.go y en la interfaz de backend/internal/reports/domain/ per hallazgo de seguridad: consultas de esfuerzo y sesiones sin filtro de proyecto (security) — origen: seguridad, detectado en 010/US1
 - [ ] T052 Justificar o quitar la opción "Proyecto completo" y su valor inicial con el botón deshabilitado en frontend/src/features/reports/components/report-scope-select.tsx y frontend/src/features/reports/components/reports-view.tsx hasta que T038 la incorpore, ajustando la prueba de frontend/src/features/reports/components/reports-view.test.tsx per plan: la opción "Proyecto completo" la agrega T038 (unrequested) — origen: converge, detectado en hu/010-us1-generar-y-ver-el-reporte-de-un-sprint
 - [ ] T053 Cubrir con una prueba o quitar la traducción de metrics.project en NewReport de backend/internal/reports/delivery/dto.go hasta US3 per Constitución Principio II (unrequested) — origen: converge, detectado en hu/010-us1-generar-y-ver-el-reporte-de-un-sprint
+- [ ] T054 Agregar prueba que simule la mutación de pdfmake sobre el documento y verifique que las filas del modelo de la vista no se modifican, en frontend/src/features/reports/pdf/pdf-document.test.ts per FR-027 (missing) — origen: converge, detectado en fase/010-polish
+- [ ] T055 Copiar las filas de la tabla en buildTable para que el documento de pdfmake no comparta referencias con el modelo de la vista, en frontend/src/features/reports/pdf/pdf-document.ts per FR-026 y SC-002 (partial) — origen: converge, detectado en fase/010-polish — depende de T054
 
 ---
 

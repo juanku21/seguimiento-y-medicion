@@ -646,7 +646,7 @@ métricas y de defectos dicen "No se pudo obtener esta sección." y las demás s
       `DefectsState` (listado vacío → `empty` con los totales conservados) y `ProjectMetricsState`
       (alcance `project` sin sprints reportables → `empty`; con alguno → `complete`), según la tabla
       de research.md sección 8 (RN-11). Crear las firmas mínimas para que compile — depende de T033
-- [ ] T040 [US4] Pruebas de escenario de integración con los nombres de la tabla de plan.md y
+- [X] T040 [US4] Pruebas de escenario de integración con los nombres de la tabla de plan.md y
       `// Escenario: <nombre> (010/US4)`: en `backend/internal/reports/delivery/handler_test.go`,
       `TestUS4_SprintSinEsfuerzo` (`effort.state` `empty`, `totalHours` `0.00`, grupos sin filas),
       `TestUS4_SprintSinDefectos` (`defects.state` `empty`, `defects` vacío y `totals` en 0),

@@ -607,7 +607,7 @@ reporte de proyecto tiene cuatro grupos en orden, más el de no planificadas, y 
       totales `Detected.Total` y `Resolved.Total` y `StoryTitle` contra la instantánea del sprint de
       detección si es Cerrado; `IsPartial`; y el `Save` con `Scope` `project` y `SprintID` nil —
       depende de T033, T034
-- [ ] T036 [US3] Implementar en `backend/internal/reports/delivery/handler.go`
+- [X] T036 [US3] Implementar en `backend/internal/reports/delivery/handler.go`
       `generateProjectReport`, con su anotación Swagger completa (`@ID generateProjectReport`,
       `@Failure` 401, 404 y 500), y en `dto.go` `metrics.project` con
       `metricsdelivery.NewProjectMetrics` — depende de T035

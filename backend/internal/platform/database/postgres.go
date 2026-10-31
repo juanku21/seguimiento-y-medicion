@@ -18,6 +18,7 @@ import (
 	"github.com/juanku21/seguimiento-y-medicion/backend/internal/platform/config"
 	pokerdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/poker/domain"
 	projectsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/domain"
+	reportsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/reports/domain"
 	sprintsdomain "github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/domain"
 )
 
@@ -25,7 +26,7 @@ import (
 // las violaciones de restricciones lleguen como errores de GORM (por ejemplo gorm.ErrDuplicatedKey)
 // y no como códigos propios de PostgreSQL (research.md sección 3), y migra los modelos de las
 // features de autenticación, de proyectos, del backlog, de sprints, de Planning Poker, de registro
-// de esfuerzo y de defectos. Lo usan cmd/app al arrancar y el ayudante de las pruebas de integración.
+// de esfuerzo, de defectos y de reportes. Lo usan cmd/app al arrancar y el ayudante de las pruebas de integración.
 func Open(cfg config.Config) (*gorm.DB, error) {
 	// El error nombra el host y el puerto solo cuando vienen de DB_*: con DATABASE_URL se omiten
 	// para no repetir una URL que incluye la contraseña.
@@ -49,6 +50,8 @@ func Open(cfg config.Config) (*gorm.DB, error) {
 	// DELETE CASCADE. Defect también va después de SprintStory, porque defects apunta a user_stories.id,
 	// a sprints.id y a users.id. Migrar UserStory agrega además las columnas ever_committed,
 	// ever_had_effort y ever_had_defects.
+	// ReportGeneration va al final porque report_generations apunta a projects.id, a sprints.id y a
+	// users.id, sin ON DELETE CASCADE.
 	// Los índices compuestos, únicos o no, incluidos los parciales con cláusula WHERE, los crean las
 	// etiquetas de GORM de cada modelo. Si la migración falla se cierra la conexión para no dejar el
 	// pool abierto.
@@ -68,6 +71,7 @@ func Open(cfg config.Config) (*gorm.DB, error) {
 		&pokerdomain.EstimationVote{},
 		&effortdomain.EffortEntry{},
 		&defectsdomain.Defect{},
+		&reportsdomain.ReportGeneration{},
 	); err != nil {
 		migrateErr := fmt.Errorf("no se pudo migrar el esquema: %w", err)
 		sqlDB, dbErr := db.DB()

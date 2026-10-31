@@ -151,7 +151,7 @@ declaran tipos, esquema, composición y ayudantes, sin reglas de negocio.
       `CreatedAt` y `UpdatedAt` `type:timestamptz;not null`. El comentario del tipo explica que los
       punteros a entidades existen solo para que `AutoMigrate` cree las claves foráneas, **sin**
       cascada, y que el registro nunca se actualiza ni se elimina. Sin funciones todavía
-- [ ] T003 Registrar la tabla en la plataforma: en
+- [X] T003 Registrar la tabla en la plataforma: en
       `backend/internal/platform/database/postgres.go`, `&reportsdomain.ReportGeneration{}` al final
       de la lista de `AutoMigrate`, con su importación; en
       `backend/internal/platform/testsupport/database.go`, `report_generations` al final del

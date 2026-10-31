@@ -447,7 +447,7 @@ si la exportación falla, la pantalla sigue igual.
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T023 [P] [US2] Pruebas unitarias **obligatorias** de `reportFileName` en
+- [X] T023 [P] [US2] Pruebas unitarias **obligatorias** de `reportFileName` en
       `frontend/src/utils/report-file-name.test.ts`, cubriendo RN-17, FR-029, FR-030 y los ejemplos
       de contracts/ui-contract.md: "Gestión de Compras", alcance proyecto, 30/10/2026 14:32:05 →
       `Reporte_Gestion-de-Compras_proyecto_2026-10-30_14-32-05.pdf`; "Ñandú: App/Web *beta*" con
@@ -458,7 +458,7 @@ si la exportación falla, la pantalla sigue igual.
       un segundo dan nombres distintos; la fecha y la hora salen de la zona horaria recibida (un
       instante de las 01:30 UTC con `America/Argentina/Buenos_Aires` cae en el día anterior). Crear la
       firma mínima para que compile
-- [ ] T024 [P] [US2] Pruebas unitarias **obligatorias** de `buildPdfDocument(view)` en
+- [X] T024 [P] [US2] Pruebas unitarias **obligatorias** de `buildPdfDocument(view)` en
       `frontend/src/features/reports/pdf/pdf-document.test.ts`, sobre
       `buildReportView(sprintReport(), zona)`: un ayudante del archivo de prueba recorre `content` y
       extrae los textos en orden, y son exactamente los de `view` en el mismo orden (RN-15); el primer
@@ -469,7 +469,7 @@ si la exportación falla, la pantalla sigue igual.
       tiene 81 filas y ninguna se pierde; los textos con acentos, eñes y raya llegan sin cambios
       (FR-031); y `defaultStyle.font` es `Roboto`. Crear la firma mínima para que compile — depende de
       T021
-- [ ] T025 [US2] Pruebas de escenario en
+- [X] T025 [US2] Pruebas de escenario en
       `frontend/src/features/reports/components/reports-view.test.tsx`, con
       `vi.mock("../pdf/export-pdf", …)` que captura el documento y el nombre, y
       `describe("010/US2 - Exportar el reporte a PDF")` con un `it` por escenario según la tabla de
@@ -491,20 +491,20 @@ si la exportación falla, la pantalla sigue igual.
 
 ### Implementación de la Historia 2
 
-- [ ] T026 [P] [US2] Implementar en `frontend/src/utils/report-file-name.ts`
+- [X] T026 [P] [US2] Implementar en `frontend/src/utils/report-file-name.ts`
       `reportFileName({ projectName, scope, sprintName, generatedAt, timeZone })` según research.md
       sección 15, con `normalize("NFD")`, la eliminación de `\p{M}`, el reemplazo de todo lo que no sea
       `[A-Za-z0-9-]`, el colapso de guiones, el límite de 60 por parte y los valores por defecto; la
       fecha y la hora con `Intl.DateTimeFormat` en la zona recibida, como `formatInstant` — depende de
       T023
-- [ ] T027 [P] [US2] Implementar en `frontend/src/features/reports/pdf/pdf-document.ts`
+- [X] T027 [P] [US2] Implementar en `frontend/src/features/reports/pdf/pdf-document.ts`
       `buildPdfDocument(view: ReportView): PdfDocumentDefinition` según research.md sección 14 y la
       tabla "PDF" de contracts/ui-contract.md: título, nota parcial, seis secciones con su título y su
       mensaje, cada bloque con su subtítulo y su tabla (`headerRows: 1`, `dontBreakRows: true`,
       `widths` con `*` en la columna de texto largo y `auto` en las demás), `footer` con "Página N de M"
       y la nota, `pageMargins`, estilos y `defaultStyle.font = "Roboto"`. Sin formatear nada: solo lee
       `view` — depende de T024
-- [ ] T028 [US2] Implementar en `frontend/src/features/reports/pdf/export-pdf.ts`
+- [X] T028 [US2] Implementar en `frontend/src/features/reports/pdf/export-pdf.ts`
       `exportReportPdf(definition, fileName): Promise<void>`, que importa con `import()`
       `pdfmake/build/pdfmake` y `pdfmake/build/vfs_fonts`, registra las fuentes con
       `addVirtualFileSystem` y llama a `createPdf(definition).download(fileName)`, con un comentario de

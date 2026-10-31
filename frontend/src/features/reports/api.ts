@@ -321,3 +321,14 @@ export function generateSprintReport(
     isReport,
   );
 }
+
+// Genera el reporte del proyecto completo; igual que el de sprint, se envía un cuerpo vacío.
+export function generateProjectReport(
+  projectId: string,
+): Promise<ApiResult<Report>> {
+  return postAuthorizedJson(
+    `/api/v1/projects/${projectId}/reports/project`,
+    {},
+    isReport,
+  );
+}

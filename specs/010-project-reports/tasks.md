@@ -690,7 +690,7 @@ métricas y de defectos dicen "No se pudo obtener esta sección." y las demás s
       `500`). Aplicar `EffortState`, `DefectsState` y `ProjectMetricsState`. En
       `backend/internal/reports/delivery/dto.go`, las secciones `unavailable` con sus datos en `null`
       según el contrato — depende de T040, T043
-- [ ] T045 [US4] Implementar el estado `unavailable` y los totales de una sección de defectos vacía en
+- [X] T045 [US4] Implementar el estado `unavailable` y los totales de una sección de defectos vacía en
       `frontend/src/features/reports/view-model.ts`, en `report-section.tsx` el mensaje
       "No se pudo obtener esta sección." con `role="alert"`, y en `pdf/pdf-document.ts` el mensaje de
       las dos clases de sección — depende de T041, T042

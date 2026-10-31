@@ -469,7 +469,7 @@ si la exportación falla, la pantalla sigue igual.
       tiene 81 filas y ninguna se pierde; los textos con acentos, eñes y raya llegan sin cambios
       (FR-031); y `defaultStyle.font` es `Roboto`. Crear la firma mínima para que compile — depende de
       T021
-- [ ] T025 [US2] Pruebas de escenario en
+- [X] T025 [US2] Pruebas de escenario en
       `frontend/src/features/reports/components/reports-view.test.tsx`, con
       `vi.mock("../pdf/export-pdf", …)` que captura el documento y el nombre, y
       `describe("010/US2 - Exportar el reporte a PDF")` con un `it` por escenario según la tabla de

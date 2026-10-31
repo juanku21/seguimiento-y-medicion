@@ -8,11 +8,13 @@ import {
   within,
 } from "@testing-library/react";
 import { createElement } from "react";
+import type { PdfContent, PdfDocumentDefinition } from "pdfmake/build/pdfmake";
 import {
   defaultProjectId,
   defaultReportSprint,
   defaultSprintId,
   installReportsBackend,
+  projectReport,
   renderReports,
   sprintReport,
 } from "@/features/reports/components/reports-test-backend";
@@ -24,8 +26,8 @@ import type { Report } from "@/types/report";
 import type { SprintListItem, SprintListResponse } from "@/types/sprint";
 
 // Pruebas de escenario de la Historia 1 (T014): montan ReportsView completo con el backend de
-// prueba compartido, eligen el sprint, generan el reporte y verifican el article "Reporte". El
-// módulo export-pdf todavía no existe (llega con la Historia 2), así que no se sustituye aquí.
+// prueba compartido, eligen el sprint, generan el reporte y verifican el article "Reporte". Las de
+// la Historia 2 (T025) exportan a PDF con export-pdf sustituido por un espía.
 
 // Espía compartido del enrutador: la guardia de sesión llama a replace sin token.
 const routerMock = vi.hoisted(() => ({
@@ -44,6 +46,14 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+// Sustituye la exportación real: captura el documento y el nombre del archivo.
+const exportMock = vi.hoisted(() =>
+  vi.fn<
+    (definition: PdfDocumentDefinition, fileName: string) => Promise<void>
+  >(),
+);
+vi.mock("../pdf/export-pdf", () => ({ exportReportPdf: exportMock }));
+
 // Orden fijo de las seis regiones del reporte (contracts/ui-contract.md).
 const REGIONS = [
   "Encabezado",
@@ -59,6 +69,8 @@ const PARTIAL_NOTE = "Reporte parcial: incluye un sprint en curso.";
 beforeEach(() => {
   clearSession();
   routerMock.replace.mockClear();
+  exportMock.mockReset();
+  exportMock.mockResolvedValue(undefined);
 });
 
 // Desmonta el componente y restablece la sesión y los globales sustituidos.
@@ -426,5 +438,267 @@ describe("010/US1 - Generar y ver el reporte de un sprint", () => {
       expect(routerMock.replace).toHaveBeenCalledWith("/login");
     });
     expect(requests).toHaveLength(0);
+  });
+});
+
+// Recorre el contenido y devuelve sus textos en el orden del documento.
+function extractTexts(node: PdfContent | PdfContent[]): string[] {
+  if (typeof node === "string") {
+    return [node];
+  }
+  if (Array.isArray(node)) {
+    return node.flatMap(extractTexts);
+  }
+  if (node.table) {
+    return node.table.body.flatMap((row) => row.flatMap(extractTexts));
+  }
+  if (node.stack) {
+    return node.stack.flatMap(extractTexts);
+  }
+  if (node.text === undefined) {
+    return [];
+  }
+  return typeof node.text === "string" ? [node.text] : extractTexts(node.text);
+}
+
+// Tabla de pdfmake tal como la declaran los tipos del proyecto.
+type PdfTable = NonNullable<Exclude<PdfContent, string>["table"]>;
+
+// Recorre el contenido y devuelve todas sus tablas, a cualquier profundidad.
+function collectTables(node: PdfContent | PdfContent[]): PdfTable[] {
+  if (typeof node === "string") {
+    return [];
+  }
+  if (Array.isArray(node)) {
+    return node.flatMap(collectTables);
+  }
+  const nested: PdfContent[] = [
+    ...(node.stack ?? []),
+    ...(Array.isArray(node.text) ? node.text : []),
+    ...(node.table ? node.table.body.flat() : []),
+  ];
+  return [
+    ...(node.table ? [node.table] : []),
+    ...nested.flatMap(collectTables),
+  ];
+}
+
+// Reporte de sprint con la cantidad indicada de historias en su único grupo.
+function reportWithStories(count: number): Report {
+  const base = sprintReport();
+  const group = base.stories.groups?.[0];
+  if (!group || !("stories" in group)) {
+    throw new Error("falta el grupo de historias");
+  }
+  const stories = Array.from({ length: count }, (_, index) => ({
+    storyId: `a0000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+    title: `Historia ${index + 1}`,
+    priority: "medium" as const,
+    storyPoints: 3,
+    status: "completed" as const,
+  }));
+  return {
+    ...base,
+    stories: { ...base.stories, groups: [{ ...group, stories }] },
+  };
+}
+
+// Pulsa "Exportar a PDF" y espera a que la exportación sustituida se haya invocado `calls` veces.
+async function clickExport(calls: number) {
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Exportar a PDF" }),
+  );
+  await waitFor(() => expect(exportMock).toHaveBeenCalledTimes(calls));
+}
+
+// Documento y nombre de la última exportación capturada.
+function lastExport(): { doc: PdfDocumentDefinition; fileName: string } {
+  const call = exportMock.mock.calls[exportMock.mock.calls.length - 1];
+  return { doc: call[0], fileName: call[1] };
+}
+
+// Cantidad de POST recibidos por el backend de prueba.
+function postCount(requests: { method: string }[]): number {
+  return requests.filter((r) => r.method === "POST").length;
+}
+
+// Reporte de sprint con otra fecha de generación.
+function reportGeneratedAt(generatedAt: string): Report {
+  const base = sprintReport();
+  return { ...base, header: { ...base.header, generatedAt } };
+}
+
+describe("010/US2 - Exportar el reporte a PDF", () => {
+  // Escenario: US2-1 (Caso normal)
+  it("exporta un PDF con el contenido de la pantalla, páginas numeradas y nombre con proyecto, alcance y fecha", async () => {
+    installReportsBackend();
+    await generate("Sprint 1 (Cerrado)");
+    const report = await findReport();
+    await clickExport(1);
+
+    const { doc, fileName } = lastExport();
+    // Cada región de la pantalla coincide con los textos de su sección en el documento.
+    const texts = extractTexts(doc.content);
+    let from = 0;
+    const starts = REGIONS.map((title) => {
+      from = texts.indexOf(title, from + 1);
+      return from;
+    });
+    expect(starts.every((index) => index > 0)).toBe(true);
+    REGIONS.forEach((name, index) => {
+      const end = index + 1 < starts.length ? starts[index + 1] : texts.length;
+      expect(texts.slice(starts[index], end).join("")).toBe(
+        region(report, name).textContent,
+      );
+    });
+    expect(texts[0]).toBe(
+      within(report).getByRole("heading", { level: 2 }).textContent,
+    );
+    expect(fileName).toMatch(
+      /^Reporte_Plataforma-de-seguimiento_sprint-Sprint-1_2026-11-1[01]_\d{2}-\d{2}-\d{2}\.pdf$/,
+    );
+  });
+
+  // Escenario: US2-2 (Caso alternativo)
+  it("lleva la marca de parcial al PDF", async () => {
+    installReportsBackend({
+      sprintReport: { status: 200, body: sprintReport({ partial: true }) },
+    });
+    await generate("Sprint 1 (Cerrado)");
+    await findReport();
+    await clickExport(1);
+
+    const { doc } = lastExport();
+    expect(extractTexts(doc.content)[1]).toBe(PARTIAL_NOTE);
+    expect(extractTexts(doc.footer?.(1, 2) ?? [])).toContain(PARTIAL_NOTE);
+  });
+
+  // Escenario: US2-3 (Caso alternativo)
+  it("distingue en el nombre el alcance proyecto del de sprint", async () => {
+    installReportsBackend();
+    await generate("Sprint 1 (Cerrado)");
+    await findReport();
+    await clickExport(1);
+    const sprintName = lastExport().fileName;
+
+    // El backend de prueba responde con el cuerpo de un reporte de proyecto.
+    installReportsBackend({
+      sprintReport: { status: 200, body: projectReport() },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Generar reporte" }));
+    await findReport();
+    await clickExport(2);
+    const projectName = lastExport().fileName;
+
+    expect(projectName).toContain("_proyecto_");
+    expect(sprintName).not.toContain("_proyecto_");
+    expect(projectName).not.toBe(sprintName);
+  });
+
+  // Escenario: US2-4 (Caso límite)
+  it("pagina 80 historias repitiendo encabezados sin perder filas", async () => {
+    installReportsBackend({
+      sprintReport: { status: 200, body: reportWithStories(80) },
+    });
+    await generate("Sprint 1 (Cerrado)");
+    await findReport();
+    await clickExport(1);
+
+    const tables = collectTables(lastExport().doc.content);
+    const stories = tables.filter((table) => table.body.length === 81);
+    expect(stories).toHaveLength(1);
+    expect(stories[0].headerRows).toBe(1);
+  });
+
+  // Escenario: US2-5 (Caso límite)
+  it("conserva acentos y eñes en el contenido y sanea el nombre del archivo", async () => {
+    const base = sprintReport();
+    const projectName = "Ñandú: Gestión/Compras *beta*";
+    installReportsBackend({
+      sprintReport: {
+        status: 200,
+        body: { ...base, header: { ...base.header, projectName } },
+      },
+    });
+    await generate("Sprint 1 (Cerrado)");
+    await findReport();
+    await clickExport(1);
+
+    const { doc, fileName } = lastExport();
+    expect(extractTexts(doc.content)).toContain(projectName);
+    expect(fileName.startsWith("Reporte_Nandu-Gestion-Compras-beta_")).toBe(
+      true,
+    );
+    expect(fileName.endsWith(".pdf")).toBe(true);
+  });
+
+  // Escenario: US2-6 (Caso límite)
+  it("distingue dos reportes del mismo día por la hora", async () => {
+    installReportsBackend({
+      sprintReport: {
+        status: 200,
+        body: reportGeneratedAt("2026-11-10T14:30:00Z"),
+      },
+    });
+    await generate("Sprint 1 (Cerrado)");
+    await findReport();
+    await clickExport(1);
+    const first = lastExport().fileName;
+
+    installReportsBackend({
+      sprintReport: {
+        status: 200,
+        body: reportGeneratedAt("2026-11-10T14:45:30Z"),
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Generar reporte" }));
+    await findReport();
+    await clickExport(2);
+
+    expect(lastExport().fileName).not.toBe(first);
+  });
+
+  // Escenario: US2-7 (Caso de error)
+  it("informa la falla del PDF y conserva el reporte en pantalla", async () => {
+    const requests = installReportsBackend();
+    await generate("Sprint 1 (Cerrado)");
+    const before = (await findReport()).textContent;
+    const posts = postCount(requests);
+    exportMock.mockRejectedValueOnce(new Error("falla de pdfmake"));
+
+    await clickExport(1);
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "No se pudo generar el PDF. Intentá de nuevo.",
+    );
+    expect((await findReport()).textContent).toBe(before);
+    const button = screen.getByRole("button", { name: "Exportar a PDF" });
+    expect((button as HTMLButtonElement).disabled).toBe(false);
+
+    // El reintento vuelve a exportar con el mismo reporte, sin pedirlo de nuevo.
+    fireEvent.click(button);
+    await waitFor(() => expect(exportMock).toHaveBeenCalledTimes(2));
+    expect(postCount(requests)).toBe(posts);
+  });
+
+  // Escenario: US2-8 (Caso de error)
+  it("no ofrece exportar a quien no es integrante", async () => {
+    installReportsBackend();
+    renderReports("1f2e3d4c-0000-4000-8000-00000000ffff");
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "El proyecto no existe.",
+    );
+    expect(screen.queryByRole("button", { name: "Exportar a PDF" })).toBeNull();
+  });
+
+  // Sin etiqueta de escenario (RN-02, research.md sección 16).
+  it("exportar no hace ninguna consulta", async () => {
+    const requests = installReportsBackend();
+    await generate("Sprint 1 (Cerrado)");
+    await findReport();
+    const before = requests.length;
+
+    await clickExport(1);
+    expect(requests).toHaveLength(before);
   });
 });

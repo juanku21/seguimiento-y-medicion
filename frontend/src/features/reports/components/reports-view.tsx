@@ -3,7 +3,10 @@
 import { useCallback, useMemo, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
-import { generateSprintReport } from "@/features/reports/api";
+import {
+  generateProjectReport,
+  generateSprintReport,
+} from "@/features/reports/api";
 import { buildPdfDocument } from "@/features/reports/pdf/pdf-document";
 import { exportReportPdf } from "@/features/reports/pdf/export-pdf";
 import { ReportDocument } from "@/features/reports/components/report-document";
@@ -36,8 +39,8 @@ const GENERIC_ERROR = "No se pudo generar el reporte. Intentá de nuevo.";
 // Mensaje cuando falla la generación o la descarga del PDF.
 const EXPORT_ERROR = "No se pudo generar el PDF. Intentá de nuevo.";
 
-// Vista de reportes del proyecto (010/US1): elige el alcance, genera el reporte del sprint y lo
-// muestra. El reporte consolidado del proyecto llega con la Historia 3.
+// Vista de reportes del proyecto: elige el alcance, genera el reporte del sprint o del proyecto
+// completo y lo muestra.
 export function ReportsView({ projectId }: ReportsViewProps) {
   // Solo se ofrecen el sprint Activo y los Cerrados; los Planificados no tienen nada que reportar.
   const loadSprints = useCallback(
@@ -58,10 +61,13 @@ export function ReportsView({ projectId }: ReportsViewProps) {
     [],
   );
 
-  // Pide el reporte del sprint elegido; los rechazos del dominio muestran el mensaje del backend.
+  // Pide el reporte del alcance elegido; los rechazos del dominio muestran el mensaje del backend.
   async function handleGenerate() {
     setGeneration({ status: "generating" });
-    const result = await generateSprintReport(projectId, scope);
+    const result =
+      scope === PROJECT_SCOPE
+        ? await generateProjectReport(projectId)
+        : await generateSprintReport(projectId, scope);
     if (result.ok) {
       setGeneration({
         status: "shown",
@@ -110,11 +116,7 @@ export function ReportsView({ projectId }: ReportsViewProps) {
           onChange={setScope}
           disabled={isGenerating}
         />
-        {/* El reporte del proyecto completo llega con la Historia 3: hasta entonces no se genera. */}
-        <Button
-          onClick={handleGenerate}
-          disabled={isGenerating || scope === PROJECT_SCOPE}
-        >
+        <Button onClick={handleGenerate} disabled={isGenerating}>
           {isGenerating ? "Generando…" : "Generar reporte"}
         </Button>
       </div>

@@ -1,5 +1,10 @@
 // Modelo de presentación del reporte que consumen la pantalla y el PDF.
-import type { Finality, Metric, SprintMetrics } from "@/types/metrics";
+import type {
+  Finality,
+  Metric,
+  ProjectMetricsResponse,
+  SprintMetrics,
+} from "@/types/metrics";
 import type {
   EstimationLine,
   Report,
@@ -208,10 +213,69 @@ function sprintMetricRows(metrics: SprintMetrics): string[][] {
   ]);
 }
 
-// Arma el modelo de presentación del reporte de un sprint, con todas las cadenas ya formateadas.
+// Filas de la tabla de métricas del proyecto: el acumulado con su finalidad y las tres cifras propias.
+function projectMetricRows(project: ProjectMetricsResponse): string[][] {
+  const { cumulative } = project;
+  const accumulated: [string, Metric, MetricKind, (value: number) => string][] =
+    [
+      [
+        "Story Points planificados",
+        cumulative.plannedStoryPoints,
+        "storyPoints",
+        String,
+      ],
+      [
+        "Story Points completados",
+        cumulative.completedStoryPoints,
+        "storyPoints",
+        String,
+      ],
+      [
+        "Historias completadas",
+        cumulative.storyCompletionPercent,
+        "storyCompletionPercent",
+        formatShare,
+      ],
+      ["Horas estimadas", cumulative.estimatedHours, "hours", formatDecimal],
+      ["Horas reales", cumulative.actualHours, "hours", formatDecimal],
+      [
+        "Desviación",
+        cumulative.deviationHours,
+        "deviationHours",
+        formatDecimal,
+      ],
+      [
+        "Desviación porcentual",
+        cumulative.deviationPercent,
+        "deviationPercent",
+        formatShare,
+      ],
+    ];
+  return [
+    ...accumulated.map(([label, metric, kind, format]) => [
+      label,
+      metricText({ ...metric, finality: cumulative.finality }, kind, format),
+    ]),
+    [
+      "Esfuerzo fuera de sprints",
+      formatDecimal(project.effortOutsideSprintsHours),
+    ],
+    [
+      "Esfuerzo en sprints planificados",
+      formatDecimal(project.effortInPlannedSprintsHours),
+    ],
+    [
+      "Historias sin estimar en el backlog",
+      String(project.unestimatedBacklogStories),
+    ],
+  ];
+}
+
+// Arma el modelo de presentación del reporte de un sprint o del proyecto, con todas las cadenas ya formateadas.
 export function buildReportView(report: Report, timeZone: string): ReportView {
   const { header } = report;
   const sprintName = header.sprint?.name ?? "";
+  const isProject = report.scope === "project";
   const period = header.period
     ? `${formatDate(header.period.startDate)} al ${formatDate(header.period.endDate)}`
     : "Sin sprints reportables";
@@ -278,16 +342,21 @@ export function buildReportView(report: Report, timeZone: string): ReportView {
     ),
   ];
 
-  // Métricas: una sola tabla con una fila por métrica.
-  const sprintMetrics = report.metrics.sprint;
-  const metrics: BlockView[] = sprintMetrics
+  // Métricas: una sola tabla con una fila por métrica, del sprint o del proyecto.
+  const { sprint: sprintMetrics, project: projectMetrics } = report.metrics;
+  const metricRows = sprintMetrics
+    ? sprintMetricRows(sprintMetrics)
+    : projectMetrics
+      ? projectMetricRows(projectMetrics)
+      : null;
+  const metrics: BlockView[] = metricRows
     ? [
         {
           heading: null,
           message: null,
           table: {
             columns: ["Métrica", "Valor"],
-            rows: sprintMetricRows(sprintMetrics),
+            rows: metricRows,
             footer: null,
           },
         },
@@ -326,13 +395,18 @@ export function buildReportView(report: Report, timeZone: string): ReportView {
   ];
 
   return {
-    title: `Reporte del sprint ${sprintName}`,
+    title: isProject
+      ? `Reporte del proyecto ${header.projectName}`
+      : `Reporte del sprint ${sprintName}`,
     partialNote: report.partial
       ? "Reporte parcial: incluye un sprint en curso."
       : null,
     header: [
       { label: "Proyecto", value: header.projectName },
-      { label: "Alcance", value: `Sprint ${sprintName}` },
+      {
+        label: "Alcance",
+        value: isProject ? "Proyecto completo" : `Sprint ${sprintName}`,
+      },
       { label: "Período", value: period },
       {
         label: "Generado el",

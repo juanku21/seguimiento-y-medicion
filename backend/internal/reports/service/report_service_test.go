@@ -52,11 +52,11 @@ func (r stubReportRepository) LoadUnplannedStories(ctx context.Context, projectI
 	return nil, nil
 }
 
-func (r stubReportRepository) LoadEstimationSessions(ctx context.Context, storyIDs []uuid.UUID) (map[uuid.UUID][]domain.SessionRecord, error) {
+func (r stubReportRepository) LoadEstimationSessions(ctx context.Context, projectID uuid.UUID, storyIDs []uuid.UUID) (map[uuid.UUID][]domain.SessionRecord, error) {
 	return map[uuid.UUID][]domain.SessionRecord{}, nil
 }
 
-func (r stubReportRepository) LoadEffort(ctx context.Context, sprintIDs []uuid.UUID) ([]domain.EffortRow, error) {
+func (r stubReportRepository) LoadEffort(ctx context.Context, projectID uuid.UUID, sprintIDs []uuid.UUID) ([]domain.EffortRow, error) {
 	return nil, nil
 }
 

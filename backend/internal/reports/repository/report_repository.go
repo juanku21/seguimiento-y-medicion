@@ -148,7 +148,7 @@ type sessionRow struct {
 // LoadEstimationSessions lee las sesiones de Planning Poker de las historias dadas, con la cantidad
 // de rondas de cada una. Precondición: los ids salen de lecturas ya acotadas al proyecto (las
 // historias de un sprint validado); esta consulta no vuelve a filtrar por proyecto.
-func (r *ReportRepository) LoadEstimationSessions(ctx context.Context, storyIDs []uuid.UUID) (map[uuid.UUID][]domain.SessionRecord, error) {
+func (r *ReportRepository) LoadEstimationSessions(ctx context.Context, projectID uuid.UUID, storyIDs []uuid.UUID) (map[uuid.UUID][]domain.SessionRecord, error) {
 	sessions := make(map[uuid.UUID][]domain.SessionRecord)
 	if len(storyIDs) == 0 {
 		return sessions, nil
@@ -182,7 +182,7 @@ func (r *ReportRepository) LoadEstimationSessions(ctx context.Context, storyIDs 
 // LoadEffort lee el esfuerzo agregado por sprint, historia y usuario de los sprints dados.
 // Precondición: los ids salen de lecturas ya acotadas al proyecto (sprints validados); esta consulta
 // no vuelve a filtrar por proyecto.
-func (r *ReportRepository) LoadEffort(ctx context.Context, sprintIDs []uuid.UUID) ([]domain.EffortRow, error) {
+func (r *ReportRepository) LoadEffort(ctx context.Context, projectID uuid.UUID, sprintIDs []uuid.UUID) ([]domain.EffortRow, error) {
 	rows := []domain.EffortRow{}
 	if len(sprintIDs) == 0 {
 		return rows, nil

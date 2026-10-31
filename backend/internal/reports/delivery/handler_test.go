@@ -610,14 +610,14 @@ func (c countingReportRepository) LoadUnplannedStories(ctx context.Context, proj
 	return c.ReportRepository.LoadUnplannedStories(ctx, projectID)
 }
 
-func (c countingReportRepository) LoadEstimationSessions(ctx context.Context, storyIDs []uuid.UUID) (map[uuid.UUID][]reportsdomain.SessionRecord, error) {
+func (c countingReportRepository) LoadEstimationSessions(ctx context.Context, projectID uuid.UUID, storyIDs []uuid.UUID) (map[uuid.UUID][]reportsdomain.SessionRecord, error) {
 	c.calls.Add(1)
-	return c.ReportRepository.LoadEstimationSessions(ctx, storyIDs)
+	return c.ReportRepository.LoadEstimationSessions(ctx, projectID, storyIDs)
 }
 
-func (c countingReportRepository) LoadEffort(ctx context.Context, sprintIDs []uuid.UUID) ([]reportsdomain.EffortRow, error) {
+func (c countingReportRepository) LoadEffort(ctx context.Context, projectID uuid.UUID, sprintIDs []uuid.UUID) ([]reportsdomain.EffortRow, error) {
 	c.calls.Add(1)
-	return c.ReportRepository.LoadEffort(ctx, sprintIDs)
+	return c.ReportRepository.LoadEffort(ctx, projectID, sprintIDs)
 }
 
 func (c countingReportRepository) LoadDefects(ctx context.Context, projectID uuid.UUID, sprintID *uuid.UUID) ([]reportsdomain.DefectLine, error) {
@@ -1297,7 +1297,7 @@ type failingEffortRepository struct {
 	reportsdomain.ReportRepository
 }
 
-func (failingEffortRepository) LoadEffort(context.Context, []uuid.UUID) ([]reportsdomain.EffortRow, error) {
+func (failingEffortRepository) LoadEffort(context.Context, uuid.UUID, []uuid.UUID) ([]reportsdomain.EffortRow, error) {
 	return nil, errors.New(simulatedFailure)
 }
 

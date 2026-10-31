@@ -271,7 +271,7 @@ con el `article` "Reporte".
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T010 [P] [US1] Pruebas unitarias **obligatorias** en
+- [X] T010 [P] [US1] Pruebas unitarias **obligatorias** en
       `backend/internal/reports/domain/rules_test.go`, con tablas y `t.Run`: `EnsureReportable` con
       `planned` → `ErrSprintNotStarted` (RN-04), y con `active` y `closed` → nil; `IsPartial` en el
       alcance `sprint` con un Activo → `true` y con un Cerrado → `false` (RN-03); `SortStories` con

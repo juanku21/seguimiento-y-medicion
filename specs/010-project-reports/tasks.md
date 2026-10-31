@@ -361,7 +361,7 @@ con el `article` "Reporte".
 - [X] T016 [P] [US1] Implementar en `backend/internal/reports/domain/estimation.go`
       `SelectEstimation(sessions []SessionRecord, cutoff *time.Time) (PokerState, *PokerSummary)`
       según research.md sección 5, sin consultar nada — depende de T011
-- [ ] T017 [US1] Implementar en `backend/internal/reports/repository/report_repository.go`, con
+- [X] T017 [US1] Implementar en `backend/internal/reports/repository/report_repository.go`, con
       `tx.Raw` y parámetros con nombre como `metrics/repository`, cada lectura en su propia consulta y
       cada error envuelto con `fmt.Errorf("…: %w", err)`: `LoadHeader` (proyecto por id y
       `users.full_name` del que pide); `LoadSprint` acotado al `project_id` (`ErrSprintNotFound` con

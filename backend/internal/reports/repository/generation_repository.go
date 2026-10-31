@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 
 	"gorm.io/gorm"
 
@@ -20,5 +21,8 @@ func NewGenerationRepository(db *gorm.DB) *GenerationRepository {
 
 // Save inserta el registro de una generación.
 func (r *GenerationRepository) Save(ctx context.Context, generation domain.ReportGeneration) error {
-	return errNotImplemented
+	if err := r.db.WithContext(ctx).Create(&generation).Error; err != nil {
+		return fmt.Errorf("guardar el registro de generación: %w", err)
+	}
+	return nil
 }

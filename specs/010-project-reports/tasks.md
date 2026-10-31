@@ -164,7 +164,7 @@ declaran tipos, esquema, composición y ayudantes, sin reglas de negocio.
       tenga exactamente la forma de la 008 (research.md sección 3), y actualizar sus llamadas en
       `backend/internal/metrics/delivery/handler.go`. Sin otro cambio: `go test ./internal/metrics/...`
       pasa igual
-- [ ] T005 Crear el esqueleto del módulo y su composición, sin lógica: en
+- [X] T005 Crear el esqueleto del módulo y su composición, sin lógica: en
       `backend/internal/reports/repository/report_repository.go`, `ReportRepository` con
       `NewReportRepository(db *gorm.DB)` y las ocho operaciones del puerto devolviendo
       `errors.New("no implementado")`; en `generation_repository.go`, `GenerationRepository` con

@@ -61,6 +61,9 @@ import (
 	projectsdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/delivery"
 	projectsrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/repository"
 	projectsservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/projects/service"
+	reportsdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/reports/delivery"
+	reportsrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/reports/repository"
+	reportsservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/reports/service"
 	sprintsdelivery "github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/delivery"
 	sprintsrepository "github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/repository"
 	sprintsservice "github.com/juanku21/seguimiento-y-medicion/backend/internal/sprints/service"
@@ -233,6 +236,18 @@ func run() error {
 	// membresía vigente, recibido aquí para que metrics/delivery no importe projects/delivery.
 	metricsCalculator := metricsservice.NewMetricsService(metricsrepository.NewMetricsRepository(db), cfg.EffortGracePeriod, time.Now)
 	metricsdelivery.RegisterRoutes(projectGroup, metricsdelivery.NewHandler(metricsCalculator))
+
+	// El módulo de reportes se compone sobre sus repositorios de lectura y de registro de
+	// generaciones, la misma instancia del servicio de métricas, para que la sección de métricas sea
+	// exactamente la de la 008, y el reloj del sistema. Sus rutas cuelgan del subgrupo /:projectId de
+	// la 002, que ya exige sesión y membresía vigente (research.md, secciones 1 y 3).
+	reports := reportsservice.NewReportService(
+		reportsrepository.NewReportRepository(db),
+		reportsrepository.NewGenerationRepository(db),
+		metricsCalculator,
+		time.Now,
+	)
+	reportsdelivery.RegisterRoutes(projectGroup, reportsdelivery.NewHandler(reports))
 
 	// Ninguna conexión al canal de eventos sobrevive a un reinicio, así que antes de escuchar se
 	// marcan desconectados los participantes de las sesiones abiertas (research.md sección 9). El

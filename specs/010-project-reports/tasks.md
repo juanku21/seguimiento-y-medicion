@@ -706,7 +706,7 @@ completas.
 
 **Rama**: `fase/010-polish`
 
-- [ ] T046 [P] Regenerar Swagger en `backend/docs/` con `swag init -g cmd/app/main.go -o docs`, ejecutado desde
+- [X] T046 [P] Regenerar Swagger en `backend/docs/` con `swag init -g cmd/app/main.go -o docs`, ejecutado desde
       `backend/` como indica el `README.md`, sumar "y generación de reportes de proyecto y de
       sprint" a la `@description` de `backend/cmd/app/main.go`, y verificar en
       `/swagger/index.html` que la etiqueta "Reportes" tiene las dos operaciones, en español y con los

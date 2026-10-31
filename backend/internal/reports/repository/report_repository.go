@@ -146,8 +146,8 @@ type sessionRow struct {
 }
 
 // LoadEstimationSessions lee las sesiones de Planning Poker de las historias dadas, con la cantidad
-// de rondas de cada una. Precondición: los ids salen de lecturas ya acotadas al proyecto (las
-// historias de un sprint validado); esta consulta no vuelve a filtrar por proyecto.
+// de rondas de cada una. Acota al proyecto con un JOIN con user_stories: las historias de otro
+// proyecto se ignoran aunque sus ids vengan en la lista.
 func (r *ReportRepository) LoadEstimationSessions(ctx context.Context, projectID uuid.UUID, storyIDs []uuid.UUID) (map[uuid.UUID][]domain.SessionRecord, error) {
 	sessions := make(map[uuid.UUID][]domain.SessionRecord)
 	if len(storyIDs) == 0 {
@@ -159,9 +159,10 @@ func (r *ReportRepository) LoadEstimationSessions(ctx context.Context, projectID
 			es.created_at AS created_at, es.closed_at AS closed_at,
 			es.agreed_story_points AS agreed_story_points,
 			(SELECT COUNT(*) FROM estimation_rounds er WHERE er.session_id = es.id) AS rounds
-		FROM estimation_sessions es WHERE es.story_id IN @stories
+		FROM estimation_sessions es JOIN user_stories us ON us.id = es.story_id
+		WHERE es.story_id IN @stories AND us.project_id = @project
 		ORDER BY es.story_id, es.created_at, es.id`,
-		sql.Named("stories", storyIDs)).Scan(&rows).Error; err != nil {
+		sql.Named("stories", storyIDs), sql.Named("project", projectID)).Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("leer las sesiones de estimación: %w", err)
 	}
 
@@ -180,8 +181,8 @@ func (r *ReportRepository) LoadEstimationSessions(ctx context.Context, projectID
 }
 
 // LoadEffort lee el esfuerzo agregado por sprint, historia y usuario de los sprints dados.
-// Precondición: los ids salen de lecturas ya acotadas al proyecto (sprints validados); esta consulta
-// no vuelve a filtrar por proyecto.
+// Acota al proyecto con JOIN con sprints y user_stories: el esfuerzo de otro proyecto se ignora
+// aunque sus ids vengan en la lista.
 func (r *ReportRepository) LoadEffort(ctx context.Context, projectID uuid.UUID, sprintIDs []uuid.UUID) ([]domain.EffortRow, error) {
 	rows := []domain.EffortRow{}
 	if len(sprintIDs) == 0 {
@@ -191,11 +192,12 @@ func (r *ReportRepository) LoadEffort(ctx context.Context, projectID uuid.UUID, 
 			us.title AS current_title, e.user_id AS user_id, u.full_name AS full_name,
 			SUM(e.hours_hundredths) AS hundredths
 		FROM effort_entries e
+			JOIN sprints s ON s.id = e.sprint_id
 			JOIN user_stories us ON us.id = e.story_id
 			JOIN users u ON u.id = e.user_id
-		WHERE e.sprint_id IN @sprints
+		WHERE e.sprint_id IN @sprints AND s.project_id = @project AND us.project_id = @project
 		GROUP BY e.sprint_id, e.story_id, us.title, e.user_id, u.full_name`,
-		sql.Named("sprints", sprintIDs)).Scan(&rows).Error; err != nil {
+		sql.Named("sprints", sprintIDs), sql.Named("project", projectID)).Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("leer el esfuerzo de los sprints: %w", err)
 	}
 	return rows, nil

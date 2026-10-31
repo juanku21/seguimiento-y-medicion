@@ -144,8 +144,10 @@ func newSprintMetric(metric domain.Metric, unit metricUnit) SprintMetric {
 	return dto
 }
 
-// newSprintMetrics traduce el resultado del cálculo de un sprint y sus advertencias al contrato.
-func newSprintMetrics(metrics domain.SprintMetrics, warnings []domain.Warning) SprintMetrics {
+// NewSprintMetrics traduce el resultado del cálculo de un sprint y sus advertencias al contrato.
+// Es exportado porque también lo usa el módulo de reportes, para que la sección de métricas
+// tenga exactamente la misma forma que la de la especificación 008.
+func NewSprintMetrics(metrics domain.SprintMetrics, warnings []domain.Warning) SprintMetrics {
 	return SprintMetrics{
 		Sprint: SprintRef{
 			ID:        metrics.ID.String(),
@@ -333,8 +335,10 @@ func newVelocityPoints(points []domain.VelocityPoint) []VelocityPoint {
 	return items
 }
 
-// newProjectMetrics traduce el resultado del cálculo del proyecto al contrato.
-func newProjectMetrics(projectID uuid.UUID, metrics domain.ProjectMetrics) ProjectMetricsResponse {
+// NewProjectMetrics traduce el resultado del cálculo del proyecto al contrato.
+// Es exportado porque también lo usa el módulo de reportes, para que la sección de métricas
+// tenga exactamente la misma forma que la de la especificación 008.
+func NewProjectMetrics(projectID uuid.UUID, metrics domain.ProjectMetrics) ProjectMetricsResponse {
 	return ProjectMetricsResponse{
 		ProjectID: projectID.String(),
 		Velocity: Velocity{

@@ -158,7 +158,7 @@ declaran tipos, esquema, composición y ayudantes, sin reglas de negocio.
       `TRUNCATE … CASCADE`. Verificar con la base de test levantada que `go test ./...` sigue pasando
       y que `\d report_generations` en `smye-test-postgres-1` muestra las tres claves foráneas y el
       índice `idx_report_generations_project_generated` — depende de T002
-- [ ] T004 [P] Exportar en `backend/internal/metrics/delivery/dto.go` los constructores
+- [X] T004 [P] Exportar en `backend/internal/metrics/delivery/dto.go` los constructores
       `newSprintMetrics` → `NewSprintMetrics` y `newProjectMetrics` → `NewProjectMetrics`, con un
       comentario que diga que también los usa el módulo de reportes para que la sección de métricas
       tenga exactamente la forma de la 008 (research.md sección 3), y actualizar sus llamadas en

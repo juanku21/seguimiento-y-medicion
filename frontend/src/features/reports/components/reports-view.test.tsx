@@ -843,7 +843,9 @@ describe("010/US3 - Generar y ver el reporte de un proyecto completo", () => {
       false,
     );
     const unplanned = blockOf(stories, UNPLANNED);
-    expect(within(unplanned).getByText("Historia del Planificado")).toBeTruthy();
+    expect(
+      within(unplanned).getByText("Historia del Planificado"),
+    ).toBeTruthy();
   });
 
   // Escenario: US3-4 (Caso alternativo)
@@ -918,9 +920,9 @@ describe("010/US3 - Generar y ver el reporte de un proyecto completo", () => {
     const headings = headings4(stories);
     expect(headings[headings.length - 1]).toBe(UNPLANNED);
     // Una fila de encabezado de columnas y las 12 historias.
-    expect(within(blockOf(stories, UNPLANNED)).getAllByRole("row")).toHaveLength(
-      13,
-    );
+    expect(
+      within(blockOf(stories, UNPLANNED)).getAllByRole("row"),
+    ).toHaveLength(13);
   });
 
   // Escenario: US3-7 (Caso límite)

@@ -386,7 +386,7 @@ con el `article` "Reporte".
       `GenerationRepository.Save` con `GeneratedAt = now`; si falla, devolver el error y ningún
       reporte (research.md sección 10). En esta historia, toda falla de lectura se propaga; los
       estados `unavailable` llegan en US4 — depende de T015, T016, T017
-- [ ] T019 [US1] Implementar en `backend/internal/reports/delivery/dto.go` la forma JSON del contrato
+- [X] T019 [US1] Implementar en `backend/internal/reports/delivery/dto.go` la forma JSON del contrato
       (`Report`, `Header`, secciones, grupos y líneas, con `json` en camelCase, `validate:"required"`,
       `extensions:"x-nullable"` donde el contrato lo marca y horas como `httpserver.Hundredths`), con
       `metrics.sprint` armado con `metricsdelivery.NewSprintMetrics`; y en

@@ -599,7 +599,7 @@ reporte de proyecto tiene cuatro grupos en orden, más el de no planificadas, y 
       JOIN sprints s ON s.id = ss.sprint_id WHERE ss.story_id = us.id AND s.status IN ('active',
       'closed'))`, con datos vigentes; research.md sección 4), y `LoadDefects` con `sprintID` nil (todos los defectos del proyecto salvo
       `discarded`) — depende de T030
-- [ ] T035 [US3] Implementar en `backend/internal/reports/service/report_service.go` `ProjectReport`,
+- [X] T035 [US3] Implementar en `backend/internal/reports/service/report_service.go` `ProjectReport`,
       reutilizando el armado de `SprintReport` sin duplicarlo (extraer las funciones de armado por
       grupo, DRY): `ListSprints` y `ReportableSprints`; un grupo por sprint en historias,
       estimaciones (con corte en cada Cerrado) y esfuerzo; el grupo de no planificadas al final de

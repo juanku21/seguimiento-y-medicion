@@ -56,7 +56,6 @@ func (s *ReportService) SprintReport(ctx context.Context, projectID, sprintID, u
 		return domain.Report{}, err
 	}
 	storyGroups := []domain.StoryGroup{storyGroup}
-	storiesSection := domain.StoriesSection{State: domain.StoriesState(storyGroups), Groups: storyGroups}
 
 	estimationGroup, err := s.estimationGroup(ctx, &sprint, storyGroup.Stories)
 	if err != nil {
@@ -80,14 +79,6 @@ func (s *ReportService) SprintReport(ctx context.Context, projectID, sprintID, u
 	if err != nil {
 		return domain.Report{}, fmt.Errorf("armar los defectos del reporte: %w", err)
 	}
-	defectsSection := domain.DefectsSection{
-		State:   groupState(len(defects)),
-		Defects: defects,
-		Totals: &domain.DefectTotals{
-			Detected: sprintMetrics.DefectsDetected.Value,
-			Resolved: sprintMetrics.DefectsResolved.Value,
-		},
-	}
 
 	report := domain.Report{
 		Scope:   domain.ScopeSprint,
@@ -99,7 +90,7 @@ func (s *ReportService) SprintReport(ctx context.Context, projectID, sprintID, u
 			GeneratedAt: now,
 			GeneratedBy: user,
 		},
-		Stories:     storiesSection,
+		Stories:     storiesSection(storyGroups),
 		Estimations: estimations,
 		Effort:      effort,
 		Metrics: domain.MetricsSection{
@@ -107,7 +98,7 @@ func (s *ReportService) SprintReport(ctx context.Context, projectID, sprintID, u
 			Sprint:         &sprintMetrics,
 			SprintWarnings: warnings,
 		},
-		Defects: defectsSection,
+		Defects: defectsSection(defects, sprintMetrics.DefectsDetected.Value, sprintMetrics.DefectsResolved.Value),
 	}
 
 	// El registro es la última operación: si falla, no se entrega el reporte.
@@ -195,18 +186,11 @@ func (s *ReportService) ProjectReport(ctx context.Context, projectID, userID uui
 			GeneratedAt: now,
 			GeneratedBy: user,
 		},
-		Stories:     domain.StoriesSection{State: domain.StoriesState(storyGroups), Groups: storyGroups},
+		Stories:     storiesSection(storyGroups),
 		Estimations: estimationsSection(estimationGroups),
 		Effort:      effort,
 		Metrics:     metricsSection,
-		Defects: domain.DefectsSection{
-			State:   groupState(len(defects)),
-			Defects: defects,
-			Totals: &domain.DefectTotals{
-				Detected: projectMetrics.Defects.Detected.Total,
-				Resolved: projectMetrics.Defects.Resolved.Total,
-			},
-		},
+		Defects:     defectsSection(defects, projectMetrics.Defects.Detected.Total, projectMetrics.Defects.Resolved.Total),
 	}
 
 	// El registro es la última operación: si falla, no se entrega el reporte.
@@ -286,6 +270,20 @@ func (s *ReportService) estimationGroup(ctx context.Context, sprint *domain.Spri
 	return domain.EstimationGroup{Sprint: sprint, State: groupState(len(items)), Items: items}, nil
 }
 
+// storiesSection arma la sección de historias con el estado derivado de sus grupos.
+func storiesSection(groups []domain.StoryGroup) domain.StoriesSection {
+	return domain.StoriesSection{State: domain.StoriesState(groups), Groups: groups}
+}
+
+// defectsSection arma la sección de defectos; los totales vienen de las métricas, no del listado.
+func defectsSection(defects []domain.DefectLine, detected, resolved int) domain.DefectsSection {
+	return domain.DefectsSection{
+		State:   groupState(len(defects)),
+		Defects: defects,
+		Totals:  &domain.DefectTotals{Detected: detected, Resolved: resolved},
+	}
+}
+
 // estimationsSection arma la sección: vacía si ningún grupo tiene líneas (RN-11).
 func estimationsSection(groups []domain.EstimationGroup) domain.EstimationsSection {
 	state := domain.SectionEmpty
@@ -312,6 +310,16 @@ func snapshotTitles(storyGroups []domain.StoryGroup, onlyClosed bool) map[uuid.U
 		snapshot[group.Sprint.ID] = titles
 	}
 	return snapshot
+}
+
+// snapshotTitle devuelve el título de la instantánea de una historia en un sprint, o nil si el
+// sprint o la historia no están en ella.
+func snapshotTitle(snapshot map[uuid.UUID]map[uuid.UUID]string, sprintID, storyID uuid.UUID) *string {
+	title, ok := snapshot[sprintID][storyID]
+	if !ok {
+		return nil
+	}
+	return &title
 }
 
 // effortSection arma la sección de esfuerzo de uno o varios sprints: horas por historia en cada
@@ -341,10 +349,7 @@ func (s *ReportService) effortSection(ctx context.Context, sprints []domain.Spri
 	byMember := map[uuid.UUID]*domain.MemberEffort{}
 	total := 0
 	for _, row := range rows {
-		var title *string
-		if t, ok := snapshot[row.SprintID][row.StoryID]; ok {
-			title = &t
-		}
+		title := snapshotTitle(snapshot, row.SprintID, row.StoryID)
 		if bySprintStory[row.SprintID] == nil {
 			bySprintStory[row.SprintID] = map[uuid.UUID]*domain.StoryEffort{}
 		}
@@ -401,10 +406,7 @@ func (s *ReportService) effortSection(ctx context.Context, sprints []domain.Spri
 func applyDetectionSnapshot(defects []domain.DefectLine, storyGroups []domain.StoryGroup) {
 	snapshot := snapshotTitles(storyGroups, true)
 	for i := range defects {
-		var title *string
-		if t, ok := snapshot[defects[i].DetectedSprint.ID][defects[i].Story.ID]; ok {
-			title = &t
-		}
+		title := snapshotTitle(snapshot, defects[i].DetectedSprint.ID, defects[i].Story.ID)
 		defects[i].Story.Title = domain.StoryTitle(title, defects[i].Story.Title)
 	}
 }

@@ -680,7 +680,7 @@ métricas y de defectos dicen "No se pudo obtener esta sección." y las demás s
 
 - [X] T043 [P] [US4] Implementar en `backend/internal/reports/domain/rules.go` `EffortState`,
       `DefectsState` y `ProjectMetricsState` — depende de T039
-- [ ] T044 [US4] Implementar en `backend/internal/reports/service/report_service.go` los estados por
+- [X] T044 [US4] Implementar en `backend/internal/reports/service/report_service.go` los estados por
       sección de research.md sección 8: cada lectura independiente; si falla la de historias,
       historias **y** estimaciones `unavailable`; si falla la de sesiones, solo estimaciones; si falla
       la de esfuerzo, solo esfuerzo; si falla `MetricsSource`, métricas **y** defectos; si falla la de

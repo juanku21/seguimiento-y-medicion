@@ -293,13 +293,11 @@ func (s *ReportService) defectsSection(ctx context.Context, projectID uuid.UUID,
 
 // estimationsSection arma la sección: vacía si ningún grupo tiene líneas (RN-11).
 func estimationsSection(groups []domain.EstimationGroup) domain.EstimationsSection {
-	state := domain.SectionEmpty
+	lines := 0
 	for _, g := range groups {
-		if len(g.Items) > 0 {
-			state = domain.SectionComplete
-		}
+		lines += len(g.Items)
 	}
-	return domain.EstimationsSection{State: state, Groups: groups}
+	return domain.EstimationsSection{State: groupState(lines), Groups: groups}
 }
 
 // snapshotTitles indexa los títulos de las historias de cada grupo con sprint por id de sprint y de
@@ -331,7 +329,8 @@ func snapshotTitle(snapshot map[uuid.UUID]map[uuid.UUID]string, sprintID, storyI
 
 // effortSection arma la sección de esfuerzo de uno o varios sprints: horas por historia en cada
 // grupo, por integrante y total, todo sumado desde las mismas filas para que no se contradigan
-// (research.md sección 6); si la lectura falla, la sección queda unavailable. storyGroups aporta los títulos de la instantánea de cada sprint.
+// (research.md sección 6); si la lectura falla, la sección queda unavailable. storyGroups aporta los
+// títulos de la instantánea de cada sprint.
 func (s *ReportService) effortSection(ctx context.Context, projectID uuid.UUID, sprints []domain.SprintRef, storyGroups []domain.StoryGroup) domain.EffortSection {
 	// Sin sprints no hay nada que leer.
 	var rows []domain.EffortRow

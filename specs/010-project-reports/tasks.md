@@ -641,7 +641,7 @@ métricas y de defectos dicen "No se pudo obtener esta sección." y las demás s
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T039 [P] [US4] Pruebas unitarias **obligatorias** en
+- [X] T039 [P] [US4] Pruebas unitarias **obligatorias** en
       `backend/internal/reports/domain/rules_test.go` de `EffortState` (sin filas → `empty`),
       `DefectsState` (listado vacío → `empty` con los totales conservados) y `ProjectMetricsState`
       (alcance `project` sin sprints reportables → `empty`; con alguno → `complete`), según la tabla

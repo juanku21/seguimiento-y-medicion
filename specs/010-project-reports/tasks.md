@@ -404,7 +404,7 @@ con el `article` "Reporte".
       con los propios), y `generateSprintReport(projectId, sprintId)` con
       `postAuthorizedJson(path, {}, isReport)` sobre `/api/v1/projects/{projectId}/reports/sprints/{sprintId}`,
       con el comentario de que el backend no lee el cuerpo — depende de T013
-- [ ] T021 [P] [US1] Implementar en `frontend/src/features/reports/view-model.ts` los tipos
+- [X] T021 [P] [US1] Implementar en `frontend/src/features/reports/view-model.ts` los tipos
       `ReportView`, `SectionView` y `BlockView` de data-model.md sección 3.2 y las funciones puras
       `buildReportView(report, timeZone)` y `metricText(metric, kind)` para el alcance `sprint`, con
       los textos exactos de contracts/ui-contract.md y los formateadores y etiquetas listados en

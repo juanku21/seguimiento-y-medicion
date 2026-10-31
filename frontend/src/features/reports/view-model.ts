@@ -169,93 +169,84 @@ function section(
   };
 }
 
-// Filas de la tabla de métricas de un sprint, con los nombres del dashboard.
-function sprintMetricRows(metrics: SprintMetrics): string[][] {
-  const rows: [
-    string,
-    Metric & { finality: Finality | null },
-    MetricKind,
-    (value: number) => string,
-  ][] = [
+// Métrica con su etiqueta, su tipo y su formato; la finalidad solo viene en las de sprint.
+type MetricSpec = [
+  label: string,
+  metric: Metric & { finality?: Finality | null },
+  kind: MetricKind,
+  format: (value: number) => string,
+];
+
+// Las siete métricas que comparten el sprint y el acumulado del proyecto, con los nombres del dashboard.
+function sharedMetricSpecs(
+  source: Record<
+    | "plannedStoryPoints"
+    | "completedStoryPoints"
+    | "storyCompletionPercent"
+    | "estimatedHours"
+    | "actualHours"
+    | "deviationHours"
+    | "deviationPercent",
+    Metric & { finality?: Finality | null }
+  >,
+): MetricSpec[] {
+  return [
     [
       "Story Points planificados",
-      metrics.plannedStoryPoints,
+      source.plannedStoryPoints,
       "storyPoints",
       String,
     ],
     [
       "Story Points completados",
-      metrics.completedStoryPoints,
+      source.completedStoryPoints,
       "storyPoints",
       String,
     ],
     [
       "Historias completadas",
-      metrics.storyCompletionPercent,
+      source.storyCompletionPercent,
       "storyCompletionPercent",
       formatShare,
     ],
-    ["Horas estimadas", metrics.estimatedHours, "hours", formatDecimal],
-    ["Horas reales", metrics.actualHours, "hours", formatDecimal],
-    ["Desviación", metrics.deviationHours, "deviationHours", formatDecimal],
+    ["Horas estimadas", source.estimatedHours, "hours", formatDecimal],
+    ["Horas reales", source.actualHours, "hours", formatDecimal],
+    ["Desviación", source.deviationHours, "deviationHours", formatDecimal],
     [
       "Desviación porcentual",
-      metrics.deviationPercent,
+      source.deviationPercent,
       "deviationPercent",
       formatShare,
     ],
+  ];
+}
+
+// Filas [etiqueta, texto]; con `finality` se la impone a todas, si no cada métrica usa la suya.
+function metricSpecRows(specs: MetricSpec[], finality?: Finality): string[][] {
+  return specs.map(([label, metric, kind, format]) => [
+    label,
+    metricText(
+      finality === undefined ? metric : { ...metric, finality },
+      kind,
+      format,
+    ),
+  ]);
+}
+
+// Filas de la tabla de métricas de un sprint: las siete compartidas y los dos conteos de defectos.
+function sprintMetricRows(metrics: SprintMetrics): string[][] {
+  return metricSpecRows([
+    ...sharedMetricSpecs(metrics),
     ["Defectos detectados", metrics.defectsDetected, "defects", String],
     ["Defectos resueltos", metrics.defectsResolved, "defects", String],
-  ];
-  return rows.map(([label, metric, kind, format]) => [
-    label,
-    metricText(metric, kind, format),
   ]);
 }
 
 // Filas de la tabla de métricas del proyecto: el acumulado con su finalidad y las tres cifras propias.
 function projectMetricRows(project: ProjectMetricsResponse): string[][] {
   const { cumulative } = project;
-  const accumulated: [string, Metric, MetricKind, (value: number) => string][] =
-    [
-      [
-        "Story Points planificados",
-        cumulative.plannedStoryPoints,
-        "storyPoints",
-        String,
-      ],
-      [
-        "Story Points completados",
-        cumulative.completedStoryPoints,
-        "storyPoints",
-        String,
-      ],
-      [
-        "Historias completadas",
-        cumulative.storyCompletionPercent,
-        "storyCompletionPercent",
-        formatShare,
-      ],
-      ["Horas estimadas", cumulative.estimatedHours, "hours", formatDecimal],
-      ["Horas reales", cumulative.actualHours, "hours", formatDecimal],
-      [
-        "Desviación",
-        cumulative.deviationHours,
-        "deviationHours",
-        formatDecimal,
-      ],
-      [
-        "Desviación porcentual",
-        cumulative.deviationPercent,
-        "deviationPercent",
-        formatShare,
-      ],
-    ];
   return [
-    ...accumulated.map(([label, metric, kind, format]) => [
-      label,
-      metricText({ ...metric, finality: cumulative.finality }, kind, format),
-    ]),
+    ...metricSpecRows(sharedMetricSpecs(cumulative), cumulative.finality),
     [
       "Esfuerzo fuera de sprints",
       formatDecimal(project.effortOutsideSprintsHours),

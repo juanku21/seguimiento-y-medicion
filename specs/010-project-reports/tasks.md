@@ -614,7 +614,7 @@ reporte de proyecto tiene cuatro grupos en orden, más el de no planificadas, y 
 - [X] T037 [P] [US3] Implementar en `frontend/src/features/reports/api.ts`
       `generateProjectReport(projectId)` sobre `/api/v1/projects/{projectId}/reports/project`, con
       `postAuthorizedJson(path, {}, isReport)` — depende de T032
-- [ ] T038 [US3] Implementar el alcance `project` en `frontend/src/features/reports/view-model.ts`
+- [X] T038 [US3] Implementar el alcance `project` en `frontend/src/features/reports/view-model.ts`
       (título, alcance, período, encabezados de grupo, no planificadas y filas de métricas del
       proyecto) y en `report-scope-select.tsx` la opción "Proyecto completo" como primera y valor
       inicial, con `reports-view.tsx` llamando a `generateProjectReport` o a `generateSprintReport`

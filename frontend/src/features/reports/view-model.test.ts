@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   defaultReportSprint,
+  projectReport,
   sprintReport,
 } from "@/features/reports/components/reports-test-backend";
 import {
@@ -8,7 +9,7 @@ import {
   metricText,
   type SectionView,
 } from "@/features/reports/view-model";
-import type { Report } from "@/types/report";
+import type { Report, ReportSprint } from "@/types/report";
 import { explainNotCalculable } from "@/utils/metric-explanations";
 import { formatDecimal } from "@/utils/metric-format";
 
@@ -194,6 +195,208 @@ describe("010/US1 - Generar y ver el reporte de un sprint", () => {
     expect(rows.map((row) => row[2])).toEqual([
       "No hubo sesión de estimación",
       "Sin valor acordado por estimación colaborativa",
+    ]);
+  });
+});
+
+// Reporte de proyecto con grupos de historias propios y, si se indica, las métricas del proyecto cambiadas.
+function projectWith(
+  groups: NonNullable<Report["stories"]["groups"]>,
+  overrides: Partial<Report> = {},
+): Report {
+  const base = projectReport();
+  return {
+    ...base,
+    stories: { state: "complete", groups },
+    ...overrides,
+  };
+}
+
+// Sprint Activo del reporte parcial de proyecto.
+const activeSprint: ReportSprint = {
+  id: "b4000000-0000-4000-8000-000000000004",
+  name: "Sprint 4",
+  status: "active",
+  startDate: "2026-11-09",
+  endDate: "2026-11-29",
+  closedAt: null,
+};
+
+describe("010/US3 - Generar y ver el reporte de un proyecto completo", () => {
+  // Escenario: US3-1 (título y alcance del proyecto)
+  it("arma el título y el alcance Proyecto completo", () => {
+    const view = buildReportView(projectReport(), zone);
+    expect(view.title).toBe("Reporte del proyecto Plataforma de seguimiento");
+    expect(view.header).toContainEqual({
+      label: "Alcance",
+      value: "Proyecto completo",
+    });
+  });
+
+  // Escenario: US3-1 (período del primer al último sprint)
+  it("el período va del inicio del primer sprint al fin del último", () => {
+    const view = buildReportView(projectReport(), zone);
+    expect(view.header).toContainEqual({
+      label: "Período",
+      value: "07/09/2026 al 08/11/2026",
+    });
+  });
+
+  // Escenario: US3-10 (proyecto sin sprints reportables)
+  it("con period null el período es Sin sprints reportables", () => {
+    const base = projectReport();
+    const report = {
+      ...base,
+      header: { ...base.header, period: null },
+    };
+    const view = buildReportView(report, zone);
+    expect(view.header).toContainEqual({
+      label: "Período",
+      value: "Sin sprints reportables",
+    });
+  });
+
+  // Escenario: US3-1 (un bloque por grupo, en el orden recibido)
+  it("arma un h4 por sprint con su período, en el orden recibido", () => {
+    const blocks = section(projectReport(), "stories").blocks;
+    expect(blocks.map((block) => block.heading)).toEqual([
+      "Sprint 1 (07/09/2026 al 27/09/2026)",
+      "Sprint 2 (28/09/2026 al 18/10/2026)",
+      "Sprint 3 (19/10/2026 al 08/11/2026)",
+    ]);
+  });
+
+  // Escenario: US3-2 (sprint activo en curso)
+  it("agrega - en curso al grupo del sprint Activo y a ningún otro", () => {
+    const report = projectWith(
+      [
+        { sprint: defaultReportSprint, state: "empty", stories: [] },
+        { sprint: activeSprint, state: "empty", stories: [] },
+      ],
+      { partial: true },
+    );
+    const headings = section(report, "stories").blocks.map(
+      (block) => block.heading,
+    );
+    expect(headings).toEqual([
+      "Sprint 1 (07/09/2026 al 27/09/2026)",
+      "Sprint 4 (09/11/2026 al 29/11/2026) — en curso",
+    ]);
+  });
+
+  // Escenario: US3-6 (historias no planificadas con datos, al final)
+  it("el último bloque es Historias no planificadas y lleva su tabla", () => {
+    const base = projectReport();
+    const unplanned = {
+      sprint: null,
+      state: "complete" as const,
+      stories: [
+        {
+          storyId: "a9000000-0000-4000-8000-000000000009",
+          title: "Notificaciones",
+          priority: "medium" as const,
+          storyPoints: null,
+          status: "pending" as const,
+        },
+      ],
+    };
+    const report = projectWith([...(base.stories.groups ?? []), unplanned]);
+    const blocks = section(report, "stories").blocks;
+    const last = blocks[blocks.length - 1];
+    expect(last.heading).toBe("Historias no planificadas");
+    expect(last.message).toBeNull();
+    expect(last.table?.rows).toEqual([
+      ["Notificaciones", "Media", "Sin estimar", "Pendiente"],
+    ]);
+  });
+
+  // Escenario: US3-7 (sin historias no planificadas)
+  it("Historias no planificadas vacío muestra Sin datos. y sin tabla", () => {
+    const base = projectReport();
+    const report = projectWith([
+      ...(base.stories.groups ?? []),
+      { sprint: null, state: "empty", stories: [] },
+    ]);
+    const blocks = section(report, "stories").blocks;
+    const last = blocks[blocks.length - 1];
+    expect(last.heading).toBe("Historias no planificadas");
+    expect(last.message).toBe("Sin datos.");
+    expect(last.table).toBeNull();
+  });
+
+  // Escenario: US3-1 (filas del acumulado con su marca de finalidad)
+  it("las filas del acumulado llevan la marca de finalidad del acumulado", () => {
+    const table = section(projectReport(), "metrics").blocks[0].table;
+    expect(table?.columns).toEqual(["Métrica", "Valor"]);
+    expect(table?.rows).toContainEqual([
+      "Story Points planificados",
+      "48 · Definitiva",
+    ]);
+    expect(table?.rows).toContainEqual([
+      "Story Points completados",
+      "39 · Definitiva",
+    ]);
+    expect(table?.rows).toContainEqual([
+      "Horas reales",
+      `${formatDecimal(150)} · Definitiva`,
+    ]);
+  });
+
+  // Escenario: US3-2 (acumulado parcial con sprint activo)
+  it("el acumulado de un proyecto con sprint Activo lleva la marca Parcial", () => {
+    const base = projectReport();
+    const project = base.metrics.project;
+    if (!project) {
+      throw new Error("falta metrics.project");
+    }
+    const report = {
+      ...base,
+      metrics: {
+        ...base.metrics,
+        project: {
+          ...project,
+          cumulative: { ...project.cumulative, finality: "partial" as const },
+        },
+      },
+    };
+    const table = section(report, "metrics").blocks[0].table;
+    expect(table?.rows).toContainEqual([
+      "Story Points planificados",
+      "48 · Parcial",
+    ]);
+  });
+
+  // Escenario: US3-1 (filas propias del proyecto)
+  it("suma las filas de esfuerzo fuera de sprints, en planificados y sin estimar", () => {
+    const base = projectReport();
+    const project = base.metrics.project;
+    if (!project) {
+      throw new Error("falta metrics.project");
+    }
+    const report = {
+      ...base,
+      metrics: {
+        ...base.metrics,
+        project: {
+          ...project,
+          effortOutsideSprintsHours: 12.5,
+          effortInPlannedSprintsHours: 4,
+          unestimatedBacklogStories: 7,
+        },
+      },
+    };
+    const table = section(report, "metrics").blocks[0].table;
+    expect(table?.rows).toContainEqual([
+      "Esfuerzo fuera de sprints",
+      formatDecimal(12.5),
+    ]);
+    expect(table?.rows).toContainEqual([
+      "Esfuerzo en sprints planificados",
+      formatDecimal(4),
+    ]);
+    expect(table?.rows).toContainEqual([
+      "Historias sin estimar en el backlog",
+      "7",
     ]);
   });
 });

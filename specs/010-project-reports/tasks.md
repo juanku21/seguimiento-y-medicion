@@ -536,13 +536,13 @@ reporte de proyecto tiene cuatro grupos en orden, más el de no planificadas, y 
 
 > **Escribir estas pruebas PRIMERO y verificar que FALLAN antes de implementar.**
 
-- [ ] T029 [P] [US3] Pruebas unitarias **obligatorias** en
+- [X] T029 [P] [US3] Pruebas unitarias **obligatorias** en
       `backend/internal/reports/domain/rules_test.go`: `ReportableSprints` con Planificados
       intercalados → solo `active` y `closed`, con el orden recibido (`start_date ASC, id ASC`)
       intacto (RN-05, RN-07, FR-007); `ReportPeriod` con tres sprints → menor inicio y mayor fin, con
       uno → sus fechas, y sin sprints → nil; e `IsPartial` en el alcance `project` con y sin un Activo
       (RN-06). Crear las firmas mínimas para que compile — depende de T015
-- [ ] T030 [US3] Pruebas de escenario de integración en
+- [X] T030 [US3] Pruebas de escenario de integración en
       `backend/internal/reports/delivery/handler_test.go`, con los nombres de la tabla de plan.md y
       `// Escenario: <nombre> (010/US3)`: `TestUS3_ProyectoConTresSprintsCerrados` (grupos en orden
       cronológico, `period` del primero al último y `metrics.project` igual a
@@ -567,7 +567,7 @@ reporte de proyecto tiene cuatro grupos en orden, más el de no planificadas, y 
       `metrics.project.cumulative.actualHours.value`) y `TestProjectReportActiveSprintChanges`
       (RN-23: con un Activo, renombrar una de sus historias cambia el reporte siguiente) — depende de
       T012
-- [ ] T031 [P] [US3] Pruebas unitarias **obligatorias** en
+- [X] T031 [P] [US3] Pruebas unitarias **obligatorias** en
       `frontend/src/features/reports/view-model.test.ts` para el alcance `project`, sobre
       `projectReport()`: título "Reporte del proyecto <nombre>"; "Alcance" "Proyecto completo";
       "Período" "DD/MM/AAAA al DD/MM/AAAA" y, con `period` null, "Sin sprints reportables"; un bloque
@@ -575,7 +575,7 @@ reporte de proyecto tiene cuatro grupos en orden, más el de no planificadas, y 
       último "Historias no planificadas" con "Sin datos." si está vacío; y en métricas, las filas del
       acumulado con su marca, "Esfuerzo fuera de sprints", "Esfuerzo en sprints planificados" e
       "Historias sin estimar en el backlog" — depende de T021
-- [ ] T032 [US3] Pruebas de escenario en
+- [X] T032 [US3] Pruebas de escenario en
       `frontend/src/features/reports/components/reports-view.test.tsx`, con
       `describe("010/US3 - Generar y ver el reporte de un proyecto completo")` y un `it` por escenario
       según la tabla de plan.md, precedido por `// Escenario: US3-k (<caso>)`, cada uno eligiendo
@@ -591,15 +591,15 @@ reporte de proyecto tiene cuatro grupos en orden, más el de no planificadas, y 
 
 ### Implementación de la Historia 3
 
-- [ ] T033 [P] [US3] Implementar en `backend/internal/reports/domain/rules.go` `ReportableSprints`
+- [X] T033 [P] [US3] Implementar en `backend/internal/reports/domain/rules.go` `ReportableSprints`
       y `ReportPeriod`, y el alcance `project` de `IsPartial` — depende de T029
-- [ ] T034 [US3] Implementar en `backend/internal/reports/repository/report_repository.go`
+- [X] T034 [US3] Implementar en `backend/internal/reports/repository/report_repository.go`
       `ListSprints` (todos los sprints del proyecto en orden `start_date ASC, id ASC`) y
       `LoadUnplannedStories` (historias del proyecto con `NOT EXISTS (SELECT 1 FROM sprint_stories ss
       JOIN sprints s ON s.id = ss.sprint_id WHERE ss.story_id = us.id AND s.status IN ('active',
       'closed'))`, con datos vigentes; research.md sección 4), y `LoadDefects` con `sprintID` nil (todos los defectos del proyecto salvo
       `discarded`) — depende de T030
-- [ ] T035 [US3] Implementar en `backend/internal/reports/service/report_service.go` `ProjectReport`,
+- [X] T035 [US3] Implementar en `backend/internal/reports/service/report_service.go` `ProjectReport`,
       reutilizando el armado de `SprintReport` sin duplicarlo (extraer las funciones de armado por
       grupo, DRY): `ListSprints` y `ReportableSprints`; un grupo por sprint en historias,
       estimaciones (con corte en cada Cerrado) y esfuerzo; el grupo de no planificadas al final de
@@ -607,14 +607,14 @@ reporte de proyecto tiene cuatro grupos en orden, más el de no planificadas, y 
       totales `Detected.Total` y `Resolved.Total` y `StoryTitle` contra la instantánea del sprint de
       detección si es Cerrado; `IsPartial`; y el `Save` con `Scope` `project` y `SprintID` nil —
       depende de T033, T034
-- [ ] T036 [US3] Implementar en `backend/internal/reports/delivery/handler.go`
+- [X] T036 [US3] Implementar en `backend/internal/reports/delivery/handler.go`
       `generateProjectReport`, con su anotación Swagger completa (`@ID generateProjectReport`,
       `@Failure` 401, 404 y 500), y en `dto.go` `metrics.project` con
       `metricsdelivery.NewProjectMetrics` — depende de T035
-- [ ] T037 [P] [US3] Implementar en `frontend/src/features/reports/api.ts`
+- [X] T037 [P] [US3] Implementar en `frontend/src/features/reports/api.ts`
       `generateProjectReport(projectId)` sobre `/api/v1/projects/{projectId}/reports/project`, con
       `postAuthorizedJson(path, {}, isReport)` — depende de T032
-- [ ] T038 [US3] Implementar el alcance `project` en `frontend/src/features/reports/view-model.ts`
+- [X] T038 [US3] Implementar el alcance `project` en `frontend/src/features/reports/view-model.ts`
       (título, alcance, período, encabezados de grupo, no planificadas y filas de métricas del
       proyecto) y en `report-scope-select.tsx` la opción "Proyecto completo" como primera y valor
       inicial, con `reports-view.tsx` llamando a `generateProjectReport` o a `generateSprintReport`

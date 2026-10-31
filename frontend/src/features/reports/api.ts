@@ -237,13 +237,13 @@ function isSprintMetrics(value: unknown): boolean {
   );
 }
 
-// Reconoce la sección de métricas: con datos, exactamente una de sprint o project.
+// Reconoce la sección de métricas: con datos, exactamente una de sprint o project; sin datos, ninguna.
 function isMetricsSection(value: unknown): boolean {
   if (!isRecord(value) || !isOneOf(value.state, SECTION_STATES)) {
     return false;
   }
-  if (value.state === "unavailable") {
-    return value.sprint === null && value.project === null;
+  if (value.sprint === null && value.project === null) {
+    return value.state !== "complete";
   }
   if (value.sprint !== null) {
     return value.project === null && isSprintMetrics(value.sprint);
@@ -317,6 +317,17 @@ export function generateSprintReport(
 ): Promise<ApiResult<Report>> {
   return postAuthorizedJson(
     `/api/v1/projects/${projectId}/reports/sprints/${sprintId}`,
+    {},
+    isReport,
+  );
+}
+
+// Genera el reporte del proyecto completo; igual que el de sprint, se envía un cuerpo vacío.
+export function generateProjectReport(
+  projectId: string,
+): Promise<ApiResult<Report>> {
+  return postAuthorizedJson(
+    `/api/v1/projects/${projectId}/reports/project`,
     {},
     isReport,
   );

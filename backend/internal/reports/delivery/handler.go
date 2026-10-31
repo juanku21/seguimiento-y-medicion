@@ -102,7 +102,46 @@ func respondInternalError(c *gin.Context, logMessage string, attrs ...any) {
 	c.JSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: errMsgInternal})
 }
 
-// generateProjectReport responde por ahora el 500 genérico; el manejador definitivo llega después.
+// generateProjectReport godoc
+//
+//	@Summary		Generar el reporte del proyecto
+//	@Description	Arma el reporte del proyecto completo y registra la generación (US3, FR-002). Abarca los
+//	@Description	sprints Cerrados y el Activo si existe, en orden cronológico, y nunca los Planificados
+//	@Description	(FR-006, FR-007, FR-011). Las historias se agrupan por sprint y terminan con el grupo de
+//	@Description	historias no planificadas, que siempre está (FR-036). Lleva partial true si incluye al
+//	@Description	Activo. Un proyecto sin sprints reportables responde 200 con las secciones en empty, no
+//	@Description	con un error. No lee cuerpo.
+//	@Tags			Reportes
+//	@ID				generateProjectReport
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			projectId	path		string					true	"Identificador del proyecto"	format(uuid)
+//	@Success		200			{object}	Report					"Reporte del proyecto."
+//	@Failure		401			{object}	delivery.ErrorResponse	"Se requiere iniciar sesión."
+//	@Failure		404			{object}	delivery.ErrorResponse	"El proyecto no existe o quien pide no es integrante (cuerpo de la 002)."
+//	@Failure		500			{object}	delivery.ErrorResponse	"Error interno sin detalles expuestos."
+//	@Router			/api/v1/projects/{projectId}/reports/project [post]
 func (h *Handler) generateProjectReport(c *gin.Context) {
-	c.JSON(http.StatusInternalServerError, authdelivery.ErrorResponse{Error: errMsgInternal})
+	// El proyecto lo valida el middleware de membresía; un identificador ilegible es un error interno.
+	projectID, err := uuid.Parse(c.Param("projectId"))
+	if err != nil {
+		respondInternalError(c, "generateProjectReport con un projectId inválido", "error", err)
+		return
+	}
+
+	// La sesión la exige el middleware; sin titular no se puede registrar la generación.
+	userID, ok := authdelivery.CurrentUserID(c)
+	if !ok {
+		respondInternalError(c, "generateProjectReport sin titular de la sesión")
+		return
+	}
+
+	// Cualquier error del servicio se traduce al 500 genérico: el proyecto sin sprints no es un error.
+	report, err := h.reports.ProjectReport(c.Request.Context(), projectID, userID)
+	if err != nil {
+		respondInternalError(c, "no se pudo generar el reporte del proyecto", "projectId", projectID, "error", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, NewReport(report))
 }

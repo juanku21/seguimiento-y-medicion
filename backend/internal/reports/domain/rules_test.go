@@ -2,6 +2,7 @@ package domain
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -131,4 +132,86 @@ func TestUS1_StoriesState(t *testing.T) {
 			assert.Equal(t, tt.want, StoriesState(tt.groups))
 		})
 	}
+}
+
+// sprintRef arma un sprint de prueba con identificador, estado y fechas a medianoche UTC.
+func sprintRef(id string, status sprintsdomain.SprintStatus, start, end string) SprintRef {
+	s, _ := time.Parse(time.DateOnly, start)
+	e, _ := time.Parse(time.DateOnly, end)
+	return SprintRef{ID: uuid.MustParse(id), Status: status, StartDate: s, EndDate: e}
+}
+
+// Escenario: El reporte de proyecto abarca solo sprints activos y cerrados, en orden cronológico (010/US3)
+func TestUS3_ReportableSprints(t *testing.T) {
+	const (
+		id1 = "00000000-0000-0000-0000-000000000001"
+		id2 = "00000000-0000-0000-0000-000000000002"
+		id3 = "00000000-0000-0000-0000-000000000003"
+		id4 = "00000000-0000-0000-0000-000000000004"
+		id5 = "00000000-0000-0000-0000-000000000005"
+	)
+	closed1 := sprintRef(id1, sprintsdomain.SprintStatusClosed, "2026-01-01", "2026-01-14")
+	planned := sprintRef(id2, sprintsdomain.SprintStatusPlanned, "2026-01-15", "2026-01-28")
+	closed2 := sprintRef(id3, sprintsdomain.SprintStatusClosed, "2026-02-01", "2026-02-14")
+	plannedLate := sprintRef(id4, sprintsdomain.SprintStatusPlanned, "2026-02-15", "2026-02-28")
+	active := sprintRef(id5, sprintsdomain.SprintStatusActive, "2026-03-01", "2026-03-14")
+
+	tests := []struct {
+		name  string
+		input []SprintRef
+		want  []SprintRef
+	}{
+		{"planificados intercalados se excluyen y el orden se conserva",
+			[]SprintRef{closed1, planned, closed2, plannedLate, active},
+			[]SprintRef{closed1, closed2, active}},
+		{"solo planificados no deja ninguno", []SprintRef{planned, plannedLate}, []SprintRef{}},
+		{"el orden recibido no se reordena", []SprintRef{active, closed1}, []SprintRef{active, closed1}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ReportableSprints(tt.input)
+			assert.Equal(t, len(tt.want), len(got))
+			if len(tt.want) > 0 {
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
+}
+
+// Escenario: El período del reporte de proyecto cubre desde el primer inicio hasta el último fin (010/US3)
+func TestUS3_ReportPeriod(t *testing.T) {
+	a := sprintRef("00000000-0000-0000-0000-000000000001", sprintsdomain.SprintStatusClosed, "2026-01-01", "2026-01-14")
+	b := sprintRef("00000000-0000-0000-0000-000000000002", sprintsdomain.SprintStatusClosed, "2026-02-01", "2026-02-14")
+	c := sprintRef("00000000-0000-0000-0000-000000000003", sprintsdomain.SprintStatusActive, "2026-03-01", "2026-03-14")
+
+	t.Run("tres sprints devuelven menor inicio y mayor fin", func(t *testing.T) {
+		got := ReportPeriod([]SprintRef{b, c, a})
+		if assert.NotNil(t, got) {
+			assert.Equal(t, a.StartDate, got.StartDate)
+			assert.Equal(t, c.EndDate, got.EndDate)
+		}
+	})
+	t.Run("un sprint devuelve sus fechas", func(t *testing.T) {
+		got := ReportPeriod([]SprintRef{b})
+		if assert.NotNil(t, got) {
+			assert.Equal(t, b.StartDate, got.StartDate)
+			assert.Equal(t, b.EndDate, got.EndDate)
+		}
+	})
+	t.Run("sin sprints devuelve nil", func(t *testing.T) {
+		assert.Nil(t, ReportPeriod(nil))
+	})
+}
+
+// Escenario: El reporte de proyecto es parcial solo si incluye al sprint activo (010/US3)
+func TestUS3_IsPartialProject(t *testing.T) {
+	closed := sprintRef("00000000-0000-0000-0000-000000000001", sprintsdomain.SprintStatusClosed, "2026-01-01", "2026-01-14")
+	active := sprintRef("00000000-0000-0000-0000-000000000002", sprintsdomain.SprintStatusActive, "2026-02-01", "2026-02-14")
+
+	t.Run("con un sprint activo es parcial", func(t *testing.T) {
+		assert.True(t, IsPartial(ScopeProject, []SprintRef{closed, active}))
+	})
+	t.Run("solo con sprints cerrados no es parcial", func(t *testing.T) {
+		assert.False(t, IsPartial(ScopeProject, []SprintRef{closed}))
+	})
 }

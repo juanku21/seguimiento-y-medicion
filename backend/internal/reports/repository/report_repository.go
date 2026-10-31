@@ -29,6 +29,11 @@ func NewReportRepository(db *gorm.DB) *ReportRepository {
 // sprintColumns son las columnas de un sprint que el reporte necesita.
 const sprintColumns = "id, name, status, start_date, end_date, closed_at"
 
+// currentStoryColumns son los datos vigentes de una historia (alias us de user_stories) que el
+// reporte muestra cuando no usa la instantánea congelada de un sprint.
+const currentStoryColumns = `us.title AS title, us.priority AS priority,
+		us.story_points AS story_points, us.status AS status`
+
 // LoadHeader lee el proyecto y el titular de la sesión para el encabezado. Del usuario se selecciona
 // solo full_name: nunca el hash de la contraseña. La pertenencia del usuario al proyecto la valida
 // el middleware de la ruta antes de llegar acá.
@@ -100,8 +105,7 @@ func (r *ReportRepository) LoadSprintStories(ctx context.Context, sprint domain.
 			FROM sprint_stories ss WHERE ss.sprint_id = @sprint`,
 			sql.Named("sprint", sprint.ID)).Scan(&lines).Error
 	} else {
-		err = db.Raw(`SELECT ss.story_id AS story_id, us.title AS title, us.priority AS priority,
-				us.story_points AS story_points, us.status AS status
+		err = db.Raw(`SELECT ss.story_id AS story_id, `+currentStoryColumns+`
 			FROM sprint_stories ss JOIN user_stories us ON us.id = ss.story_id
 			WHERE ss.sprint_id = @sprint AND ss.outcome IS NULL`,
 			sql.Named("sprint", sprint.ID)).Scan(&lines).Error
@@ -116,14 +120,15 @@ func (r *ReportRepository) LoadSprintStories(ctx context.Context, sprint domain.
 // ningún sprint Activo o Cerrado (research.md sección 4).
 func (r *ReportRepository) LoadUnplannedStories(ctx context.Context, projectID uuid.UUID) ([]domain.StoryLine, error) {
 	lines := []domain.StoryLine{}
-	if err := r.db.WithContext(ctx).Raw(`SELECT us.id AS story_id, us.title AS title, us.priority AS priority,
-			us.story_points AS story_points, us.status AS status
+	if err := r.db.WithContext(ctx).Raw(`SELECT us.id AS story_id, `+currentStoryColumns+`
 		FROM user_stories us
 		WHERE us.project_id = @project
 			AND NOT EXISTS (
 				SELECT 1 FROM sprint_stories ss JOIN sprints s ON s.id = ss.sprint_id
-				WHERE ss.story_id = us.id AND s.status IN ('active', 'closed'))`,
-		sql.Named("project", projectID)).Scan(&lines).Error; err != nil {
+				WHERE ss.story_id = us.id AND s.status IN (@active, @closed))`,
+		sql.Named("project", projectID),
+		sql.Named("active", sprintsdomain.SprintStatusActive),
+		sql.Named("closed", sprintsdomain.SprintStatusClosed)).Scan(&lines).Error; err != nil {
 		return nil, fmt.Errorf("leer las historias no planificadas: %w", err)
 	}
 	return lines, nil

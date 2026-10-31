@@ -593,7 +593,7 @@ reporte de proyecto tiene cuatro grupos en orden, más el de no planificadas, y 
 
 - [X] T033 [P] [US3] Implementar en `backend/internal/reports/domain/rules.go` `ReportableSprints`
       y `ReportPeriod`, y el alcance `project` de `IsPartial` — depende de T029
-- [ ] T034 [US3] Implementar en `backend/internal/reports/repository/report_repository.go`
+- [X] T034 [US3] Implementar en `backend/internal/reports/repository/report_repository.go`
       `ListSprints` (todos los sprints del proyecto en orden `start_date ASC, id ASC`) y
       `LoadUnplannedStories` (historias del proyecto con `NOT EXISTS (SELECT 1 FROM sprint_stories ss
       JOIN sprints s ON s.id = ss.sprint_id WHERE ss.story_id = us.id AND s.status IN ('active',

@@ -458,7 +458,7 @@ si la exportación falla, la pantalla sigue igual.
       un segundo dan nombres distintos; la fecha y la hora salen de la zona horaria recibida (un
       instante de las 01:30 UTC con `America/Argentina/Buenos_Aires` cae en el día anterior). Crear la
       firma mínima para que compile
-- [ ] T024 [P] [US2] Pruebas unitarias **obligatorias** de `buildPdfDocument(view)` en
+- [X] T024 [P] [US2] Pruebas unitarias **obligatorias** de `buildPdfDocument(view)` en
       `frontend/src/features/reports/pdf/pdf-document.test.ts`, sobre
       `buildReportView(sprintReport(), zona)`: un ayudante del archivo de prueba recorre `content` y
       extrae los textos en orden, y son exactamente los de `view` en el mismo orden (RN-15); el primer

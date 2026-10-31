@@ -10,6 +10,7 @@ declare module "pdfmake/build/pdfmake" {
         bold?: boolean;
         italics?: boolean;
         fontSize?: number;
+        font?: string;
         color?: string;
         alignment?: "left" | "center" | "right";
         margin?: number | number[];

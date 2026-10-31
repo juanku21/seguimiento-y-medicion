@@ -497,7 +497,7 @@ si la exportación falla, la pantalla sigue igual.
       `[A-Za-z0-9-]`, el colapso de guiones, el límite de 60 por parte y los valores por defecto; la
       fecha y la hora con `Intl.DateTimeFormat` en la zona recibida, como `formatInstant` — depende de
       T023
-- [ ] T027 [P] [US2] Implementar en `frontend/src/features/reports/pdf/pdf-document.ts`
+- [X] T027 [P] [US2] Implementar en `frontend/src/features/reports/pdf/pdf-document.ts`
       `buildPdfDocument(view: ReportView): PdfDocumentDefinition` según research.md sección 14 y la
       tabla "PDF" de contracts/ui-contract.md: título, nota parcial, seis secciones con su título y su
       mensaje, cada bloque con su subtítulo y su tabla (`headerRows: 1`, `dontBreakRows: true`,

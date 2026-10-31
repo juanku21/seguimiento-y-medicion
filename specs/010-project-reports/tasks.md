@@ -398,7 +398,7 @@ con el `article` "Reporte".
       `ErrSprintNotFound` → `404` y `ErrSprintNotStarted` → `409` "El sprint todavía no arrancó: no
       tiene nada que reportar."; cualquier otro error → `500` genérico registrado con `slog`
       (Principio VII) — depende de T018
-- [ ] T020 [P] [US1] Implementar en `frontend/src/features/reports/api.ts` el reconocedor `isReport`
+- [X] T020 [P] [US1] Implementar en `frontend/src/features/reports/api.ts` el reconocedor `isReport`
       sobre `isRecord`, sin `any`, que verifica las seis secciones, sus `state` y los tipos de cada
       campo del contrato (las métricas con los reconocedores de la 009 si están exportados; si no,
       con los propios), y `generateSprintReport(projectId, sprintId)` con

@@ -88,17 +88,27 @@ func ReportPeriod(sprints []SprintRef) *Period {
 
 // EffortState devuelve la sección de esfuerzo vacía si no hay filas en el alcance (RN-11).
 func EffortState(rows []EffortRow) SectionState {
-	return ""
+	if len(rows) == 0 {
+		return SectionEmpty
+	}
+	return SectionComplete
 }
 
 // DefectsState devuelve la sección de defectos vacía si el listado está vacío (RN-11); los totales
 // se conservan aparte.
 func DefectsState(defects []DefectLine) SectionState {
-	return ""
+	if len(defects) == 0 {
+		return SectionEmpty
+	}
+	return SectionComplete
 }
 
 // ProjectMetricsState devuelve la sección de métricas vacía solo en el alcance project sin sprints
 // reportables (RN-11).
 func ProjectMetricsState(scope ReportScope, sprints []SprintRef) SectionState {
-	return ""
+	// Solo el alcance project puede quedar sin sprints reportables.
+	if scope == ScopeProject && len(ReportableSprints(sprints)) == 0 {
+		return SectionEmpty
+	}
+	return SectionComplete
 }

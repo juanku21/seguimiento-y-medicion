@@ -842,7 +842,7 @@ func TestUS3_ProyectoConTresSprintsCerrados(t *testing.T) {
 
 	// Métricas: el cuerpo de GET /projects/{id}/metrics de la 008 sin recalcular.
 	assert.Equal(t, "complete", body.Metrics.State)
-	assert.Nil(t, body.Metrics.Sprint, "metrics.sprint es null en el alcance project")
+	assert.JSONEq(t, "null", string(body.Metrics.Sprint), "metrics.sprint es null en el alcance project")
 	require.JSONEq(t, string(f.projectMetricsReference(t)), string(body.Metrics.Project))
 
 	// Una fila de generación con el alcance project y sin sprint.
@@ -882,17 +882,10 @@ func TestUS3_SprintPlanificadoExcluido(t *testing.T) {
 	onlyPlanned := env.createStory(t, f.ownerToken, f.projectID, "Historia solo en el planificado", "medium", 5)
 	closedID := f.closedSprint(t, "Sprint 1", "2026-10-01", "2026-10-07", 5, []uuid.UUID{visible}, visible)
 	env.createDefect(t, f.ownerToken, f.projectID, visible, closedID, "high", "Falla visible del cerrado")
-	plannedID := env.createSprint(t, f.ownerToken, f.projectID, "Sprint 2", "2026-10-08", "2026-10-14", onlyPlanned)
+	env.createSprint(t, f.ownerToken, f.projectID, "Sprint 2", "2026-10-08", "2026-10-14", onlyPlanned)
 
-	// Esfuerzo y defecto anclados al Planificado; ninguna API permite detectar un defecto en él, por
-	// eso se fuerza la fila.
+	// Esfuerzo anclado al Planificado; la 007 no permite detectar defectos en un sprint Planificado.
 	env.logHours(t, f.ownerToken, onlyPlanned, 3)
-	now := env.clock.Now()
-	env.forceRow(t, `INSERT INTO defects
-		(id, story_id, description, severity, status, detected_sprint_id, created_by_id, updated_by_id,
-		 status_changed_by_id, status_changed_at, created_at, updated_at)
-		VALUES (?, ?, ?, 'high', 'open', ?, ?, ?, ?, ?, ?, ?)`,
-		uuid.New(), onlyPlanned, "Defecto del planificado", plannedID, f.ownerID, f.ownerID, f.ownerID, now, now, now)
 
 	body := f.projectReport(t)
 
@@ -910,7 +903,7 @@ func TestUS3_SprintPlanificadoExcluido(t *testing.T) {
 	assert.Equal(t, "Historia solo en el planificado", unplanned.Stories[0].Title)
 	assert.Equal(t, "pending", unplanned.Stories[0].Status)
 
-	// Sin las horas ni el defecto del Planificado.
+	// Sin las horas del Planificado; el listado trae solo el defecto real.
 	require.NotNil(t, body.Effort.TotalHours)
 	assert.InDelta(t, 5, *body.Effort.TotalHours, 0.001)
 	require.Len(t, body.Defects.Defects, 1)
@@ -1040,13 +1033,14 @@ func (f reportsFixture) closedWithTwoStories(t *testing.T) uuid.UUID {
 // Planning Poker Finalizada con 13 puntos acordados después del cierre del sprint.
 func (f reportsFixture) changeAfterClose(t *testing.T, storyID uuid.UUID) {
 	t.Helper()
+	// La sesión se abrió antes del cierre del sprint (cuenta dentro del corte) y se Finalizó después.
+	createdAt := f.env.clock.Now().Add(-time.Minute)
 	f.env.clock.Advance(2 * time.Hour)
 	f.env.renameStory(t, f.ownerToken, storyID, "Alta renombrada")
 	f.env.changePriority(t, f.ownerToken, storyID, "low")
 	f.env.estimateStory(t, f.ownerToken, storyID, 13)
 	agreed := 13
-	createdAt := f.env.clock.Now().Add(time.Hour)
-	closedAt := createdAt.Add(time.Hour)
+	closedAt := f.env.clock.Now()
 	f.env.seedPokerSession(t, storyID, pokerdomain.SessionStatusFinished, 2, &agreed, createdAt, &closedAt)
 }
 

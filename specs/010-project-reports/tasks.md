@@ -358,7 +358,7 @@ con el `article` "Reporte".
 - [X] T015 [P] [US1] Implementar en `backend/internal/reports/domain/rules.go` `EnsureReportable`,
       `IsPartial`, `SortStories`, `StoryTitle` y `StoriesState`, como funciones puras con su
       comentario en español y la referencia a la regla (data-model.md sección 2.4) — depende de T010
-- [ ] T016 [P] [US1] Implementar en `backend/internal/reports/domain/estimation.go`
+- [X] T016 [P] [US1] Implementar en `backend/internal/reports/domain/estimation.go`
       `SelectEstimation(sessions []SessionRecord, cutoff *time.Time) (PokerState, *PokerSummary)`
       según research.md sección 5, sin consultar nada — depende de T011
 - [ ] T017 [US1] Implementar en `backend/internal/reports/repository/report_repository.go`, con

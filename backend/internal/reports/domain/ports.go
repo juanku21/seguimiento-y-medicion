@@ -16,8 +16,8 @@ type ReportRepository interface {
 	ListSprints(ctx context.Context, projectID uuid.UUID) ([]SprintRef, error)
 	LoadSprintStories(ctx context.Context, sprint SprintRef) ([]StoryLine, error)
 	LoadUnplannedStories(ctx context.Context, projectID uuid.UUID) ([]StoryLine, error)
-	LoadEstimationSessions(ctx context.Context, storyIDs []uuid.UUID) (map[uuid.UUID][]SessionRecord, error)
-	LoadEffort(ctx context.Context, sprintIDs []uuid.UUID) ([]EffortRow, error)
+	LoadEstimationSessions(ctx context.Context, projectID uuid.UUID, storyIDs []uuid.UUID) (map[uuid.UUID][]SessionRecord, error)
+	LoadEffort(ctx context.Context, projectID uuid.UUID, sprintIDs []uuid.UUID) ([]EffortRow, error)
 	LoadDefects(ctx context.Context, projectID uuid.UUID, sprintID *uuid.UUID) ([]DefectLine, error)
 }
 

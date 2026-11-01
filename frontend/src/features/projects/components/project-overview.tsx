@@ -1,5 +1,7 @@
 "use client";
 
+import { buttonClassName } from "@/components/button";
+import { LoadingState } from "@/components/loading-state";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Alert } from "@/components/alert";
@@ -14,6 +16,9 @@ import type { ProjectDetail } from "@/types/project";
 export type ProjectOverviewProps = {
   projectId: string;
 };
+
+const SECTION_LINK_CLASS_NAME =
+  "flex min-h-12 items-center justify-center rounded-lg border border-border bg-surface px-3 text-center text-sm font-medium transition-colors hover:border-primary hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus";
 
 // Estado de la consulta: todavía sin respuesta, el estado del proyecto recibido o el mensaje de
 // error.
@@ -66,11 +71,7 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
     return <Alert>{state.message}</Alert>;
   }
   if (state.status === "loading") {
-    return (
-      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-        Cargando proyecto…
-      </p>
-    );
+    return <LoadingState>Cargando proyecto…</LoadingState>;
   }
 
   // Estado y equipo del proyecto, ambos a partir de la misma respuesta. Solo el propietario ve
@@ -83,51 +84,62 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
   return (
     <div className="flex flex-col gap-8">
       <ProjectStatusCard project={project} />
-      <nav aria-label="Secciones del proyecto" className="flex gap-6">
+      <nav
+        aria-label="Secciones del proyecto"
+        className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6"
+      >
         <Link
           href={`/projects/${project.id}/dashboard`}
-          className="text-sm font-medium underline underline-offset-4"
+          className={SECTION_LINK_CLASS_NAME}
         >
           Dashboard
         </Link>
         <Link
           href={`/projects/${project.id}/reports`}
-          className="text-sm font-medium underline underline-offset-4"
+          className={SECTION_LINK_CLASS_NAME}
         >
           Reportes
         </Link>
         <Link
           href={`/projects/${project.id}/backlog`}
-          className="text-sm font-medium underline underline-offset-4"
+          className={SECTION_LINK_CLASS_NAME}
         >
           Ver backlog
         </Link>
         <Link
           href={`/projects/${project.id}/sprints`}
-          className="text-sm font-medium underline underline-offset-4"
+          className={SECTION_LINK_CLASS_NAME}
         >
           Ver sprints
         </Link>
         <Link
           href={`/projects/${project.id}/effort`}
-          className="text-sm font-medium underline underline-offset-4"
+          className={SECTION_LINK_CLASS_NAME}
         >
           Esfuerzo
         </Link>
         <Link
           href={`/projects/${project.id}/defects`}
-          className="text-sm font-medium underline underline-offset-4"
+          className={SECTION_LINK_CLASS_NAME}
         >
           Defectos
         </Link>
       </nav>
       {viewerIsOwner && !project.readOnly && (
-        <StatusActions
-          project={project}
-          onStatusChange={(updated) =>
-            setState({ status: "loaded", project: updated })
-          }
-        />
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Link
+            href={`/projects/${project.id}/edit`}
+            className={buttonClassName("secondary")}
+          >
+            Editar proyecto
+          </Link>
+          <StatusActions
+            project={project}
+            onStatusChange={(updated) =>
+              setState({ status: "loaded", project: updated })
+            }
+          />
+        </div>
       )}
       <section
         aria-labelledby="members-heading"

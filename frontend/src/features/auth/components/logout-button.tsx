@@ -34,7 +34,7 @@ export function LogoutButton() {
   return (
     <div className="flex flex-col gap-3">
       {error && <Alert>{error}</Alert>}
-      <Button onClick={handleClick} disabled={isSubmitting}>
+      <Button variant="secondary" onClick={handleClick} disabled={isSubmitting}>
         Cerrar sesión
       </Button>
     </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@/components/loading-state";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Alert } from "@/components/alert";
 import { listProjectEffort } from "@/features/effort/api";
@@ -50,7 +51,7 @@ const NO_FILTERS: ProjectEffortFilter = {
 };
 
 const EMPTY_MESSAGE_CLASS_NAME =
-  "rounded-md border border-dashed border-zinc-300 px-5 py-6 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400";
+  "rounded-md border border-dashed border-border px-5 py-6 text-center text-sm text-foreground-muted";
 
 // Agrega a la lista los elementos que todavía no figuran, comparando por id y conservando el orden
 // de aparición.
@@ -185,17 +186,13 @@ function EffortResults({ effort }: { effort: EffortState }): ReactNode {
     );
   }
   if (effort.status === "loading") {
-    return (
-      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-        Cargando esfuerzo…
-      </p>
-    );
+    return <LoadingState>Cargando esfuerzo…</LoadingState>;
   }
 
   const { entries, totalHours, emptyReason } = effort.data;
   return (
     <section className="flex flex-col gap-4">
-      <p className="text-base font-semibold tabular-nums">
+      <p className="text-lg font-semibold tabular-nums">
         {`Total: ${formatHours(totalHours)}`}
       </p>
 
@@ -210,7 +207,7 @@ function EffortResults({ effort }: { effort: EffortState }): ReactNode {
       ) : (
         <ul
           aria-label="Registros de esfuerzo del proyecto"
-          className="flex flex-col gap-3"
+          className="divide-y divide-border rounded-lg border border-border bg-surface"
         >
           {entries.map((entry) => (
             <ProjectEffortRow key={entry.id} entry={entry} />
@@ -225,7 +222,7 @@ function EffortResults({ effort }: { effort: EffortState }): ReactNode {
 // sprint, o "Sin sprint" si no tiene.
 function ProjectEffortRow({ entry }: { entry: EffortEntry }): ReactNode {
   return (
-    <li className="flex flex-col gap-2 rounded-md border border-zinc-300 px-4 py-3 text-sm dark:border-zinc-700">
+    <li className="flex flex-col gap-2 px-4 py-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="tabular-nums">{formatDate(entry.entryDate)}</span>
         <span className="font-medium tabular-nums">
@@ -233,7 +230,7 @@ function ProjectEffortRow({ entry }: { entry: EffortEntry }): ReactNode {
         </span>
       </div>
       <span className="break-words">{entry.activity}</span>
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-zinc-600 dark:text-zinc-400">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-foreground-muted">
         <span>{entry.author.fullName}</span>
         <span className="break-words">{entry.story.title}</span>
         <span>{entry.sprint ? entry.sprint.name : "Sin sprint"}</span>

@@ -1,5 +1,6 @@
 "use client";
 
+import { buttonClassName } from "@/components/button";
 import { useId, useRef, useState } from "react";
 import { Alert } from "@/components/alert";
 import { closeSprint, startSprint } from "@/features/sprints/api";
@@ -14,10 +15,8 @@ export type SprintLifecycleActionsProps = {
 };
 
 // Clases del botón principal de las acciones y del secundario de la confirmación.
-const primaryButtonClass =
-  "rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300";
-const secondaryButtonClass =
-  "rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800";
+const primaryButtonClass = buttonClassName("primary");
+const secondaryButtonClass = buttonClassName("secondary");
 
 // Arma el aviso de cuántas historias vuelven al backlog al cerrar: las que no están Completadas,
 // en singular, plural o "Ninguna" si no vuelve ninguna.
@@ -109,13 +108,13 @@ export function SprintLifecycleActions({
       {sprint.status === "active" && isConfirmingClose && (
         <div
           aria-labelledby={questionId}
-          className="flex flex-col gap-3 rounded-md border border-zinc-300 px-4 py-3 dark:border-zinc-700"
+          className="flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 py-3"
           role="group"
         >
           <p id={questionId} className="text-sm font-medium">
             ¿Cerrar este sprint?
           </p>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="text-sm text-foreground-muted">
             {returningStoriesText(sprint.stories)}
           </p>
           <div className="flex flex-wrap gap-2">

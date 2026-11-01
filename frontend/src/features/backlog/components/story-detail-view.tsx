@@ -1,5 +1,8 @@
 "use client";
 
+import { buttonClassName } from "@/components/button";
+import Link from "next/link";
+import { LoadingState } from "@/components/loading-state";
 import { useEffect, useState } from "react";
 import { Alert } from "@/components/alert";
 import { getStory } from "@/features/backlog/api";
@@ -56,11 +59,7 @@ export function StoryDetailView({ storyId }: StoryDetailViewProps) {
     return <Alert>{state.message}</Alert>;
   }
   if (state.status === "loading") {
-    return (
-      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-        Cargando historia…
-      </p>
-    );
+    return <LoadingState>Cargando historia…</LoadingState>;
   }
   return (
     <div className="flex flex-col gap-6">
@@ -70,10 +69,18 @@ export function StoryDetailView({ storyId }: StoryDetailViewProps) {
         storyPoints={state.story.storyPoints}
         onEstimated={(story) => setState({ status: "loaded", story })}
       />
-      <DeleteStoryButton
-        storyId={state.story.id}
-        projectId={state.story.projectId}
-      />
+      <div className="flex flex-wrap items-start gap-3">
+        <Link
+          href={`/projects/${state.story.projectId}/backlog/${state.story.id}/edit`}
+          className={buttonClassName("secondary")}
+        >
+          Editar historia
+        </Link>
+        <DeleteStoryButton
+          storyId={state.story.id}
+          projectId={state.story.projectId}
+        />
+      </div>
     </div>
   );
 }

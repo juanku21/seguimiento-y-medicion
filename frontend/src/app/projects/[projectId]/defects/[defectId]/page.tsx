@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { SessionGuard } from "@/features/auth/components/session-guard";
 import { DefectDetail } from "@/features/defects/components/defect-detail";
 
@@ -17,19 +16,13 @@ export default async function DefectPage({
 }: {
   params: Promise<{ projectId: string; defectId: string }>;
 }) {
-  const { projectId, defectId } = await params;
+  const { defectId } = await params;
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-6 px-6 py-16">
+    <main className="flex w-full max-w-5xl flex-1 flex-col gap-6">
       <h1 className="text-2xl font-semibold tracking-tight">Defecto</h1>
       <SessionGuard>
         <div className="flex flex-col gap-6">
-          <Link
-            href={`/projects/${projectId}`}
-            className="self-start text-sm font-medium underline underline-offset-4"
-          >
-            Volver al proyecto
-          </Link>
           <DefectDetail defectId={defectId} />
         </div>
       </SessionGuard>

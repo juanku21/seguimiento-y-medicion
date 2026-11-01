@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 // y muestra el formulario únicamente cuando hay una sesión vigente.
 export default function NewProjectPage() {
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-6 px-6 py-16">
+    <main className="flex w-full max-w-2xl flex-1 flex-col gap-6">
       <h1 className="text-2xl font-semibold tracking-tight">Nuevo proyecto</h1>
       <SessionGuard>
         <ProjectForm />

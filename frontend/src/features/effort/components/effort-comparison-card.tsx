@@ -30,11 +30,11 @@ export function EffortComparisonCard({
   return (
     <dl
       aria-label="Comparación estimado contra real"
-      className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 rounded-md border border-zinc-300 px-4 py-3 text-sm dark:border-zinc-700"
+      className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 rounded-lg border border-border bg-surface px-4 py-3 text-sm"
     >
       {items.map(([label, value]) => (
         <div key={label} className="contents">
-          <dt className="text-zinc-600 dark:text-zinc-400">{label}</dt>
+          <dt className="text-foreground-muted">{label}</dt>
           <dd className="text-right font-medium tabular-nums">{value}</dd>
         </div>
       ))}

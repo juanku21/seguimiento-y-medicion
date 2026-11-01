@@ -1,5 +1,6 @@
 "use client";
 
+import { buttonClassName } from "@/components/button";
 import { useId, useRef, useState, type FormEvent } from "react";
 import { Alert } from "@/components/alert";
 import { Input } from "@/components/input";
@@ -21,12 +22,9 @@ type RowMode = "view" | "edit" | "confirm";
 
 // Clases de los botones de la fila: el secundario para editar y cancelar, el principal para guardar
 // y el de peligro para eliminar.
-const secondaryButtonClass =
-  "rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800";
-const primaryButtonClass =
-  "rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300";
-const dangerButtonClass =
-  "rounded-md bg-red-700 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 disabled:opacity-60";
+const secondaryButtonClass = buttonClassName("secondary");
+const primaryButtonClass = buttonClassName("primary");
+const dangerButtonClass = buttonClassName("danger");
 
 // Propiedades de una fila de la lista de esfuerzo: el registro, si quien tiene la sesión puede
 // corregirlo o eliminarlo, y el aviso de que una de esas acciones se completó.
@@ -153,7 +151,7 @@ export function EffortEntryRow({
   }
 
   return (
-    <li className="flex flex-col gap-2 rounded-md border border-zinc-300 px-4 py-3 text-sm dark:border-zinc-700">
+    <li className="flex flex-col gap-2 px-4 py-3 text-sm">
       {error && <Alert>{error}</Alert>}
 
       {/* Edición en línea: los tres campos precargados, guardar y cancelar sin enviar nada. */}
@@ -213,7 +211,7 @@ export function EffortEntryRow({
             </span>
           </div>
           <span className="break-words">{entry.activity}</span>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-zinc-600 dark:text-zinc-400">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-foreground-muted">
             <span>{entry.author.fullName}</span>
             <span>{entry.sprint ? entry.sprint.name : "Sin sprint"}</span>
           </div>

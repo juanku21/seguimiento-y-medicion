@@ -26,7 +26,7 @@ export function RoundHistory({
         <section
           key={round.number}
           aria-label={`Ronda ${round.number}`}
-          className="flex flex-col gap-3"
+          className="flex flex-col gap-3 border-t border-border pt-4"
         >
           <h3 className="text-base font-medium">Ronda {round.number}</h3>
           <RoundResult round={round} />

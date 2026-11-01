@@ -1,5 +1,7 @@
-import type { Metadata } from "next";
 import Link from "next/link";
+import { PageHeader } from "@/components/page-header";
+import { buttonClassName } from "@/components/button";
+import type { Metadata } from "next";
 import { SessionGuard } from "@/features/auth/components/session-guard";
 import { DefectsView } from "@/features/defects/components/defects-view";
 
@@ -20,16 +22,20 @@ export default async function ProjectDefectsPage({
   const { projectId } = await params;
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center gap-6 px-6 py-16">
-      <h1 className="text-2xl font-semibold tracking-tight">Defectos</h1>
+    <main className="flex w-full max-w-6xl flex-1 flex-col gap-6">
+      <PageHeader
+        title="Defectos"
+        action={
+          <Link
+            href={`/projects/${projectId}/defects/new`}
+            className={buttonClassName("primary")}
+          >
+            Registrar defecto
+          </Link>
+        }
+      />
       <SessionGuard>
         <div className="flex flex-col gap-6">
-          <Link
-            href={`/projects/${projectId}`}
-            className="self-start text-sm font-medium underline underline-offset-4"
-          >
-            Volver al proyecto
-          </Link>
           <DefectsView projectId={projectId} />
         </div>
       </SessionGuard>

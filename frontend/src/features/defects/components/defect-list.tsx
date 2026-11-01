@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@/components/loading-state";
 import { useEffect, useState, type ReactElement } from "react";
 import { Alert } from "@/components/alert";
 import { listProjectDefects } from "@/features/defects/api";
@@ -66,23 +67,22 @@ export function DefectList({
     );
   }
   if (state.status === "loading") {
-    return (
-      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-        Cargando defectos…
-      </p>
-    );
+    return <LoadingState>Cargando defectos…</LoadingState>;
   }
 
   const { defects, emptyReason } = state.data;
   if (defects.length === 0) {
     return (
-      <p className="rounded-md border border-dashed border-zinc-300 px-5 py-6 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
+      <p className="rounded-md border border-dashed border-border px-5 py-6 text-center text-sm text-foreground-muted">
         {DEFECT_EMPTY_REASON_LABELS[emptyReason ?? "no_defects"]}
       </p>
     );
   }
   return (
-    <ul aria-label="Defectos del proyecto" className="flex flex-col gap-3">
+    <ul
+      aria-label="Defectos del proyecto"
+      className="divide-y divide-border rounded-lg border border-border bg-surface"
+    >
       {defects.map((defect) => (
         <DefectRow key={defect.id} defect={defect} />
       ))}

@@ -170,7 +170,7 @@ export function DefectStatusActions({
         </div>
       )}
       {allowed.includes("discarded") && isDiscarding && (
-        <div className="flex flex-col gap-3 rounded-md border border-zinc-300 px-4 py-4 dark:border-zinc-700">
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 py-4">
           <p className="text-sm font-medium">
             ¿Descartar este defecto? No se puede deshacer.
           </p>

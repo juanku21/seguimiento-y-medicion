@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@/components/loading-state";
 import { useEffect, useState } from "react";
 import { Alert } from "@/components/alert";
 import { getSprint } from "@/features/sprints/api";
@@ -57,11 +58,7 @@ export function SprintEditView({ sprintId }: SprintEditViewProps) {
     return <Alert>{state.message}</Alert>;
   }
   if (state.status === "loading") {
-    return (
-      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-        Cargando sprint…
-      </p>
-    );
+    return <LoadingState>Cargando sprint…</LoadingState>;
   }
 
   // Solo el sprint Planificado se modifica; los demás muestran el motivo sin formulario.

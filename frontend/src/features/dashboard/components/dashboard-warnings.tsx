@@ -24,7 +24,7 @@ export function DashboardWarnings({
         <div
           role="status"
           aria-label="Avisos de planificación"
-          className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900"
+          className="rounded-md border border-primary/30 bg-primary-soft p-3 text-sm text-foreground"
         >
           <ul className="list-disc space-y-1 pl-5">
             {planning.map((w) => (
@@ -38,7 +38,7 @@ export function DashboardWarnings({
         <div
           role="alert"
           aria-label="Datos que hay que revisar"
-          className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900"
+          className="rounded-md border border-danger/40 bg-danger-soft p-3 text-sm text-danger"
         >
           <p className="mb-2 font-medium">
             Hay información rota que alguien debe revisar.

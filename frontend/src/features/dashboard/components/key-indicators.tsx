@@ -1,3 +1,4 @@
+import { LoadingState } from "@/components/loading-state";
 import type { ReactNode } from "react";
 import { FinalityBadge } from "@/features/dashboard/components/finality-badge";
 import { MetricValue } from "@/features/dashboard/components/metric-value";
@@ -91,7 +92,7 @@ function Group({
   children: ReactNode;
 }) {
   return (
-    <div aria-labelledby={id} className="flex flex-col gap-2">
+    <div aria-labelledby={id} className="flex flex-col gap-3">
       <h3 id={id} className="flex items-center gap-2 text-base font-medium">
         {title}
         {badge}
@@ -104,9 +105,9 @@ function Group({
 // Fila término/valor de un indicador.
 function MetricRow({ term, children }: { term: string; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-2">
-      <dt className="text-sm text-zinc-600 dark:text-zinc-400">{term}</dt>
-      <dd className="flex items-center gap-2 text-sm font-medium">
+    <div className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-4">
+      <dt className="text-sm text-foreground-muted">{term}</dt>
+      <dd className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-2xl font-semibold tabular-nums [&_small]:font-normal">
         {children}
       </dd>
     </div>
@@ -132,11 +133,7 @@ function MetricRows({
 
 // Texto de carga de un grupo.
 function Loading({ text }: { text: string }) {
-  return (
-    <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-      {text}
-    </p>
-  );
+  return <LoadingState>{text}</LoadingState>;
 }
 
 // Grupo del sprint activo: carga, error, "sin sprint en curso" o sus siete indicadores.
@@ -152,13 +149,13 @@ function SprintGroup({
     content = <SectionError message={SPRINT_INDICATORS_ERROR} />;
   } else if (!state.data.activeSprint || state.data.metrics === null) {
     content = (
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="text-sm text-foreground-muted">
         No hay ningún sprint en curso.
       </p>
     );
   } else {
     content = (
-      <dl className="flex flex-col gap-1">
+      <dl className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
         <MetricRows metrics={state.data.metrics} />
       </dl>
     );
@@ -186,7 +183,7 @@ function ProjectGroup({
     const { velocity, defects, cumulative } = state.data;
     badge = <FinalityBadge finality={cumulative.finality} />;
     content = (
-      <dl className="flex flex-col gap-1">
+      <dl className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
         <MetricRow term="Velocidad del equipo">
           <MetricValue
             metric={velocity.value}

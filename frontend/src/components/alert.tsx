@@ -14,8 +14,8 @@ export function Alert({ variant = "error", children }: AlertProps) {
       role={isError ? "alert" : "status"}
       className={`rounded-md border px-4 py-3 text-sm ${
         isError
-          ? "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200"
-          : "border-green-300 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200"
+          ? "border-danger/40 bg-danger-soft text-danger"
+          : "border-success/40 bg-success-soft text-success"
       }`}
     >
       {children}

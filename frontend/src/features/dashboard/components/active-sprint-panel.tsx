@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@/components/loading-state";
 import { useCallback } from "react";
 import { Alert } from "@/components/alert";
 import { getSprint } from "@/features/sprints/api";
@@ -20,11 +21,7 @@ function ActiveSprintContent({ sprintId }: { sprintId: string }) {
   const state = useAuthorizedQuery(load);
 
   if (state.status === "loading") {
-    return (
-      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-        Cargando sprint activo…
-      </p>
-    );
+    return <LoadingState>Cargando sprint activo…</LoadingState>;
   }
   if (state.status === "error") {
     return <Alert>No se pudo cargar el sprint activo.</Alert>;
@@ -35,10 +32,10 @@ function ActiveSprintContent({ sprintId }: { sprintId: string }) {
     <div className="flex flex-col gap-1">
       <h3 className="text-base font-medium">{sprint.name}</h3>
       <p className="text-sm">{sprint.goal}</p>
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="text-sm text-foreground-muted">
         Inicio: {formatDate(sprint.startDate)}
       </p>
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="text-sm text-foreground-muted">
         Fin: {formatDate(sprint.endDate)}
       </p>
       <SprintSchedule sprint={sprint} />
@@ -52,13 +49,13 @@ export function ActiveSprintPanel({ activeSprintId }: ActiveSprintPanelProps) {
   return (
     <section
       aria-labelledby="active-sprint-heading"
-      className="flex flex-col gap-2"
+      className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-5"
     >
       <h2 id="active-sprint-heading" className="text-lg font-semibold">
         Sprint activo
       </h2>
       {activeSprintId === null ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="text-sm text-foreground-muted">
           No hay ningún sprint en curso.
         </p>
       ) : (

@@ -32,14 +32,17 @@ export function EffortEntryList({
 }: EffortEntryListProps): ReactNode {
   if (entries.length === 0) {
     return (
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="text-sm text-foreground-muted">
         Todavía no hay esfuerzo registrado.
       </p>
     );
   }
 
   return (
-    <ul aria-label="Registros de esfuerzo" className="flex flex-col gap-3">
+    <ul
+      aria-label="Registros de esfuerzo"
+      className="divide-y divide-border rounded-lg border border-border bg-surface"
+    >
       {entries.map((entry) => (
         <EffortEntryRow
           key={entry.id}

@@ -1,19 +1,90 @@
-/* Estilos globales: carga Tailwind y define los colores base de la aplicación en modo claro y oscuro. */
+/* Estilos globales: carga Tailwind y define los tokens del sistema de diseño en modo claro y oscuro. */
 @import "tailwindcss";
 
+/* El modo oscuro depende de la clase .dark en <html>, que decide el selector de tema. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Paleta azul y celeste en modo claro. Los pares de texto y fondo cumplen WCAG AA (4.5:1) y los
+   bordes de control y las series de los gráficos, el mínimo de elementos gráficos (3:1). */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --background: #f5f9fd;
+  --surface: #ffffff;
+  --surface-muted: #e9f1f9;
+  --border: #d5e1ec;
+  --border-strong: #7e96ad;
+  --foreground: #0f2438;
+  --foreground-muted: #4a6076;
+  --primary: #1b5fc1;
+  --primary-hover: #174f9f;
+  --on-primary: #ffffff;
+  --primary-soft: #e3eefb;
+  --accent: #0284c7;
+  --success: #15703d;
+  --warning: #92580a;
+  --danger: #b3261e;
+  --on-danger: #ffffff;
+  --success-soft: #e4f4ea;
+  --warning-soft: #fbf0dd;
+  --danger-soft: #fbeaea;
+  --chart-1: #0f3a7d;
+  --chart-2: #0891d1;
 }
 
+/* Paleta azul y celeste en modo oscuro, con los mismos criterios de contraste. */
+.dark {
+  color-scheme: dark;
+  --background: #0b1622;
+  --surface: #12202f;
+  --surface-muted: #1a2b3d;
+  --border: #2a3f54;
+  --border-strong: #5c7690;
+  --foreground: #e8f1f8;
+  --foreground-muted: #9db2c6;
+  --primary: #5aa9f0;
+  --primary-hover: #7dbcf4;
+  --on-primary: #0b1622;
+  --primary-soft: #16324f;
+  --accent: #5fd0f5;
+  --success: #5fd39a;
+  --warning: #f0b95b;
+  --danger: #ff8a80;
+  --on-danger: #0b1622;
+  --success-soft: #15352a;
+  --warning-soft: #35291a;
+  --danger-soft: #3a1f22;
+  --chart-1: #2f7fd6;
+  --chart-2: #bae9fb;
+}
+
+/* Expone los tokens como utilidades de Tailwind (bg-surface, text-foreground-muted, border-border). */
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-foreground: var(--foreground);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-on-primary: var(--on-primary);
+  --color-primary-soft: var(--primary-soft);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-on-danger: var(--on-danger);
+  --color-success-soft: var(--success-soft);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger-soft: var(--danger-soft);
+  --color-focus: var(--primary);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Casillas y opciones nativas con el color de la marca. */
+:root {
+  accent-color: var(--primary);
 }

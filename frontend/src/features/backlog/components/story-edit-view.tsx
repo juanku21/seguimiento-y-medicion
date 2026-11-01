@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@/components/loading-state";
 import { useEffect, useState } from "react";
 import { Alert } from "@/components/alert";
 import { getStory } from "@/features/backlog/api";
@@ -52,11 +53,7 @@ export function StoryEditView({ storyId }: StoryEditViewProps) {
     return <Alert>{state.message}</Alert>;
   }
   if (state.status === "loading") {
-    return (
-      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-        Cargando historia…
-      </p>
-    );
+    return <LoadingState>Cargando historia…</LoadingState>;
   }
   return <StoryForm story={state.story} />;
 }

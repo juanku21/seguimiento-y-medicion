@@ -1,3 +1,5 @@
+import { PageHeader } from "@/components/page-header";
+import { buttonClassName } from "@/components/button";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SessionGuard } from "@/features/auth/components/session-guard";
@@ -10,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 const TAB_CLASS_NAME =
-  "rounded-md px-3 py-1.5 text-sm font-medium underline-offset-4 aria-[current=page]:bg-zinc-900 aria-[current=page]:text-white dark:aria-[current=page]:bg-zinc-100 dark:aria-[current=page]:text-zinc-900";
+  "rounded-md px-3 py-1.5 text-sm font-medium underline-offset-4 aria-[current=page]:bg-primary aria-[current=page]:text-on-primary";
 
 // Pantalla protegida de los sprints del proyecto (004/US6). Es un Server Component que toma el
 // identificador del proyecto de la ruta y la vista elegida de la consulta (?view=closed para el
@@ -30,25 +32,17 @@ export default async function SprintsPage({
   const basePath = `/projects/${projectId}/sprints`;
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center gap-6 px-6 py-16">
-      <h1 className="text-2xl font-semibold tracking-tight">Sprints</h1>
+    <main className="flex w-full max-w-6xl flex-1 flex-col gap-6">
+      <PageHeader
+        title="Sprints"
+        action={
+          <Link href={`${basePath}/new`} className={buttonClassName("primary")}>
+            Nuevo sprint
+          </Link>
+        }
+      />
       <SessionGuard>
         <div className="flex flex-col gap-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <Link
-              href={`/projects/${projectId}`}
-              className="text-sm font-medium underline underline-offset-4"
-            >
-              Volver al proyecto
-            </Link>
-            <Link
-              href={`${basePath}/new`}
-              className="text-sm font-medium underline underline-offset-4"
-            >
-              Nuevo sprint
-            </Link>
-          </div>
-
           {/* Pestañas entre el listado completo y el historial de cerrados. */}
           <nav aria-label="Vistas de sprints" className="flex gap-2">
             <Link

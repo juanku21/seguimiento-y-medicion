@@ -8,7 +8,7 @@ export function ReportDocument({ view }: { view: ReportView }) {
   return (
     <article
       aria-label="Reporte"
-      className="flex flex-col gap-6 rounded-md border border-zinc-300 px-5 py-5 dark:border-zinc-700"
+      className="flex flex-col gap-6 rounded-lg border border-border bg-surface px-5 py-5"
     >
       <h2 className="text-xl font-semibold break-words">{view.title}</h2>
       {view.partialNote !== null && (

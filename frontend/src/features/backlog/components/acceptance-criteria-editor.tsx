@@ -22,7 +22,7 @@ type AcceptanceCriteriaEditorProps = {
 const CRITERION_HINT = `Hasta ${MAX_ACCEPTANCE_CRITERION_LENGTH} caracteres.`;
 
 const SECONDARY_BUTTON_CLASS_NAME =
-  "rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-800 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800";
+  "rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed disabled:opacity-50";
 
 // Devuelve una copia de la lista con los elementos de las posiciones from y to intercambiados.
 function swap(items: CriterionItem[], from: number, to: number) {

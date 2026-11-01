@@ -1,5 +1,6 @@
 "use client";
 
+import { buttonClassName } from "@/components/button";
 import { useRef, useState } from "react";
 import { Alert } from "@/components/alert";
 import { removeSprintStories } from "@/features/sprints/api";
@@ -83,7 +84,7 @@ export function SprintStoryList({ sprint, onChanged }: SprintStoryListProps) {
   // Sprint sin historias: se informa como estado normal, no como error.
   if (sprint.stories.length === 0) {
     return (
-      <p className="rounded-md border border-dashed border-zinc-300 px-5 py-6 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
+      <p className="rounded-md border border-dashed border-border px-5 py-6 text-center text-sm text-foreground-muted">
         El sprint no tiene historias comprometidas.
       </p>
     );
@@ -91,24 +92,25 @@ export function SprintStoryList({ sprint, onChanged }: SprintStoryListProps) {
 
   return (
     <section className="flex flex-col gap-3">
+      <h3 className="text-lg font-semibold">Historias comprometidas</h3>
       {error && <Alert>{error}</Alert>}
 
       {/* Historias comprometidas, con el avance y la acción de quitar solo donde las reglas los admiten. */}
-      <ul className="flex flex-col gap-2">
+      <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
         {sprint.stories.map((story) => (
           <li
             key={story.storyId}
-            className="flex items-center justify-between gap-4 rounded-md border border-zinc-300 px-4 py-3 dark:border-zinc-700"
+            className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
           >
             <div className="flex flex-col gap-1">
               <p className="text-sm font-medium">{story.title}</p>
-              <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                {storyLabel(story)} ·{" "}
-                {formatStoryPoints(story.storyPoints, "SP")} · Prioridad{" "}
+              <p className="text-xs text-foreground-muted">
+                {storyLabel(story)},{" "}
+                {formatStoryPoints(story.storyPoints, "SP")}, prioridad{" "}
                 {STORY_PRIORITY_LABELS[story.priority].toLowerCase()}
               </p>
             </div>
-            <div className="flex shrink-0 items-start gap-2">
+            <div className="flex shrink-0 flex-wrap items-start gap-2">
               {isActive && (
                 <StoryProgressControl
                   story={story}
@@ -119,7 +121,7 @@ export function SprintStoryList({ sprint, onChanged }: SprintStoryListProps) {
                 <button
                   type="button"
                   onClick={() => handleRemove(story.storyId)}
-                  className="shrink-0 rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                  className={buttonClassName("secondary")}
                 >
                   Quitar del sprint
                 </button>

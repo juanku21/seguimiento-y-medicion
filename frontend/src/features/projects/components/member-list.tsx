@@ -70,7 +70,7 @@ export function MemberList({
         {currentMembers.map((member) => (
           <li
             key={member.userId}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-zinc-300 px-5 py-4 dark:border-zinc-700"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface px-5 py-4"
           >
             <div className="flex min-w-0 flex-col gap-1">
               <div className="flex flex-wrap items-center gap-2">
@@ -78,17 +78,17 @@ export function MemberList({
                   {member.fullName}
                 </span>
                 {member.isOwner && (
-                  <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                  <span className="rounded-full bg-surface-muted px-2.5 py-0.5 text-xs font-medium text-foreground-muted">
                     Propietario
                   </span>
                 )}
               </div>
               {viewerIsOwner && member.email && (
-                <span className="text-sm break-all text-zinc-600 dark:text-zinc-400">
+                <span className="text-sm break-all text-foreground-muted">
                   {member.email}
                 </span>
               )}
-              <span className="text-sm text-zinc-600 dark:text-zinc-400">
+              <span className="text-sm text-foreground-muted">
                 Integrante desde:{" "}
                 <time dateTime={member.joinedAt}>
                   {formatInstant(
@@ -103,7 +103,7 @@ export function MemberList({
                 type="button"
                 onClick={() => handleRemove(member.userId)}
                 disabled={removingUserId !== null}
-                className="inline-flex h-9 items-center justify-center rounded-md border border-zinc-300 px-3 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                className="inline-flex h-9 items-center justify-center rounded-lg border border-border bg-surface px-3 text-sm font-medium text-foreground transition-colors hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Quitar
               </button>

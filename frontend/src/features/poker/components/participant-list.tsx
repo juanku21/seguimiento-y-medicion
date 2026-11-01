@@ -15,32 +15,30 @@ export function ParticipantList({
   participants,
 }: ParticipantListProps): ReactElement {
   return (
-    <ul aria-label="Participantes" className="flex flex-col gap-3">
+    <ul aria-label="Participantes" className="flex flex-col">
       {participants.map(({ user, connected, isFacilitator, hasVoted }) => (
         <li
           key={user.id}
-          className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-zinc-300 px-5 py-4 dark:border-zinc-700"
+          className="flex flex-wrap items-center justify-between gap-3 border-t border-border py-3 first:border-t-0 first:pt-0 last:pb-0"
         >
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-base font-medium break-words">
               {user.fullName}
             </span>
             {isFacilitator && (
-              <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+              <span className="rounded-full bg-surface-muted px-2.5 py-0.5 text-xs font-medium text-foreground-muted">
                 Facilitador
               </span>
             )}
             {hasVoted && (
-              <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-950 dark:text-green-300">
+              <span className="rounded-full bg-success-soft px-2.5 py-0.5 text-xs font-medium text-success">
                 Ya votó
               </span>
             )}
           </div>
           <span
             className={`text-sm ${
-              connected
-                ? "text-green-700 dark:text-green-400"
-                : "text-zinc-600 dark:text-zinc-400"
+              connected ? "text-success" : "text-foreground-muted"
             }`}
           >
             {connected ? "Conectado" : "Desconectado"}

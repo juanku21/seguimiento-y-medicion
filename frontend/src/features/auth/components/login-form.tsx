@@ -10,7 +10,7 @@ import { useSession } from "@/hooks/use-session";
 import { normalizeEmail } from "@/utils/normalize-email";
 
 // Ruta del área protegida a la que se llega después de iniciar sesión.
-const PROTECTED_HOME = "/profile";
+const PROTECTED_HOME = "/projects";
 
 // Aviso explícito para quien llega desde una acción rechazada por sesión inválida (FR-016). La
 // guardia de sesión lo pide con el parámetro motivo=sesion en la URL.
@@ -73,7 +73,7 @@ export function LoginForm() {
         value={password}
         onChange={(event) => setPassword(event.target.value)}
       />
-      <Button type="submit" disabled={isSubmitting}>
+      <Button fullWidth type="submit" disabled={isSubmitting}>
         Iniciar sesión
       </Button>
     </form>

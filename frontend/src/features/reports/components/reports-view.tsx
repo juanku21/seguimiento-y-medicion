@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@/components/loading-state";
 import { useCallback, useMemo, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
@@ -96,11 +97,7 @@ export function ReportsView({ projectId }: ReportsViewProps) {
   }
 
   if (sprints.status === "loading") {
-    return (
-      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-        Cargando reportes…
-      </p>
-    );
+    return <LoadingState>Cargando reportes…</LoadingState>;
   }
   if (sprints.status === "error") {
     return <Alert>{sprints.message}</Alert>;
@@ -109,7 +106,7 @@ export function ReportsView({ projectId }: ReportsViewProps) {
   const isGenerating = generation.status === "generating";
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-4 sm:max-w-md">
+      <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-5 sm:max-w-md">
         <ReportScopeSelect
           sprints={sprints.data.sprints}
           value={scope}

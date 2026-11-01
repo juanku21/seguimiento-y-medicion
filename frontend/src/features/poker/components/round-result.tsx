@@ -38,7 +38,7 @@ export function RoundResult({ round }: RoundResultProps): ReactElement {
         {round.notVoted.map((user) => (
           <li key={user.id} className="flex justify-between gap-4">
             <span className="break-words">{user.fullName}</span>
-            <span className="text-zinc-600 dark:text-zinc-400">Sin voto</span>
+            <span className="text-foreground-muted">Sin voto</span>
           </li>
         ))}
       </ul>
@@ -48,7 +48,7 @@ export function RoundResult({ round }: RoundResultProps): ReactElement {
       {outcome !== null && (
         <section
           aria-label="Resultado de la ronda"
-          className="flex flex-col gap-3 rounded-md border border-zinc-300 px-4 py-4 dark:border-zinc-700"
+          className="flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 py-4"
         >
           <p className="text-base font-semibold">
             {OUTCOME_LABELS[outcome.kind]}
@@ -81,7 +81,7 @@ function Extreme({
 }): ReactElement {
   return (
     <div role="group" aria-label={name} className="flex flex-col gap-1">
-      <span className="text-sm text-zinc-600 dark:text-zinc-400">{name}</span>
+      <span className="text-sm text-foreground-muted">{name}</span>
       <span className="text-2xl font-semibold">{extreme.value}</span>
       <ul className="flex flex-col gap-0.5 text-sm">
         {extreme.authors.map((author) => (

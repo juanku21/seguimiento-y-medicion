@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@/components/loading-state";
 import { useCallback, useId, type ReactNode } from "react";
 import { Alert } from "@/components/alert";
 import { getProjectEffortComparison } from "@/features/effort/api";
@@ -25,14 +26,15 @@ export function ProjectEffortComparisonSection({
   const comparison = useAuthorizedQuery(load);
 
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-4">
+    <section
+      aria-labelledby={headingId}
+      className="flex min-w-0 flex-col gap-4 rounded-lg border border-border bg-surface p-5"
+    >
       <h2 id={headingId} className="text-lg font-semibold tracking-tight">
         Estimado contra real
       </h2>
       {comparison.status === "loading" && (
-        <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-          Cargando comparación…
-        </p>
+        <LoadingState>Cargando comparación…</LoadingState>
       )}
       {comparison.status === "error" && <Alert>{comparison.message}</Alert>}
       {comparison.status === "loaded" && (

@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@/components/loading-state";
 import { useEffect, useId, useState } from "react";
 import { Alert } from "@/components/alert";
 import { getOwnProfile } from "@/features/auth/api";
@@ -94,14 +95,15 @@ export function StoryEffortSection({ storyId }: StoryEffortSectionProps) {
   }
 
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-4">
+    <section
+      aria-labelledby={headingId}
+      className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-5"
+    >
       <h2 id={headingId} className="text-lg font-semibold tracking-tight">
         Esfuerzo
       </h2>
       {state.status === "loading" && (
-        <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-          Cargando esfuerzo…
-        </p>
+        <LoadingState>Cargando esfuerzo…</LoadingState>
       )}
       {state.status === "error" && <Alert>{state.message}</Alert>}
       {state.status === "loaded" && (

@@ -15,7 +15,7 @@ export type StorySprintHistoryProps = {
   storyId: string;
 };
 
-const MUTED_CLASS_NAME = "text-sm text-zinc-600 dark:text-zinc-400";
+const MUTED_CLASS_NAME = "text-sm text-foreground-muted";
 
 // Sprints en los que estuvo una historia y su resultado en cada uno (004/US6, FR-055). Pide el
 // historial con un token vigente y lo muestra en el orden recibido; el resultado solo aparece en
@@ -48,18 +48,18 @@ export function StorySprintHistory({ storyId }: StorySprintHistoryProps) {
       );
     }
     return (
-      <ul className="flex flex-col gap-2">
+      <ul className="flex flex-col">
         {sprints.map((sprint) => (
           <li
             key={sprint.sprintId}
-            className="flex flex-col gap-1 rounded-md border border-zinc-300 px-4 py-3 dark:border-zinc-700"
+            className="flex flex-col gap-1 border-t border-border py-3 first:border-t-0 first:pt-0 last:pb-0"
           >
             <p className="text-sm font-medium">{sprint.sprintName}</p>
-            <p className="text-xs text-zinc-600 dark:text-zinc-400">
-              {SPRINT_STATUS_LABELS[sprint.sprintStatus]} ·{" "}
+            <p className="text-xs text-foreground-muted">
+              {SPRINT_STATUS_LABELS[sprint.sprintStatus]}, del{" "}
               {formatDate(sprint.startDate)} al {formatDate(sprint.endDate)}
               {sprint.outcome !== null &&
-                ` · ${STORY_OUTCOME_LABELS[sprint.outcome]}`}
+                `, ${STORY_OUTCOME_LABELS[sprint.outcome]}`}
             </p>
           </li>
         ))}
@@ -68,7 +68,10 @@ export function StorySprintHistory({ storyId }: StorySprintHistoryProps) {
   }
 
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-3">
+    <section
+      aria-labelledby={headingId}
+      className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-5"
+    >
       <h2 id={headingId} className="text-lg font-semibold tracking-tight">
         Sprints en los que estuvo
       </h2>

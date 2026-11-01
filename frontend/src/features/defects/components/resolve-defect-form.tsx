@@ -1,5 +1,6 @@
 "use client";
 
+import { buttonClassName } from "@/components/button";
 import { useEffect, useState, type FormEvent } from "react";
 import { Alert } from "@/components/alert";
 import { FIELD_CONTROL_CLASS_NAME, FormField } from "@/components/form-field";
@@ -18,10 +19,8 @@ export type ResolveDefectFormProps = {
 };
 
 // Clases del botón principal, compartida con las acciones de estado, y del secundario.
-export const primaryButtonClass =
-  "rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300";
-export const secondaryButtonClass =
-  "rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800";
+export const primaryButtonClass = buttonClassName("primary");
+export const secondaryButtonClass = buttonClassName("secondary");
 
 // Formulario para elegir el sprint de resolución de un defecto (007/US2). Ofrece los sprints
 // Activos y Cerrados del proyecto, los mismos que admite la detección, y nunca uno Planificado
@@ -67,7 +66,7 @@ export function ResolveDefectForm({
     <form
       noValidate
       onSubmit={handleSubmit}
-      className="flex flex-col gap-3 rounded-md border border-zinc-300 px-4 py-3 dark:border-zinc-700"
+      className="flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 py-3"
     >
       {loadError && <Alert>{loadError}</Alert>}
       <FormField label="Sprint de resolución" error={error}>

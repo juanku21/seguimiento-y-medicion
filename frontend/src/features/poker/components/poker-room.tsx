@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@/components/loading-state";
 import { useState, type ReactElement } from "react";
 import { Alert } from "@/components/alert";
 import { getOwnProfile } from "@/features/auth/api";
@@ -113,11 +114,7 @@ export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
     return <Alert>{error.message}</Alert>;
   }
   if (session === null) {
-    return (
-      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-        Conectando con la sesión…
-      </p>
-    );
+    return <LoadingState>Conectando con la sesión…</LoadingState>;
   }
 
   const { story } = session;
@@ -129,97 +126,101 @@ export function PokerRoom({ sessionId }: PokerRoomProps): ReactElement {
     (round) => round.status === "revealed",
   );
   return (
-    <div className="flex flex-col gap-6">
-      {/* Historia que se estima con su texto vigente; sin criterios la lista queda vacía y se
+    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className="flex min-w-0 flex-col gap-6">
+        {/* Historia que se estima con su texto vigente; sin criterios la lista queda vacía y se
           avisa con un texto aparte. */}
-      <article className="flex flex-col gap-4 rounded-md border border-zinc-300 px-5 py-5 dark:border-zinc-700">
-        <h2 className="text-xl font-semibold break-words">{story.title}</h2>
-        {story.description !== null && (
-          <p className="text-sm break-words whitespace-pre-line">
-            {story.description}
-          </p>
-        )}
-        <section className="flex flex-col gap-2">
-          <h3 className="text-base font-medium">Criterios de aceptación</h3>
-          <ul
-            aria-label="Criterios de aceptación"
-            className="flex list-disc flex-col gap-1 pl-5 text-sm"
-          >
-            {story.acceptanceCriteria.map((criterion, index) => (
-              <li key={index} className="break-words">
-                {criterion}
-              </li>
-            ))}
-          </ul>
-          {story.acceptanceCriteria.length === 0 && (
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              La historia no tiene criterios de aceptación.
+        <article className="flex flex-col gap-4 rounded-lg border border-border bg-surface px-5 py-5">
+          <h2 className="text-xl font-semibold break-words">{story.title}</h2>
+          {story.description !== null && (
+            <p className="text-sm break-words whitespace-pre-line">
+              {story.description}
             </p>
           )}
-        </section>
-      </article>
+          <section className="flex flex-col gap-2">
+            <h3 className="text-base font-medium">Criterios de aceptación</h3>
+            <ul
+              aria-label="Criterios de aceptación"
+              className="flex list-disc flex-col gap-1 pl-5 text-sm"
+            >
+              {story.acceptanceCriteria.map((criterion, index) => (
+                <li key={index} className="break-words">
+                  {criterion}
+                </li>
+              ))}
+            </ul>
+            {story.acceptanceCriteria.length === 0 && (
+              <p className="text-sm text-foreground-muted">
+                La historia no tiene criterios de aceptación.
+              </p>
+            )}
+          </section>
+        </article>
 
-      {/* Mazo de la ronda vigente con la carta propia resaltada y el motivo de un voto rechazado. */}
-      {isOpen && currentRound !== undefined && (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold">Tu voto</h2>
-          {voteError !== null && <Alert>{voteError}</Alert>}
-          <CardDeck
-            cards={session.cards}
-            myVote={session.myVote}
-            roundStatus={currentRound.status}
-            onVote={(card) => void handleVote(card)}
-          />
-        </section>
-      )}
+        {/* Mazo de la ronda vigente con la carta propia resaltada y el motivo de un voto rechazado. */}
+        {isOpen && currentRound !== undefined && (
+          <section className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-5">
+            <h2 className="text-lg font-semibold">Tu voto</h2>
+            {voteError !== null && <Alert>{voteError}</Alert>}
+            <CardDeck
+              cards={session.cards}
+              myVote={session.myVote}
+              roundStatus={currentRound.status}
+              onVote={(card) => void handleVote(card)}
+            />
+          </section>
+        )}
 
-      {/* Acciones del facilitador sobre la ronda vigente con el motivo de un rechazo, mientras la
+        {/* Acciones del facilitador sobre la ronda vigente con el motivo de un rechazo, mientras la
           sesión está abierta, y el resultado cuando la ronda ya está revelada. */}
-      {currentRound !== undefined && (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold">Ronda {currentRound.number}</h2>
-          {roundError !== null && <Alert>{roundError}</Alert>}
-          <FacilitatorActions
-            isFacilitator={isOpen && isFacilitator}
-            roundStatus={currentRound.status}
-            onReveal={() => void handleReveal()}
-            onNewRound={() => void handleNewRound()}
-            onCancel={() => void handleCancel()}
-          />
-          {currentRound.status === "revealed" && (
-            <RoundResult round={currentRound} />
-          )}
-        </section>
-      )}
+        {currentRound !== undefined && (
+          <section className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-5">
+            <h2 className="text-lg font-semibold">
+              Ronda {currentRound.number}
+            </h2>
+            {roundError !== null && <Alert>{roundError}</Alert>}
+            <FacilitatorActions
+              isFacilitator={isOpen && isFacilitator}
+              roundStatus={currentRound.status}
+              onReveal={() => void handleReveal()}
+              onNewRound={() => void handleNewRound()}
+              onCancel={() => void handleCancel()}
+            />
+            {currentRound.status === "revealed" && (
+              <RoundResult round={currentRound} />
+            )}
+          </section>
+        )}
 
-      {/* Registro de la estimación acordada, solo para el facilitador y con alguna ronda revelada,
+        {/* Registro de la estimación acordada, solo para el facilitador y con alguna ronda revelada,
           con el motivo de un rechazo. */}
-      {isOpen && isFacilitator && hasRevealedRound && (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold">Registrar estimación</h2>
-          {finalizeError !== null && <Alert>{finalizeError}</Alert>}
-          <FinalizeDialog
-            onFinalize={(storyPoints) => void handleFinalize(storyPoints)}
-          />
-        </section>
-      )}
+        {isOpen && isFacilitator && hasRevealedRound && (
+          <section className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-5">
+            <h2 className="text-lg font-semibold">Registrar estimación</h2>
+            {finalizeError !== null && <Alert>{finalizeError}</Alert>}
+            <FinalizeDialog
+              onFinalize={(storyPoints) => void handleFinalize(storyPoints)}
+            />
+          </section>
+        )}
 
-      {/* Aviso de la sesión cerrada con su estado, el valor acordado y el motivo de una cancelación
+        {/* Aviso de la sesión cerrada con su estado, el valor acordado y el motivo de una cancelación
           del sistema. */}
-      {session.status !== "open" && (
-        <SessionClosedNotice
-          status={session.status}
-          agreedStoryPoints={session.agreedStoryPoints}
-          cancelReason={session.cancelReason}
-        />
-      )}
+        {session.status !== "open" && (
+          <SessionClosedNotice
+            status={session.status}
+            agreedStoryPoints={session.agreedStoryPoints}
+            cancelReason={session.cancelReason}
+          />
+        )}
 
-      {/* Rondas anteriores a la vigente con sus votos y su resultado. */}
-      <RoundHistory rounds={session.rounds} />
+        {/* Rondas anteriores a la vigente con sus votos y su resultado. */}
+        <RoundHistory rounds={session.rounds} />
+      </div>
 
       {/* Participantes de la sesión con su conexión, la marca de facilitador y la de voto, y, con la
           sesión abierta, la toma del rol si el facilitador está desconectado. */}
-      <section className="flex flex-col gap-3">
+      <section className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-5">
         <h2 className="text-lg font-semibold">Participantes</h2>
         <ParticipantList participants={session.participants} />
         {isOpen && (

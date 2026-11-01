@@ -24,10 +24,8 @@ function scopeDifference(results: SprintResultsData): string {
 function DataRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <dt className="text-xs font-medium tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
-        {label}
-      </dt>
-      <dd className="text-sm text-zinc-900 tabular-nums dark:text-zinc-100">
+      <dt className="text-sm text-foreground-muted">{label}</dt>
+      <dd className="text-lg font-semibold text-foreground tabular-nums">
         {children}
       </dd>
     </div>
@@ -49,12 +47,12 @@ export function SprintResults({ sprint }: SprintResultsProps): ReactNode {
   return (
     <section
       aria-labelledby={headingId}
-      className="flex flex-col gap-4 rounded-md border border-zinc-300 px-5 py-5 dark:border-zinc-700"
+      className="flex flex-col gap-4 rounded-lg border border-border bg-surface px-5 py-5"
     >
       <h3 id={headingId} className="text-lg font-semibold tracking-tight">
         Resultado del sprint
       </h3>
-      <dl className="grid gap-4 sm:grid-cols-2">
+      <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <DataRow label="Story Points comprometidos al inicio">
           {results.committedStoryPoints}
         </DataRow>

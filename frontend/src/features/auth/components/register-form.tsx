@@ -150,7 +150,7 @@ export function RegisterForm() {
         hint={PASSWORD_HINT}
         error={fieldErrors.password}
       />
-      <Button type="submit" disabled={isSubmitting}>
+      <Button fullWidth type="submit" disabled={isSubmitting}>
         Crear cuenta
       </Button>
     </form>

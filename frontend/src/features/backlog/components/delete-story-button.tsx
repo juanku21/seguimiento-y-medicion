@@ -1,5 +1,6 @@
 "use client";
 
+import { buttonClassName } from "@/components/button";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Alert } from "@/components/alert";
@@ -66,19 +67,23 @@ export function DeleteStoryButton({
 
       {/* Confirmación previa: la eliminación es definitiva, así que se pregunta antes de enviar. */}
       {confirming ? (
-        <div className="flex flex-col gap-3 rounded-md border border-zinc-300 px-4 py-4 dark:border-zinc-700">
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 py-4">
           <p className="text-sm font-medium">¿Eliminar esta historia?</p>
-          <Button onClick={handleConfirm}>Confirmar eliminación</Button>
+          <Button variant="danger" onClick={handleConfirm}>
+            Confirmar eliminación
+          </Button>
           <button
             type="button"
             onClick={() => setConfirming(false)}
-            className="inline-flex h-11 w-full items-center justify-center rounded-md border border-zinc-300 px-4 text-sm font-medium transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            className={buttonClassName("secondary")}
           >
             Cancelar
           </button>
         </div>
       ) : (
-        <Button onClick={() => setConfirming(true)}>Eliminar historia</Button>
+        <Button variant="danger" onClick={() => setConfirming(true)}>
+          Eliminar historia
+        </Button>
       )}
     </section>
   );

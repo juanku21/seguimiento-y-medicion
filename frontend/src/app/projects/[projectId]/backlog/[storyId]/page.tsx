@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { SessionGuard } from "@/features/auth/components/session-guard";
 import { StoryDefectsSection } from "@/features/defects/components/story-defects-section";
 import { StoryDetailView } from "@/features/backlog/components/story-detail-view";
@@ -25,21 +24,19 @@ export default async function StoryPage({
   const { projectId, storyId } = await params;
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-6 px-6 py-16">
+    <main className="flex w-full max-w-7xl flex-1 flex-col gap-6">
       <h1 className="text-2xl font-semibold tracking-tight">Historia</h1>
       <SessionGuard>
-        <div className="flex flex-col gap-6">
-          <Link
-            href={`/projects/${projectId}/backlog`}
-            className="self-start text-sm font-medium underline underline-offset-4"
-          >
-            Volver al backlog
-          </Link>
-          <StoryDetailView storyId={storyId} />
-          <StoryEstimationSection projectId={projectId} storyId={storyId} />
-          <StoryEffortSection storyId={storyId} />
-          <StoryDefectsSection projectId={projectId} storyId={storyId} />
-          <StorySprintHistory storyId={storyId} />
+        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+          <div className="flex min-w-0 flex-col gap-6">
+            <StoryDetailView storyId={storyId} />
+            <StoryEffortSection storyId={storyId} />
+          </div>
+          <div className="flex min-w-0 flex-col gap-6">
+            <StoryEstimationSection projectId={projectId} storyId={storyId} />
+            <StoryDefectsSection projectId={projectId} storyId={storyId} />
+            <StorySprintHistory storyId={storyId} />
+          </div>
         </div>
       </SessionGuard>
     </main>

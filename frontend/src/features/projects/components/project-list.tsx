@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { LoadingState } from "@/components/loading-state";
 import { useEffect, useState } from "react";
 import { Alert } from "@/components/alert";
 import { listProjects } from "@/features/projects/api";
@@ -53,18 +55,14 @@ export function ProjectList() {
     return <Alert>{state.message}</Alert>;
   }
   if (state.status === "loading") {
-    return (
-      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-        Cargando proyectos…
-      </p>
-    );
+    return <LoadingState>Cargando proyectos…</LoadingState>;
   }
 
   // Estado vacío: se muestra el mensaje que envía el backend, sin presentarlo como error (FR-034).
   const { projects, message } = state.data;
   if (projects.length === 0) {
     return (
-      <p className="rounded-md border border-dashed border-zinc-300 px-5 py-6 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
+      <p className="rounded-md border border-dashed border-border px-5 py-6 text-center text-sm text-foreground-muted">
         {message}
       </p>
     );
@@ -73,33 +71,60 @@ export function ProjectList() {
   // Un elemento por proyecto, en el orden recibido, con su estado en español, las fechas, la
   // cantidad de integrantes y la marca de propietario solo en los propios (FR-035, FR-036).
   return (
-    <ul aria-label="Mis proyectos" className="flex flex-col gap-3">
+    <ul
+      aria-label="Mis proyectos"
+      className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+    >
       {projects.map((project) => (
         <li
           key={project.id}
-          className="flex flex-col gap-2 rounded-md border border-zinc-300 px-5 py-4 dark:border-zinc-700"
+          className="relative flex flex-col gap-4 rounded-lg border border-border bg-surface p-5 transition-colors hover:border-primary focus-within:border-primary"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-base font-medium break-words">
-              {project.name}
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="text-lg font-semibold break-words">
+              <Link
+                href={`/projects/${project.id}`}
+                className="rounded-sm after:absolute after:inset-0 after:rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+              >
+                {project.name}
+              </Link>
             </h2>
             {project.isOwner && (
-              <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+              <span className="shrink-0 rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-medium text-primary">
                 Propietario
               </span>
             )}
           </div>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            {PROJECT_STATUS_LABELS[project.status]} · Inicio:{" "}
-            <time dateTime={project.startDate}>
-              {formatDate(project.startDate)}
-            </time>{" "}
-            · Fin previsto:{" "}
-            <time dateTime={project.plannedEndDate}>
-              {formatDate(project.plannedEndDate)}
-            </time>{" "}
-            · {formatMemberCount(project.memberCount)}
-          </p>
+          <dl className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <dt className="text-foreground-muted">Estado</dt>{" "}
+              <dd className="font-medium">
+                {PROJECT_STATUS_LABELS[project.status]}
+              </dd>{" "}
+            </div>
+            <div>
+              <dt className="text-foreground-muted">Equipo</dt>{" "}
+              <dd className="font-medium">
+                {formatMemberCount(project.memberCount)}
+              </dd>{" "}
+            </div>
+            <div>
+              <dt className="text-foreground-muted">Inicio</dt>{" "}
+              <dd className="font-medium tabular-nums">
+                <time dateTime={project.startDate}>
+                  {formatDate(project.startDate)}
+                </time>
+              </dd>{" "}
+            </div>
+            <div>
+              <dt className="text-foreground-muted">Fin previsto</dt>{" "}
+              <dd className="font-medium tabular-nums">
+                <time dateTime={project.plannedEndDate}>
+                  {formatDate(project.plannedEndDate)}
+                </time>
+              </dd>{" "}
+            </div>
+          </dl>
         </li>
       ))}
     </ul>

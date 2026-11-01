@@ -36,10 +36,10 @@ export function CardDeck({
             aria-pressed={selected}
             disabled={disabled}
             onClick={() => onVote(card)}
-            className={`h-20 w-14 rounded-md border text-lg font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:focus-visible:outline-zinc-100 ${
+            className={`h-24 w-16 rounded-lg border-2 text-2xl font-semibold tabular-nums transition motion-safe:hover:enabled:-translate-y-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:opacity-50 ${
               selected
-                ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                : "border-zinc-300 bg-white hover:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:border-zinc-400"
+                ? "border-primary bg-primary text-on-primary"
+                : "border-border bg-surface hover:border-border-strong"
             }`}
           >
             {card}

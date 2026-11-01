@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@/components/loading-state";
 import { useCallback, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
@@ -61,8 +62,10 @@ function DashboardSections({ project }: { project: ProjectDetail }) {
 
   return (
     <div className="flex flex-col gap-8">
-      <ProjectSummary project={project} />
-      <ActiveSprintPanel activeSprintId={project.activeSprint?.id ?? null} />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ProjectSummary project={project} />
+        <ActiveSprintPanel activeSprintId={project.activeSprint?.id ?? null} />
+      </div>
       {projectMetrics.status === "loaded" && (
         <DashboardWarnings warnings={projectMetrics.data.warnings} />
       )}
@@ -70,9 +73,7 @@ function DashboardSections({ project }: { project: ProjectDetail }) {
         <SectionError message={WARNINGS_ERROR} />
       )}
       {sprints.status === "loading" && (
-        <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-          Cargando métricas…
-        </p>
+        <LoadingState>Cargando métricas…</LoadingState>
       )}
       {hasNoSprints && <DashboardEmptyState />}
       {showMetrics && (
@@ -81,10 +82,12 @@ function DashboardSections({ project }: { project: ProjectDetail }) {
             projectMetrics={projectMetrics}
             activeSprintMetrics={activeSprintMetrics}
           />
-          <VelocityChart series={series} />
-          <EffortChart series={series} />
-          <QualityChart series={series} />
-          <OpenDefectsDistribution projectMetrics={projectMetrics} />
+          <div className="grid gap-6 xl:grid-cols-2">
+            <VelocityChart series={series} />
+            <EffortChart series={series} />
+            <QualityChart series={series} />
+            <OpenDefectsDistribution projectMetrics={projectMetrics} />
+          </div>
         </>
       )}
     </div>
@@ -104,11 +107,7 @@ export function DashboardView({ projectId }: DashboardViewProps) {
   const state = useAuthorizedQuery(load);
 
   if (state.status === "loading") {
-    return (
-      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-        Cargando dashboard…
-      </p>
-    );
+    return <LoadingState>Cargando dashboard…</LoadingState>;
   }
   if (state.status === "error") {
     return (

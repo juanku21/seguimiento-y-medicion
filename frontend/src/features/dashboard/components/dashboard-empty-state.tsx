@@ -8,7 +8,7 @@ export function DashboardEmptyState(): ReactNode {
       <h2 id="dashboard-empty-title" className="text-lg font-semibold">
         Sin datos todavía
       </h2>
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-foreground-muted">
         Este proyecto todavía no tiene sprints, así que no hay métricas que
         mostrar. Planificá el primer sprint desde la sección Sprints del
         proyecto.

@@ -204,6 +204,33 @@ describe("010/US2 - Exportar el reporte a PDF", () => {
     const doc = buildPdfDocument(buildReportView(sprintReport(), zone));
     expect(doc.defaultStyle).toMatchObject({ font: "Roboto" });
   });
+
+  // Escenario: US2-1 (pdfmake modifica el documento en el lugar y la pantalla sigue pintando, FR-027)
+  it("la mutación de pdfmake sobre el documento no modifica las filas de la vista", () => {
+    const view = buildReportView(sprintReport(), zone);
+    const doc = buildPdfDocument(view);
+
+    // Simula a pdfmake: reemplaza cada celda de texto por un objeto, en el lugar.
+    collectTables(doc.content).forEach((table) =>
+      table.body.forEach((row) =>
+        row.forEach((cell, index) => {
+          if (typeof cell === "string") {
+            row[index] = { text: cell, margin: [0, 0, 0, 0] };
+          }
+        }),
+      ),
+    );
+
+    const tables = view.sections
+      .flatMap((section) => section.blocks)
+      .flatMap((block) => (block.table ? [block.table] : []));
+    expect(tables.length).toBeGreaterThan(0);
+    tables.forEach((table) =>
+      table.rows.forEach((row) =>
+        row.forEach((cell) => expect(typeof cell).toBe("string")),
+      ),
+    );
+  });
 });
 
 describe("010/US4 - Leer un reporte con secciones sin datos", () => {

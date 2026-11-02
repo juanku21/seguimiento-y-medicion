@@ -34,7 +34,7 @@ export function SessionClosedNotice({
   return (
     <section
       aria-labelledby={headingId}
-      className="flex flex-col gap-2 rounded-md border border-zinc-300 px-5 py-4 dark:border-zinc-700"
+      className="flex flex-col gap-2 rounded-lg border border-border bg-surface px-5 py-4"
     >
       <h2 id={headingId} className="text-lg font-semibold">
         Sesión cerrada

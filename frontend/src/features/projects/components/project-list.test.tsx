@@ -242,6 +242,15 @@ describe("002/US2 - Ver mis proyectos y quedar aislado de los ajenos", () => {
     expect(item).toMatch(/propietario/i);
   });
 
+  // Mejora de navegación: el nombre de cada proyecto lleva a su pantalla.
+  it("Cada proyecto enlaza a su pantalla", async () => {
+    respondWith(fetchMock, 200, { projects: [ownedPortal], message: null });
+    renderProjectList();
+
+    const link = await screen.findByRole("link", { name: ownedPortal.name });
+    expect(link.getAttribute("href")).toBe(`/projects/${ownedPortal.id}`);
+  });
+
   // Caso de error: si el backend rechaza la sesión con 401, la sesión de la pestaña se descarta
   // para que la guardia pida iniciar sesión, y no se muestra ningún proyecto ni el estado vacío.
   it("Sin sesión", async () => {

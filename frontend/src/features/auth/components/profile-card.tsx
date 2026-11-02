@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@/components/loading-state";
 import { useEffect, useState } from "react";
 import { Alert } from "@/components/alert";
 import { getOwnProfile } from "@/features/auth/api";
@@ -47,25 +48,17 @@ export function ProfileCard() {
     return <Alert>{state.message}</Alert>;
   }
   if (state.status === "loading") {
-    return (
-      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-        Cargando perfil…
-      </p>
-    );
+    return <LoadingState>Cargando perfil…</LoadingState>;
   }
 
   return (
-    <dl className="flex flex-col gap-4 rounded-md border border-zinc-300 px-5 py-4 dark:border-zinc-700">
+    <dl className="flex flex-col gap-4 rounded-lg border border-border bg-surface px-5 py-4">
       <div className="flex flex-col gap-1">
-        <dt className="text-sm text-zinc-600 dark:text-zinc-400">
-          Nombre completo
-        </dt>
+        <dt className="text-sm text-foreground-muted">Nombre completo</dt>
         <dd className="text-base font-medium">{state.profile.fullName}</dd>
       </div>
       <div className="flex flex-col gap-1">
-        <dt className="text-sm text-zinc-600 dark:text-zinc-400">
-          Correo electrónico
-        </dt>
+        <dt className="text-sm text-foreground-muted">Correo electrónico</dt>
         <dd className="text-base font-medium break-all">
           {state.profile.email}
         </dd>

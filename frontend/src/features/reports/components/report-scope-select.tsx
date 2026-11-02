@@ -32,7 +32,7 @@ export function ReportScopeSelect({
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 rounded-md border border-zinc-300 bg-transparent px-3 text-sm dark:border-zinc-700"
+        className="h-11 rounded-lg border border-border bg-surface bg-transparent px-3 text-sm"
       >
         <option value={PROJECT_SCOPE}>Proyecto completo</option>
         {sprints.map((sprint) => (

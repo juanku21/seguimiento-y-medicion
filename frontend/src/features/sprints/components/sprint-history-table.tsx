@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@/components/loading-state";
 import { useCallback } from "react";
 import { Alert } from "@/components/alert";
 import { listSprints } from "@/features/sprints/api";
@@ -53,11 +54,7 @@ export function SprintHistoryTable({ projectId }: SprintHistoryTableProps) {
     return <Alert>{state.message}</Alert>;
   }
   if (state.status === "loading") {
-    return (
-      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-        Cargando historial…
-      </p>
-    );
+    return <LoadingState>Cargando historial…</LoadingState>;
   }
 
   // Vacíos: el proyecto sin sprints y el proyecto sin cerrados tienen mensajes distintos y ninguno
@@ -65,7 +62,7 @@ export function SprintHistoryTable({ projectId }: SprintHistoryTableProps) {
   const { sprints, emptyReason } = state.data;
   if (sprints.length === 0) {
     return (
-      <p className="rounded-md border border-dashed border-zinc-300 px-5 py-6 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
+      <p className="rounded-md border border-dashed border-border px-5 py-6 text-center text-sm text-foreground-muted">
         {emptyReason === "no_sprints"
           ? "El proyecto todavía no tiene sprints."
           : "Todavía no hay sprints cerrados."}
@@ -77,12 +74,12 @@ export function SprintHistoryTable({ projectId }: SprintHistoryTableProps) {
   // horaria del navegador; los totales son los de la instantánea.
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   return (
-    <div className="overflow-x-auto rounded-md border border-zinc-300 dark:border-zinc-700">
+    <div className="overflow-x-auto rounded-lg border border-border bg-surface">
       <table className="w-full text-left text-sm">
         <caption className="px-3 py-2 text-left font-medium">
           Historial de sprints cerrados
         </caption>
-        <thead className="bg-zinc-50 text-xs text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
+        <thead className="bg-surface-muted text-xs text-foreground-muted">
           <tr>
             {COLUMNS.map((column) => (
               <th key={column} scope="col" className={CELL_CLASS_NAME}>
@@ -93,10 +90,7 @@ export function SprintHistoryTable({ projectId }: SprintHistoryTableProps) {
         </thead>
         <tbody className="tabular-nums">
           {sprints.map((sprint) => (
-            <tr
-              key={sprint.id}
-              className="border-t border-zinc-200 dark:border-zinc-800"
-            >
+            <tr key={sprint.id} className="border-t border-border">
               <td className={`${CELL_CLASS_NAME} font-medium`}>
                 {sprint.name}
               </td>

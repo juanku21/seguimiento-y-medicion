@@ -1,3 +1,4 @@
+import { LoadingState } from "@/components/loading-state";
 import type { ReactNode } from "react";
 import { SectionError } from "@/features/dashboard/components/section-error";
 import type { QueryState } from "@/hooks/use-authorized-query";
@@ -19,11 +20,7 @@ export function SeriesSection({
   render,
 }: SeriesSectionProps): ReactNode {
   if (series.status === "loading") {
-    return (
-      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-        Cargando…
-      </p>
-    );
+    return <LoadingState>Cargando…</LoadingState>;
   }
   if (series.status === "error") {
     return <SectionError message={errorMessage} />;

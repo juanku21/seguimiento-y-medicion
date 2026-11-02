@@ -1,5 +1,6 @@
 "use client";
 
+import { buttonClassName } from "@/components/button";
 import { useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert } from "@/components/alert";
@@ -12,10 +13,8 @@ export type DeleteSprintButtonProps = {
 };
 
 // Clases del botón principal de la eliminación y del secundario de la confirmación.
-const primaryButtonClass =
-  "rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 disabled:opacity-60";
-const secondaryButtonClass =
-  "rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800";
+const primaryButtonClass = buttonClassName("danger");
+const secondaryButtonClass = buttonClassName("secondary");
 
 // Botón de eliminación de un sprint Planificado (004/US7). Solo se ofrece en un sprint Planificado
 // (FR-048) y, como la eliminación es definitiva, primero pide confirmación sin enviar nada. Con el
@@ -79,13 +78,13 @@ export function DeleteSprintButton({ sprint }: DeleteSprintButtonProps) {
       {isConfirming && (
         <div
           aria-labelledby={questionId}
-          className="flex flex-col gap-3 rounded-md border border-zinc-300 px-4 py-3 dark:border-zinc-700"
+          className="flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 py-3"
           role="group"
         >
           <p id={questionId} className="text-sm font-medium">
             ¿Eliminar este sprint?
           </p>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="text-sm text-foreground-muted">
             Sus historias vuelven al backlog. Esta acción no se puede deshacer.
           </p>
           <div className="flex flex-wrap gap-2">

@@ -29,7 +29,7 @@ export function MetricValue({
     content = (
       <>
         <span>No calculable</span>
-        <small className="block text-xs text-gray-600">
+        <small className="block text-xs text-foreground-muted">
           {explainNotCalculable(kind)}
         </small>
       </>

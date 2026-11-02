@@ -1,3 +1,4 @@
+import { PublicShell } from "@/components/public-shell";
 import type { Metadata } from "next";
 import { RegisterForm } from "@/features/auth/components/register-form";
 
@@ -10,9 +11,11 @@ export const metadata: Metadata = {
 // cliente.
 export default function RegisterPage() {
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-6 px-6 py-16">
-      <h1 className="text-2xl font-semibold tracking-tight">Crear cuenta</h1>
-      <RegisterForm />
-    </main>
+    <PublicShell>
+      <main className="mx-auto mb-8 flex w-[calc(100%-2rem)] max-w-md flex-col gap-6 rounded-lg border border-border bg-surface p-5 sm:my-auto sm:p-8">
+        <h1 className="text-2xl font-semibold tracking-tight">Crear cuenta</h1>
+        <RegisterForm />
+      </main>
+    </PublicShell>
   );
 }

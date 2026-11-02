@@ -12,8 +12,8 @@ export function ReadinessBadge({ ready }: ReadinessBadgeProps) {
     <span
       className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
         ready
-          ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200"
-          : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+          ? "bg-success-soft text-success"
+          : "bg-surface-muted text-foreground-muted"
       }`}
     >
       {readinessLabel(ready)}

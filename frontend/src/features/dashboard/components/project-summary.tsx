@@ -15,21 +15,21 @@ export function ProjectSummary({ project }: ProjectSummaryProps) {
   return (
     <section
       aria-labelledby="project-summary-heading"
-      className="flex flex-col gap-2"
+      className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-5"
     >
       <h2 id="project-summary-heading" className="text-lg font-semibold">
         Resumen del proyecto
       </h2>
       <h3 className="text-base font-medium">{project.name}</h3>
       <p className="text-sm">Estado: {PROJECT_STATUS_LABELS[project.status]}</p>
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="text-sm text-foreground-muted">
         Inicio: {formatDate(project.startDate)}
       </p>
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="text-sm text-foreground-muted">
         Finalización prevista: {formatDate(project.plannedEndDate)}
       </p>
       {project.status === "finished" && project.actualEndDate ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="text-sm text-foreground-muted">
           Finalización real: {formatDate(project.actualEndDate)}
         </p>
       ) : null}

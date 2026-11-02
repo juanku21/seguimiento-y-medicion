@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@/components/loading-state";
 import { useEffect, useState } from "react";
 import { Alert } from "@/components/alert";
 import { getProjectDetail } from "@/features/projects/api";
@@ -59,11 +60,7 @@ export function ProjectEditView({ projectId }: ProjectEditViewProps) {
     return <Alert>{state.message}</Alert>;
   }
   if (state.status === "loading") {
-    return (
-      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-        Cargando proyecto…
-      </p>
-    );
+    return <LoadingState>Cargando proyecto…</LoadingState>;
   }
 
   // Formulario de edición solo para el propietario; el resto de los integrantes ve el aviso.

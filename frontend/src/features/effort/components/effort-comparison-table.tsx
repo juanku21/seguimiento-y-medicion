@@ -38,12 +38,12 @@ export function EffortComparisonTable({
         className="w-full border-collapse text-sm"
       >
         <thead>
-          <tr className="border-b border-zinc-300 dark:border-zinc-700">
+          <tr className="border-b border-border">
             {COLUMNS.map((column, index) => (
               <th
                 key={column}
                 scope="col"
-                className={`px-3 py-2 font-medium text-zinc-600 dark:text-zinc-400 ${index === 0 ? "text-left" : "text-right"}`}
+                className={`px-3 py-2 font-medium text-foreground-muted ${index === 0 ? "text-left" : "text-right"}`}
               >
                 {column}
               </th>
@@ -52,10 +52,7 @@ export function EffortComparisonTable({
         </thead>
         <tbody>
           {stories.map((story) => (
-            <tr
-              key={story.storyId}
-              className="border-b border-zinc-200 dark:border-zinc-800"
-            >
+            <tr key={story.storyId} className="border-b border-border">
               <th
                 scope="row"
                 className="px-3 py-2 text-left font-normal break-words"

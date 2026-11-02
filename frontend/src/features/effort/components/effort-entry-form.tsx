@@ -90,7 +90,11 @@ export function EffortEntryForm({ storyId, onCreated }: EffortEntryFormProps) {
   }
 
   return (
-    <form noValidate onSubmit={handleSubmit} className="flex flex-col gap-5">
+    <form
+      noValidate
+      onSubmit={handleSubmit}
+      className="flex max-w-lg flex-col gap-4"
+    >
       {generalError && <Alert>{generalError}</Alert>}
       <Input
         label="Fecha"

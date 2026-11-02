@@ -27,7 +27,7 @@ export function StoryDetailCard({ story }: StoryDetailCardProps) {
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   return (
-    <article className="flex flex-col gap-6 rounded-md border border-zinc-300 px-5 py-5 dark:border-zinc-700">
+    <article className="flex flex-col gap-6 rounded-lg border border-border bg-surface px-5 py-5">
       {/* Encabezado: título, condición de lista para planificar y, si corresponde, la asignación a
           un sprint. */}
       <header className="flex flex-col gap-3">
@@ -36,7 +36,7 @@ export function StoryDetailCard({ story }: StoryDetailCardProps) {
           <ReadinessBadge ready={readiness.ready} />
         </div>
         {story.everAssignedToSprint && (
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="text-sm text-foreground-muted">
             Está o estuvo asignada a un sprint.
           </p>
         )}
@@ -49,7 +49,7 @@ export function StoryDetailCard({ story }: StoryDetailCardProps) {
 
       {/* Resumen con el mismo formato de la fila del listado: prioridad, estimación y estado
           separados por puntos medios. */}
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="text-sm text-foreground-muted">
         {STORY_PRIORITY_LABELS[story.priority]} ·{" "}
         {formatStoryPoints(story.storyPoints, "Story Points")} ·{" "}
         {STORY_STATUS_LABELS[story.status]}
@@ -58,15 +58,15 @@ export function StoryDetailCard({ story }: StoryDetailCardProps) {
       {/* Autor y fechas de creación y de última actualización; son instantes UTC y se muestran con
           el día que corresponde en la zona horaria del navegador. */}
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-        <dt className="text-zinc-600 dark:text-zinc-400">Creada por</dt>
+        <dt className="text-foreground-muted">Creada por</dt>
         <dd>{story.createdBy.fullName}</dd>
-        <dt className="text-zinc-600 dark:text-zinc-400">Creada el</dt>
+        <dt className="text-foreground-muted">Creada el</dt>
         <dd>
           <time dateTime={story.createdAt}>
             {formatInstant(story.createdAt, timeZone)}
           </time>
         </dd>
-        <dt className="text-zinc-600 dark:text-zinc-400">Actualizada el</dt>
+        <dt className="text-foreground-muted">Actualizada el</dt>
         <dd>
           <time dateTime={story.updatedAt}>
             {formatInstant(story.updatedAt, timeZone)}
@@ -89,7 +89,7 @@ export function StoryDetailCard({ story }: StoryDetailCardProps) {
           ))}
         </ol>
         {story.acceptanceCriteria.length === 0 && (
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="text-sm text-foreground-muted">
             Todavía no tiene criterios cargados.
           </p>
         )}

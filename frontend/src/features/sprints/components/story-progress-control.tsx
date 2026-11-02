@@ -1,5 +1,6 @@
 "use client";
 
+import { buttonClassName } from "@/components/button";
 import { useRef, useState } from "react";
 import { Alert } from "@/components/alert";
 import { changeStoryStatus } from "@/features/sprints/api";
@@ -56,13 +57,13 @@ export function StoryProgressControl({
   }
 
   return (
-    <div className="flex flex-col items-end gap-2">
+    <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
       {error && <Alert>{error}</Alert>}
       <button
         type="button"
         onClick={handleProgress}
         disabled={isSubmitting}
-        className="shrink-0 rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+        className={buttonClassName("secondary")}
       >
         {transition.label}
       </button>

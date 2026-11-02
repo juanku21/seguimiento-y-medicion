@@ -63,7 +63,7 @@ function CheckboxGroup<T extends string>({
 // filtros recibidos y entrega los dos filtros completos en cada cambio.
 export function BacklogFilters({ value, onChange }: BacklogFiltersProps) {
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:gap-8">
+    <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4 sm:flex-row sm:gap-8">
       <CheckboxGroup
         legend="Estado"
         labels={STORY_STATUS_LABELS}

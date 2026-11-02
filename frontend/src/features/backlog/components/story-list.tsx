@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@/components/loading-state";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Alert } from "@/components/alert";
@@ -27,7 +28,7 @@ type ListState =
   | { status: "error"; error: ApiError };
 
 const EMPTY_MESSAGE_CLASS_NAME =
-  "rounded-md border border-dashed border-zinc-300 px-5 py-6 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400";
+  "rounded-md border border-dashed border-border px-5 py-6 text-center text-sm text-foreground-muted";
 
 // Arma la cantidad de criterios de aceptación en singular o plural.
 function formatCriteriaCount(count: number): string {
@@ -93,11 +94,7 @@ export function StoryList({ projectId, filters }: StoryListProps) {
     );
   }
   if (state.status === "loading") {
-    return (
-      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-        Cargando historias…
-      </p>
-    );
+    return <LoadingState>Cargando historias…</LoadingState>;
   }
 
   // Vacíos: el backlog sin historias y los filtros sin coincidencias tienen mensajes distintos y
@@ -117,11 +114,14 @@ export function StoryList({ projectId, filters }: StoryListProps) {
   // cantidad de criterios y si está lista para planificar (FR-033). El título enlaza al detalle
   // de la historia (003/US3).
   return (
-    <ul aria-label="Backlog" className="flex flex-col gap-3">
+    <ul
+      aria-label="Backlog"
+      className="divide-y divide-border rounded-lg border border-border bg-surface"
+    >
       {stories.map((story) => (
         <li
           key={story.id}
-          className="flex flex-col gap-2 rounded-md border border-zinc-300 px-5 py-4 dark:border-zinc-700"
+          className="flex flex-col gap-2 px-4 py-3 transition-colors hover:bg-surface-muted"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-base font-medium break-words">
@@ -134,11 +134,13 @@ export function StoryList({ projectId, filters }: StoryListProps) {
             </h2>
             <ReadinessBadge ready={story.readyToPlan} />
           </div>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            {STORY_PRIORITY_LABELS[story.priority]} ·{" "}
-            {STORY_STATUS_LABELS[story.status]} ·{" "}
-            {formatStoryPoints(story.storyPoints, "SP")} ·{" "}
-            {formatCriteriaCount(story.acceptanceCriteriaCount)}
+          <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-foreground-muted">
+            <span>Prioridad {STORY_PRIORITY_LABELS[story.priority]}</span>{" "}
+            <span>{STORY_STATUS_LABELS[story.status]}</span>{" "}
+            <span className="tabular-nums">
+              {formatStoryPoints(story.storyPoints, "SP")}
+            </span>{" "}
+            <span>{formatCriteriaCount(story.acceptanceCriteriaCount)}</span>
           </p>
         </li>
       ))}

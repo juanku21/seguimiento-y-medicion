@@ -65,6 +65,7 @@ export function StatusActions({ project, onStatusChange }: StatusActionsProps) {
     <div className="flex flex-col gap-4">
       {error && <Alert>{error}</Alert>}
       <Button
+        variant={transition.target === "finished" ? "danger" : "primary"}
         disabled={isSubmitting}
         onClick={() => handleClick(transition.target)}
       >

@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@/components/loading-state";
 import { useEffect, useRef, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
@@ -101,11 +102,7 @@ export function CommitStoriesDialog({
     return <Alert>{backlog.message}</Alert>;
   }
   if (backlog.status === "loading") {
-    return (
-      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-        Cargando historias del backlog…
-      </p>
-    );
+    return <LoadingState>Cargando historias del backlog…</LoadingState>;
   }
 
   // Historias que se ofrecen (RN-08) y motivo de rechazo de cada una, si el backend lo informó.
@@ -121,25 +118,22 @@ export function CommitStoriesDialog({
   );
 
   return (
-    <section className="flex flex-col gap-4">
+    <section className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-5">
       <h2 className="text-lg font-semibold tracking-tight">
         Comprometer historias del backlog
       </h2>
       {error && <Alert>{error.message}</Alert>}
 
       {offered.length === 0 ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="text-sm text-foreground-muted">
           No hay historias listas para comprometer.
         </p>
       ) : (
         // Cada historia ofrecida es una casilla con su título como nombre; el motivo del rechazo
         // queda fuera de la etiqueta para no alterar ese nombre.
-        <ul className="flex flex-col gap-2">
+        <ul className="divide-y divide-border rounded-lg border border-border">
           {offered.map((story) => (
-            <li
-              key={story.id}
-              className="flex flex-col gap-1 rounded-md border border-zinc-300 px-4 py-3 dark:border-zinc-700"
-            >
+            <li key={story.id} className="flex flex-col gap-1 px-4 py-3">
               <div className="flex items-center justify-between gap-4">
                 <label className="flex items-center gap-3 text-sm font-medium">
                   <input
@@ -150,14 +144,12 @@ export function CommitStoriesDialog({
                   />
                   <span>{story.title}</span>
                 </label>
-                <span className="shrink-0 text-xs text-zinc-600 dark:text-zinc-400">
+                <span className="shrink-0 text-xs text-foreground-muted">
                   {formatStoryPoints(story.storyPoints, "SP")}
                 </span>
               </div>
               {problems.has(story.id) && (
-                <p className="text-sm text-red-700 dark:text-red-300">
-                  {problems.get(story.id)}
-                </p>
+                <p className="text-sm text-danger">{problems.get(story.id)}</p>
               )}
             </li>
           ))}

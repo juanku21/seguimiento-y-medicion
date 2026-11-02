@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@/components/loading-state";
 import { useCallback, type ReactElement } from "react";
 import { Alert } from "@/components/alert";
 import { getEstimationSession } from "@/features/poker/api";
@@ -33,11 +34,7 @@ export function ClosedSessionView({
     return <Alert>{query.message}</Alert>;
   }
   if (query.status === "loading") {
-    return (
-      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-        Cargando la sesión…
-      </p>
-    );
+    return <LoadingState>Cargando la sesión…</LoadingState>;
   }
 
   const session = query.data;
@@ -46,12 +43,12 @@ export function ClosedSessionView({
   return (
     <div className="flex flex-col gap-6">
       {/* Historia estimada y datos de apertura y cierre de la sesión. */}
-      <article className="flex flex-col gap-3 rounded-md border border-zinc-300 px-5 py-5 dark:border-zinc-700">
+      <article className="flex flex-col gap-3 rounded-lg border border-border bg-surface px-5 py-5">
         <h2 className="text-xl font-semibold break-words">
           {session.story.title}
         </h2>
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-          <dt className="text-zinc-600 dark:text-zinc-400">Abierta por</dt>
+          <dt className="text-foreground-muted">Abierta por</dt>
           <dd>
             {session.openedBy.fullName} el{" "}
             <time dateTime={session.openedAt}>
@@ -60,7 +57,7 @@ export function ClosedSessionView({
           </dd>
           {session.closedAt !== null && (
             <>
-              <dt className="text-zinc-600 dark:text-zinc-400">Cerrada por</dt>
+              <dt className="text-foreground-muted">Cerrada por</dt>
               <dd>
                 {session.closedBy?.fullName ?? "El sistema"} el{" "}
                 <time dateTime={session.closedAt}>

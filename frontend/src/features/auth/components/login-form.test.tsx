@@ -126,7 +126,7 @@ describe("001/US2 - Inicio de sesión", () => {
 
     submitLogin("ana@example.com", validPassword);
 
-    await waitFor(() => expect(navigations()).toContain("/profile"));
+    await waitFor(() => expect(navigations()).toContain("/projects"));
     const request = await sentRequest(fetchMock);
     expect(request.url.endsWith("/api/v1/auth/login")).toBe(true);
     expect(request.method).toBe("POST");
@@ -147,7 +147,7 @@ describe("001/US2 - Inicio de sesión", () => {
 
     submitLogin("  ANA@Example.com  ", validPassword);
 
-    await waitFor(() => expect(navigations()).toContain("/profile"));
+    await waitFor(() => expect(navigations()).toContain("/projects"));
     const request = await sentRequest(fetchMock);
     expect(request.body.email.trim().toLowerCase()).toBe("ana@example.com");
     expect(storedValues()).toContain(issuedToken);

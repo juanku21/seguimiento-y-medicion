@@ -1,3 +1,4 @@
+import { buttonClassName as actionClassName } from "@/components/button";
 import { useState, type ReactElement } from "react";
 import type { RoundStatus } from "@/types/poker";
 
@@ -30,10 +31,8 @@ export function FacilitatorActions({
   if (!isFacilitator) {
     return null;
   }
-  const buttonClassName =
-    "rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:outline-zinc-100";
-  const secondaryButtonClassName =
-    "rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:border-zinc-700 dark:hover:bg-zinc-800 dark:focus-visible:outline-zinc-100";
+  const buttonClassName = actionClassName("primary");
+  const secondaryButtonClassName = actionClassName("secondary");
 
   // Confirma la cancelación pedida: cierra la pregunta y pide la cancelación una sola vez.
   const handleConfirmCancel = () => {
@@ -72,7 +71,7 @@ export function FacilitatorActions({
       {/* Confirmación previa: la cancelación no se puede deshacer, así que se pregunta antes de
           pedirla. */}
       {onCancel !== undefined && confirmingCancel && (
-        <div className="flex flex-col gap-3 rounded-md border border-zinc-300 px-4 py-4 dark:border-zinc-700">
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 py-4">
           <p className="text-sm font-medium">
             ¿Cancelar la sesión sin registrar estimación?
           </p>

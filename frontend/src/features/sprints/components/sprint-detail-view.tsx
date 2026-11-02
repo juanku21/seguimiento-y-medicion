@@ -1,5 +1,7 @@
 "use client";
 
+import { buttonClassName } from "@/components/button";
+import { LoadingState } from "@/components/loading-state";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Alert } from "@/components/alert";
@@ -63,11 +65,7 @@ export function SprintDetailView({ sprintId }: SprintDetailViewProps) {
     return <Alert>{state.message}</Alert>;
   }
   if (state.status === "loading") {
-    return (
-      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-        Cargando sprint…
-      </p>
-    );
+    return <LoadingState>Cargando sprint…</LoadingState>;
   }
 
   const { sprint } = state;
@@ -78,9 +76,9 @@ export function SprintDetailView({ sprintId }: SprintDetailViewProps) {
     <div className="flex flex-col gap-8">
       {/* Datos del sprint: nombre, estado, Sprint Goal, fechas previstas y, si está Activo, los
           días restantes o vencidos. */}
-      <section className="flex flex-col gap-1">
+      <section className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-5">
         <h2 className="text-xl font-semibold tracking-tight">{sprint.name}</h2>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="text-sm text-foreground-muted">
           {SPRINT_STATUS_LABELS[sprint.status]} · {formatDate(sprint.startDate)}{" "}
           al {formatDate(sprint.endDate)}
         </p>
@@ -88,19 +86,21 @@ export function SprintDetailView({ sprintId }: SprintDetailViewProps) {
         <SprintSchedule sprint={sprint} />
       </section>
 
-      <SprintLifecycleActions sprint={sprint} onChanged={showSprint} />
+      <div className="flex flex-wrap items-start gap-3">
+        <SprintLifecycleActions sprint={sprint} onChanged={showSprint} />
 
-      {/* Modificación: solo en un sprint Planificado (FR-012, FR-016). */}
-      {sprint.status === "planned" && (
-        <Link
-          href={`/projects/${encodeURIComponent(sprint.projectId)}/sprints/${encodeURIComponent(sprint.id)}/edit`}
-          className="self-start text-sm font-medium underline underline-offset-4"
-        >
-          Editar sprint
-        </Link>
-      )}
+        {/* Modificación: solo en un sprint Planificado (FR-012, FR-016). */}
+        {sprint.status === "planned" && (
+          <Link
+            href={`/projects/${encodeURIComponent(sprint.projectId)}/sprints/${encodeURIComponent(sprint.id)}/edit`}
+            className={buttonClassName("secondary")}
+          >
+            Editar sprint
+          </Link>
+        )}
 
-      <DeleteSprintButton sprint={sprint} />
+        <DeleteSprintButton sprint={sprint} />
+      </div>
 
       <SprintResults sprint={sprint} />
 

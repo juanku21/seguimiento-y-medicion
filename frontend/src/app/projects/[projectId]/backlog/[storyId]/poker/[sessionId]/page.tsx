@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { SessionGuard } from "@/features/auth/components/session-guard";
 import { PokerRoom } from "@/features/poker/components/poker-room";
 
@@ -19,19 +18,13 @@ export default async function PokerSessionPage({
 }: {
   params: Promise<{ projectId: string; storyId: string; sessionId: string }>;
 }) {
-  const { projectId, storyId, sessionId } = await params;
+  const { sessionId } = await params;
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-6 px-6 py-16">
+    <main className="flex w-full max-w-7xl flex-1 flex-col gap-6">
       <h1 className="text-2xl font-semibold tracking-tight">Planning Poker</h1>
       <SessionGuard>
         <div className="flex flex-col gap-6">
-          <Link
-            href={`/projects/${projectId}/backlog/${storyId}`}
-            className="self-start text-sm font-medium underline underline-offset-4"
-          >
-            Volver a la historia
-          </Link>
           <PokerRoom sessionId={sessionId} />
         </div>
       </SessionGuard>

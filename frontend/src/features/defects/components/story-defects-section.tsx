@@ -1,5 +1,7 @@
 "use client";
 
+import { buttonClassName } from "@/components/button";
+import { LoadingState } from "@/components/loading-state";
 import Link from "next/link";
 import { useCallback, useId, type ReactElement } from "react";
 import { Alert } from "@/components/alert";
@@ -25,25 +27,26 @@ export function StoryDefectsSection({
   const query = useAuthorizedQuery(load);
 
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-4">
+    <section
+      aria-labelledby={headingId}
+      className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-5"
+    >
       <h2 id={headingId} className="text-lg font-semibold tracking-tight">
         Defectos
       </h2>
       {query.status === "loading" && (
-        <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-          Cargando defectos…
-        </p>
+        <LoadingState>Cargando defectos…</LoadingState>
       )}
       {query.status === "error" && <Alert>{query.message}</Alert>}
       {query.status === "loaded" && query.data.defects.length === 0 && (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="text-sm text-foreground-muted">
           {DEFECT_EMPTY_REASON_LABELS.no_defects}
         </p>
       )}
       {query.status === "loaded" && query.data.defects.length > 0 && (
         <ul
           aria-label="Defectos de la historia"
-          className="flex flex-col gap-3"
+          className="divide-y divide-border rounded-lg border border-border"
         >
           {query.data.defects.map((defect) => (
             <DefectRow key={defect.id} defect={defect} showStory={false} />
@@ -52,7 +55,7 @@ export function StoryDefectsSection({
       )}
       <Link
         href={`/projects/${projectId}/defects/new?storyId=${storyId}`}
-        className="self-start text-sm font-medium underline underline-offset-4"
+        className={buttonClassName("secondary")}
       >
         Registrar defecto
       </Link>

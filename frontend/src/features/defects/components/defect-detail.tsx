@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@/components/loading-state";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Alert } from "@/components/alert";
@@ -60,11 +61,7 @@ export function DefectDetail({ defectId }: DefectDetailProps) {
     return <Alert>{state.message}</Alert>;
   }
   if (state.status === "loading") {
-    return (
-      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-        Cargando defecto…
-      </p>
-    );
+    return <LoadingState>Cargando defecto…</LoadingState>;
   }
 
   const { defect } = state;
@@ -72,14 +69,14 @@ export function DefectDetail({ defectId }: DefectDetailProps) {
   return (
     <div className="flex flex-col gap-8">
       {/* Datos del defecto: estado y severidad, descripción y la lista de vínculos y autoría. */}
-      <section className="flex flex-col gap-3">
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+      <section className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-5">
+        <p className="text-sm text-foreground-muted">
           {DEFECT_STATUS_LABELS[defect.status]} · Severidad{" "}
           {DEFECT_SEVERITY_LABELS[defect.severity]}
         </p>
         <p className="text-sm whitespace-pre-wrap">{defect.description}</p>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-          <dt className="font-medium">Historia</dt>
+        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
+          <dt className="text-foreground-muted">Historia</dt>
           <dd>
             <Link
               href={`/projects/${encodeURIComponent(defect.projectId)}/backlog/${encodeURIComponent(defect.story.id)}`}
@@ -88,15 +85,15 @@ export function DefectDetail({ defectId }: DefectDetailProps) {
               {defect.story.title}
             </Link>
           </dd>
-          <dt className="font-medium">Sprint de detección</dt>
+          <dt className="text-foreground-muted">Sprint de detección</dt>
           <dd>{defect.detectedSprint.name}</dd>
-          <dt className="font-medium">Sprint de resolución</dt>
+          <dt className="text-foreground-muted">Sprint de resolución</dt>
           <dd>{defect.resolvedSprint?.name ?? "Sin resolver"}</dd>
-          <dt className="font-medium">Registrado por</dt>
+          <dt className="text-foreground-muted">Registrado por</dt>
           <dd>
             {defect.createdBy.fullName} el {formatDate(defect.createdAt)}
           </dd>
-          <dt className="font-medium">Último cambio de estado</dt>
+          <dt className="text-foreground-muted">Último cambio de estado</dt>
           <dd>
             {defect.statusChangedBy.fullName} el{" "}
             {formatDate(defect.statusChangedAt)}
@@ -115,7 +112,7 @@ export function DefectDetail({ defectId }: DefectDetailProps) {
           />
 
           {/* Corrección de los datos del defecto; el defecto devuelto reemplaza al mostrado. */}
-          <section className="flex flex-col gap-3">
+          <section className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-5">
             <h2 className="text-lg font-semibold">Corregir datos</h2>
             <DefectEditForm
               defect={defect}

@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { buttonClassName } from "@/components/button";
 import { SessionGuard } from "@/features/auth/components/session-guard";
 import { ProjectList } from "@/features/projects/components/project-list";
 
@@ -12,8 +14,13 @@ export const metadata: Metadata = {
 // muestra el listado únicamente cuando hay una sesión vigente, igual que la pantalla de creación.
 export default function ProjectsPage() {
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-6 px-6 py-16">
-      <h1 className="text-2xl font-semibold tracking-tight">Mis proyectos</h1>
+    <main className="flex w-full flex-1 flex-col gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold tracking-tight">Mis proyectos</h1>
+        <Link href="/projects/new" className={buttonClassName("primary")}>
+          Nuevo proyecto
+        </Link>
+      </div>
       <SessionGuard>
         <ProjectList />
       </SessionGuard>

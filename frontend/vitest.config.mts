@@ -11,6 +11,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     passWithNoTests: true,
+    setupFiles: ["./vitest.setup.ts"],
     // Con la corrida completa y la cobertura activa, jsdom y recharts
     // saturan la CPU y algunas pruebas asíncronas superan el tiempo por
     // defecto (5 s). Se amplía el límite para estabilizar la suite.

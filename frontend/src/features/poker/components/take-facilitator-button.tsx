@@ -1,3 +1,4 @@
+import { LoadingState } from "@/components/loading-state";
 import { useEffect, useState, type ReactElement } from "react";
 
 // Propiedades del botón para tomar el rol de facilitador: el momento a partir del cual el rol queda
@@ -53,17 +54,17 @@ export function TakeFacilitatorButton({
   }
   if (remainingMs > 0) {
     return (
-      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
+      <LoadingState>
         El rol de facilitador queda disponible en {formatRemaining(remainingMs)}
         .
-      </p>
+      </LoadingState>
     );
   }
   return (
     <button
       type="button"
       onClick={onTake}
-      className="self-start rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:outline-zinc-100"
+      className="self-start rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
     >
       Tomar el rol
     </button>

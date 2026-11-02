@@ -1,5 +1,6 @@
 "use client";
 
+import { buttonClassName } from "@/components/button";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, type ReactElement } from "react";
@@ -49,16 +50,13 @@ function OpenSessionNotice({
   href: string;
 }): ReactElement {
   return (
-    <div className="flex flex-col gap-1 rounded-md border border-zinc-300 px-4 py-3 text-sm dark:border-zinc-700">
+    <div className="flex flex-col gap-1 rounded-lg border border-border bg-surface px-4 py-3 text-sm">
       <p className="font-medium">Sesión en curso</p>
       <p>Facilitador: {session.facilitator.fullName}</p>
       <p>
         Ronda {session.roundNumber} ({ROUND_STATUS_LABELS[session.roundStatus]})
       </p>
-      <Link
-        href={href}
-        className="self-start font-medium underline underline-offset-4"
-      >
+      <Link href={href} className={buttonClassName("secondary")}>
         Unirse
       </Link>
     </div>
@@ -78,7 +76,7 @@ function SessionSummaryItem({
   timeZone: string;
 }): ReactElement {
   return (
-    <li className="flex flex-col gap-1 rounded-md border border-zinc-300 px-4 py-3 text-sm dark:border-zinc-700">
+    <li className="flex flex-col gap-1 rounded-lg border border-border bg-surface px-4 py-3 text-sm">
       <p className="font-medium">
         {SESSION_STATUS_LABELS[session.status]}
         {session.agreedStoryPoints !== null &&
@@ -88,7 +86,7 @@ function SessionSummaryItem({
         <p>{CANCEL_REASON_LABELS[session.cancelReason]}</p>
       )}
       <p>{roundCountLabel(session.roundCount)}</p>
-      <p className="text-zinc-600 dark:text-zinc-400">
+      <p className="text-foreground-muted">
         Abierta por {session.openedBy.fullName} el{" "}
         <time dateTime={session.openedAt}>
           {formatInstant(session.openedAt, timeZone)}
@@ -98,10 +96,7 @@ function SessionSummaryItem({
           {formatInstant(session.closedAt, timeZone)}
         </time>
       </p>
-      <Link
-        href={href}
-        className="self-start font-medium underline underline-offset-4"
-      >
+      <Link href={href} className={buttonClassName("secondary")}>
         Ver sesión
       </Link>
     </li>
@@ -154,7 +149,7 @@ export function StoryEstimationSection({
   return (
     <section
       aria-labelledby="planning-poker-title"
-      className="flex flex-col gap-3"
+      className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-5"
     >
       <h2 id="planning-poker-title" className="text-lg font-semibold">
         Planning Poker
@@ -183,9 +178,7 @@ export function StoryEstimationSection({
       {/* Historial de estimación: la sesión en curso, las sesiones cerradas o la indicación de que
           la historia no tiene sesiones; un fallo de la consulta se informa como texto. */}
       {history.status === "error" && (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          {history.message}
-        </p>
+        <p className="text-sm text-foreground-muted">{history.message}</p>
       )}
       {history.status === "loaded" && (
         <>
@@ -211,7 +204,7 @@ export function StoryEstimationSection({
             </ul>
           )}
           {history.data.emptyReason === "no_sessions" && (
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            <p className="text-sm text-foreground-muted">
               La historia no tiene sesiones de estimación.
             </p>
           )}

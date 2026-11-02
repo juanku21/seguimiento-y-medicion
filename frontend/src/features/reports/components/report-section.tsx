@@ -21,7 +21,7 @@ function ReportBlock({ block }: { block: BlockView }) {
       {block.message !== null &&
         (block.heading !== null ? (
           // Un grupo sin datos lleva su aviso como nota.
-          <p role="note" className="text-sm text-zinc-600 dark:text-zinc-400">
+          <p role="note" className="text-sm text-foreground-muted">
             {block.message}
           </p>
         ) : (
@@ -29,14 +29,14 @@ function ReportBlock({ block }: { block: BlockView }) {
         ))}
       {table !== null && (
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left text-sm">
+          <table className="w-full border-collapse text-left text-sm tabular-nums">
             <thead>
               <tr>
                 {table.columns.map((column) => (
                   <th
                     key={column}
                     scope="col"
-                    className="border-b border-zinc-300 px-3 py-2 font-medium dark:border-zinc-700"
+                    className="border-b border-border px-3 py-2 font-medium text-foreground-muted"
                   >
                     {column}
                   </th>
@@ -49,7 +49,7 @@ function ReportBlock({ block }: { block: BlockView }) {
                   {row.map((cell, cellIndex) => (
                     <td
                       key={cellIndex}
-                      className="border-b border-zinc-200 px-3 py-2 break-words dark:border-zinc-800"
+                      className="border-b border-border px-3 py-2 break-words"
                     >
                       {cell}
                     </td>
@@ -82,7 +82,7 @@ export function ReportSection({ section, children }: ReportSectionProps) {
   return (
     <section
       aria-labelledby={titleId}
-      className="flex flex-col gap-4 rounded-md border border-zinc-300 px-5 py-4 dark:border-zinc-700"
+      className="flex flex-col gap-4 rounded-lg border border-border bg-surface px-5 py-4"
     >
       <h3 id={titleId} className="text-lg font-semibold">
         {section.title}
@@ -93,8 +93,8 @@ export function ReportSection({ section, children }: ReportSectionProps) {
           role={unavailable ? "alert" : "note"}
           className={
             unavailable
-              ? "text-sm text-red-700 dark:text-red-400"
-              : "text-sm text-zinc-600 dark:text-zinc-400"
+              ? "text-sm text-danger"
+              : "text-sm text-foreground-muted"
           }
         >
           {section.message}

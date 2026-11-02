@@ -21,7 +21,7 @@ type FormFieldProps = FieldProps & {
 
 // Estilos comunes a los controles de texto, que cada campo completa con su alto y su relleno.
 export const FIELD_CONTROL_CLASS_NAME =
-  "rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-zinc-900 aria-invalid:border-red-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
+  "rounded-md border border-border-strong bg-surface px-3 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus aria-invalid:border-danger";
 
 // Etiqueta, indicación y error de un campo de formulario. Entrega al control los atributos que lo
 // asocian con la indicación y el error mediante aria-describedby, y lo marca con aria-invalid
@@ -45,12 +45,12 @@ export function FormField({ label, hint, error, children }: FormFieldProps) {
         "aria-invalid": error ? true : undefined,
       })}
       {hint && (
-        <p id={hintId} className="text-xs text-zinc-600 dark:text-zinc-400">
+        <p id={hintId} className="text-xs text-foreground-muted">
           {hint}
         </p>
       )}
       {error && (
-        <p id={errorId} className="text-xs text-red-700 dark:text-red-400">
+        <p id={errorId} className="text-xs text-danger">
           {error}
         </p>
       )}

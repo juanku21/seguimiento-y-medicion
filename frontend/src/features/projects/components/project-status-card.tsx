@@ -26,10 +26,8 @@ function formatStoryCount(count: number): string {
 function DataRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <dt className="text-xs font-medium tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
-        {label}
-      </dt>
-      <dd className="text-sm text-zinc-900 dark:text-zinc-100">{children}</dd>
+      <dt className="text-xs font-medium text-foreground-muted">{label}</dt>
+      <dd className="text-sm text-foreground">{children}</dd>
     </div>
   );
 }
@@ -48,23 +46,23 @@ export function ProjectStatusCard({
   return (
     <section
       aria-label="Estado del proyecto"
-      className="flex flex-col gap-5 rounded-md border border-zinc-300 px-5 py-5 dark:border-zinc-700"
+      className="flex flex-col gap-5 rounded-lg border border-border bg-surface px-5 py-5"
     >
       {/* Encabezado: nombre, estado en español, marca de solo lectura y descripción. */}
       <header className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-lg font-semibold break-words">{project.name}</h2>
-          <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+          <span className="rounded-full bg-surface-muted px-2.5 py-0.5 text-xs font-medium text-foreground-muted">
             {PROJECT_STATUS_LABELS[project.status]}
           </span>
           {project.readOnly && (
-            <span className="rounded-full border border-zinc-300 px-2.5 py-0.5 text-xs font-medium text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
+            <span className="rounded-full border border-border px-2.5 py-0.5 text-xs font-medium text-foreground-muted">
               Proyecto de solo lectura
             </span>
           )}
         </div>
         {project.description && (
-          <p className="text-sm break-words text-zinc-600 dark:text-zinc-400">
+          <p className="text-sm break-words text-foreground-muted">
             {project.description}
           </p>
         )}
@@ -104,7 +102,7 @@ export function ProjectStatusCard({
 
       {/* Backlog: total de historias, reparto por estado y totales estimados. Un proyecto sin
           historias muestra los contadores en cero (FR-044). */}
-      <div className="flex flex-col gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+      <div className="flex flex-col gap-3 border-t border-border pt-4">
         <h3 className="text-sm font-medium">
           Backlog: {formatStoryCount(totalStories)} en total
         </h3>
@@ -116,7 +114,7 @@ export function ProjectStatusCard({
             {stateEntries.map(([state, count]) => (
               <li
                 key={state}
-                className="rounded-md bg-zinc-100 px-3 py-1 text-sm text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                className="rounded-md bg-surface-muted px-3 py-1 text-sm text-foreground-muted"
               >
                 {backlogStateLabels[state] ?? state}:{" "}
                 <span className="font-medium tabular-nums">{count}</span>
@@ -124,13 +122,13 @@ export function ProjectStatusCard({
             ))}
           </ul>
         )}
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="text-sm text-foreground-muted">
           Estimado:{" "}
-          <span className="font-medium text-zinc-900 tabular-nums dark:text-zinc-100">
+          <span className="font-medium text-foreground tabular-nums">
             {backlog.estimatedStoryPoints} Story Points
           </span>{" "}
           ·{" "}
-          <span className="font-medium text-zinc-900 tabular-nums dark:text-zinc-100">
+          <span className="font-medium text-foreground tabular-nums">
             {numberFormat.format(backlog.estimatedHours)} horas
           </span>
         </p>
